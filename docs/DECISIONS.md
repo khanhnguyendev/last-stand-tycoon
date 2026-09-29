@@ -648,3 +648,47 @@ versions.
   (art/audio/onboarding)".
 - A loop problem means revisiting the design before S2.
 - A presentation-only problem does not block S2; it becomes input to S4 and S5.
+
+## 2026-09-30: S1 plan write-up (details fixed while writing the plan)
+
+**D-108 RNG hash is FNV-1a 32 (amends D-097).** GDScript ints are 64-bit, and the FNV-1a 64 multiply
+overflows (undefined in the engine's C++). The 32-bit variant, masked with `& 0xFFFFFFFF`, never
+overflows. A 32-bit seed is plenty for the streams.
+
+**D-109 Extra EventBus signals.** The plan needs five signals the spec's list lacks:
+- `stocks_changed()`: freezer, carried, counter or gold_pile changed. Listeners re-read GameState.
+- `closeup_requested()`: the sign asks PhaseController to start the night.
+- `banner_requested(text: String)`: PhaseController asks the HUD for a banner.
+- `wave_incoming(wave_index: int, main_lane: StringName, side_lane: StringName)`: the edge arrows
+  show from the breather start.
+- `wave_spawned_out(wave_index: int)`: the arrows hide after the last spawn.
+
+`state_restored` is also emitted by `GameState.new_game()`, meaning "GameState was replaced
+wholesale".
+
+**D-110 PhaseController is the one orchestrator.** It holds injected references to WaveDirector,
+TravelerSpawner, the pools and the hero, and calls them directly, so the ordering of the dawn and
+close-up steps is explicit and testable. This is the only exception to spec 3.7's "no system
+reaches into another's nodes".
+
+**D-111 Enemy lateral offset blends into the zone (refines D-093).**
+- Over the last `EnemyBalance.offset_fade_distance` (3.0 m) of the path, the perpendicular offset
+  blends linearly onto the zone's width axis (z for west and east, x for north).
+- The stop point is therefore always inside the zone rectangle (test D), and the path keeps
+  ≥ 1.5 m from the towers and ≥ reach from the diner (test E).
+
+**D-112 Collider and bot geometry.**
+- The tower collider radius is 0.5 m and the hero radius 0.4 m.
+- The bots' stand points for the tower spots are 1.06 m out from the tower center, away from the
+  diner.
+- The bot waypoints are the diner corners at (±7, −7) and (±6.8, 6.8), plus `front_e` (3, 6.5).
+- The camera focus is clamped to x ∈ [−17, 17], z ∈ [−20, 8].
+
+**D-113 Sims read the diner result without new state.** The harness tracks the lowest `hp_left`
+seen on `diner_damaged` during a night. That equals the HP at dawn, since HP only drops at night.
+
+**D-114 Balance defaults live in the resource scripts.** The `.tres` files only reference the
+scripts. Tuning edits the script defaults, which keeps the diffs readable.
+
+**D-115 Debug hotkeys.** G: +100 gold. J: skip to DAY. N: skip to NIGHT. K: kill all. F: force the
+diner to fall. Debug builds only.
