@@ -586,9 +586,9 @@ most readable first threat. Every other wave's lanes come from the `lane_plan` s
 passed to `RandomNumberGenerator.seed`. Why: Godot's `hash()` isn't guaranteed stable across
 versions.
 
-**D-098 Infra folders outside the D-032 game layout.**
+**D-098 Infra folders outside the D-032 game layout (confirmed by author).**
 - `addons/` (third-party, GUT only), `export/` (the web shell HTML), `.github/` (CI) and `docs/`.
-- None of them contain game code. Author to confirm.
+- None of them contain game code. Confirmed by the author, and recorded in the CLAUDE.md layout section.
 
 **D-099 How the overlays load.**
 - The debug overlay is loaded with `load()` only when `OS.is_debug_build()`, never with `preload`, so
@@ -606,3 +606,45 @@ versions.
   z ∈ [−1.5, 1.5]; north and east follow the same pattern.
 - The path ends on the reach line. Lateral offsets may put a stop point anywhere inside the band.
 - Test A's radius (5.41) is unchanged, because the far corners set it.
+
+## 2026-09-30: spec review
+
+**D-102 Spec-time details confirmed (author).**
+- D-090, D-091, D-092, D-094 and D-095 are confirmed.
+- ParkedBot stays a negative control; test A remains the formal guarantee.
+- The hero walks through fences, but enemies are still blocked until the fence is destroyed.
+
+**D-103 Balance tuning timebox and priority (author).**
+- 2 working days of sim-driven tuning. If the targets conflict, this is the priority:
+  1. Night 1, NaiveBot ≥ 50%: must hold.
+  2. Night 2, PlannerBot ≥ 60%: must hold.
+  3. Night 2, NaiveBot ≤ 30%: may relax to ≤ 45%, with the relaxation logged.
+- If 1 and 2 can't both hold, stop and escalate with the sweep data. No design changes by the
+  implementer.
+
+**D-104 Spike first (author).**
+- The plan's Task 0 is a fail-fast spike over spec Appendix B, timeboxed to half a day. The
+  pre-agreed fallbacks:
+
+  | Finding | Fallback |
+  |---|---|
+  | GUT broken on 4.7 | gdUnit4, or a minimal custom headless runner |
+  | `--fixed-fps` not stepping as expected | `Engine.time_scale` |
+  | Safe area not reported on web | CSS `env()` through `JavaScriptBridge` |
+  | Plain-http LAN breaks something | Phone tests only through the itch.io draft |
+
+- Each result is logged as a decision before Task 1 starts.
+
+**D-105 Cross-platform sim policy (author).**
+- Determinism tests compare two runs on the same machine, in the same process.
+- Pass/fail sims assert thresholds only, never exact outcomes.
+- CI (Linux) is canonical for sim thresholds. If a local run disagrees with CI, CI wins; investigate
+  only when the difference exceeds 5 percentage points of diner HP.
+
+**D-106 Perf and load are recorded, not blocking (author).** They are carried as S6 risks.
+
+**D-107 Gate answers are tagged (author).**
+- Each playtest answer in the results section is tagged "loop" or "presentation
+  (art/audio/onboarding)".
+- A loop problem means revisiting the design before S2.
+- A presentation-only problem does not block S2; it becomes input to S4 and S5.
