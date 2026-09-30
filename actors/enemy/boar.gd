@@ -1,0 +1,107 @@
+class_name Boar
+extends Node3D
+## The one S1 monster (spec 7.2). Moved in code along its lane; never uses physics.
+
+var lane := ""
+var spawn_index := -1
+## Increments on every spawn; projectiles/attackers compare it to detect pool reuse across nights (Review Focus 2).
+var generation := 0
+var dist := 0.0
+var offset := 0.0
+var alive := false
+var health: Health
+var targetable: Targetable
+var visual: Node3D
+var current_target: Dictionary = {}
+var _mesh: MeshInstance3D
+var _length := 0.0
+var _attack_timer := 0.0
+var _director: Object
+var _death_tween: Tween
+
+func _init() -> void:
+	name = "Boar"
+	health = Health.new()
+	add_child(health)
+	health.died.connect(_on_died)
+	targetable = Targetable.new()
+	targetable.kind = &"enemy"
+	add_child(targetable)
+	visual = Visuals.visual_root()
+	_mesh = Visuals.capsule(0.35, 1.0, Visuals.COLORS.boar)
+	_mesh.position.y = 0.5
+	visual.add_child(_mesh)
+	add_child(visual)
+
+func spawn(p_lane: String, p_index: int, p_offset: float, hp_mult: float, director: Object) -> void:
+	generation += 1
+	lane = p_lane
+	spawn_index = p_index
+	targetable.spawn_index = p_index
+	offset = p_offset
+	_director = director
+	dist = 0.0
+	_attack_timer = 0.0
+	current_target = {}
+	_length = MapLayout.path_length(lane)
+	health.reset(Balance.data.enemy.hp * hp_mult)
+	visual.scale = Vector3.ONE
+	alive = true
+	_update_position()
+
+func path_length() -> float:
+	return _length
+
+func at_path_end() -> bool:
+	return dist >= _length - 1e-4
+
+func _physics_process(delta: float) -> void:
+	if not alive:
+		return
+	var eb := Balance.data.enemy
+	current_target = _director.providers.find_target(self)
+	if current_target.is_empty():
+		_attack_timer = 0.0
+		var step := eb.speed * delta
+		var next := minf(dist + step, _length)
+		# do not walk past a standing fence's stop point in one tick
+		if _director.providers.has_kind(&"fence_on_lane") and dist <= TargetProviders.fence_stop_dist(self):
+			next = minf(next, TargetProviders.fence_stop_dist(self))
+		dist = next
+		_update_position()
+		return
+	_attack_timer += delta
+	if _attack_timer >= eb.attack_interval - 1e-6:
+		_attack_timer -= eb.attack_interval
+		match current_target.kind:
+			&"fence_on_lane":
+				GameState.damage_fence(current_target.spot_id, eb.damage)
+			&"diner":
+				GameState.damage_diner(eb.damage)
+
+func take_hit(amount: float) -> void:
+	if alive:
+		health.damage(amount)
+
+func candidate() -> Dictionary:
+	return {"position": global_position, "spawn_index": spawn_index, "ref": self}
+
+func play_death(pool: NodePool) -> void:
+	_death_tween = create_tween()
+	_death_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
+	_death_tween.tween_property(visual, "scale", Vector3(0.01, 0.01, 0.01), 0.15)
+	_death_tween.tween_callback(pool.release.bind(self))
+
+func on_release() -> void:
+	alive = false
+	if _death_tween != null and _death_tween.is_valid():
+		_death_tween.kill()
+	_death_tween = null
+
+func _on_died() -> void:
+	alive = false
+	_director.on_enemy_died(self)
+
+func _update_position() -> void:
+	var p := EnemyPath.position_at(lane, dist, offset, Balance.data.enemy.offset_fade_distance)
+	position = MapLayout.to3(p)
