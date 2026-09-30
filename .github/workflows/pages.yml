@@ -142,6 +142,24 @@ jobs:
           fi
 
           if [ -f project.godot ] && [ -f export_presets.cfg ] && grep -q 'name="web_release"' export_presets.cfg; then
+            # D-157: boot an exported pack headless with the (debug) editor binary; the web release
+            # template hides script errors, so a broken pack would otherwise ship silently.
+            boot_check() {
+              local log="$RUNNER_TEMP/boot_$1.log"
+              local rc=0
+              [ -s "$2" ] || { echo "::error::$1 pack missing: $2"; exit 1; }
+              # --fixed-fps 60: 120 iterations = 2 s of game time on any runner
+              "$GODOT" --headless --fixed-fps 60 --main-pack "$2" --quit-after 120 > "$log" 2>&1 || rc=$?
+              if [ "$rc" != "0" ]; then
+                tail -40 "$log"
+                echo "::error::$1 pack exited with $rc at boot"
+                exit 1
+              fi
+              if grep -E "SCRIPT ERROR|Invalid access|Parse Error|Failed loading resource|Cannot open" "$log"; then
+                echo "::error::$1 pack logs script or resource errors at boot (see above)"
+                exit 1
+              fi
+            }
             "$GODOT" --headless --path . --import || true
             "$GODOT" --headless --path . --export-release "web_release" "$OUT/index.html"
             # release safety: no debug UI may ship in the release pack
@@ -150,6 +168,7 @@ jobs:
               echo "::error::release pack contains ui/debug ($DEBUG_HITS matches)"
               exit 1
             fi
+            boot_check release "$OUT/index.pck"
             if grep -q 'name="web_profile"' export_presets.cfg; then
               mkdir -p "$OUT/profile"
               "$GODOT" --headless --path . --export-release "web_profile" "$OUT/profile/index.html"
@@ -158,6 +177,13 @@ jobs:
                 echo "::error::profile pack contains ui/debug ($PROFILE_HITS matches)"
                 exit 1
               fi
+              boot_check profile "$OUT/profile/index.pck"
+            fi
+            # debug build (debug overlay, fade-alpha button) at <path>/debug/; never the release root
+            if grep -q 'name="web_debug"' export_presets.cfg; then
+              mkdir -p "$OUT/debug"
+              "$GODOT" --headless --path . --export-debug "web_debug" "$OUT/debug/index.html"
+              boot_check debug "$OUT/debug/index.pck"
             fi
           else
             esc() { printf '%s' "$1" | sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g'; }
