@@ -14,9 +14,17 @@ static func create(p_auto_start := false) -> Main:
 	return m
 
 var hero: Hero
+var joystick: Joystick
 
 func _ready() -> void:
 	hero = Hero.new()
 	add_child(hero)
 	hero.setup(world)
 	hero.teleport(MapLayout.HOME)
+	var input_layer := CanvasLayer.new()
+	input_layer.name = "InputLayer"
+	input_layer.layer = 5
+	add_child(input_layer)
+	joystick = Joystick.new()
+	input_layer.add_child(joystick)
+	joystick.setup(hero.input)
