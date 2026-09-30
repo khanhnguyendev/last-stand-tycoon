@@ -1203,12 +1203,16 @@ falls and the night restarts identically.
   hits land inside, with 5 m of headroom); lane visibility ≥ 2.0 s at 9:21, 9:16, 16:9 and 21:9; the
   projection matches a real `Camera3D` in the clamped branches.
 
-**D-155 Sweep break day: 6 (Task 25; DoD 4).**
-- PlannerBot, seed 20260930, default balance, with the D-154 purchase order. The run breaks at
-  day 6: the diner falls three times in a row, and the retries replay identically.
-- Diner HP left at dawn by day: 0.667, 1.000, 0.600, 0.617, 0.383, then the break.
-- Gold earned per day: 108 / 144 / 186 / 216 / 258. Unspent at close-up: 8 / 32 / 38 / 34 / 12.
-- Before D-154 the run broke at day 3, because the bot never built `tower_ne`.
-- Finding for Task 35: the measured steaks per night are about 83% of `kills × steaks_per_kill`
-  (30 of 36 on day 1). Some drops aren't picked up before dawn, so the economy runs below its
-  paper value. Check magnet reach and drop scatter against the bot's routes before tuning numbers.
+**D-155 Sweep break day: 8 (Task 25; DoD 4).**
+- PlannerBot, seed 20260930, default balance, D-154 purchase order (towers before fences on
+  upgrades). The run breaks at day 8: the diner falls three times in a row, and the retries replay
+  identically.
+- Diner HP left at dawn, days 1–7: 0.667, 1.000, 0.833, 0.750, 0.483, 0.883, 0.467, then the
+  break.
+- Economy: gold earned 108 / 144 / 186 / 216 / 258 / 300 / 336. Unspent at close-up
+  8 / 32 / 38 / 34 / 12 / 32 / 28. Steaks equal kills × `steaks_per_kill` every night (freezer plus
+  carried), and every steak was sold.
+- History: with the plan's original order (`tower_ne` never built) the run broke at day 3; with
+  fence-first upgrades, at day 6.
+- (Correction: an earlier draft of this entry said only about 83% of steaks were picked up. That
+  was a measurement error: the 6 carried steaks weren't counted. Nothing is lost.)

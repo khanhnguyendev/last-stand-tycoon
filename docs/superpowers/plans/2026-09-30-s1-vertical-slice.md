@@ -7948,23 +7948,40 @@ func test_unbuilt_tower_ne_competes() -> void:
 	_build("tower_ne")
 	assert_eq(bot.next_purchase(), "fence_e")
 
+func test_tower_score_is_max_not_sum() -> void:
+	# threat west 7, north 5 (4 main + 1 side), east 10. Side lane north -> fence_n, then the adjacent tower
+	# with the higher threat (tower_ne: max(north 5, east 10) = 10, not tower_nw: 7).
+	GameState.lane_plan = [
+		{"main": "west", "side": "", "main_count": 7, "side_count": 0, "hp_mult": 1.0},
+		{"main": "north", "side": "", "main_count": 4, "side_count": 0, "hp_mult": 1.0},
+		{"main": "east", "side": "north", "main_count": 10, "side_count": 1, "hp_mult": 1.0}]
+	GameState.add_gold(1000)
+	assert_eq(bot.next_purchase(), "fence_n")
+	_build("fence_n")
+	assert_eq(bot.next_purchase(), "tower_ne")
+	_build("tower_ne")
+	# step 3: fence_e scores 10, tower_nw max(7, 5) = 7 (summed it would be 12 and jump ahead of fence_e)
+	assert_eq(bot.next_purchase(), "fence_e")
+	_build("fence_e")
+	assert_eq(bot.next_purchase(), "tower_nw", "tower_nw (7) ties fence_w (7): SPOT_IDS order")
+
 func test_upgrade_highest_threat_lane_first() -> void:
 	_plan("east", 10, "west", 3)
-	GameState.add_gold(1000)
+	GameState.add_gold(2000)
 	for id in ["fence_w", "tower_nw", "tower_ne", "fence_e"]:
 		_build(id)
-	# everything with threat is built: upgrade next to the east lane, cheapest affordable first
-	var expect := ""
-	var best := 0
-	for id in ["tower_ne", "fence_e"]:
-		var rem := GameState.remaining_cost(id)
-		if expect == "" or rem < best:
-			expect = id
-			best = rem
-	assert_eq(bot.next_purchase(), expect)
-	# with only fence_e's price in hand the choice is still an east spot
-	GameState.gold = GameState.remaining_cost("fence_e")
+	# upgrades next to the east lane, towers before fences even though the fence is cheaper
+	assert_lt(GameState.remaining_cost("fence_e"), GameState.remaining_cost("tower_ne"))
+	assert_eq(bot.next_purchase(), "tower_ne")
+	GameState.gold = 40  # the tower's upgrade (80) is out of reach, the fence's (40) is not
 	assert_eq(bot.next_purchase(), "fence_e")
+	# fall-through: east exhausted, the next lane by threat is west
+	for id in ["tower_ne", "fence_e"]:
+		while GameState.next_level_cost(id) >= 0:
+			GameState.gold = 2000
+			_build(id)
+	GameState.gold = 40
+	assert_eq(bot.next_purchase(), "fence_w")
 
 func test_hysteresis() -> void:
 	GameState.add_gold(100)
@@ -7982,6 +7999,31 @@ func test_hysteresis() -> void:
 	assert_eq(GameState.gold, 0)
 	bot.day_think(0.0)
 	assert_eq(bot.goal, "sign", "released once gold hits 0")
+
+func test_hysteresis_released_on_completion() -> void:
+	GameState.add_gold(25)
+	var spot := "fence_w" if bot.next_purchase() != "fence_w" else "fence_e"
+	GameState.pay_into_spot(spot, 5)
+	main.hero.teleport(bot.graph.position_of(spot))
+	bot.go_to(spot)
+	bot._route.clear()
+	bot.day_think(0.0)
+	assert_eq(bot.goal, spot, "kept mid-payment")
+	GameState.pay_into_spot(spot, GameState.remaining_cost(spot))  # completes level 1
+	assert_eq(int(GameState.buildings[spot].level), 1)
+	bot.day_think(0.0)
+	assert_eq(bot.goal, "sign", "released once the level completes (5 gold left buys nothing)")
+
+func test_hysteresis_not_held_while_walking() -> void:
+	GameState.add_gold(100)
+	var first := bot.next_purchase()
+	var spot := "fence_w" if first != "fence_w" else "fence_e"
+	GameState.pay_into_spot(spot, 5)
+	main.hero.teleport(MapLayout.HOME)
+	bot.go_to(spot)  # walking, not arrived
+	assert_false(bot.arrived())
+	bot.day_think(0.0)
+	assert_eq(bot.goal, bot.next_purchase(), "a walk is not held by the payment rule")
 ```
 
 - [ ] **Step 2: Run it and see it fail**
@@ -8025,7 +8067,8 @@ func day_think(_delta: float) -> void:
 		go_to(spot if spot != "" else "sign")
 
 ## The spot id to build or upgrade next with the gold in hand, or "" (spec 13.3, D-067, D-154).
-## 1 fence on the top side lane; 2 the tower next to it; 3 more fences and any unbuilt tower, by the
+## 1 fence on the top side lane (side lanes ranked by their side-group threat, count x hp_mult; first in
+## lane order on ties); 2 the tower next to it (for north, the one with the higher threat); 3 more fences and any unbuilt tower, by the
 ## threat on their lanes (a tower scores the max of its two lanes); 4 upgrades next to the top-threat lane.
 ## Ties by lane order / SPOT_IDS order, never by float equality.
 func next_purchase() -> String:
@@ -8042,10 +8085,11 @@ func next_purchase() -> String:
 	var builds: Array = []
 	if side_lane != "":
 		builds.append(MapLayout.LANE_FENCE[side_lane])
-		for t in ["tower_nw", "tower_ne"]:
-			if side_lane in MapLayout.TOWER_LANES[t]:
-				builds.append(t)
-				break
+		var tower := ""
+		for t in ["tower_nw", "tower_ne"]:  # SPOT_IDS order; a strictly higher threat replaces
+			if side_lane in MapLayout.TOWER_LANES[t] and (tower == "" or _spot_threat(t, threat) > _spot_threat(tower, threat) + 1e-6):
+				tower = t
+		builds.append(tower)
 	# step 3
 	var rest: Array = []
 	for id in MapLayout.SPOT_IDS:
@@ -8061,33 +8105,30 @@ func next_purchase() -> String:
 	for id in builds:
 		if int(GameState.buildings[id].level) == 0 and GameState.remaining_cost(id) <= GameState.gold:
 			return id
-	# step 4: upgrades, lanes by threat; next to a lane: towers before fences, cheapest affordable first
+	# step 4: upgrades; lanes by threat, and next to a lane the towers before the fences, the cheapest affordable of a kind
 	var lanes: Array = LanePlanner.LANES.duplicate()
 	lanes.sort_custom(func(a: String, b: String) -> bool:
 		if not is_equal_approx(threat[a], threat[b]):
 			return threat[a] > threat[b]
-		return LanePlanner.LANES.find(a) < LanePlanner.LANES.find(b))  # float ties -> lane order
+		return LanePlanner.LANES.find(a) < LanePlanner.LANES.find(b))  # ties by index order
 	for l in lanes:
 		if threat[l] <= 0.0:
 			continue
-		var near: Array = []
-		for id in MapLayout.SPOT_IDS:  # SPOT_IDS lists towers first
-			if MapLayout.spot_kind(id) == "tower":
-				if l in MapLayout.TOWER_LANES[id]:
-					near.append(id)
-			elif MapLayout.FENCE_LANE[id] == l:
-				near.append(id)
-		var best := ""
-		var best_rem := 0
-		for id in near:
-			if int(GameState.buildings[id].level) < 1:
-				continue
-			var rem := GameState.remaining_cost(id)
-			if rem >= 0 and rem <= GameState.gold and (best == "" or rem < best_rem):
-				best = id
-				best_rem = rem
-		if best != "":
-			return best
+		for kind in ["tower", "fence"]:  # towers first; within a kind the cheapest affordable
+			var best := ""
+			var best_rem := 0
+			for id in MapLayout.SPOT_IDS:
+				if MapLayout.spot_kind(id) != kind:
+					continue
+				var next_to: bool = (l in MapLayout.TOWER_LANES[id]) if kind == "tower" else (MapLayout.FENCE_LANE[id] == l)
+				if not next_to or int(GameState.buildings[id].level) < 1:
+					continue
+				var rem := GameState.remaining_cost(id)
+				if rem >= 0 and rem <= GameState.gold and (best == "" or rem < best_rem):
+					best = id
+					best_rem = rem
+			if best != "":
+				return best
 	return ""
 
 func _spot_threat(id: String, threat: Dictionary) -> float:
@@ -8131,6 +8172,7 @@ func _night2(bot: GDScript, harness: SimHarness) -> Dictionary:
 	var closeup: Dictionary = harness.main.phase_controller.snapshot.duplicate(true)  # taken at close-up
 	var plan2: Array = GameState.lane_plan.duplicate(true)  # night 2's plan (dawn replaces it)
 	var n2 := await harness.run_night()
+	n2["steaks"] = GameState.freezer_steaks + GameState.carried_steaks
 	n2["day1_seconds"] = d1.seconds
 	n2["closeup"] = closeup
 	n2["lane_plan"] = plan2
@@ -8164,7 +8206,8 @@ func test_night2_naive_unaided_is_hard_and_deterministic() -> void:
 	var r2 := await _night2(NaiveBot, h2)
 	h2.finish()
 	assert_eq(_levels(r1.closeup.buildings), 0, "the naive bot never builds")
-	assert_eq([r1.failed, r1.diner_frac, r1.kills, r1.lane_plan], [r2.failed, r2.diner_frac, r2.kills, r2.lane_plan],
+	assert_eq([r1.failed, r1.diner_frac, r1.kills, r1.steaks, r1.lane_plan],
+		[r2.failed, r2.diner_frac, r2.kills, r2.steaks, r2.lane_plan],
 		"same seed, same outcome")
 
 func test_night2_planner_is_comfortable() -> void:
@@ -8226,7 +8269,7 @@ func _run() -> void:
 		var retries := 0
 		var enemy_count := Economy.night_kills(GameState.day, Balance.data.wave)
 		var defending := _builds()  # what stands when the night starts (spent during the day before)
-		var freezer0 := GameState.freezer_steaks
+		var stock0 := GameState.freezer_steaks + GameState.carried_steaks
 		var t0 := h.elapsed
 		var n := await h.run_night()
 		# Retries are deterministic: the restored night replays identically (spec 13.5 keeps them), so a
@@ -8245,8 +8288,8 @@ func _run() -> void:
 			broke_at = day
 			rows.append("%d,%.3f,%d,%d,0,0,%s,%d,%.1f,," % [day, n.diner_frac, retries, n.kills, defending, enemy_count, night_s])
 			break
-		# dawn moved the night's steaks to the freezer; gold is what the day's sales pay out
-		var steaks := GameState.freezer_steaks - freezer0
+		# dawn moved the night's steaks to the freezer (freezer + carried, as test_night_sims counts); gold is what the day's sales pay out
+		var steaks := GameState.freezer_steaks + GameState.carried_steaks - stock0
 		_gold_sold = 0
 		var d := await h.run_day()
 		if not d.closed:
