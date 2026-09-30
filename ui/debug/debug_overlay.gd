@@ -90,12 +90,18 @@ func _input(event: InputEvent) -> void:
 	if event.device == InputEvent.DEVICE_ID_EMULATION:
 		return
 	if pressed:
+		_owned.erase(idx)  # a new press of this index means its old touch ended (a dropped release)
 		if _rect.has_point(event.position):
 			_owned[idx] = true
 			cycle_occluder_alpha()
 			get_viewport().set_input_as_handled()
 	elif _owned.erase(idx):
 		get_viewport().set_input_as_handled()
+
+## D-147: a paused tree drops touch releases, so forget every owned finger.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PAUSED:
+		_owned.clear()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:

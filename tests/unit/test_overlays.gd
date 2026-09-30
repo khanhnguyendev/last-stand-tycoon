@@ -188,3 +188,30 @@ func test_mouse_click_on_button_cycles_once_and_skips_stick() -> void:
 	main.get_viewport().push_input(e, true)
 	assert_false(main.joystick.is_active())
 	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4)
+
+func test_emulated_mouse_event_on_button_is_ignored() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.device = InputEvent.DEVICE_ID_EMULATION
+	e.position = pair[1].button_rect().get_center()
+	e.pressed = true
+	main.get_viewport().push_input(e, true)
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.30, 1e-4)
+
+func test_stale_owned_finger_does_not_swallow_the_stick_release() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	var vp := main.get_viewport()
+	_touch(vp, pair[1].button_rect().get_center(), true)  # index 0 owned by the button, release dropped
+	_touch(vp, Vector2(200, 700), true)                    # same index again: starts the stick
+	assert_true(main.joystick.is_active())
+	_touch(vp, pair[1].button_rect().get_center(), false)
+	assert_false(main.joystick.is_active(), "the stale owned index must not swallow this release")
