@@ -6,13 +6,14 @@ extends Node
 ## lookups, never groups; test_phase_controller greps this file for them):
 ##   WaveDirector.start_night(plan), WaveDirector.stop()
 ##   NodePool.recall_all() -> int
-##   TravelerSpawner.start(), stop(), clear_queue()      (added in Task 22)
+##   TravelerSpawner.start(), stop(), clear_queue()
 ## The hero is placed with the bus event EventBus.hero_place_requested(position).
 
 @export var wave_director: WaveDirector
 @export var enemy_pool: NodePool
 @export var steak_pool: NodePool
 @export var projectile_pool: NodePool
+@export var traveler_spawner: TravelerSpawner
 
 var phase := Phase.NIGHT
 var dawn_substate := ""
@@ -42,11 +43,13 @@ func close_up() -> void:
 		return
 	GameState.collect_pile()
 	_steaks_to_freezer()
+	traveler_spawner.stop()
 	snapshot = GameState.to_dict()
 	snapshot.resume_phase = "DAY"
 	_enter_night()
 
 func _enter_night() -> void:
+	traveler_spawner.stop()
 	phase = Phase.NIGHT
 	EventBus.phase_changed.emit(phase, GameState.day)
 	wave_director.start_night(GameState.lane_plan)
@@ -54,6 +57,7 @@ func _enter_night() -> void:
 func _enter_day() -> void:
 	phase = Phase.DAY
 	EventBus.phase_changed.emit(phase, GameState.day)
+	traveler_spawner.start()
 
 func _on_wave_cleared(w: int) -> void:
 	if phase != Phase.NIGHT or failing:
@@ -116,6 +120,7 @@ func _recall_all() -> void:
 	enemy_pool.recall_all()
 	steak_pool.recall_all()
 	projectile_pool.recall_all()
+	traveler_spawner.clear_queue()
 
 ## Debug helpers (ui/debug hotkeys, tests). Same narrow interface.
 func debug_skip_to_day() -> void:

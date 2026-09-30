@@ -28,7 +28,7 @@ There is no throwaway code. S2 and later add to it; they do not rewrite it.
 | Id | Sub-project | Notes |
 |---|---|---|
 | **S1** | Vertical slice | This spec |
-| S2 | Hero cards + adventurer guards | Fills the `CARD_PICK` stub. Adds `guard` to `TargetPriority`. |
+| S2 | Hero cards + adventurer guards | Fills the `CARD_PICK` stub. Adds `guard` to `TargetPriority`. Re-tunes wave scaling against a target break day *with* cards (D-156): in S1 the PlannerBot ends nights 2–4 at 100%, 83% and 75% diner HP. |
 | S3 | Save/load + failure & mercy | The Close-up snapshot is the night-start save point, so quitting mid-night costs the same as failing (D-048). |
 | S4 | Asset pipeline + art pass | S4 asset pipeline (TBD, D-024). Swaps each scene's `Visual` child. |
 | S5 | UI/HUD polish, onboarding, audio | |
@@ -623,7 +623,8 @@ The hero is never a target in S1 (D-005).
     `min(drain, gold, remaining)` into `paid`.
   - `drain = ceil(cost / drain_divisor)` (20), where `cost = base_cost × level_cost_mult^level` (×2).
   - When `paid == cost`: `level += 1`, `paid = 0`. For a fence, `hp` is set to its new max.
-  - `paid` persists across walking away, dawn and the snapshot.
+  - `paid` persists across walking away, dawn and the snapshot, except on a destroyed fence, which
+    resets to level 0 and `paid` 0 at dawn (7.6).
 - **Labels:** a `Label3D` shows the remaining cost, "MAX" at level 3, and one pip per level.
 - **Visuals:**
   - The model scales ×1.1 per level.
@@ -974,8 +975,10 @@ Paths use shortest distance on this graph, with no navmesh.
   3. Spend gold in this order:
      1. A fence on the highest-threat side lane (tonight's plan).
      2. The tower adjacent to that lane.
-     3. More fences, by threat.
-     4. Upgrades, highest-threat lane first (D-067).
+     3. More fences and any unbuilt tower, by the threat on their lanes (a tower scores its
+        higher-threat lane) (D-154).
+     4. Upgrades: rank lanes by threat and take the spots next to the top lane, towers before
+        fences; if none is affordable, the next lane (D-067, D-154).
   4. Close up.
 
 ### 13.4 `tests/sim/` (pass/fail; suite < `sim_suite_budget_s` 60 s headless; thresholds are `SimThresholds`)

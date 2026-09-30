@@ -909,6 +909,10 @@ extends Resource
 @export var pulse_hz := 1.0
 ## Visual scale added per built level (spec 8.6).
 @export var build_level_scale := 1.1
+## D-151 occlusion fade: diner alpha while it hides an actor, fade time, AABB growth (m).
+@export var occluder_alpha := 0.3
+@export var occluder_fade_s := 0.15
+@export var occluder_grow := 0.2
 ```
 
 `balance/balance.tres`:
@@ -2465,7 +2469,7 @@ func test_boar_visible_two_seconds_before_range() -> void:
 	var eb := Balance.data.enemy
 	var hero_range := Balance.data.hero.attack_range
 	var dt := 1.0 / 60.0
-	for aspect in [CameraMath.ASPECT, 16.0 / 9.0]:
+	for aspect in [0.30, CameraMath.ASPECT_MIN, CameraMath.ASPECT, 16.0 / 9.0, CameraMath.ASPECT_MAX, 32.0 / 9.0]:
 		var proj := CameraMath.projection(ui, aspect)
 		for lane in LanePlanner.LANES:
 			var length := MapLayout.path_length(lane)
@@ -2496,7 +2500,8 @@ func test_projection_matches_godot_camera() -> void:
 	var ui := Balance.ui
 	# Round trip: the portrait vertical FOV reproduces the horizontal FOV at 9:16.
 	assert_almost_eq(tan(deg_to_rad(CameraMath.portrait_fov_v(ui)) / 2.0) * CameraMath.ASPECT, tan(deg_to_rad(ui.camera_fov_h) / 2.0), 1e-6)
-	for size in [Vector2i(720, 1280), Vector2i(1280, 720)]:
+	# 384x1280 (0.30) and 4096x1152 (32:9) exercise the clamped branches.
+	for size in [Vector2i(720, 1280), Vector2i(1280, 720), Vector2i(384, 1280), Vector2i(4096, 1152)]:
 		var vp := SubViewport.new()
 		vp.size = size
 		add_child_autofree(vp)
@@ -2509,6 +2514,18 @@ func test_projection_matches_godot_camera() -> void:
 		for c in 4:
 			for r in 4:
 				assert_almost_eq(got[c][r], want[c][r], 1e-4, "%s [%d][%d]" % [size, c, r])
+
+func test_lens_clamp_and_continuity() -> void:
+	var ui := Balance.ui
+	# Below ASPECT_MIN and above ASPECT_MAX the lens is clamped.
+	assert_almost_eq(CameraMath.projection(ui, 0.30)[1][1], CameraMath.projection(ui, CameraMath.ASPECT_MIN)[1][1], 1e-4)
+	assert_almost_eq(CameraMath.projection(ui, 32.0 / 9.0)[0][0], CameraMath.projection(ui, CameraMath.ASPECT_MAX)[0][0], 1e-4)
+	# The lens is continuous across the 9:16 and 21:9 branch switches.
+	for edge in [CameraMath.ASPECT, CameraMath.ASPECT_MAX]:
+		var lo := CameraMath.projection(ui, edge - 1e-4)
+		var hi := CameraMath.projection(ui, edge + 1e-4)
+		assert_almost_eq(lo[0][0], hi[0][0], 1e-3, "[0][0] at %.4f" % edge)
+		assert_almost_eq(lo[1][1], hi[1][1], 1e-3, "[1][1] at %.4f" % edge)
 ```
 
 - [ ] **Step 2: Run it and see it fail**
@@ -2526,6 +2543,8 @@ extends RefCounted
 ## Camera placement and projection shared by CameraRig and tests (D-071, D-090, D-112).
 
 const ASPECT := 720.0 / 1280.0
+const ASPECT_MIN := 9.0 / 21.0
+const ASPECT_MAX := 21.0 / 9.0
 const FOCUS_MIN := Vector2(-17, -20)
 const FOCUS_MAX := Vector2(17, 8)
 const Z_NEAR := 0.1
@@ -2540,29 +2559,48 @@ static func camera_transform(focus: Vector2, ui: UiTuning) -> Transform3D:
 	var pos := target + Vector3(0.0, sin(pitch), cos(pitch)) * ui.camera_distance
 	return Transform3D(Basis(), pos).looking_at(target, Vector3.UP)
 
+## D-153 (extends D-145): the supported window aspect range is [ASPECT_MIN, ASPECT_MAX] = 9:21 .. 21:9.
+## Outside it the view is clamped, never stretched: narrower than 9:21 keeps the vertical FOV of 9:21
+## (KEEP_HEIGHT, so the view never gets taller); wider than 21:9 keeps the horizontal FOV of 21:9
+## (KEEP_WIDTH, so the view never gets wider). The ground therefore only has to cover that range.
+## True when the lens keeps the horizontal FOV (Camera3D.KEEP_WIDTH): from 9:21 up to 9:16 (D-145)
+## and beyond 21:9 (D-153). False (KEEP_HEIGHT) between 9:16 and 21:9 and below 9:21.
 static func keeps_width(aspect: float) -> bool:
-	return aspect <= ASPECT + 1e-6
+	if aspect < ASPECT_MIN:
+		return false
+	return aspect <= ASPECT + 1e-6 or aspect > ASPECT_MAX
 
-## Vertical FOV (degrees) of the portrait view; wider windows keep it with KEEP_HEIGHT (D-145).
+## Vertical FOV (degrees) of the portrait view; kept with KEEP_HEIGHT from 9:16 to 21:9 (D-153).
 static func portrait_fov_v(ui: UiTuning) -> float:
 	return rad_to_deg(2.0 * atan(tan(deg_to_rad(ui.camera_fov_h) / 2.0) / ASPECT))
 
-## D-145: KEEP_WIDTH up to 9:16; wider windows keep the portrait vertical FOV (KEEP_HEIGHT).
-## CameraRig (Task 28) must use keeps_width() for Camera3D.keep_aspect and the matching fov.
-static func projection(ui: UiTuning, aspect: float = ASPECT) -> Projection:
-	if keeps_width(aspect):
-		# flip_fov = true: camera_fov_h is horizontal, matching Camera3D.KEEP_WIDTH.
-		return Projection.create_perspective(ui.camera_fov_h, aspect, Z_NEAR, Z_FAR, true)
-	return Projection.create_perspective(portrait_fov_v(ui), aspect, Z_NEAR, Z_FAR, false)
+## Vertical FOV (degrees) used below ASPECT_MIN: the one 9:21 shows with KEEP_WIDTH (D-153).
+static func tallest_fov_v(ui: UiTuning) -> float:
+	return rad_to_deg(2.0 * atan(tan(deg_to_rad(ui.camera_fov_h) / 2.0) / ASPECT_MIN))
 
-## D-145: sets keep_aspect, fov, near and far on a real Camera3D for the given viewport aspect.
+## Horizontal FOV (degrees) used above ASPECT_MAX: the one 21:9 shows with KEEP_HEIGHT (D-153).
+static func widest_fov_h(ui: UiTuning) -> float:
+	return rad_to_deg(2.0 * atan(tan(deg_to_rad(portrait_fov_v(ui)) / 2.0) * ASPECT_MAX))
+
+## Field of view (degrees) matching keeps_width(aspect): horizontal when true, vertical when false.
+static func lens_fov(ui: UiTuning, aspect: float) -> float:
+	if aspect < ASPECT_MIN:
+		return tallest_fov_v(ui)
+	if aspect > ASPECT_MAX:
+		return widest_fov_h(ui)
+	return ui.camera_fov_h if keeps_width(aspect) else portrait_fov_v(ui)
+
+## D-145/D-153: KEEP_WIDTH from 9:21 to 9:16, KEEP_HEIGHT (portrait vertical FOV) from 9:16 to 21:9,
+## clamped outside 9:21..21:9. CameraRig (Task 28) must use keeps_width() and lens_fov() (or apply_lens).
+static func projection(ui: UiTuning, aspect: float = ASPECT) -> Projection:
+	var keep_w := keeps_width(aspect)
+	# flip_fov = true: the fov is horizontal, matching Camera3D.KEEP_WIDTH.
+	return Projection.create_perspective(lens_fov(ui, aspect), aspect, Z_NEAR, Z_FAR, keep_w)
+
+## D-145/D-153: sets keep_aspect, fov, near and far on a real Camera3D for the given viewport aspect.
 static func apply_lens(cam: Camera3D, ui: UiTuning, aspect: float) -> void:
-	if keeps_width(aspect):
-		cam.keep_aspect = Camera3D.KEEP_WIDTH
-		cam.fov = ui.camera_fov_h
-	else:
-		cam.keep_aspect = Camera3D.KEEP_HEIGHT
-		cam.fov = portrait_fov_v(ui)
+	cam.keep_aspect = Camera3D.KEEP_WIDTH if keeps_width(aspect) else Camera3D.KEEP_HEIGHT
+	cam.fov = lens_fov(ui, aspect)
 	cam.near = Z_NEAR
 	cam.far = Z_FAR
 
@@ -3519,7 +3557,7 @@ func _build_environment() -> void:
 	var env := WorldEnvironment.new()
 	env.environment = Environment.new()
 	env.environment.background_mode = Environment.BG_COLOR
-	env.environment.background_color = Color("9fd3e8")
+	env.environment.background_color = Visuals.COLORS.ground  # D-153 fallback (Task 24b)
 	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.environment.ambient_light_color = Color(0.7, 0.7, 0.7)
 	add_child(env)
@@ -6910,48 +6948,91 @@ func _ticks(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 
+## Ticks needed for `seconds` of physics time, plus a margin.
+func _secs(seconds: float, margin := 1.1) -> int:
+	return int(ceil(seconds * Engine.physics_ticks_per_second * margin))
+
 func test_no_travelers_at_night() -> void:
 	await _ticks(300)
 	assert_eq(sp.queue.size(), 0)
 
 func test_spawn_and_queue_cap_in_day() -> void:
+	var e := Balance.data.economy
 	main.phase_controller.debug_skip_to_day()
-	await _ticks(60 * 3)
+	await _ticks(_secs(e.traveler_interval + e.traveler_jitter))
 	assert_gt(sp.queue.size(), 0)
-	await _ticks(60 * 20)
-	assert_eq(sp.queue.size(), Balance.data.economy.queue_max)
+	await _ticks(_secs((e.queue_max + 1) * (e.traveler_interval + e.traveler_jitter)))
+	assert_eq(sp.queue.size(), e.queue_max)
 
 func test_purchase_is_atomic_after_service_time() -> void:
+	var e := Balance.data.economy
 	main.phase_controller.debug_skip_to_day()
 	GameState.counter_steaks = 5  # test-only setup
 	var ok := await _wait_front_at_counter()
 	assert_true(ok)
 	var front: Traveler = sp.queue[0]
 	var want := front.want
-	await _ticks(30)  # half the service time: nothing sold yet
-	assert_eq(GameState.counter_steaks, 5)
-	assert_eq(GameState.gold_pile, 0)
-	await _ticks(35)
+	var guard := _secs(e.service_time)
+	while not front.leaving and guard > 0:
+		assert_eq(GameState.counter_steaks, 5, "nothing sold before the service time")
+		assert_eq(GameState.gold_pile, 0, "no gold before the service time")
+		await get_tree().physics_frame
+		guard -= 1
+	assert_true(front.leaving, "sale happened within the service time")
 	assert_eq(GameState.counter_steaks, 5 - want)
-	assert_eq(GameState.gold_pile, want * Balance.data.economy.gold_per_steak)
-	assert_true(front.leaving)
+	assert_eq(GameState.gold_pile, want * e.gold_per_steak)
 
 func test_empty_counter_front_waits() -> void:
 	main.phase_controller.debug_skip_to_day()
 	assert_true(await _wait_front_at_counter())
-	await _ticks(120)
+	await _ticks(_secs(Balance.data.economy.service_time * 2.0))
 	assert_false((sp.queue[0] as Traveler).leaving)
 	assert_eq(GameState.gold_pile, 0)
 
 func test_close_up_sends_everyone_away_and_stops() -> void:
 	main.phase_controller.debug_skip_to_day()
-	await _ticks(60 * 6)
+	await _ticks(_secs(Balance.data.economy.traveler_interval * 2.0))
+	assert_gt(sp.queue.size(), 0, "precondition: someone is queued")
 	main.phase_controller.close_up()
 	assert_eq(sp.queue.size(), 0)
+	assert_gt(sp.leaving.size(), 0)
 	for t in sp.leaving:
 		assert_true(t.leaving)
-	await _ticks(60 * 5)
+	await _ticks(_secs(Balance.data.economy.service_time * 5.0))
 	assert_eq(sp.queue.size(), 0)
+
+func test_clear_queue_recalls_everyone() -> void:
+	main.phase_controller.debug_skip_to_day()
+	await _ticks(_secs(Balance.data.economy.traveler_interval * 2.0))
+	assert_gt(sp.queue.size(), 0)
+	sp.clear_queue()
+	assert_eq(sp.queue.size(), 0)
+	assert_eq(sp.leaving.size(), 0)
+	assert_eq(sp.pool.active().size(), 0)
+
+## Spawns of the first day: (tick, want) for the first queue_max travelers.
+func _record_spawns() -> Array:
+	var e := Balance.data.economy
+	await get_tree().physics_frame  # D-118: start both runs at the same kind of point
+	main.phase_controller.start_new_game(21)
+	main.phase_controller.debug_skip_to_day()
+	var seen := {}
+	var rec: Array = []
+	for tick in _secs(e.queue_max * (e.traveler_interval + e.traveler_jitter)):
+		await get_tree().physics_frame
+		for t in sp.queue:
+			if not seen.has(t.get_instance_id()):
+				seen[t.get_instance_id()] = true
+				rec.append([tick, t.want])
+		if rec.size() >= e.queue_max:
+			break
+	return rec
+
+func test_same_seed_gives_the_same_traveler_spawns() -> void:
+	var a := await _record_spawns()
+	var b := await _record_spawns()
+	assert_eq(a.size(), Balance.data.economy.queue_max)
+	assert_eq(a, b)
 
 func test_gold_pile_visual() -> void:
 	main.phase_controller.debug_skip_to_day()
@@ -6960,7 +7041,8 @@ func test_gold_pile_visual() -> void:
 	assert_eq(main.world.gold_pile.coin_count(), Balance.data.economy.gold_per_steak)
 
 func _wait_front_at_counter() -> bool:
-	for i in 60 * 20:
+	var e := Balance.data.economy
+	for i in _secs((e.traveler_interval + e.traveler_jitter) + 25.0):
 		if not sp.queue.is_empty() and (sp.queue[0] as Traveler).at_target():
 			return true
 		await get_tree().physics_frame
@@ -7103,7 +7185,7 @@ func setup(_world: World) -> void:
 	position = MapLayout.to3(MapLayout.GOLD_PILE)
 	for i in MAX_COINS:
 		var c := Visuals.cylinder(0.18, 0.06, Visuals.COLORS.coin)
-		c.position = Vector3((i % 3) * 0.38 - 0.38, 0.04 + (i / 3) * 0.07, 0)
+		c.position = Vector3((i % 3) * 0.38 - 0.38, 0.04 + floori(i / 3.0) * 0.07, 0)
 		add_child(c)
 		_coins.append(c)
 	label = WorldLabel.make("")
@@ -7252,7 +7334,7 @@ func _ticks(n: int) -> void:
 		await get_tree().physics_frame
 
 func _stand(spot_id: String) -> void:
-	await TestHelpers.walk_in(main.hero, WaypointGraph.create_default().position_of(spot_id))
+	await TestHelpers.walk_in(main.hero, MapLayout.spot_position(spot_id))
 
 ## Frames to finish `cost` by standing: still time + ticks at the drain rate, +10 % margin.
 func _frames_to_pay(cost: int) -> int:
@@ -7262,24 +7344,40 @@ func _frames_to_pay(cost: int) -> int:
 
 func test_fence_builds_and_keeps_paying() -> void:
 	var cost := GameState.next_level_cost("fence_n")
-	GameState.add_gold(cost + 5)
+	var extra := 5
+	GameState.add_gold(cost + extra)
 	await _stand("fence_n")
 	await _ticks(_frames_to_pay(cost))
 	assert_eq(GameState.buildings.fence_n.level, 1)
 	await _ticks(30)
 	assert_eq(GameState.gold, 0)
-	assert_eq(GameState.buildings.fence_n.paid, 5, "keeps paying toward the next level")
+	assert_eq(GameState.buildings.fence_n.paid, extra, "keeps paying toward the next level")
 
 func test_partial_payment_persists_after_leaving() -> void:
-	GameState.add_gold(10)
+	var have := 10
+	assert_lt(have, GameState.next_level_cost("tower_nw"), "precondition: cannot finish a level")
+	GameState.add_gold(have)
 	await _stand("tower_nw")
 	await _ticks(60)
 	assert_eq(GameState.gold, 0)
-	assert_eq(GameState.buildings.tower_nw.paid, 10)
+	assert_eq(GameState.buildings.tower_nw.paid, have)
 	main.hero.teleport(MapLayout.HOME)
 	await _ticks(10)
+	assert_eq(GameState.buildings.tower_nw.paid, have)
+	assert_eq(main.world.build_spots.tower_nw.label.text, str(GameState.next_level_cost("tower_nw") - have))
+	# The bots' stand point for this spot must also pay.
+	GameState.add_gold(3)
+	await TestHelpers.walk_in(main.hero, WaypointGraph.create_default().position_of("tower_nw"))
+	await _ticks(60)
+	assert_gt(GameState.buildings.tower_nw.paid, have, "bot stand point pays")
+
+func test_partial_payment_survives_dawn() -> void:
+	# Spec 8.6: partial payment persists across nights (rubble fences are the exception and reset).
+	GameState.add_gold(10)
+	GameState.pay_into_spot("tower_nw", 10)
+	main.phase_controller.debug_skip_to_night()
+	main.phase_controller.debug_skip_to_day()
 	assert_eq(GameState.buildings.tower_nw.paid, 10)
-	assert_eq(main.world.build_spots.tower_nw.label.text, str(GameState.next_level_cost("tower_nw") - 10))
 
 func test_pays_only_what_gold_allows() -> void:
 	# Review Focus 5: gold below the drain never goes negative.
@@ -7292,14 +7390,33 @@ func test_pays_only_what_gold_allows() -> void:
 
 func test_max_level_spot_takes_nothing() -> void:
 	# Review Focus 5
-	GameState.add_gold(10000)
+	var total := 0
+	for l in Balance.data.build.max_level:
+		total += Economy.level_cost("fence_w", l, Balance.data.build)
+	GameState.add_gold(total)
 	for i in Balance.data.build.max_level:
 		GameState.pay_into_spot("fence_w", GameState.next_level_cost("fence_w"))
+	assert_eq(GameState.gold, 0, "precondition: exactly paid off")
+	GameState.add_gold(50)
 	var left := GameState.gold
 	assert_eq(main.world.build_spots.fence_w.label.text, "MAX")
 	await _stand("fence_w")
 	await _ticks(60)
+	var z: StationZone = main.world.build_spots.fence_w.zone
+	assert_true(z.standing, "precondition: hero is standing")
+	assert_false(z.ring.visible)
 	assert_eq(GameState.gold, left)
+
+func test_ring_shows_paid_over_cost() -> void:
+	var cost := GameState.next_level_cost("tower_nw")
+	var have := 10
+	assert_lt(have, cost, "precondition")
+	GameState.add_gold(have)
+	GameState.pay_into_spot("tower_nw", have)
+	var z: StationZone = main.world.build_spots.tower_nw.zone
+	assert_true(z.ring.visible)
+	var v: Variant = (z.ring.material_override as ShaderMaterial).get_shader_parameter("progress")
+	assert_almost_eq(float(v), float(have) / float(cost), 1e-4)
 
 func test_dawn_inside_zone_needs_reentry() -> void:
 	# D-121: hero inside a build-spot zone when dawn activates it -> no payment until exit and re-entry.
@@ -7318,6 +7435,9 @@ func test_no_payment_at_night() -> void:
 	GameState.add_gold(40)
 	await _stand("fence_e")
 	await _ticks(60)
+	var d := (main.hero.xz() - MapLayout.spot_position("fence_e")).length()
+	assert_lte(d, MapLayout.BUILD_RADIUS, "precondition: hero is inside the zone")
+	assert_false(main.world.build_spots.fence_e.zone.standing)
 	assert_eq(GameState.gold, 40)
 ```
 
@@ -7349,8 +7469,10 @@ func _on_tick() -> void:
 and at the end of `refresh()`:
 ```gdscript
 	if zone != null:
-		var cost := GameState.next_level_cost(spot_id) if not GameState.buildings.is_empty() else -1
-		zone.ring.set_progress(0.0 if cost <= 0 else float(b.paid) / float(cost))
+		var cost := GameState.next_level_cost(spot_id) if GameState.buildings.has(spot_id) else -1
+		var progress := 0.0 if cost <= 0 else float(b.paid) / float(cost)
+		zone.ring.visible = progress > 0.0
+		zone.ring.set_progress(progress)
 ```
 
 `zone.ring` is created in `StationZone._ready()`. `setup()` runs after `add_child(spot)`, and `add_child(zone)` inside `setup()` triggers `_ready` immediately, so `ring` exists before `refresh()`.
@@ -7415,13 +7537,24 @@ func test_standing_on_sign_starts_night_after_hold() -> void:
 
 func test_hold_resets_when_leaving() -> void:
 	main.phase_controller.debug_skip_to_day()
+	var sign_node: CloseUpSign = main.world.closeup_sign
+	var e := Balance.data.economy
+	var still := int(ceil(e.stand_still_time * 60.0))
+	var hold := int(ceil(ceil(e.closeup_hold / e.transfer_tick) * e.transfer_tick * 60.0))
 	await TestHelpers.walk_in(main.hero, MapLayout.SIGN)
-	await _ticks(50)
-	main.hero.teleport(Vector2(10, 8))
-	await _ticks(5)
+	await _ticks(still + int(hold * 0.5))
+	assert_gt(sign_node.hold, 0.0, "partway through the hold")
+	main.hero.input.set_move(Vector2(1, 0))
+	await _ticks(30)
+	main.hero.input.set_move(Vector2.ZERO)
+	assert_eq(sign_node.hold, 0.0)
+	assert_false(sign_node.zone.ring.visible)
 	await TestHelpers.walk_in(main.hero, MapLayout.SIGN)
-	await _ticks(50)
-	assert_eq(main.phase_controller.phase, Phase.DAY)
+	# Short of a full hold from zero: a leftover half hold would already have closed up.
+	await _ticks(still + hold - 50 + 5)
+	assert_eq(main.phase_controller.phase, Phase.DAY, "a full hold from zero is needed")
+	await _ticks(60)
+	assert_eq(main.phase_controller.phase, Phase.NIGHT)
 
 func test_restore_to_day_does_not_close_up() -> void:
 	# D-121, D-122: the hero lands at HOME after a fail; with no input the day must not end.
@@ -7432,6 +7565,7 @@ func test_restore_to_day_does_not_close_up() -> void:
 	await _ticks(int(Balance.ui.banner_time * 60) + 5)
 	assert_eq(main.phase_controller.phase, Phase.DAY)
 	assert_eq(main.hero.xz(), MapLayout.HOME)
+	main.hero.teleport(MapLayout.SIGN)  # a teleport into the zone must not arm it (D-121)
 	await _ticks(60 * 5)
 	assert_eq(main.phase_controller.phase, Phase.DAY)
 	assert_eq(GameState.gold, 7)
@@ -7440,14 +7574,21 @@ func test_pulse_follows_predicate() -> void:
 	main.phase_controller.debug_skip_to_day()
 	var s: CloseUpSign = main.world.closeup_sign
 	assert_true(s.pulsing)
+	for i in 5:
+		await get_tree().process_frame
+	assert_gt(s._visual.scale.x, 1.0, "the sign is breathing")
 	GameState.add_freezer(1)
 	assert_false(s.pulsing)
+	await get_tree().process_frame
+	assert_eq(s._visual.scale, Vector3.ONE)
 
 func test_telegraph_scales_and_visibility() -> void:
 	var m: Dictionary = main.world.telegraph_markers
 	for lane in m:
 		assert_false(m[lane].visible, "hidden at night")
+	var day1: Array = GameState.lane_plan
 	main.phase_controller.debug_skip_to_day()
+	assert_ne(day1, GameState.lane_plan, "a new day has a new plan")
 	var threat := LanePlanner.threat_by_lane(GameState.lane_plan, Balance.data.enemy.hp)
 	var mx: float = threat.values().max()
 	for lane in m:
@@ -7468,7 +7609,8 @@ Expected: FAIL (`closeup_sign` is null).
 ```gdscript
 class_name CloseUpSign
 extends Node3D
-## "Close up" sign (spec 5.6, 8.8, D-039, D-068). Hold 1 s standing still → closeup_requested.
+## "Close up" sign (spec 5.6, 8.8, D-039, D-068). Hold closeup_hold standing still -> closeup_requested.
+## The zone's own still-charge ring is off (drive_ring = false): this node drives the ring with the hold.
 
 var zone: StationZone
 var hold := 0.0
@@ -7492,9 +7634,10 @@ func setup(_world: World) -> void:
 	l.position.y = 2.4
 	add_child(l)
 	zone = StationZone.new()
-	zone.drive_ring = false  # this owner drives the ring itself (Task 21 review)
 	zone.radius = MapLayout.STATION_RADIUS
+	zone.drive_ring = false  # the sign drives the ring with the hold
 	add_child(zone)
+	zone.stand_started.connect(_on_stand_started)
 	zone.ticked.connect(_on_tick)
 	zone.stand_ended.connect(_on_stand_ended)
 	EventBus.stocks_changed.connect(refresh_pulse)
@@ -7502,10 +7645,17 @@ func setup(_world: World) -> void:
 	EventBus.gold_changed.connect(_on_gold_changed)
 	EventBus.building_changed.connect(_on_building_changed)
 	EventBus.phase_changed.connect(_on_phase_changed)
+	refresh_pulse()
+
+func _on_stand_started() -> void:
+	hold = 0.0
+	zone.ring.visible = true
+	zone.ring.set_progress(0.0)
 
 func _on_stand_ended() -> void:
 	hold = 0.0
 	zone.ring.set_progress(0.0)
+	zone.ring.visible = false
 
 func _on_gold_changed(_gold: int, _delta: int) -> void:
 	refresh_pulse()
@@ -7517,10 +7667,12 @@ func _on_phase_changed(p: int, _day: int) -> void:
 	_phase = p
 	refresh_pulse()
 
+## Runs on the zone's physics ticks (gameplay, D-118).
 func _on_tick() -> void:
-	hold += Balance.data.economy.transfer_tick
-	zone.ring.set_progress(hold / Balance.data.economy.closeup_hold)
-	if hold >= Balance.data.economy.closeup_hold - 1e-6:
+	var eco := Balance.data.economy
+	hold += eco.transfer_tick
+	zone.ring.set_progress(hold / eco.closeup_hold)
+	if hold >= eco.closeup_hold - 1e-6:
 		hold = 0.0
 		zone.ring.set_progress(0.0)
 		EventBus.closeup_requested.emit()
@@ -7528,8 +7680,10 @@ func _on_tick() -> void:
 func refresh_pulse() -> void:
 	pulsing = _phase == Phase.DAY and not GameState.buildings.is_empty() and Pulse.should_pulse(GameState.to_dict(), Balance.data)
 	if not pulsing:
+		_t = 0.0
 		_visual.scale = Vector3.ONE
 
+## Visual only (spec 8.8): the sign breathes while there is nothing left to do but close up.
 func _process(delta: float) -> void:
 	if pulsing:
 		_t += delta
@@ -7566,6 +7720,7 @@ func _on_phase_changed(p: int, _day: int) -> void:
 
 func refresh() -> void:
 	if GameState.lane_plan.is_empty():
+		target_scale = 0.0
 		visible = false
 		return
 	var threat := LanePlanner.threat_by_lane(GameState.lane_plan, Balance.data.enemy.hp)
@@ -7608,6 +7763,113 @@ git commit -m "feat: add close-up sign with pulse and day lane telegraph"
 ---
 
 ## Phase 7: Economy, upgrades, PlannerBot, night-2 sims
+
+### Task 24b: The ground covers every camera view (D-152, author at CP1)
+
+The sky-coloured band at the top of `cp1_night1.png` is the edge of the ground (z = −24), not the horizon.
+
+**Files:**
+- Modify: `world/world.gd` (`_build_ground`); this is its main purpose, so the implementer edits it (D-139)
+- Test: `tests/unit/test_ground_coverage.gd`
+
+- [ ] **Step 1 (superseded by D-153; see Final code): Write the failing test.** For each of the four `CameraMath.FOCUS_MIN/FOCUS_MAX` corners, at both 9:16 and 16:9 (D-145), build the camera with `CameraMath.camera_transform` and `CameraMath.projection`. Cast the rays through the four viewport corners and the top-edge midpoint onto the y = 0 plane. Each ray must hit the plane (it points downward), and every hit point must lie inside the ground rectangle `World.ground_rect()`. It fails today.
+- [ ] **Step 2 (superseded by D-153; see Final code): Implement.** Keep the map ground (bounds) as is, and add a far "skirt" plane underneath it (y = −0.01, same ground colour, no collider), sized from `World.ground_rect()`. `ground_rect()` is a static function that returns the bounds grown by a margin derived from the camera (compute the worst-case hit distance, or use a constant, e.g. 60 m, that the test proves is enough).
+- [ ] **Step 3: Run the tests and commit** `feat: extend the ground so no camera view shows past it`.
+
+**Final code (after the D-153 review fix):**
+
+`world/world.gd` (ground parts; the environment background is `Visuals.COLORS.ground`):
+```gdscript
+## Ground margin past MapLayout bounds. The projection test proves it covers every camera view for
+## window aspects 9:21..21:9 (CameraMath clamps beyond that) at every focus corner (D-152, D-153).
+const GROUND_MARGIN := 80.0
+
+## The area the single ground plane covers, in xz.
+static func ground_rect() -> Rect2:
+	var lo := MapLayout.BOUNDS_MIN - Vector2(GROUND_MARGIN, GROUND_MARGIN)
+	var hi := MapLayout.BOUNDS_MAX + Vector2(GROUND_MARGIN, GROUND_MARGIN)
+	return Rect2(lo, hi - lo)
+
+func _build_ground() -> void:
+	var rect := ground_rect()
+	var ground := Visuals.plane(rect.size, Visuals.COLORS.ground)
+	ground.name = "Ground"
+	ground.position = MapLayout.to3(rect.get_center())
+	add_child(ground)
+	var road := Visuals.box(Vector3(MapLayout.BOUNDS_MAX.x - MapLayout.BOUNDS_MIN.x, 0.02, 2.0), Visuals.COLORS.road)
+	road.name = "Road"
+	road.position = Vector3(0, 0.01, MapLayout.ROAD_Z)
+	add_child(road)
+```
+
+`tests/unit/test_ground_coverage.gd`:
+```gdscript
+extends GutTest
+## D-152/D-153: no camera view (any focus corner, any window aspect) shows past the ground.
+## 0.30 and 32:9 are outside [ASPECT_MIN, ASPECT_MAX] and must be clamped by CameraMath.
+
+const ASPECTS := [0.30, 9.0 / 21.0, 9.0 / 19.5, CameraMath.ASPECT, 16.0 / 9.0, 21.0 / 9.0, 32.0 / 9.0]
+
+func before_each() -> void:
+	Balance.reset()
+
+func _corners() -> Array:
+	var lo := CameraMath.FOCUS_MIN
+	var hi := CameraMath.FOCUS_MAX
+	return [lo, hi, Vector2(lo.x, hi.y), Vector2(hi.x, lo.y)]
+
+## Viewport corners only, in pixels; the farthest ground point of a perspective view is always a corner,
+## so a top-mid sample adds nothing.
+func _sample_points(size: Vector2) -> Array:
+	return [Vector2(0, 0), Vector2(size.x, 0), Vector2(0, size.y), size]
+
+func test_ground_rect_contains_bounds() -> void:
+	var r := World.ground_rect()
+	assert_true(r.encloses(Rect2(MapLayout.BOUNDS_MIN, MapLayout.BOUNDS_MAX - MapLayout.BOUNDS_MIN)))
+
+func test_every_camera_view_hits_ground_inside_rect() -> void:
+	var ui := Balance.ui
+	var rect := World.ground_rect()
+	var max_dist := 0.0
+	for aspect in ASPECTS:
+		var size := Vector2(maxf(roundf(1280.0 * aspect), 1.0), 1280.0)
+		var vp := SubViewport.new()
+		vp.size = Vector2i(size)
+		add_child_autofree(vp)
+		var cam := Camera3D.new()
+		CameraMath.apply_lens(cam, ui, size.x / size.y)
+		vp.add_child(cam)
+		for focus in _corners():
+			cam.global_transform = CameraMath.camera_transform(focus, ui)
+			var far_hit := Vector2.ZERO
+			var far_d := -1.0
+			for p in _sample_points(size):
+				var o := cam.project_ray_origin(p)
+				var d := cam.project_ray_normal(p)
+				var label := "aspect %.3f focus %s px %s" % [aspect, focus, p]
+				assert_lt(d.y, 0.0, "ray points downward: " + label)
+				if d.y >= 0.0:
+					continue
+				var hit := o + d * (-o.y / d.y)
+				var hit_xz := Vector2(hit.x, hit.z)
+				assert_true(rect.has_point(hit_xz), "hit %s inside %s: %s" % [hit_xz, rect, label])
+				var dist := _outside_bounds(hit_xz)
+				if dist > far_d:
+					far_d = dist
+					far_hit = hit_xz
+			max_dist = maxf(max_dist, far_d)
+			gut.p("aspect %.3f focus %s: farthest hit %s, %.2f m past bounds" % [aspect, focus, far_hit, far_d])
+	gut.p("max distance past bounds over all corners/aspects: %.2f m" % max_dist)
+	assert_lt(max_dist, World.GROUND_MARGIN - 5.0, "headroom inside the ground margin")
+
+## Distance from the bounds rectangle (0 when inside).
+func _outside_bounds(p: Vector2) -> float:
+	var lo := MapLayout.BOUNDS_MIN
+	var hi := MapLayout.BOUNDS_MAX
+	var dx := maxf(maxf(lo.x - p.x, p.x - hi.x), 0.0)
+	var dy := maxf(maxf(lo.y - p.y, p.y - hi.y), 0.0)
+	return Vector2(dx, dy).length()
+```
 
 ### Task 25: `PlannerBot`, day and night-2 sims, and the sweep
 
@@ -8450,7 +8712,7 @@ func _apply_lens() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	if vp.y <= 0.0:
 		return
-	CameraMath.apply_lens(camera, Balance.ui, vp.x / vp.y)  # D-145: KEEP_HEIGHT on windows wider than 9:16
+	CameraMath.apply_lens(camera, Balance.ui, vp.x / vp.y)  # D-145/D-153: KEEP_HEIGHT from 9:16 to 21:9, clamped outside 9:21..21:9
 
 func setup(hero: Hero) -> void:
 	_hero = hero
@@ -8856,8 +9118,28 @@ git commit -m "feat: add HUD with gold punch, moons, diner bar, banners, edge ar
 
 ### Task 30: Feel budget (`FlyFx` arcs, build pop, hit flash)
 
+**Occlusion fade (D-151, author at CP1).** In addition to the feel work below:
+- **`components/occluder_fade.gd`** (`class_name OccluderFade`, Node). It is generic, so S4's diner model reuses it. It is a child of the occluder's `Visual` node, and `setup(box: AABB, camera_source: Callable, targets: Callable)` takes:
+  - the occluder's world AABB;
+  - a Callable that returns the current `Camera3D`;
+  - a Callable that returns the world positions to keep visible (the hero, plus every alive Boar via `WaveDirector.alive_enemies()`).
+- **Each `_process` frame** (visual only), it tests the segment camera→target, with the target at its chest height, against the AABB grown by `UiTuning.occluder_grow` (0.2).
+  - If any target is occluded, it tweens every `MeshInstance3D` under the Visual toward alpha `UiTuning.occluder_alpha` (0.3) over `UiTuning.occluder_fade_s` (0.15 s), through a per-instance material override with `TRANSPARENCY_ALPHA`.
+  - When nothing is occluded, it tweens back to 1.0 and restores the opaque material, so no transparent material is left when the diner isn't blocking anything.
+  - `is_faded() -> bool` and `current_alpha() -> float` are for tests.
+- **Diner wiring (main session, D-139):** `World` creates an `OccluderFade` under the diner's Visual. The camera source is `get_viewport().get_camera_3d`, and the targets are the hero plus `wave_director.alive_enemies()`.
+- **Compatibility renderer:** the faded diner must not hide the hero or the Boars behind it. Transparent meshes draw after opaque ones, so check this in the re-rendered screenshots. If sorting artifacts appear, set `render_priority` on the faded material and document it.
+- **S4 note:** the real diner model keeps the roof and walls as separate `MeshInstance3D`s under `Visual`, compatible with this fade.
+- **Tests (`tests/unit/test_occluder_fade.gd`)**, through `CameraMath` so they need no renderer:
+  - hero at the north zone centre → faded, and the hero's screen point is not covered by an opaque diner face (the camera→hero segment hits the grown AABB, and the fade alpha is at most `occluder_alpha` after `occluder_fade_s`);
+  - a Boar in the north attack zone with the hero at HOME → faded;
+  - nothing occluded (hero south of the diner, no Boars) → alpha 1.0 and no transparent override.
+- **Screenshots:** after Task 30, re-run Task 33's three per-lane captures, and add `docs/screenshots/s1/north_zone_center.png` with the hero at the north zone centre (`capture.gd --hero-at=zone_center --lane=north`). Commit them.
+
+**From the Task 23 review:** at night, hide a build spot's payment ring (`not zone.is_active()`), and refresh it on `phase_changed`, so partial-payment rings don't glow on the lanes during combat.
+
 **Files:**
-- Create: `world/fx/fly_fx.gd`
+- Create: `world/fx/fly_fx.gd`, `components/occluder_fade.gd`, `tests/unit/test_occluder_fade.gd`
 - Modify:
   - `world/world.gd`
   - `world/stations/freezer.gd`, `world/stations/counter.gd`
@@ -9279,6 +9561,12 @@ git commit -m "feat: pause the game on focus loss and hidden tab"
 ## Phase 10: Web shell, export presets, overlays
 
 ### Task 32: Web shell, three presets, debug and perf overlays → **CHECKPOINT 2**
+
+**Occluder alpha picker for CP2 (author, CP1 review; D-151).** The author picks `UiTuning.occluder_alpha` on the phone:
+- The debug overlay gets a touch button "Fade α: 0.30" that cycles 0.30 → 0.45 → 0.60 and writes `Balance.ui.occluder_alpha` live. Hotkey `O` does the same on desktop.
+- The debug overlay only exists in the `web_debug` preset (D-099), so the `pages` workflow also exports `web_debug` to `<path>/debug/` when that preset exists. The release and profile builds stay debug-free.
+- The CP2 checklist asks the author to try all three values and reply with the pick. The pick then becomes the `ui_tuning.gd` default, and the decision is logged.
+- Tests: the button cycles the three values and updates any active `OccluderFade` target alpha; `ui/debug/*` stays absent from release and profile packs.
 
 **Files:**
 - Create:
@@ -9799,6 +10087,8 @@ done
 ```
 
 Expected: three `saved ... (720, 1280)` lines.
+
+After Task 30 (D-151), re-run these captures and also capture `north_zone_center.png` (hero at the north zone centre), then check that the hero and the Boars show through the faded diner.
 
 - [ ] **Step 2: Check each image**
 

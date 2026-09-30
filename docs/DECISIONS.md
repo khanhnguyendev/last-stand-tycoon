@@ -1155,3 +1155,78 @@ wording).**
   `sweep_runner.gd` (a typed `Node`) to the tree.
 - `docs/.gdignore` keeps Godot from importing `docs/` (screenshots got `.import` files). No test reads
   `docs/` through `res://`.
+
+## 2026-09-30: CP1 approved
+
+**D-151 The diner fades when it hides an actor (author at CP1; implemented in Task 30).**
+- [AMENDED at the CP1 review: 0.3 looked too faint on grass. The value stays in `UiTuning`; at CP2 a debug
+  button cycles 0.30 / 0.45 / 0.60 on the phone, and the author picks one (plan Task 32).]
+- The spec camera (pitch 55°, distance 18) looks over a 3 m diner, which hides the north zone. In
+  the CP1 render only a sliver of the hero showed.
+- Each frame, the camera→actor segment is tested against the diner's AABB (slightly grown), for the
+  hero and every alive Boar. If any actor is occluded, the diner's Visual (walls and roof) fades to
+  `UiTuning.occluder_alpha` (0.3) over `UiTuning.occluder_fade_s`. It fades back to fully opaque when
+  nothing is occluded.
+- A generic `OccluderFade` component under the occluder's Visual does this, so S4's real diner model
+  reuses it. S4 note: the diner model keeps its roof and walls as separate meshes compatible with the
+  fade.
+- The Compatibility renderer's transparency sorting must not hide the actors behind the diner. The
+  re-rendered screenshots are the check.
+- Tests project through `CameraMath`: the hero at the north zone centre fades the diner; a Boar in the
+  north zone with the hero at HOME fades it; with nothing occluded it stays fully opaque.
+- After Task 30, the three per-lane screenshots (D-076) and a hero-at-north-zone-centre shot are
+  re-rendered and committed.
+
+**D-152 The ground extends past every camera view (author at CP1; Task 24b).**
+- The sky-coloured band at the top of `cp1_night1.png` was the edge of the ground at z = −24, not
+  the horizon.
+- A far ground "skirt" under the map means no camera focus inside `FOCUS_MIN/FOCUS_MAX` (at 9:16
+  and 16:9) ever shows past the ground. A projection test checks the four focus corners.
+
+**CP1 outcome (author).** CP1 approved. Night-1 sims at the default balance: first combat at 12.45 s
+(idle player 12.27 s; limit 30 s); NaiveBot keeps 67% of diner HP (target ≥ 50%); ParkedBot's diner
+falls and the night restarts identically.
+
+**D-153 The camera supports window aspects 9:21 to 21:9 (Task 24b review; extends D-145 and D-152).**
+- With stretch aspect `expand` and no clamp, very tall windows (below about 9:22.5; the top rays
+  point above the horizon below about 9:33) and very wide ones (above about 2.85:1) would show past
+  the 60 m ground (D-152).
+- `CameraMath` clamps the view to `[ASPECT_MIN, ASPECT_MAX]` = 9:21 .. 21:9:
+  - narrower than 9:21: `KEEP_HEIGHT` with the vertical FOV 9:21 shows;
+  - wider than 21:9: `KEEP_WIDTH` with the horizontal FOV 21:9 shows;
+  - in between: the D-145 rule.
+  `apply_lens` and `projection` both use `lens_fov`.
+- One ground plane covers `World.ground_rect()` (bounds + `GROUND_MARGIN` 80 m; the worst view
+  reaches 53.9 m past the bounds). No skirt, so no z-fighting or overdraw. The environment background
+  is the ground colour as a fallback.
+- The ≥ 2.0 s lane warning is tested at 0.30, 9:21, 9:16, 16:9, 21:9 and 32:9 (worst 3.10 s at 0.30).
+  It is only guaranteed inside 9:21..21:9.
+- Tests: ground coverage at 0.30, 9:21, 9:19.5, 9:16, 16:9, 21:9 and 32:9 (all rays point down, all
+  hits land inside, with 5 m of headroom); lane visibility ≥ 2.0 s at 9:21, 9:16, 16:9 and 21:9; the
+  projection matches a real `Camera3D` in the clamped branches.
+
+**D-154 PlannerBot buys unbuilt towers by lane threat (Task 25 review; refines spec 13.3).**
+- With the plan's order, a level-0 tower was only a candidate as "the tower next to the top side
+  lane", and upgrades skipped level 0. `tower_ne` was never built (every sweep row showed
+  `tower_ne:0`), and the east lane had no tower at all. The sweep broke at day 3, probably from the
+  bot's weakness rather than the balance.
+- New order:
+  1. a fence on the highest-threat side lane;
+  2. the tower next to it;
+  3. more fences and any unbuilt tower, by the threat on their lanes (a tower scores its
+     higher-threat lane);
+  4. upgrades: rank lanes by threat and take the spots next to the top lane, towers before fences.
+  Ties go by `SPOT_IDS` order.
+- Details fixed during review:
+  - step 1 ranks side lanes by their side-group threat (count × `hp_mult`);
+  - step 2, when the side lane is north, takes the adjacent tower whose other lane has more threat;
+  - step 3 skips spots whose lanes carry no threat tonight;
+  - step 4 is towers first, then fences; within a kind it takes the cheapest affordable. If nothing
+    next to the top lane is affordable, it moves to the next lane by threat rather than saving.
+- The break day (DoD 4) is logged only after the sweep re-runs with this order.
+
+**D-156 S2 input: re-tune wave scaling for cards (author, from the CP1 review).**
+- With the S1 PlannerBot (D-154, D-155), nights 2–4 end at 100%, 83% and 75% diner HP, and the
+  sweep breaks at day 8.
+- Hero cards (S2) add power, so S2 re-tunes wave scaling against a target break day *with* cards.
+  Recorded in the spec's S2 decomposition line. No S1 work.
