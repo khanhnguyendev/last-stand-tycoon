@@ -39,3 +39,18 @@ signal closeup_requested()
 signal banner_requested(text: String)
 ## PhaseController -> Hero, CameraRig. Place the hero (new game, restore). Replaces a node call (D-128).
 signal hero_place_requested(position: Vector2)
+
+## PhaseController (via GameState) -> overlay, HUD, bots. The dawn offer, in display order.
+signal card_offered(offer: Array)
+## Overlay / bots -> PhaseController. A pick request; ignored unless it matches the open offer.
+signal card_chosen(card_id: StringName)
+## GameState -> Hero, guards, HUD. level is the card's new level.
+signal card_picked(card_id: StringName, level: int)
+## GameState -> guards. hp_left after the hit.
+signal guard_damaged(guard_id: StringName, hp_left: float)
+## GameState -> guards, sims. Once per knockout.
+signal guard_knocked_out(guard_id: StringName)
+## GameState -> guards. Back at full HP after the respawn timer.
+signal guard_revived(guard_id: StringName)
+## GameState -> guards. Dawn healed the guard to hp (spec 5.2: after phase_changed(DAWN)).
+signal guard_healed(guard_id: StringName, hp: float)
