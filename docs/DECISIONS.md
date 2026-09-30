@@ -1484,3 +1484,20 @@ Spec: `docs/superpowers/specs/2026-09-30-s3-save-failure-mercy-design.md`.
 - Chose 4.0, the smallest change that passes (D-169). It has zero margin: one diner hit is 0.0167. 3.0 would weaken
   the Archer by 25% at every level, which is a target-3 decision for the S2 tuning pass.
 - Task S2-14 re-checks target 4 across several sweep seeds, not only the sim seed.
+
+**D-180 S2 tuning pass: no balance change beyond D-179 (Task S2-14; D-169, D-170).**
+- Sweep break day (PlannerBot with its card policy, 14 days): 10 (seed 20260930), 11 (seed 11), 10 (seed 777), all
+  inside the 10 ± 1 target. Unspent gold at close-up is at most 38 through day 5 on every seed.
+- Per-seed night targets:
+
+  | Seed | Night 1 NaiveBot (≥ 0.50) | Night 2 PlannerBot (≥ 0.60) | Night 2 NaiveBot with the Archer (≤ 0.30) |
+  |---|---|---|---|
+  | 20260930 | 0.667 | 1.000 | 0.300 |
+  | 11 | 0.683 | 1.000 | 0.050 |
+  | 777 | 0.633 | 0.517 (cleared, no retry) | 0.000 (fails) |
+- The must-hold thresholds stay defined on the canonical sim seed (D-103, D-105), where the tests pin them and all hold.
+  Seed 777's night 2 is a known spread: it still clears, and S3 mercy softens a failed retry.
+- No knob was moved: raising the Tank or lowering wave pressure for one seed would move the break day and the
+  zero-margin Archer target.
+- Also seen: from about day 7, every tower and fence is at max level, so unspent gold piles up (260 → 748 by day 9).
+  There is no other gold sink in v0.1 (IDEA: towers and fences are the only sink). Logged in REVIEW_QUEUE.

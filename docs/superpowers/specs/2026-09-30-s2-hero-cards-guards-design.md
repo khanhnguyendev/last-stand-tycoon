@@ -467,3 +467,26 @@ Phase branches are `s2/p<N>-<slug>`, one PR per phase, all self-merged under D-1
 - Card rerolls; card rarity.
 - Guard post choice (the player moves a guard between posts).
 - A hero HP and knockout for the player's own hero.
+
+## 15. Results (S2, filled in at the end of S2)
+
+| Item | Value |
+|---|---|
+| Tests | unit 393, sim 8, sim suite about 6 s (budget 60 s) |
+| Sim targets (seed 20260930) | night 1 NaiveBot 0.667 (≥ 0.50); night 2 PlannerBot with the Tank 1.000 (≥ 0.60); night 2 NaiveBot with the Archer 0.300 (≤ 0.30) |
+| Sweep break day | 10 / 11 / 10 on seeds 20260930 / 11 / 777 (target 10 ± 1, D-170, D-180) |
+| Unspent gold through day 5 | at most 38 on every seed (under one tower, 40) |
+| Balance changes | Archer L1 damage 6.0 → 4.0 (D-179); none in the tuning pass (D-180) |
+| Known spread | seed 777: night 2 PlannerBot ends at 0.517 (cleared); late-game gold has no sink from about day 7 (REVIEW_QUEUE) |
+| Screenshots | `docs/screenshots/s2/lane_west.png`, `lane_north.png`, `lane_east.png`, `card_pick.png`, `guards_night1.png` |
+| Simulator self-reviews | card pick (preview s2-p3-pick-ui), guards (preview s2-p4-guards): pass |
+
+Capture commands (with rendering, 720×1280):
+- lane shots: `-- --lane=<west|north|east> --cards=archer:1,tank:1 --seconds=4`
+- `card_pick.png`: `-- --scene=cardpick --cards=archer:1,tank:1 --seconds=4`
+- `guards_night1.png`: `-- --cards=archer:2,tank:2 --seconds=3`
+
+Notes for later sub-projects:
+- The HUD card strip sits close under the diner bar (S5 polish).
+- The Archer's roof post is off-screen when the camera frames the west lane on a narrow phone (S4 art pass or a camera-focus tweak).
+- Level text uses "»" because Nunito has no "→".
