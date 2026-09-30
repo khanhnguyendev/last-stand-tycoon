@@ -1202,3 +1202,13 @@ falls and the night restarts identically.
 - Tests: ground coverage at 0.30, 9:21, 9:19.5, 9:16, 16:9, 21:9 and 32:9 (all rays point down, all
   hits land inside, with 5 m of headroom); lane visibility ≥ 2.0 s at 9:21, 9:16, 16:9 and 21:9; the
   projection matches a real `Camera3D` in the clamped branches.
+
+**D-155 Sweep break day: 6 (Task 25; DoD 4).**
+- PlannerBot, seed 20260930, default balance, with the D-154 purchase order. The run breaks at
+  day 6: the diner falls three times in a row, and the retries replay identically.
+- Diner HP left at dawn by day: 0.667, 1.000, 0.600, 0.617, 0.383, then the break.
+- Gold earned per day: 108 / 144 / 186 / 216 / 258. Unspent at close-up: 8 / 32 / 38 / 34 / 12.
+- Before D-154 the run broke at day 3, because the bot never built `tower_ne`.
+- Finding for Task 35: the measured steaks per night are about 83% of `kills × steaks_per_kill`
+  (30 of 36 on day 1). Some drops aren't picked up before dawn, so the economy runs below its
+  paper value. Check magnet reach and drop scatter against the bot's routes before tuning numbers.

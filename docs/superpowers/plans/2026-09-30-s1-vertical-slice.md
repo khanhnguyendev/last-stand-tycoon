@@ -7927,6 +7927,61 @@ func test_then_adjacent_tower() -> void:
 func test_nothing_if_unaffordable() -> void:
 	GameState.add_gold(5)
 	assert_eq(bot.next_purchase(), "")
+
+func _plan(main_lane: String, main_n: int, side_lane: String, side_n: int) -> void:
+	GameState.lane_plan = [{"main": main_lane, "side": side_lane, "main_count": main_n,
+		"side_count": side_n, "hp_mult": 1.0}]
+
+func _build(id: String) -> void:
+	GameState.pay_into_spot(id, GameState.next_level_cost(id))
+
+func test_unbuilt_tower_ne_competes() -> void:
+	# east is the heaviest lane, west the side lane: steps 1-2 build fence_w and tower_nw
+	_plan("east", 10, "west", 3)
+	GameState.add_gold(1000)
+	assert_eq(bot.next_purchase(), "fence_w")
+	_build("fence_w")
+	assert_eq(bot.next_purchase(), "tower_nw")
+	_build("tower_nw")
+	# step 3: tower_ne scores max(north 0, east 10) = fence_e's 10; tie -> SPOT_IDS order -> tower_ne
+	assert_eq(bot.next_purchase(), "tower_ne")
+	_build("tower_ne")
+	assert_eq(bot.next_purchase(), "fence_e")
+
+func test_upgrade_highest_threat_lane_first() -> void:
+	_plan("east", 10, "west", 3)
+	GameState.add_gold(1000)
+	for id in ["fence_w", "tower_nw", "tower_ne", "fence_e"]:
+		_build(id)
+	# everything with threat is built: upgrade next to the east lane, cheapest affordable first
+	var expect := ""
+	var best := 0
+	for id in ["tower_ne", "fence_e"]:
+		var rem := GameState.remaining_cost(id)
+		if expect == "" or rem < best:
+			expect = id
+			best = rem
+	assert_eq(bot.next_purchase(), expect)
+	# with only fence_e's price in hand the choice is still an east spot
+	GameState.gold = GameState.remaining_cost("fence_e")
+	assert_eq(bot.next_purchase(), "fence_e")
+
+func test_hysteresis() -> void:
+	GameState.add_gold(100)
+	var spot := "fence_w" if bot.next_purchase() != "fence_w" else "fence_e"
+	GameState.pay_into_spot(spot, 5)
+	main.hero.teleport(bot.graph.position_of(spot))
+	bot.go_to(spot)
+	bot._route.clear()
+	assert_true(bot.arrived())
+	bot.day_think(0.0)
+	assert_eq(bot.goal, spot, "kept while paying with gold left")
+	for id in MapLayout.SPOT_IDS:  # spend down to 0
+		if id != spot:
+			GameState.pay_into_spot(id, GameState.gold)
+	assert_eq(GameState.gold, 0)
+	bot.day_think(0.0)
+	assert_eq(bot.goal, "sign", "released once gold hits 0")
 ```
 
 - [ ] **Step 2: Run it and see it fail**
@@ -7942,7 +7997,7 @@ Expected: FAIL (`PlannerBot` not declared).
 class_name PlannerBot
 extends NaiveBot
 ## NaiveBot at night; by day: haul and sell everything, collect gold, then build/upgrade by tonight's
-## telegraph (spec 13.3, D-067), then close up.
+## telegraph (spec 13.3, D-067), then close up. Drives only through HeroInput (BotBase.go_to).
 
 func day_think(_delta: float) -> void:
 	var cap := Balance.data.hero.carry_capacity
@@ -7951,6 +8006,11 @@ func day_think(_delta: float) -> void:
 	if goal == "freezer" and GameState.freezer_steaks > 0 and GameState.carried_steaks < cap:
 		return
 	if goal == "counter_drop" and GameState.carried_steaks > 0 and GameState.counter_steaks < counter_cap:
+		return
+	# keep standing on a spot that is mid-payment (each tick drains gold, so the affordability check below
+	# would flip before the level completes); only once arrived, so a walk is never held by it
+	if goal in MapLayout.SPOT_IDS and arrived() and int(GameState.buildings[goal].paid) > 0 \
+			and GameState.gold > 0 and GameState.remaining_cost(goal) > 0:
 		return
 	if GameState.carried_steaks > 0 and GameState.counter_steaks < counter_cap:
 		go_to("counter_drop")
@@ -7964,50 +8024,79 @@ func day_think(_delta: float) -> void:
 		var spot := next_purchase()
 		go_to(spot if spot != "" else "sign")
 
+## The spot id to build or upgrade next with the gold in hand, or "" (spec 13.3, D-067, D-154).
+## 1 fence on the top side lane; 2 the tower next to it; 3 more fences and any unbuilt tower, by the
+## threat on their lanes (a tower scores the max of its two lanes); 4 upgrades next to the top-threat lane.
+## Ties by lane order / SPOT_IDS order, never by float equality.
 func next_purchase() -> String:
 	var threat := LanePlanner.threat_by_lane(GameState.lane_plan, Balance.data.enemy.hp)
 	var side := {"west": 0.0, "north": 0.0, "east": 0.0}
 	for w in GameState.lane_plan:
 		if String(w.side) != "":
 			side[w.side] += int(w.side_count) * float(w.hp_mult)
-	var lanes := LanePlanner.LANES.duplicate()
-	lanes.sort_custom(func(a, b):
-		if not is_equal_approx(threat[a], threat[b]):
-			return threat[a] > threat[b]
-		return LanePlanner.LANES.find(a) < LanePlanner.LANES.find(b))  # float ties -> lane order (Task 5 review)
-	var builds: Array = []
 	var side_lane := ""
 	for l in LanePlanner.LANES:
 		if side[l] > 0.0 and (side_lane == "" or side[l] > side[side_lane]):
 			side_lane = l
+	# steps 1-2
+	var builds: Array = []
 	if side_lane != "":
 		builds.append(MapLayout.LANE_FENCE[side_lane])
 		for t in ["tower_nw", "tower_ne"]:
 			if side_lane in MapLayout.TOWER_LANES[t]:
 				builds.append(t)
 				break
-	for l in lanes:
-		if threat[l] > 0.0:
-			builds.append(MapLayout.LANE_FENCE[l])
+	# step 3
+	var rest: Array = []
+	for id in MapLayout.SPOT_IDS:
+		if not id in builds and _spot_threat(id, threat) > 0.0:
+			rest.append(id)
+	rest.sort_custom(func(a: String, b: String) -> bool:
+		var ta := _spot_threat(a, threat)
+		var tb := _spot_threat(b, threat)
+		if not is_equal_approx(ta, tb):
+			return ta > tb
+		return MapLayout.SPOT_IDS.find(a) < MapLayout.SPOT_IDS.find(b))
+	builds.append_array(rest)
 	for id in builds:
 		if int(GameState.buildings[id].level) == 0 and GameState.remaining_cost(id) <= GameState.gold:
 			return id
-	var spot_threat := func(id: String) -> float:
-		if MapLayout.spot_kind(id) == "fence":
-			return threat[MapLayout.FENCE_LANE[id]]
-		var s := 0.0
-		for l in MapLayout.TOWER_LANES[id]:
-			s += threat[l]
-		return s
-	var ups := MapLayout.SPOT_IDS.duplicate()
-	ups.sort_custom(func(a, b): return spot_threat.call(a) > spot_threat.call(b) or (spot_threat.call(a) == spot_threat.call(b) and a < b))
-	for id in ups:
-		var lvl := int(GameState.buildings[id].level)
-		if lvl >= 1 and spot_threat.call(id) > 0.0:
+	# step 4: upgrades, lanes by threat; next to a lane: towers before fences, cheapest affordable first
+	var lanes: Array = LanePlanner.LANES.duplicate()
+	lanes.sort_custom(func(a: String, b: String) -> bool:
+		if not is_equal_approx(threat[a], threat[b]):
+			return threat[a] > threat[b]
+		return LanePlanner.LANES.find(a) < LanePlanner.LANES.find(b))  # float ties -> lane order
+	for l in lanes:
+		if threat[l] <= 0.0:
+			continue
+		var near: Array = []
+		for id in MapLayout.SPOT_IDS:  # SPOT_IDS lists towers first
+			if MapLayout.spot_kind(id) == "tower":
+				if l in MapLayout.TOWER_LANES[id]:
+					near.append(id)
+			elif MapLayout.FENCE_LANE[id] == l:
+				near.append(id)
+		var best := ""
+		var best_rem := 0
+		for id in near:
+			if int(GameState.buildings[id].level) < 1:
+				continue
 			var rem := GameState.remaining_cost(id)
-			if rem >= 0 and rem <= GameState.gold:
-				return id
+			if rem >= 0 and rem <= GameState.gold and (best == "" or rem < best_rem):
+				best = id
+				best_rem = rem
+		if best != "":
+			return best
 	return ""
+
+func _spot_threat(id: String, threat: Dictionary) -> float:
+	if MapLayout.spot_kind(id) == "fence":
+		return threat[MapLayout.FENCE_LANE[id]]
+	var m := 0.0
+	for l in MapLayout.TOWER_LANES[id]:
+		m = maxf(m, threat[l])
+	return m
 ```
 
 - [ ] **Step 4: Run the unit tests and see them pass**
@@ -8039,10 +8128,30 @@ func _night2(bot: GDScript, harness: SimHarness) -> Dictionary:
 	assert_true(n1.cleared, "night 1 must clear: %s" % n1)
 	var d1 := await harness.run_day()
 	assert_true(d1.closed, "day 1 must close up")
+	var closeup: Dictionary = harness.main.phase_controller.snapshot.duplicate(true)  # taken at close-up
+	var plan2: Array = GameState.lane_plan.duplicate(true)  # night 2's plan (dawn replaces it)
 	var n2 := await harness.run_night()
 	n2["day1_seconds"] = d1.seconds
-	n2["builds"] = GameState.buildings.duplicate(true)
+	n2["closeup"] = closeup
+	n2["lane_plan"] = plan2
 	return n2
+
+func _side_lane(plan: Array) -> String:
+	var side := {"west": 0.0, "north": 0.0, "east": 0.0}
+	for w in plan:
+		if String(w.side) != "":
+			side[w.side] += int(w.side_count) * float(w.hp_mult)
+	var best := ""
+	for l in LanePlanner.LANES:
+		if side[l] > 0.0 and (best == "" or side[l] > side[best]):
+			best = l
+	return best
+
+func _levels(builds: Dictionary) -> int:
+	var total := 0
+	for id in builds:
+		total += int(builds[id].level)
+	return total
 
 func test_night2_naive_unaided_is_hard_and_deterministic() -> void:
 	var r1 := await _night2(NaiveBot, h)
@@ -8054,15 +8163,24 @@ func test_night2_naive_unaided_is_hard_and_deterministic() -> void:
 	var h2 := SimHarness.new(self)
 	var r2 := await _night2(NaiveBot, h2)
 	h2.finish()
-	assert_eq([r1.failed, r1.diner_frac, r1.kills], [r2.failed, r2.diner_frac, r2.kills], "same seed, same outcome")
+	assert_eq(_levels(r1.closeup.buildings), 0, "the naive bot never builds")
+	assert_eq([r1.failed, r1.diner_frac, r1.kills, r1.lane_plan], [r2.failed, r2.diner_frac, r2.kills, r2.lane_plan],
+		"same seed, same outcome")
 
 func test_night2_planner_is_comfortable() -> void:
 	var r := await _night2(PlannerBot, h)
 	gut.p("night2 planner: %s" % r)
-	var built := 0
-	for id in r.builds:
-		built += int(r.builds[id].level)
-	assert_gt(built, 1, "day 1 yield bought at least a fence and a tower")
+	var b: Dictionary = r.closeup.buildings
+	var side_lane := _side_lane(r.lane_plan)
+	assert_ne(side_lane, "", "night 2 has a side group")
+	var fence: String = MapLayout.LANE_FENCE[side_lane]
+	assert_gte(int(b[fence].level), 1, "side-lane fence built at close-up")
+	var tower_ok := false
+	for t in MapLayout.TOWER_LANES:
+		if side_lane in MapLayout.TOWER_LANES[t] and int(b[t].level) >= 1:
+			tower_ok = true
+	assert_true(tower_ok, "a tower next to the side lane built at close-up")
+	assert_lt(int(r.closeup.gold), Balance.data.build.fence_cost, "gold spent down at close-up")
 	assert_true(r.cleared, "night 2 must clear")
 	assert_true(r.diner_frac >= Balance.data.sim.night2_comfort_min, "diner %.2f" % r.diner_frac)
 ```
@@ -8084,7 +8202,7 @@ func _initialize() -> void:
 `tests/sim/sweep_runner.gd`:
 ```gdscript
 extends Node
-## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1–10 → tests/sim/out/sweep.csv.
+## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1-10 -> tests/sim/out/sweep.csv.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
 
 func _ready() -> void:
@@ -8101,16 +8219,23 @@ func _run() -> void:
 	get_tree().root.add_child(holder)
 	var h := SimHarness.new(holder)
 	h.start(int(args.seed), PlannerBot)
-	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup"]
+	EventBus.steak_sold.connect(_on_sold)
+	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup"]
 	var broke_at := -1
 	for day in range(1, int(args.days) + 1):
 		var retries := 0
 		var enemy_count := Economy.night_kills(GameState.day, Balance.data.wave)
+		var defending := _builds()  # what stands when the night starts (spent during the day before)
+		var freezer0 := GameState.freezer_steaks
 		var t0 := h.elapsed
 		var n := await h.run_night()
+		# Retries are deterministic: the restored night replays identically (spec 13.5 keeps them), so a
+		# failed night stays failed; the count only shows the game would have looped.
 		while n.failed and retries < 3:
 			retries += 1
-			await h.run_until(func(): return not h.main.phase_controller.failing, 5.0)
+			var restored := await h.run_until(func(): return not h.main.phase_controller.failing, Balance.ui.banner_time + 1.0)
+			if not restored:
+				break
 			if h.main.phase_controller.phase == Phase.DAY:
 				await h.run_day()
 			t0 = h.elapsed
@@ -8118,15 +8243,23 @@ func _run() -> void:
 		var night_s := h.elapsed - t0
 		if n.failed:
 			broke_at = day
-			rows.append("%d,%.3f,%d,%d,%d,%d,%s,%d,%.1f,,," % [day, n.diner_frac, retries, n.kills, n.kills * 2, 0, _builds(), enemy_count, night_s])
+			rows.append("%d,%.3f,%d,%d,0,0,%s,%d,%.1f,," % [day, n.diner_frac, retries, n.kills, defending, enemy_count, night_s])
 			break
+		# dawn moved the night's steaks to the freezer; gold is what the day's sales pay out
+		var steaks := GameState.freezer_steaks - freezer0
+		_gold_sold = 0
 		var d := await h.run_day()
-		var steaks: int = n.kills * Balance.data.economy.steaks_per_kill
+		if not d.closed:
+			rows.append("%d,STALL" % day)
+			break
 		rows.append("%d,%.3f,%d,%d,%d,%d,%s,%d,%.1f,%.1f,%d" % [day, n.diner_frac, retries, n.kills, steaks,
-			steaks * Balance.data.economy.gold_per_steak, _builds(), enemy_count, night_s, d.seconds,
-			int(h.main.phase_controller.snapshot.gold)])
+			_gold_sold, defending, enemy_count, night_s, d.seconds, int(h.main.phase_controller.snapshot.gold)])
+	if EventBus.steak_sold.is_connected(_on_sold):
+		EventBus.steak_sold.disconnect(_on_sold)
 	var out_dir := ProjectSettings.globalize_path("res://tests/sim/out")
 	DirAccess.make_dir_recursive_absolute(out_dir)
+	var gi := FileAccess.open(out_dir.path_join(".gdignore"), FileAccess.WRITE)  # keep Godot from importing out/
+	gi.close()
 	var f := FileAccess.open(out_dir.path_join("sweep.csv"), FileAccess.WRITE)
 	f.store_string("\n".join(rows) + "\n")
 	f.close()
@@ -8134,6 +8267,11 @@ func _run() -> void:
 	print("SWEEP broke_at_day=%d" % broke_at)
 	h.finish()
 	get_tree().quit(0)
+
+var _gold_sold := 0
+
+func _on_sold(_count: int, gold: int) -> void:
+	_gold_sold += gold
 
 func _builds() -> String:
 	var parts: Array = []
