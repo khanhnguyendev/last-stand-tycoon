@@ -1222,3 +1222,9 @@ falls and the night restarts identically.
   - step 4 is towers first, then fences; within a kind it takes the cheapest affordable. If nothing
     next to the top lane is affordable, it moves to the next lane by threat rather than saving.
 - The break day (DoD 4) is logged only after the sweep re-runs with this order.
+
+**D-156 S2 input: re-tune wave scaling for cards (author, from the CP1 review).**
+- With the S1 PlannerBot (D-154, D-155), nights 2–4 end at 100%, 83% and 75% diner HP, and the
+  sweep breaks at day 8.
+- Hero cards (S2) add power, so S2 re-tunes wave scaling against a target break day *with* cards.
+  Recorded in the spec's S2 decomposition line. No S1 work.
