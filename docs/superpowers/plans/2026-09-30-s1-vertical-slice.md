@@ -2229,7 +2229,7 @@ git commit -m "feat: add targeting, economy costs and close-up pulse predicate"
   - `shortest(from: String, to: String) -> Array` (node names, inclusive)
   - `route_from(p: Vector2, goal: String) -> Array` (Vector2 points to walk)
   - `position_of(name: String) -> Vector2`
-- **Node names:** `home`, `sign`, `gold_pile`, `front_e`, `counter_drop`, `freezer`, `sw`, `se`, `nw`, `ne`, `zone_west`, `zone_north`, `zone_east`, `fence_w`, `fence_n`, `fence_e`, `tower_nw`, `tower_ne`.
+- **Node names:** `home`, `sign`, `gold_pile`, `front_e`, `counter_drop`, `freezer`, `sw`, `se`, `nw`, `ne`, `zone_west`, `zone_north`, `zone_east`, `fence_w`, `fence_n`, `fence_e`, `tower_nw`, `tower_ne`, `e_mid` (D-144).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2255,8 +2255,9 @@ func test_edges_traversable_against_colliders() -> void:
 		for b in g.edges[a]:
 			var pa := g.position_of(a)
 			var pb := g.position_of(b)
-			for i in 51:
-				var p := pa.lerp(pb, i / 50.0)
+			var n := maxi(50, ceili(pa.distance_to(pb) / 0.05))
+			for i in n + 1:
+				var p := pa.lerp(pb, float(i) / n)
 				for r in [diner, freezer, counter]:
 					assert_true(Geometry.dist_point_rect(p, r) >= MapLayout.HERO_RADIUS - 0.01, "%s-%s hits box at %s" % [a, b, p])
 
@@ -2275,6 +2276,13 @@ func test_tower_stand_points_inside_build_radius() -> void:
 		var d := g.position_of(id).distance_to(MapLayout.TOWER_SPOTS[id])
 		assert_true(d <= MapLayout.BUILD_RADIUS)
 		assert_true(d >= MapLayout.TOWER_VISUAL_RADIUS, "stand beside the mesh, not inside it")
+
+func test_route_home_to_zone_east_uses_e_mid() -> void:
+	assert_eq(g.shortest("home", "zone_east"), ["home", "se", "e_mid", "zone_east"])
+
+func test_shortest_unknown_node_returns_empty() -> void:
+	assert_eq(g.shortest("home", "nope"), [])
+	assert_eq(g.shortest("nope", "home"), [])
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -2321,6 +2329,8 @@ func nearest(p: Vector2) -> String:
 	return best
 
 func shortest(from: String, to: String) -> Array:
+	if not nodes.has(from) or not nodes.has(to):
+		return []
 	var dist := {}
 	var prev := {}
 	var open: Array = nodes.keys()
@@ -2365,6 +2375,7 @@ static func create_default() -> WaypointGraph:
 	g.add_node("se", Vector2(6.8, 6.8))
 	g.add_node("nw", Vector2(-7, -7))
 	g.add_node("ne", Vector2(7, -7))
+	g.add_node("e_mid", Vector2(7.0, 3.0))  # D-144: a direct se–zone_east edge crosses the freezer
 	for lane in ["west", "north", "east"]:
 		g.add_node("zone_" + lane, MapLayout.lane_end(lane))
 	g.add_node("fence_w", MapLayout.fence_spot("west"))
@@ -2375,7 +2386,7 @@ static func create_default() -> WaypointGraph:
 	for e in [
 		["home", "sign"], ["home", "sw"], ["home", "se"], ["home", "front_e"], ["home", "gold_pile"], ["sw", "gold_pile"],
 		["front_e", "freezer"], ["front_e", "counter_drop"], ["se", "freezer"],
-		["sw", "nw"], ["se", "ne"], ["sw", "zone_west"], ["se", "zone_east"],
+		["sw", "nw"], ["se", "ne"], ["sw", "zone_west"], ["se", "e_mid"], ["e_mid", "zone_east"],
 		["nw", "zone_west"], ["nw", "zone_north"], ["nw", "fence_w"], ["nw", "fence_n"], ["nw", "tower_nw"],
 		["ne", "zone_east"], ["ne", "zone_north"], ["ne", "fence_e"], ["ne", "fence_n"], ["ne", "tower_ne"],
 		["zone_west", "fence_w"], ["zone_north", "fence_n"], ["zone_east", "fence_e"],
@@ -2445,31 +2456,53 @@ func test_visible_width_about_14m() -> void:
 
 func test_boar_visible_two_seconds_before_range() -> void:
 	var ui := Balance.ui
-	var proj := CameraMath.projection(ui, CameraMath.ASPECT)
 	var eb := Balance.data.enemy
 	var hero_range := Balance.data.hero.attack_range
 	var dt := 1.0 / 60.0
-	for lane in LanePlanner.LANES:
-		var hero := MapLayout.lane_end(lane)
-		var xf := CameraMath.camera_transform(CameraMath.focus_for(hero), ui)
-		var length := MapLayout.path_length(lane)
-		var samples: Array = []
-		var d := 0.0
-		while d <= length:
-			samples.append(EnemyPath.position_at(lane, d, 0.0, eb.offset_fade_distance))
-			d += eb.speed * dt
-		var range_idx := -1
-		for i in samples.size():
-			if (samples[i] as Vector2).distance_to(hero) <= hero_range:
-				range_idx = i
-				break
-		assert_gt(range_idx, 0, lane)
-		var first_visible := range_idx
-		while first_visible > 0 and CameraMath.on_screen(MapLayout.to3(samples[first_visible - 1], 0.5), xf, proj):
-			first_visible -= 1
-		var seconds := (range_idx - first_visible) * dt
-		gut.p("%s: on screen %.2f s before range" % [lane, seconds])
-		assert_true(seconds >= 2.0, "%s only %.2f s" % [lane, seconds])
+	for aspect in [CameraMath.ASPECT, 16.0 / 9.0]:
+		var proj := CameraMath.projection(ui, aspect)
+		for lane in LanePlanner.LANES:
+			var length := MapLayout.path_length(lane)
+			var worst := INF
+			for hero in [(MapLayout.ZONE_RECTS[lane] as Rect2).get_center(), MapLayout.lane_end(lane)]:
+				var xf := CameraMath.camera_transform(CameraMath.focus_for(hero), ui)
+				for offset in [-eb.lateral_spread, 0.0, eb.lateral_spread]:
+					var samples: Array = []
+					var d := 0.0
+					while d <= length:
+						samples.append(EnemyPath.position_at(lane, d, offset, eb.offset_fade_distance))
+						d += eb.speed * dt
+					var range_idx := -1
+					for i in samples.size():
+						if (samples[i] as Vector2).distance_to(hero) <= hero_range:
+							range_idx = i
+							break
+					assert_gt(range_idx, 0, "%s hero %s offset %.2f" % [lane, hero, offset])
+					var first_visible := range_idx
+					while first_visible > 0 and CameraMath.on_screen(MapLayout.to3(samples[first_visible - 1], 0.5), xf, proj):
+						first_visible -= 1
+					var seconds := (range_idx - first_visible) * dt
+					worst = minf(worst, seconds)
+					assert_true(seconds >= 2.0, "%s aspect %.3f hero %s offset %.2f only %.2f s" % [lane, aspect, hero, offset, seconds])
+			gut.p("%s @ aspect %.3f: min %.2f s on screen before range" % [lane, aspect, worst])
+
+func test_projection_matches_godot_camera() -> void:
+	var ui := Balance.ui
+	# Round trip: the portrait vertical FOV reproduces the horizontal FOV at 9:16.
+	assert_almost_eq(tan(deg_to_rad(CameraMath.portrait_fov_v(ui)) / 2.0) * CameraMath.ASPECT, tan(deg_to_rad(ui.camera_fov_h) / 2.0), 1e-6)
+	for size in [Vector2i(720, 1280), Vector2i(1280, 720)]:
+		var vp := SubViewport.new()
+		vp.size = size
+		add_child_autofree(vp)
+		var cam := Camera3D.new()
+		var aspect := float(size.x) / float(size.y)
+		CameraMath.apply_lens(cam, ui, aspect)
+		vp.add_child(cam)
+		var got := cam.get_camera_projection()
+		var want := CameraMath.projection(ui, aspect)
+		for c in 4:
+			for r in 4:
+				assert_almost_eq(got[c][r], want[c][r], 1e-4, "%s [%d][%d]" % [size, c, r])
 ```
 
 - [ ] **Step 2: Run it and see it fail**
@@ -2501,9 +2534,31 @@ static func camera_transform(focus: Vector2, ui: UiTuning) -> Transform3D:
 	var pos := target + Vector3(0.0, sin(pitch), cos(pitch)) * ui.camera_distance
 	return Transform3D(Basis(), pos).looking_at(target, Vector3.UP)
 
-static func projection(ui: UiTuning, aspect: float) -> Projection:
-	# flip_fov = true: camera_fov_h is horizontal, matching Camera3D.KEEP_WIDTH.
-	return Projection.create_perspective(ui.camera_fov_h, aspect, Z_NEAR, Z_FAR, true)
+static func keeps_width(aspect: float) -> bool:
+	return aspect <= ASPECT + 1e-6
+
+## Vertical FOV (degrees) of the portrait view; wider windows keep it with KEEP_HEIGHT (D-145).
+static func portrait_fov_v(ui: UiTuning) -> float:
+	return rad_to_deg(2.0 * atan(tan(deg_to_rad(ui.camera_fov_h) / 2.0) / ASPECT))
+
+## D-145: KEEP_WIDTH up to 9:16; wider windows keep the portrait vertical FOV (KEEP_HEIGHT).
+## CameraRig (Task 28) must use keeps_width() for Camera3D.keep_aspect and the matching fov.
+static func projection(ui: UiTuning, aspect: float = ASPECT) -> Projection:
+	if keeps_width(aspect):
+		# flip_fov = true: camera_fov_h is horizontal, matching Camera3D.KEEP_WIDTH.
+		return Projection.create_perspective(ui.camera_fov_h, aspect, Z_NEAR, Z_FAR, true)
+	return Projection.create_perspective(portrait_fov_v(ui), aspect, Z_NEAR, Z_FAR, false)
+
+## D-145: sets keep_aspect, fov, near and far on a real Camera3D for the given viewport aspect.
+static func apply_lens(cam: Camera3D, ui: UiTuning, aspect: float) -> void:
+	if keeps_width(aspect):
+		cam.keep_aspect = Camera3D.KEEP_WIDTH
+		cam.fov = ui.camera_fov_h
+	else:
+		cam.keep_aspect = Camera3D.KEEP_HEIGHT
+		cam.fov = portrait_fov_v(ui)
+	cam.near = Z_NEAR
+	cam.far = Z_FAR
 
 static func to_ndc(world: Vector3, xform: Transform3D, proj: Projection) -> Vector3:
 	var v := xform.affine_inverse() * world
