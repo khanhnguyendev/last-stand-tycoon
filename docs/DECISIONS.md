@@ -768,3 +768,16 @@ wording).**
   - NaiveBot meets it at about 12.4 s;
   - an idle player at the old home never met it at all.
 - The plan adds an idle-player first-combat sim (≤ 30 s) next to the NaiveBot one.
+
+## 2026-09-30: PR #1 review, part 2
+
+**D-127 Velocity tracking and the budget rule (author).**
+- Every plan task has an **Actual (h)** field that the implementer fills in when the task is done.
+  6 h counts as 1 working day.
+- At CP1: `r = actual days for Tasks 0–20 ÷ 8.0 planned`, and the S1 forecast is
+  `actual + (18.5 − 8.0) × r`.
+- Pre-agreed rule: if the S1 forecast at CP1 is over 3 weeks (15 working days), the v0.1 budget
+  extends to 8 weeks. The core loop and the S2 cards are never cut. Further room comes from
+  `docs/CUT_CANDIDATES.md` in rank order.
+- Note: the 18.5-day baseline is itself over 3 weeks, so the rule applies unless Phases 0–5 run at
+  least 19% faster than planned.
