@@ -70,7 +70,7 @@ re-tune, snapshot schema v2.
 - `CardCatalog.kind(id)`, `CardCatalog.UPGRADES` (the 5 upgrade ids in `IDS` order), and `static func max_level()`,
   which returns `Balance.data.cards.max_level` (5).
 - Each card shows: its name, a one-line effect ("+20% hero damage"), and "NEW" for level 0 or "Lv 2 → 3"
-  otherwise. All strings go through `tr()`.
+  otherwise. All strings go through `tr()`. `test_glyphs` adds "→" to its sample, so Nunito's coverage is checked.
 
 ### 4.2 Effects (`core/card_effects.gd`, static, pure; D-167)
 
@@ -94,7 +94,7 @@ The consumers (every read of these base values goes through `CardEffects` with `
 `CardOffer.make(run_seed, day, levels, cb) -> Array[StringName]`:
 - It draws from `Rng.stream(run_seed, day, &"cards")` and never uses global rand.
 - `day` is `GameState.day` after `advance_day`, so the dawn after night 1 uses day 2.
-- **First offer** (no card picked yet; `levels` is empty): `[archer, tank, UPGRADES[rng.randi_range(0, 4)]]`.
+- **First offer** (no card picked yet: no id has level ≥ 1): `[archer, tank, UPGRADES[rng.randi_range(0, 4)]]`.
 - **Otherwise** (this exact algorithm, so every implementation gives the same offers):
   ```
   pool = [id for id in CardCatalog.IDS if levels.get(id, 0) < max_level]
@@ -104,7 +104,8 @@ The consumers (every read of these base values goes through `CardEffects` with `
   ```
   The display order is `out`.
 - An empty result means no pick that dawn.
-- `test_card_offer` pins one seed's first three offers.
+- `test_card_offer` pins the offers for explicit inputs with one seed: day 2 with `{}`, day 3 with `{tank: 1}`, and
+  day 4 with `{tank: 1, <day 3's first id>: 1}`.
 
 ## 5. Card pick flow
 
@@ -126,7 +127,8 @@ There are no timeouts. DAWN now lasts until the pick.
 Resets:
 - `start_new_game()` and `_restore_snapshot()` set `dawn_substate = ""`, so a new game or restore during a pick
   never leaves a stale sub-state.
-- `debug_skip_to_day()` (and the J key) skips the pick **without granting a card**: it clears the offer, sets
+- `debug_skip_to_day()` (and the J key) skips the pick **without granting a card**. From NIGHT it runs dawn and then
+  skips the pick; during `CARD_PICK` it skips the pick. Skipping calls `GameState.clear_card_offer()` (no signal), sets
   `dawn_substate = ""` and enters DAY. The 32 existing unit-test call sites keep their meaning.
 - Tests that need a pick emit `EventBus.card_chosen(id)` during `CARD_PICK`.
 
@@ -144,7 +146,7 @@ New fields:
 `new_game()` clears all three.
 
 New mutators:
-- `set_card_offer(offer)` emits `card_offered`.
+- `set_card_offer(offer)` emits `card_offered`; `clear_card_offer()` emits nothing (debug skip only).
 - `pick_card(id)`:
   - asserts `id` is in the offer;
   - does `level += 1` and clears the offer;
@@ -177,7 +179,8 @@ Pick banners (`tr()`):
 
 ### 5.4 Card pick overlay (`ui/card_pick/card_pick_overlay.gd`, a CanvasLayer on layer 15, D-162)
 
-- It is shown on `card_offered` and hidden on `card_picked` and `state_restored`. It starts hidden.
+- It is shown on `card_offered` (non-empty) and hidden on `card_picked`, on `state_restored`, and on `phase_changed` to
+  any phase but DAWN. It starts hidden.
 - It has 1–3 card panels in a column, centered in the safe area, each at least 560×220 px at 720×1280. The panel
   shows the name, the effect line and the level line (§4.1), plus a color band by kind: adventurer gold, upgrade
   teal. The heading is "Pick a card" (tr).
@@ -225,7 +228,7 @@ Pick banners (`tr()`):
   - The Tank's range reaches every Boar held at the west fence stop point, at any lateral offset. That distance is at
     most 2.42 m, and the Tank's range is 2.5, so the Tank fights over its fence instead of idling behind it.
   - Tank range ≥ `Balance.data.enemy.reach` + Tank `body_radius`, so it can always hit a Boar that is hitting it.
-- Accepted gap: the Archer (range 9) doesn't reach Boars held at the Tank (9–10 m). The west lane is the Tank's side,
+- Accepted gap: the Archer (range 9) doesn't reach Boars held at the Tank (9.0–10.6 m). The west lane is the Tank's side,
   covered by the Tank, `tower_nw` and the hero.
 
 ### 6.2 Guard actor (`actors/guards/guard.gd`, plus data per id)
@@ -250,7 +253,8 @@ build zone. The visual overlap is accepted, and building there still works becau
 - When the timer ends: `GameState.revive_guard(id)`, teleport to `DINER_DOOR`, and go `RETURNING`.
 - On `phase_changed(DAWN)` and `state_restored` it goes straight to `POSTED` at its post, clearing any timer. It
   takes its HP from `guard_healed` (at dawn) or from `GameState` (on restore).
-- `card_picked` for its id reconfigures its stats from `CardEffects.guard_stats`.
+- `card_picked` for its id reconfigures its stats from `CardEffects.guard_stats`, and re-reads HP and max HP (a Tank
+  level-up sets HP to the new max). HP bars do the same.
 
 ### 6.3 Guard roster (`world/guard_roster.gd`, owned by World; a D-139 wiring note)
 
@@ -362,7 +366,8 @@ Targets, in precedence order (D-169):
 4. **Night 2 NaiveBot, with the Archer, ≤ 0.30.** It may relax to ≤ 0.45, which must be logged.
 
 Knobs:
-- For target 4, first: Archer L1 `damage`, then `range` (not below the §6.1 coverage guarantees). The PlannerBot picks
+- For target 4, first: Archer L1 `damage`, then `range`. The range floor is about 8.65, because the north fence stop
+  is 8.64 m away (§6.1). The PlannerBot picks
   the Tank on dawn 1, so these don't move target 2.
 - For target 3: `count_growth` and `hp_growth` (both also move targets 2 and 4), then Tank stats, then card steps,
   then `side_share_*`.
@@ -397,6 +402,7 @@ progress, or when targets conflict: 1 vs 2; 3 vs 1 or 2; or 4, even at ≤ 0.45,
   - panels match the offer;
   - tap-release on the same panel picks;
   - press on one panel and release on another does nothing;
+  - after `debug_skip_to_day` the overlay is hidden, and a press on a former panel rect reaches the joystick;
   - the input guard;
   - keys 1/2/3;
   - a joystick finger released over a panel is not swallowed;
