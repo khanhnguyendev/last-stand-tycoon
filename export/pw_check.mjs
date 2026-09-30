@@ -1,4 +1,6 @@
 // Usage: node export/pw_check.mjs <url> <out.png> [profile]   (D-138, D-141)
+// From S3 on, a plain URL resumes a saved run from localStorage. Add ?reset=1 to debug URLs for a fresh start.
+// Release URLs can't be reset; use a fresh browser profile.
 // profile: "android" (Playwright "Pixel 7" device: touch, mobile UA, portrait) or "desktop" (720x1280).
 // Chromium with software WebGL (SwiftShader). Prints console messages and page errors; exits 1 on a
 // page error or when the page never sets window.LST_BUILD. Playwright comes from $LST_PW_DIR.

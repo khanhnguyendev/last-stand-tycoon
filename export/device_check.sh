@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# From S3 on, a plain URL resumes a saved run from localStorage. Add ?reset=1 to debug URLs for a fresh start.
+# Release URLs can't be reset; use a fresh browser profile.
 # Usage: export/device_check.sh <url> <out_dir>   (D-138)
 # Opens <url> in the iOS Simulator (Safari, a notch iPhone) and, when installed, the Android Emulator
 # (Chrome), waits WAIT_S seconds (default 45) and saves screenshots. It never installs anything: when a
