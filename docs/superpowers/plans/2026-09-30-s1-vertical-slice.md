@@ -4745,6 +4745,7 @@ class FakeTarget:
 	extends Node3D
 	var alive := true
 	var spawn_index := 1
+	var generation := 1
 	var hits := 0.0
 	func take_hit(a: float) -> void:
 		hits += a
@@ -4759,14 +4760,16 @@ func before_each() -> void:
 	pool.setup(func(): return Projectile.new(), 8)
 	target = FakeTarget.new()
 	add_child_autofree(target)
-	target.position = Vector3(2, 0, 0)
+	var hb := Balance.data.hero
+	target.position = Vector3(hb.attack_range * 0.5, 0, 0)
 
 func _attacker(moving: bool) -> Attacker:
+	var hb := Balance.data.hero
 	var a := Attacker.new()
 	a.process_mode = Node.PROCESS_MODE_DISABLED
 	add_child_autofree(a)
-	a.configure(10.0, 4.0, 0.5, 0.2, 0.5, 14.0)
-	a.candidates = func(): return [{"position": target.global_position, "spawn_index": 1, "ref": target}]
+	a.configure(hb.attack_damage, hb.attack_range, hb.attack_interval, hb.retarget_interval, 0.5, hb.projectile_speed)
+	a.candidates = func(): return [{"position": target.global_position, "spawn_index": target.spawn_index, "ref": target}]
 	a.projectile_pool = pool
 	a.is_moving = func(): return moving
 	return a
@@ -4778,19 +4781,59 @@ func _count_shots(a: Attacker, ticks: int) -> int:
 		a._physics_process(1.0 / 60.0)
 	return shots[0]
 
+## Shots in `ticks` ticks at 60 Hz for a given effective interval (fires at t=0, then every interval).
+func _expected(interval: float, ticks: int) -> int:
+	return int(floor((ticks - 1) / 60.0 / interval + 1e-6)) + 1
+
 func test_fires_immediately_then_on_interval() -> void:
-	assert_eq(_count_shots(_attacker(false), 120), 4)  # t=0, .5, 1.0, 1.5
+	var iv := Balance.data.hero.attack_interval
+	assert_eq(_count_shots(_attacker(false), 120), _expected(iv, 120))
 
 func test_moving_mult_slows_rate() -> void:
-	assert_eq(_count_shots(_attacker(true), 120), 2)  # interval effectively 1.0 s
+	var iv := Balance.data.hero.attack_interval / 0.5
+	assert_eq(_count_shots(_attacker(true), 120), _expected(iv, 120))
 
 func test_no_target_out_of_range() -> void:
-	target.position = Vector3(9, 0, 0)
+	target.position = Vector3(Balance.data.hero.attack_range + 5.0, 0, 0)
 	assert_eq(_count_shots(_attacker(false), 60), 0)
 
 func test_dead_target_not_shot() -> void:
 	target.alive = false
 	assert_eq(_count_shots(_attacker(false), 60), 0)
+
+func test_disabled_does_not_fire() -> void:
+	var a := _attacker(false)
+	a.enabled = false
+	assert_eq(_count_shots(a, 60), 0)
+
+func test_target_recycled_mid_interval_is_dropped() -> void:
+	var a := _attacker(false)
+	a.retarget_interval = 100.0  # only the generation check can drop the target
+	var shots := [0]
+	a.fired.connect(func(_t): shots[0] += 1)
+	a._physics_process(1.0 / 60.0)
+	assert_eq(shots[0], 1)
+	target.generation += 1  # pool reuse with the same spawn_index (new night)
+	a.candidates = func(): return []
+	for i in 60:
+		a._physics_process(1.0 / 60.0)
+	assert_eq(shots[0], 1, "stale target is not shot again")
+
+func test_projectile_hits_and_releases() -> void:
+	var p: Projectile = pool.acquire()
+	p.launch(Vector3(0, 1, 0), target, target.spawn_index, 7.0, 14.0, pool)
+	for i in 30:
+		p._physics_process(1.0 / 60.0)
+	assert_eq(target.hits, 7.0)
+	assert_false(pool.active().has(p))
+
+func test_projectile_drops_on_generation_change() -> void:
+	var p: Projectile = pool.acquire()
+	p.launch(Vector3(0, 1, 0), target, target.spawn_index, 7.0, 14.0, pool)
+	target.generation += 1
+	p._physics_process(1.0 / 60.0)
+	assert_eq(target.hits, 0.0)
+	assert_false(pool.active().has(p))
 ```
 
 `tests/unit/test_hero_combat.gd`:
@@ -4818,16 +4861,16 @@ func test_hero_kills_boar_in_range() -> void:
 	await _ticks(120)
 	assert_false(b.alive)
 	assert_signal_emitted(EventBus, "enemy_killed")
-	# the hero's magnet may already hold some of the 2 drops
-	assert_eq(GameState.carried_steaks + main.world.steak_pool.active().size(), 2)
+	# the hero's magnet may already hold some of the drops
+	assert_eq(GameState.carried_steaks + main.world.steak_pool.active().size(), Balance.data.economy.steaks_per_kill)
 
 func test_projectile_never_hits_recycled_boar() -> void:
-	# Review Focus 2
+	# Review Focus 2 (plan form)
 	var wd := main.world.wave_director
 	var b1 := wd.debug_spawn("north", 0.0, 100.0)
 	b1.dist = 0.0
 	var proj: Projectile = main.world.projectile_pool.acquire()
-	proj.launch(Vector3(0, 1, 30), b1, b1.spawn_index, 10.0, 1.0, main.world.projectile_pool)  # slow and far
+	proj.launch(Vector3(0, 1, 30), b1, b1.spawn_index, 10.0, 1.0, main.world.projectile_pool)
 	b1.take_hit(1e9)
 	await _ticks(20)  # death tween (0.15 s) releases b1
 	var b2 := wd.debug_spawn("north", 0.0, 1.0)
@@ -4836,6 +4879,40 @@ func test_projectile_never_hits_recycled_boar() -> void:
 	await _ticks(5)
 	assert_eq(b2.health.hp, hp_before)
 	assert_false(main.world.projectile_pool.active().has(proj))
+
+func test_projectile_in_flight_never_hits_reused_boar_same_index() -> void:
+	# Review Focus 2, hard form: the Boar is recycled with the SAME spawn_index (a new night) before
+	# the projectile ticks again, and the projectile is close enough to hit it at once.
+	var wd := main.world.wave_director
+	var pool := main.world.projectile_pool
+	var b1 := wd.debug_spawn("north", 0.0, 100.0)
+	var idx := b1.spawn_index
+	var gen := b1.generation
+	var proj: Projectile = pool.acquire()
+	proj.launch(b1.global_position + Vector3(0, 0.5, 0), b1, idx, 10.0, 1000.0, pool)
+	b1.take_hit(1e9)
+	main.world.enemy_pool.release(b1)  # the pool reclaims it immediately
+	var b2: Boar = main.world.enemy_pool.acquire()
+	assert_same(b2, b1)
+	b2.spawn("north", idx, 0.0, 1.0, wd)  # same spawn_index, new generation
+	assert_ne(b2.generation, gen)
+	var hp_before := b2.health.hp
+	assert_true(pool.active().has(proj), "projectile survived the reuse")
+	await _ticks(3)
+	assert_eq(b2.health.hp, hp_before, "recycled Boar untouched")
+	assert_false(pool.active().has(proj), "projectile despawned")
+
+func test_is_moving_false_on_tick_after_teleport() -> void:
+	main.hero.input.set_move(Vector2(1, 0))
+	await _ticks(3)
+	assert_true(main.hero.is_moving())
+	main.hero.teleport(Vector2(10, 8))
+	assert_false(main.hero.is_moving(), "teleport zeroes velocity")
+	await _ticks(1)
+	assert_false(main.hero.is_moving(), "no movement, so no moving-attack multiplier")
+
+func test_attacker_uses_is_moving_from_hero() -> void:
+	assert_eq(main.hero.attacker.is_moving, main.hero.is_moving)
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -4850,10 +4927,12 @@ Expected: FAIL (`Attacker` not declared).
 ```gdscript
 class_name Projectile
 extends Node3D
-## Homing cleaver/bolt (D-050, D-060). Damage on hit only; despawns if its target died or was recycled.
+## Homing cleaver/bolt (D-050, D-060). Damage on hit only; despawns if its target died or was recycled
+## (spawn_index changed, or the target's generation changed: spawn_index restarts every night, D-148).
 
 var _target: Object
 var _target_index := -1
+var _target_generation := 0
 var _damage := 0.0
 var _speed := 0.0
 var _pool: NodePool
@@ -4865,27 +4944,36 @@ func _init() -> void:
 	add_child(v)
 
 func launch(from: Vector3, target: Object, target_index: int, damage: float, speed: float, pool: NodePool) -> void:
-	position = from
+	global_position = from
 	_target = target
 	_target_index = target_index
+	_target_generation = Projectile.generation_of(target)
 	_damage = damage
 	_speed = speed
 	_pool = pool
 
+## Pool-reuse counter of a target; 0 when the target has none.
+static func generation_of(target: Object) -> int:
+	if target == null:
+		return 0
+	var g: Variant = target.get("generation")
+	return int(g) if g is int else 0
+
 func _physics_process(delta: float) -> void:
 	if _pool == null:
 		return
-	if not is_instance_valid(_target) or not _target.alive or _target.spawn_index != _target_index:
+	if not is_instance_valid(_target) or not _target.alive or _target.spawn_index != _target_index \
+			or Projectile.generation_of(_target) != _target_generation:
 		_finish()
 		return
 	var aim: Vector3 = _target.global_position + Vector3(0, 0.5, 0)
-	var to := aim - position
+	var to := aim - global_position
 	var step := _speed * delta
 	if to.length() <= step:
 		_target.take_hit(_damage)
 		_finish()
 	else:
-		position += to.normalized() * step
+		global_position += to.normalized() * step
 
 func on_release() -> void:
 	_pool = null
@@ -4918,6 +5006,7 @@ var is_moving: Callable = func(): return false
 var _cooldown := 0.0
 var _retarget := 0.0
 var _target: Dictionary = {}
+var _target_generation := 0
 
 func configure(p_damage: float, p_range: float, p_interval: float, p_retarget: float, p_moving_mult: float, p_speed: float) -> void:
 	damage = p_damage
@@ -4932,9 +5021,10 @@ func _physics_process(delta: float) -> void:
 		return
 	var origin := global_position
 	_retarget -= delta
-	if _retarget <= 0.0 or not _target_valid(origin):
+	if _retarget <= 0.0 or (not _target.is_empty() and not _target_valid(origin)):
 		_retarget = retarget_interval
 		_target = Targeting.select(origin, attack_range, candidates.call())
+		_target_generation = Projectile.generation_of(_target.ref) if not _target.is_empty() else 0
 	var rate := moving_mult if is_moving.call() else 1.0
 	_cooldown = maxf(_cooldown - delta * rate, 0.0)
 	if _cooldown <= 1e-6 and _target_valid(origin):
@@ -4948,7 +5038,8 @@ func _target_valid(origin: Vector3) -> bool:
 	if _target.is_empty():
 		return false
 	var r: Object = _target.ref
-	if not is_instance_valid(r) or not r.alive or r.spawn_index != int(_target.spawn_index):
+	if not is_instance_valid(r) or not r.alive or r.spawn_index != int(_target.spawn_index) \
+			or Projectile.generation_of(r) != _target_generation:
 		return false
 	var pos: Vector3 = r.global_position
 	return Vector2(pos.x - origin.x, pos.z - origin.z).length() <= attack_range
@@ -5014,6 +5105,10 @@ func setup(world: World) -> void:
 	attacker.candidates = world.wave_director.enemy_candidates
 	attacker.projectile_pool = world.projectile_pool
 	attacker.is_moving = is_moving
+
+## True only while actually moving: still_time is reset by teleport(), but velocity is zero then.
+func is_moving() -> bool:
+	return still_time <= 0.0 and velocity.length_squared() > 0.0
 ```
 
 The tests call `a._physics_process` directly with the node disabled, so the engine doesn't step it too.
