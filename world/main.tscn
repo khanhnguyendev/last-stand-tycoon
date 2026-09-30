@@ -1,6 +1,11 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://world/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://world/world.gd" id="2_world"]
 
-[node name="Main" type="Node3D"]
+[node name="Main" type="Node3D" node_paths=PackedStringArray("world")]
 script = ExtResource("1_main")
+world = NodePath("World")
+
+[node name="World" type="Node3D" parent="."]
+script = ExtResource("2_world")
