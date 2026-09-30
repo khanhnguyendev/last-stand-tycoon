@@ -254,7 +254,12 @@ func test_queued_banner_shown_late_plays_min_time() -> void:
 	EventBus.banner_requested.emit("Y")
 	EventBus.banner_requested.emit("Z")
 	var n := int(ceil((Balance.ui.banner_min_s + 2.0 / 60.0) * 60.0)) + 3
+	var saw_y := false
 	while hud.banner.text != "Z" and n > 0:
 		await get_tree().process_frame
+		if hud.banner.text == "Y":
+			saw_y = true
 		n -= 1
+	assert_true(saw_y, "Y was shown")
 	assert_eq(hud.banner.text, "Z")
+	assert_almost_eq(hud._banner_left, Balance.ui.banner_time, 3.0 / 60.0)

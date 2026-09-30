@@ -63,9 +63,32 @@ func test_mercy_scales_boar_hp_and_damage() -> void:
 
 func test_snapshot_taken_emits_a_copy() -> void:
 	var got := []
-	EventBus.snapshot_taken.connect(func(s): s.x = 1; got.append(s))
+	var cb := func(s: Dictionary) -> void:
+		s.x = 1
+		got.append(s)
+	EventBus.snapshot_taken.connect(cb)
 	EventBus.wave_cleared.emit(2)
 	EventBus.card_chosen.emit(GameState.card_offer[0])
 	pc.close_up()
+	EventBus.snapshot_taken.disconnect(cb)
 	assert_eq(got.size(), 1)
 	assert_false(pc.snapshot.has("x"))
+
+func test_fail_banner_sequence_end_to_end() -> void:
+	GameState.damage_diner(1e6)
+	var seen: Array = []
+	var return_frames := 0
+	var n := int(ceil((Balance.ui.banner_time * 2.0 + Balance.ui.banner_min_s) * 60.0)) + 30
+	for i in n:
+		await get_tree().process_frame
+		if main.hud.banner.visible:
+			var t: String = main.hud.banner.text
+			if seen.is_empty() or seen[-1] != t:
+				seen.append(t)
+				if t == "The monsters return":
+					return_frames = 0  # count only the last run (start_new_game shows one too)
+			if t == "The monsters return":
+				return_frames += 1
+	assert_gte(seen.size(), 3, "sequence recorded")
+	assert_eq(seen.slice(seen.size() - 3), ["The diner fell", "The monsters return", "The monsters look tired tonight."])
+	assert_lte(return_frames, int(ceil(Balance.ui.banner_min_s * 60.0)) + 3, "monsters-return not held long")
