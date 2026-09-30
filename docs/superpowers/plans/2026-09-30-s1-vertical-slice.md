@@ -5879,7 +5879,7 @@ func after_each() -> void:
 func test_bot_walks_route_and_stops_at_goal() -> void:
 	h.start(11, BotBase)  # base bot: no think(), only steering
 	h.bot.go_to("zone_north")
-	var ok := await h.run_until(func(): return h.bot.arrived(), 15.0)
+	var ok: bool = await h.run_until(func(): return h.bot.arrived(), 15.0)
 	assert_true(ok)
 	assert_lt(h.main.hero.xz().distance_to(MapLayout.lane_end("north")), 0.15)
 	await h.run_until(func(): return false, 0.5)
@@ -5900,6 +5900,45 @@ func test_route_reset_on_restore() -> void:
 	await h.run_until(func(): return false, 1.2)
 	GameState.from_dict(GameState.to_dict())
 	assert_eq(h.bot.goal, "")
+
+func test_naive_bot_redecides_right_after_restore() -> void:
+	h.start(11, NaiveBot)
+	await h.run_until(func(): return false, 1.2)
+	GameState.from_dict(GameState.to_dict())
+	assert_eq(h.bot.goal, "")
+	await h.run_until(func(): return false, 0.05)
+	assert_eq(h.bot.goal, "zone_north")  # decision timer was reset, not left counting down
+
+func test_route_reset_on_hero_placement() -> void:
+	h.start(11, NaiveBot)
+	await h.run_until(func(): return false, 1.2)
+	EventBus.hero_place_requested.emit(MapLayout.HOME)
+	assert_eq(h.bot.goal, "")
+
+func test_stuck_hero_warns_and_reroutes() -> void:
+	h.start(11, BotBase)
+	h.bot.go_to("home")
+	h.bot._route = [Vector2.ZERO]  # straight through the diner collider: the hero cannot get there
+	await h.run_until(func(): return h.bot.stuck_count > 0, 6.0)
+	assert_gt(h.bot.stuck_count, 0)
+	assert_eq(h.bot.goal, "home")
+
+## Both boars are spawned before the first wave, so they are the only live enemies.
+func _lane_choice(lanes: Array) -> String:
+	h.start(11, NaiveBot)
+	var wd := h.main.world.wave_director
+	await h.run_until(func(): return false, 1.2)
+	for l in lanes:
+		wd.debug_spawn(l)
+	assert_lt(1.2 + 1.1, Balance.data.wave.first_wave_delay)  # still before wave 0 starts
+	await h.run_until(func(): return false, 1.1)
+	return h.bot.goal
+
+func test_naive_bot_picks_most_enemies_then_lane_order() -> void:
+	assert_eq(await _lane_choice(["east", "west"]), "zone_west")  # tie: west first (LANES order)
+
+func test_naive_bot_picks_lane_with_more_enemies() -> void:
+	assert_eq(await _lane_choice(["east", "west", "east"]), "zone_east")
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -5920,23 +5959,29 @@ var main: Main
 var hero: Hero
 var graph := WaypointGraph.create_default()
 var goal := ""
+var stuck_count := 0
 var _route: Array = []
+var _stuck_pos := Vector2.ZERO
+var _stuck_ticks := 0
 
 func setup(m: Main) -> void:
 	main = m
 	hero = m.hero
 	hero.input.player_control = false
 	EventBus.state_restored.connect(reset_route)
+	EventBus.hero_place_requested.connect(func(_p): reset_route())
 
 func reset_route() -> void:
 	goal = ""
 	_route = []
+	_reset_stuck()
 
 func go_to(node_name: String) -> void:
 	if goal == node_name:
 		return
 	goal = node_name
 	_route = graph.route_from(hero.xz(), node_name)
+	_reset_stuck()
 
 func arrived() -> bool:
 	return goal != "" and _route.is_empty() and hero.xz().distance_to(graph.position_of(goal)) < 0.15
@@ -5963,12 +6008,29 @@ func _steer() -> void:
 			break
 	if _route.is_empty():
 		hero.input.set_move(Vector2.ZERO)
+		_reset_stuck()
 		return
+	_check_stuck()
 	var d: Vector2 = _route[0] - hero.xz()
 	if _route.size() > 1 or d.length() > step:
 		hero.input.set_move(d.normalized())
 	else:
 		hero.input.set_move(d / step)
+
+func _reset_stuck() -> void:
+	_stuck_ticks = 0
+	_stuck_pos = hero.xz() if hero != null else Vector2.ZERO
+
+## Moved < 0.01 m over 60 ticks while a route is pending: warn (never an error) and re-route.
+func _check_stuck() -> void:
+	_stuck_ticks += 1
+	if _stuck_ticks < 60:
+		return
+	if hero.xz().distance_to(_stuck_pos) < 0.01:
+		stuck_count += 1
+		push_warning("BotBase stuck at %s -> %s" % [hero.xz(), goal])
+		_route = graph.route_from(hero.xz(), goal)
+	_reset_stuck()
 ```
 
 `actors/bots/parked_bot.gd`:
@@ -5988,6 +6050,10 @@ extends BotBase
 ## Night: defend the main lane, then the lane with most live enemies; re-decide every 1 s; never builds.
 
 var _decide_timer := 0.0
+
+func reset_route() -> void:
+	super()
+	_decide_timer = 0.0
 
 func think(delta: float) -> void:
 	var pc := main.phase_controller
@@ -6012,7 +6078,7 @@ func _night(delta: float) -> void:
 			return  # enemies in range: stay
 	var counts := {"west": 0, "north": 0, "east": 0}
 	for b in wd.alive_enemies():
-		counts[b.lane] += 1
+		counts[String(b.lane)] += 1
 	var best := ""
 	var best_n := 0
 	for lane in LanePlanner.LANES:
@@ -6044,7 +6110,7 @@ var failed := false
 func _init(p_parent: Node) -> void:
 	parent = p_parent
 
-func start(seed: int, bot_script: GDScript) -> void:
+func start(p_seed: int, bot_script: GDScript) -> void:
 	main = Main.create()
 	parent.add_child(main)
 	bot = bot_script.new()
@@ -6054,15 +6120,18 @@ func start(seed: int, bot_script: GDScript) -> void:
 	EventBus.diner_damaged.connect(_on_diner_damaged)
 	EventBus.enemy_killed.connect(_on_killed)
 	EventBus.night_failed.connect(_on_failed)
-	main.phase_controller.start_new_game(seed)
+	main.phase_controller.start_new_game(p_seed)
 
+## Call only from test code between ticks, never from a signal emitted under main (synchronous free).
 func finish() -> void:
 	for pair in [[EventBus.diner_damaged, _on_diner_damaged], [EventBus.enemy_killed, _on_killed], [EventBus.night_failed, _on_failed]]:
 		var sig: Signal = pair[0]
 		if sig.is_connected(pair[1]):
 			sig.disconnect(pair[1])
 	if is_instance_valid(main):
-		main.queue_free()
+		if main.get_parent() != null:
+			main.get_parent().remove_child(main)  # so GUT's unfreed-children check doesn't see it
+		main.free()
 
 func tick() -> void:
 	await parent.get_tree().physics_frame
