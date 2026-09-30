@@ -1467,3 +1467,20 @@ Spec: `docs/superpowers/specs/2026-09-30-s3-save-failure-mercy-design.md`.
 **D-178 The sweep reports `first_fail_day` and `hard_break_day` (S3; refines D-155, D-170).**
 - The difficulty target stays on the first failure (day 10 ± 1 with cards).
 - `hard_break_day` is the first night still lost after 4 retries, when mercy has reached its 0.40 floor.
+
+**D-179 S2 Task 11 tuning round: Archer L1 damage 6.0 → 4.0 (D-169, target 4).**
+- With working guards, night 2 NaiveBot with the Archer rose to 0.60 against the 0.30 limit. PlannerBot with the Tank
+  held at 1.0 in every row.
+- One knob, Archer L1 damage, on seed 20260930:
+
+  | Archer damage | Archer range | NaiveBot night 2 |
+  |---|---|---|
+  | 6.0 | 9.0 | 0.60 |
+  | 5.0 | 9.0 | 0.60 |
+  | 4.0 | 9.0 | 0.30 |
+  | 3.0 | 9.0 | 0.2167 |
+  | 3.0 | 8.8 | 0.1667 |
+  | 3.0 | 8.65 | 0.1667 |
+- Chose 4.0, the smallest change that passes (D-169). It has zero margin: one diner hit is 0.0167. 3.0 would weaken
+  the Archer by 25% at every level, which is a target-3 decision for the S2 tuning pass.
+- Task S2-14 re-checks target 4 across several sweep seeds, not only the sim seed.
