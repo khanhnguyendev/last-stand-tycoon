@@ -21,3 +21,10 @@ direction, and anything that deviates from IDEA.md. Ranked by impact, highest fi
 16. A new game spawns the hero north of the diner; HOME at (0, 9.5) — [D-122](DECISIONS.md), [D-126](DECISIONS.md)
 17. Towers don't collide with the hero — [D-125](DECISIONS.md)
 18. Focus pause also triggers on window focus loss — [D-147](DECISIONS.md)
+
+## Final review playtest questions (S2)
+
+1. Did you understand what each card did before you picked it?
+2. Did any pick feel wasted or useless?
+3. Did the Archer and the Tank feel like part of your defense?
+4. When the Tank went down and came back, did you notice, and did it make sense?
