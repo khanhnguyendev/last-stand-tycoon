@@ -27,7 +27,7 @@ func test_boar_visible_two_seconds_before_range() -> void:
 	var eb := Balance.data.enemy
 	var hero_range := Balance.data.hero.attack_range
 	var dt := 1.0 / 60.0
-	for aspect in [CameraMath.ASPECT_MIN, CameraMath.ASPECT, 16.0 / 9.0, CameraMath.ASPECT_MAX]:
+	for aspect in [0.30, CameraMath.ASPECT_MIN, CameraMath.ASPECT, 16.0 / 9.0, CameraMath.ASPECT_MAX, 32.0 / 9.0]:
 		var proj := CameraMath.projection(ui, aspect)
 		for lane in LanePlanner.LANES:
 			var length := MapLayout.path_length(lane)
@@ -72,3 +72,15 @@ func test_projection_matches_godot_camera() -> void:
 		for c in 4:
 			for r in 4:
 				assert_almost_eq(got[c][r], want[c][r], 1e-4, "%s [%d][%d]" % [size, c, r])
+
+func test_lens_clamp_and_continuity() -> void:
+	var ui := Balance.ui
+	# Below ASPECT_MIN and above ASPECT_MAX the lens is clamped.
+	assert_almost_eq(CameraMath.projection(ui, 0.30)[1][1], CameraMath.projection(ui, CameraMath.ASPECT_MIN)[1][1], 1e-4)
+	assert_almost_eq(CameraMath.projection(ui, 32.0 / 9.0)[0][0], CameraMath.projection(ui, CameraMath.ASPECT_MAX)[0][0], 1e-4)
+	# The lens is continuous across the 9:16 and 21:9 branch switches.
+	for edge in [CameraMath.ASPECT, CameraMath.ASPECT_MAX]:
+		var lo := CameraMath.projection(ui, edge - 1e-4)
+		var hi := CameraMath.projection(ui, edge + 1e-4)
+		assert_almost_eq(lo[0][0], hi[0][0], 1e-3, "[0][0] at %.4f" % edge)
+		assert_almost_eq(lo[1][1], hi[1][1], 1e-3, "[1][1] at %.4f" % edge)

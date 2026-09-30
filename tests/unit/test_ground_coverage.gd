@@ -31,7 +31,7 @@ func test_every_camera_view_hits_ground_inside_rect() -> void:
 		vp.size = Vector2i(size)
 		add_child_autofree(vp)
 		var cam := Camera3D.new()
-		CameraMath.apply_lens(cam, ui, aspect)
+		CameraMath.apply_lens(cam, ui, size.x / size.y)
 		vp.add_child(cam)
 		for focus in _corners():
 			cam.global_transform = CameraMath.camera_transform(focus, ui)

@@ -30,7 +30,7 @@ static func keeps_width(aspect: float) -> bool:
 		return false
 	return aspect <= ASPECT + 1e-6 or aspect > ASPECT_MAX
 
-## Vertical FOV (degrees) of the portrait view; wider windows keep it with KEEP_HEIGHT (D-145).
+## Vertical FOV (degrees) of the portrait view; kept with KEEP_HEIGHT from 9:16 to 21:9 (D-153).
 static func portrait_fov_v(ui: UiTuning) -> float:
 	return rad_to_deg(2.0 * atan(tan(deg_to_rad(ui.camera_fov_h) / 2.0) / ASPECT))
 
