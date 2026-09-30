@@ -118,30 +118,34 @@ docs/            IDEA.md, DECISIONS.md, ASSET_LICENSES.md, specs, screenshots/s1
 | `diner_damaged` | `amount: float, hp_left: float` | GameState |
 | `diner_fell` | none | GameState |
 | `night_failed` | `day: int` | PhaseController |
-| `state_restored` | none | GameState.from_dict |
+| `state_restored` | none (GameState was replaced wholesale: `new_game` or `from_dict`, D-109) | GameState |
 | `gold_changed` | `gold: int, delta: int` | GameState |
 | `building_changed` | `spot_id: StringName, level: int, paid: int` | GameState |
 | `build_completed` | `spot_id: StringName, level: int` | GameState |
 | `steak_picked` | `carried: int` | GameState |
 | `steak_sold` | `count: int, gold: int` | GameState |
+| `stocks_changed` (D-109) | none (freezer, carried, counter or gold_pile changed; listeners re-read GameState) | GameState |
+| `closeup_requested` (D-109) | none | CloseUpSign |
+| `banner_requested` (D-109) | `text: String` (already translated) | PhaseController |
+| `wave_incoming` (D-109) | `wave_index: int, main_lane: StringName, side_lane: StringName` (the pre-wave delay started) | WaveDirector |
+| `wave_spawned_out` (D-109) | `wave_index: int` (the wave's last planned enemy spawned) | WaveDirector |
 
 **`GameState`**
 - Holds data only. **All mutation goes through its methods, which emit the matching bus signals**
   (D-096). The methods are:
-  - `add_gold`, `spend_gold`
-  - `add_to_pile`, `collect_pile`
+  - `add_gold`, `collect_pile`
+  - `add_freezer`, `pick_steak`
   - `move_freezer_to_carry`, `move_carry_to_counter`
   - `sell_from_counter`
-  - `pay_into_spot`
-  - `damage_diner`, `damage_fence`
-  - `add_freezer`, `pick_steak`
-  - `set_lane_plan`
+  - `pay_into_spot`, `next_level_cost`, `remaining_cost`, `fence_max_hp`
+  - `damage_diner`, `damage_fence`, `diner_fraction`
+  - `heal_for_dawn`, `reset_destroyed_fences`, `advance_day`
 - It also has `to_dict()`, `from_dict()` and `new_game(seed)`. Section 4 lists the fields.
 
 **`Balance`**
 - Loads `res://balance/balance.tres` (`BalanceData`) and `res://balance/ui_tuning.tres`
   (`UiTuning`).
-- `Balance.inject(data)` lets tests swap in a different resource.
+- `Balance.reset()` reloads fresh copies and `Balance.inject(data, ui)` swaps them (tests).
 - Section 12 lists every field.
 
 ### 3.3 Main scene tree
@@ -152,16 +156,18 @@ Main (Node3D)                      world/main.tscn
 ├─ FocusPause                      pauses tree on focus loss / hidden tab (D-046)
 ├─ World (map.tscn)
 │  ├─ Ground, Road
-│  ├─ Diner                        StaticBody3D 8×8×3, Health-less (HP lives in GameState)
+│  ├─ Diner, Counter, Freezer      StaticBody3D: the hero's only colliders (D-125); diner HP lives in GameState
 │  ├─ Lanes: LaneWest, LaneNorth, LaneEast   (Path3D + entrance marker + TelegraphMarker)
 │  ├─ BuildSpots: TowerNW, TowerNE, FenceW, FenceN, FenceE
 │  ├─ Stations: Freezer, Counter, GoldPile, CloseUpSign
 │  ├─ WaveDirector
 │  ├─ TravelerSpawner
-│  └─ Pools: EnemyPool, SteakPool, ProjectilePool, CoinFxPool
+│  ├─ FlyFx                        visual-only transfer arcs (D-078)
+│  └─ Pools: EnemyPool, SteakPool, ProjectilePool, FxPool, TravelerPool
 ├─ Hero                            CharacterBody3D + HeroInput + Attacker + CarryStack + Magnet
 ├─ CameraRig
-├─ HUD (CanvasLayer)               gold, moons/day label, diner bar, edge arrows, banners, joystick
+├─ InputLayer (CanvasLayer)        Joystick
+├─ HUD (CanvasLayer)               gold, moons/day label, diner bar, edge arrows, banners
 └─ (DebugOverlay)                  added at runtime via load() only if OS.is_debug_build() (D-099)
 ```
 
@@ -169,25 +175,31 @@ Main (Node3D)                      world/main.tscn
 
 | Component | Purpose | Local signals |
 |---|---|---|
-| `Health` | `max_hp`, `hp`, `damage(amount)`, `heal_full()`. Used by enemies. The diner and fences keep their HP in GameState. | `died`, `damaged(amount)` |
+| `Health` | `max_hp`, `hp`, `reset(max)`, `damage(amount)`, `is_alive()`. Used by enemies. The diner and fences keep their HP in GameState. | `died`, `damaged(amount)` |
 | `Targetable` | `kind: StringName` (`&"enemy"`, `&"fence"`, `&"diner"`), `spawn_index: int` | none |
-| `Attacker` | `range`, `damage`, `interval`, `retarget_interval`, `moving_mult`; fires a projectile through the pool | `fired(target)` |
-| `StationZone` | radius, `active_phases`; detects the hero standing still (D-006); runs a tick timer | `stand_started`, `tick`, `stand_ended` |
+| `Attacker` | `configure(damage, attack_range, interval, retarget_interval, moving_mult, projectile_speed)`, `candidates: Callable`, `is_moving: Callable`; fires a projectile through the pool | `fired(target)` |
+| `StationZone` | `radius`, `active_phases`, `armed`; arms on walk-in (D-121), detects the hero standing still (D-006), runs a tick timer | `stand_started`, `ticked`, `stand_ended` |
 | `CarryStack` | Visual stack of N steaks on the hero's back, driven by `GameState.carried_steaks` | none |
-| `Magnet` | Radius check against pickups each tick (a distance check, not Area3D, D-034) | `picked(item)` |
+| `Magnet` | Radius check against ground steaks and the gold pile each tick (a distance check, not Area3D, D-034) | none (it calls GameState) |
 | `NodePool` | Prewarmed pool with `acquire()`/`release()`; warns if it grows (D-061) | `grew(new_size)` |
 
 ### 3.5 Pure `core/` modules (unit-tested, no scene)
 
 | Module | API |
 |---|---|
-| `Rng` | `stream(run_seed, day, name) -> RandomNumberGenerator`, where seed = FNV-1a 64 of `"%d:%d:%s"` (D-097). `new_run_seed()` is the only clock-derived seed (D-041). |
-| `LanePlanner` | `plan(run_seed, day, balance) -> Array[Dictionary]` (section 6.2) |
-| `WaveMath` | `total_count(day, w)`, `hp_mult(day, w)`, `side_share(day)`, `split(day, w) -> {main, side}` |
-| `Targeting` | `select(origin, range, candidates) -> candidate or null`: nearest, ties broken by the lower `spawn_index` |
-| `Economy` | `next_level_cost(kind, level)`, `drain_per_tick(cost)`, `night_steaks(day)`, `night_gold(day)` |
+| `Rng` | `stream(run_seed, day, name) -> RandomNumberGenerator`, where seed = **FNV-1a 32** of `"%d:%d:%s"`, masked to 32 bits (D-097 amended by D-108: the 64-bit multiply overflows in GDScript). `new_run_seed()` is the only clock-derived seed (D-041). |
+| `LanePlanner` | `plan(run_seed, day, wave_balance) -> Array[Dictionary]` (section 6.2), `threat_by_lane(plan, base_hp)`, `marker_scale(threat, max, min_s, max_s)` |
+| `WaveMath` | `raw_total(day, w, wb)`, `total_count(day, w, wb)`, `hp_mult(day, w, wb)`, `side_share(day, wb)`, `split(day, w, wb) -> {main, side}` |
+| `WaveSchedule` | `build(wave, wb) -> [{t, lane, side}]`, `is_cleared(planned, spawned, alive)` (D-044) |
+| `Targeting` | `select(origin, range, candidates) -> candidate or {}`: nearest (XZ), ties broken by the lower `spawn_index` |
+| `Economy` | `level_cost(spot_id, level, build_balance)`, `drain_per_tick(cost, build_balance)`, `night_kills(day, wb)`, `night_gold(day, balance)` |
 | `Pulse` | `should_pulse(state_dict, balance) -> bool` (section 8.8) |
-| `Geometry` | zone rectangles, enclosing-circle radius, point-to-segment distance, fence spot on a path |
+| `MapLayout` | every map coordinate (section 6.1): lane paths, zone rectangles, spots, stations, `HOME`, `NIGHT1_START` |
+| `Geometry` | path length/point/tangent, point-to-segment and point-to-rect distance, rect containment, enclosing radius |
+| `EnemyPath` | `position_at(lane, dist, offset, fade)`: the D-111 offset model (section 6.5) |
+| `WaypointGraph` | the fixed bot navigation graph (section 13.3) |
+| `CameraMath` | camera transform and projection shared by `CameraRig` and the lane-visibility test (D-090) |
+| `Phase` | `NIGHT`, `DAWN`, `DAY`, `name_of(p)` |
 
 ### 3.6 Determinism rules (D-034)
 
@@ -205,7 +217,13 @@ Main (Node3D)                      world/main.tscn
 
 - Nodes read `Balance`, change `GameState` through its methods, and listen on `EventBus`.
 - The HUD and world visuals only listen.
-- No system reaches into another system's nodes.
+- No system reaches into another system's nodes, **with one exception (D-110):** `PhaseController` is the
+  orchestrator and holds injected references it calls directly, so the step order of dawn, close-up and the
+  fail restore is explicit and testable. Its narrow interface:
+  - `WaveDirector.start_night()`, `stop()`
+  - `TravelerSpawner.set_active(bool)`
+  - `NodePool.release_all()` on this Main's pools, and the steak pool's active count (steaks to the freezer)
+  - `Hero.teleport(p)` and `CameraRig.snap()`
 - PhaseController is the only writer of the phase.
 
 ---
@@ -252,7 +270,7 @@ Main (Node3D)                      world/main.tscn
   - **TelegraphMarkers:** scaled from `lane_plan`.
   - **CarryStack.**
 - Nodes hold no hidden gameplay state.
-- `PhaseController` owns the snapshot (`_snapshot: Dictionary`) and performs the restore
+- `PhaseController` owns the snapshot (`snapshot: Dictionary`) and performs the restore
   (section 5.3).
 
 ---
@@ -267,8 +285,8 @@ Main (Node3D)                      world/main.tscn
    - every stock is 0
    - diner at full HP
    - every building `{0, 0, 0}`
-   - `lane_plan = LanePlanner.plan(run_seed, 1)`
-2. `_snapshot = GameState.to_dict()` with `resume_phase = "NIGHT"` (D-043).
+   - `lane_plan = LanePlanner.plan(run_seed, 1, Balance.data.wave)`
+2. `snapshot = GameState.to_dict()` with `resume_phase = "NIGHT"` (D-043).
 3. The hero is placed at the **night-1 start (−2.5, −7)**: north of the diner, off the north lane and outside every zone, so wave 0 (always north) walks into range with no map knowledge (D-126). The phase becomes `NIGHT`.
 
 ### 5.2 NIGHT
@@ -282,13 +300,13 @@ Main (Node3D)                      world/main.tscn
 
 ### 5.3 Fail flow (D-043)
 
-1. `night_failed(day)` is emitted, and the banner "The diner fell" shows for 2.0 s. WaveDirector
+1. `night_failed(day)` is emitted, and the banner "The diner fell" shows for `banner_time` (2.0 s). WaveDirector
    stops spawning.
 2. Every pool recalls its items (enemies, steaks, projectiles, coin FX).
-3. `GameState.from_dict(_snapshot)` runs, which emits `state_restored`.
+3. `GameState.from_dict(snapshot)` runs, which emits `state_restored`.
 4. The hero goes to the night-1 start (−2.5, −7) when `resume_phase == "NIGHT"` (D-126), otherwise to home (0, 9.5), which is outside every station zone (D-122).
 5. If `resume_phase == "NIGHT"`: enter `NIGHT` again (night 1 restarts directly, first spawn at
-   about 5 s). If it is `"DAY"`: enter `DAY`.
+   `first_wave_delay`, 5 s). If it is `"DAY"`: enter `DAY`.
 6. The lane plan is part of the snapshot, so the same night replays.
 
 ### 5.4 DAWN (steps in order, with a "Dawn" banner)
@@ -297,7 +315,7 @@ Main (Node3D)                      world/main.tscn
 2. `diner_hp` is set to max, and standing fences heal to the max for their level.
 3. Every destroyed fence (`hp <= 0` with `level >= 1`) is set to `{level: 0, paid: 0, hp: 0}`
    (D-067).
-4. `day += 1`, and `lane_plan = LanePlanner.plan(run_seed, day)` (D-038).
+4. `day += 1`, and `lane_plan = LanePlanner.plan(run_seed, day, Balance.data.wave)` (D-038).
 5. The `CARD_PICK` sub-state is a stub that completes immediately. It stays a real state for S2.
 6. The phase becomes `DAY`.
 
@@ -308,12 +326,12 @@ Main (Node3D)                      world/main.tscn
 
 ### 5.6 Close-up (D-039, D-036)
 
-The hero walks into the sign zone (arming it, D-121) and stands still (0.25 s), then the ring fills over `closeup_hold` = 1.0 s.
+The hero walks into the sign zone (arming it, D-121) and stands still (`stand_still_time`, 0.25 s), then the ring fills over `closeup_hold` (1.0 s).
 Then:
 1. `GameState.collect_pile()` moves `gold_pile` into `gold`, and any ground steaks go to the
    freezer.
 2. TravelerSpawner stops, and the travelers walk off and despawn. They hold nothing (D-045).
-3. `_snapshot = GameState.to_dict()` with `resume_phase = "DAY"`.
+3. `snapshot = GameState.to_dict()` with `resume_phase = "DAY"`.
 4. The phase becomes `NIGHT`.
 
 ### 5.7 Tests
@@ -358,7 +376,7 @@ Then:
 
 ### 6.2 Lane plan (owner: `LanePlanner`, D-026 to D-028, D-095, D-100)
 
-`plan(run_seed, day)` uses the `lane_plan` stream and returns 3 waves. Each wave is
+`plan(run_seed, day, wave_balance)` uses the `lane_plan` stream and returns 3 waves. Each wave is
 `{main, side, main_count, side_count, hp_mult}`.
 
 - **Day 1:** there is no side group (`side = ""`, `side_count = 0`). Wave 0's `main` is always
@@ -366,14 +384,14 @@ Then:
 - **Day ≥ 2:** `main` is picked uniformly, and `side` is picked uniformly from the other 2 lanes.
   At most 2 lanes are active per wave.
 - **Counts (`WaveMath`):**
-  - `total = round(base[w] × (1 + count_growth × (day − 1)))`, with `base = [4, 6, 8]` and
-    `count_growth = 0.35`.
-  - `hp_mult = 1 + hp_growth × (day − 1)`, with `hp_growth = 0.15`.
-  - If `total > 30`: `hp_mult ×= total / 30`, then `total = 30` (D-053).
+  - `total = round(base_counts[w] × (1 + count_growth × (day − 1)))`, with `base_counts` [4, 6, 8] and
+    `count_growth` 0.35.
+  - `hp_mult = 1 + hp_growth × (day − 1)`, with `hp_growth` 0.15.
+  - If `total > max_wave_size` (30): `hp_mult ×= total / max_wave_size`, then `total = max_wave_size` (D-053).
   - `side = day ≥ 2 ? max(1, round(total × share(day))) : 0`, and `main = total − side`.
-  - `share(day) = min(0.20 + 0.05 × (day − 2), 0.45)` for day ≥ 2 (D-027).
+  - `share(day) = min(side_share_base + side_share_step × (day − 2), side_share_cap)` for day ≥ 2, i.e. min(0.20 + 0.05 × (day − 2), 0.45) (D-027).
 
-**Reference values:**
+**Reference values** (at the default Balance; pinned by `test_wave_math`):
 
 | Day | Totals | Side counts | HP per Boar |
 |---|---|---|---|
@@ -400,6 +418,15 @@ All geometry tests re-run after any change to a path.
 - **Screenshots:** one 720×1280 screenshot per lane, saved to `docs/screenshots/s1/lane_<id>.png`.
 - **Fallback, only if the test fails:** pull the camera back or widen the FOV, keeping the Boar at
   least 40 px tall at 720 width. Log the change.
+
+### 6.5 Enemy lateral offset (D-111)
+
+- Each Boar gets `offset = unit × lateral_spread` (1.0 m), with `unit` in [−1, 1] from the `spawns` stream.
+- `EnemyPath.position_at(lane, dist, offset, fade)`: along the path, the offset is perpendicular to the
+  path tangent. Over the last `offset_fade_distance` (`EnemyBalance`, 3.0 m) it blends linearly onto the
+  zone's width axis (z for west and east, x for north).
+- So the stop point is always `path end + axis × offset`, inside the zone rectangle (test D), and the
+  path keeps ≥ 1.5 m from the towers and ≥ reach from the diner (test E).
 
 ---
 
@@ -434,10 +461,10 @@ after `breather` = 10.0 s.
 
 - **Owner:** `actors/enemy/boar.tscn`.
 - **Components:** Health, Targetable (`enemy`), Visual.
-- **Stats:** HP `30 × hp_mult`, speed 2.0 m/s, damage 5 every 1.0 s, reach 1.2 m.
+- **Stats (`EnemyBalance`):** HP `hp × hp_mult` (30 × hp_mult), `speed` 2.0 m/s, `damage` 5 every `attack_interval` 1.0 s, `reach` 1.2 m.
 
-**Movement:** walks its lane path in code on the physics tick, applying its lateral offset
-perpendicular to the path. It stops at its attack zone (a stop point inside the zone rectangle, per
+**Movement:** walks its lane path in code on the physics tick, applying its lateral offset by the
+D-111 model (section 6.5). It stops at its attack zone (a stop point inside the zone rectangle, per
 geometry test D). It never paths to the door.
 
 **Targeting (D-004, D-049):** each tick it walks `TargetPriority.kinds`, which is
@@ -451,15 +478,15 @@ S2 inserts `guard` without editing the enemy code: providers are registered by k
 dictionary.
 
 **Attacking**
-- A fence: `GameState.damage_fence(spot_id, 5)`. At `hp ≤ 0` the fence becomes rubble (it blocks
+- A fence: `GameState.damage_fence(spot_id, damage)`. At `hp ≤ 0` the fence becomes rubble (it blocks
   nothing, stays level ≥ 1 with hp 0, and is reset at dawn).
-- The diner: `GameState.damage_diner(5)`.
+- The diner: `GameState.damage_diner(damage)`.
 
 **Death**
-- It emits `enemy_killed` and spawns `steaks_per_kill` = 2 steaks, scattered up to 0.6 m by the
+- It emits `enemy_killed` and spawns `steaks_per_kill` (2) steaks, scattered up to `drop_scatter` (0.6 m) by the
   `drops` stream.
 - Placeholder death: a scale-down tween (0.15 s), then it returns to the pool.
-- Hit flash: white for 0.08 s.
+- Hit flash: white for `hit_flash_time` (0.08 s, `UiTuning`).
 
 The hero is never a target in S1 (D-005).
 
@@ -470,8 +497,8 @@ The hero is never a target in S1 (D-005).
 ### 7.3 Hero combat (D-018 to D-020)
 
 - **Owner:** `actors/hero/hero.tscn` plus its `Attacker`.
-- **Stats:** move speed 5.0 m/s, cleaver damage 10 every 0.5 s, range **4.0 m**, retarget every
-  0.2 s.
+- **Stats (`HeroBalance`):** `move_speed` 5.0 m/s, `attack_damage` 10 every `attack_interval` 0.5 s,
+  `attack_range` **4.0 m**, `retarget_interval` 0.2 s.
 - `moving_attack_speed_mult` = 1.0 scales the rate while moving. Values below 1.0 give the hybrid.
 - **Targeting:** every `retarget_interval`, it runs `Targeting.select()` over the live enemies, in
   spawn-index order.
@@ -479,7 +506,7 @@ The hero is never a target in S1 (D-005).
 
 ### 7.4 Projectiles (D-050, D-060)
 
-- Cleaver speed 14 m/s; tower bolt speed 16 m/s. Both are homing.
+- Cleaver `projectile_speed` 14 m/s (`HeroBalance`); tower bolt `tower_projectile_speed` 16 m/s (`BuildBalance`). Both are homing.
 - **Damage applies on hit only.** If the target dies mid-flight, the projectile despawns, with no
   retarget and no damage carry.
 - They are pooled.
@@ -489,7 +516,7 @@ The hero is never a target in S1 (D-005).
 - **Owner:** `world/build_spots/tower_spot.tscn`.
 - **Inputs:** `GameState.buildings[id].level`, `Balance.build`.
 
-**Stats by level**
+**Stats by level** (`BuildBalance`: `tower_damage[]`, `tower_range[]`, `tower_interval`, cost = `tower_cost × level_cost_mult^(level−1)`)
 
 | Level | Damage | Range | Interval | Cost to reach |
 |---|---|---|---|---|
@@ -502,7 +529,7 @@ The hero is never a target in S1 (D-005).
 
 ### 7.6 Fences (D-003, D-067)
 
-**HP by level**
+**HP by level** (`BuildBalance`: `fence_hp[]`, cost = `fence_cost × level_cost_mult^(level−1)`)
 
 | Level | HP | Cost to reach |
 |---|---|---|
@@ -515,12 +542,12 @@ The hero is never a target in S1 (D-005).
 
 ### 7.7 Diner
 
-- `diner_max_hp` = 300, stored in `GameState.diner_hp`.
+- `diner_max_hp` (`BuildBalance`, 300), stored in `GameState.diner_hp`.
 - At 0, GameState emits `diner_fell` once per night.
 
 ### 7.8 Steaks and pickup (D-008, D-009, D-023)
 
-- Ground steaks come from the pool. The hero's `Magnet` (radius 1.5 m) picks one up while
+- Ground steaks come from the pool. The hero's `Magnet` (`magnet_radius`, 1.5 m) picks one up while
   `carried_steaks < carry_capacity` (6), through `GameState.pick_steak()`.
 - Steaks that don't fit stay on the ground until dawn or close-up, when they go to the freezer.
 - Night pickup has no bonus. It is a playtest question (section 15).
@@ -543,32 +570,33 @@ The hero is never a target in S1 (D-005).
 
 - Standing still means hero speed < `stand_still_speed` (0.1 m/s) for `stand_still_time` (0.25 s) inside a `StationZone`.
 - **Arming (D-121):** a zone works only after the hero **walks into** its radius while the zone is active. A hero who is already inside when the zone activates (a phase change), or who is teleported in (a restore or new game), must leave and re-enter first. The zone disarms on `phase_changed`, on `state_restored` and on any hero teleport.
-- While the hero stands, the zone fires `tick` every `transfer_tick` = 0.08 s.
+- While the hero stands, the zone fires `ticked` every `transfer_tick` (0.08 s).
 - **State changes on the tick. Tweens are visual only** (D-096).
 - A shared progress-ring shader quad shows the progress (D-073).
 
 ### 8.2 Freezer
 
-- On each tick: if `freezer_steaks > 0` and `carried < 6`, `move_freezer_to_carry(1)`.
+- On each tick: if `freezer_steaks > 0` and `carried < carry_capacity`, `move_freezer_to_carry(1)`.
 - Visual: up to 10 steaks stacked, plus a count label beyond that.
 
 ### 8.3 Counter
 
-- The hero's drop zone is at (2.2, 4.8). On each tick: if `carried > 0` and `counter < 12`,
+- The hero's drop zone is at (2.2, 4.8). On each tick: if `carried > 0` and `counter < counter_capacity` (12),
   `move_carry_to_counter(1)`.
-- Visual: up to 12 steaks on the counter.
+- Visual: up to `counter_capacity` steaks on the counter.
 
 ### 8.4 Travelers (D-010, D-064, D-045)
 
 - **Owner:** `world/traveler_spawner.gd` plus `actors/traveler/`.
-- **Spawning:** while in DAY and the queue holds fewer than 4, one spawns every 2.5 s ± 0.5 s
-  (`travelers` stream).
+- **Spawning:** while in DAY and the queue holds fewer than `queue_max` (4), one spawns every
+  `traveler_interval` ± `traveler_jitter` (2.5 s ± 0.5 s, `travelers` stream).
 - **Behavior:**
-  - Each wants 1–2 steaks (`travelers` stream) and walks at 2.5 m/s to the last free queue slot.
+  - Each wants `traveler_want_min`–`traveler_want_max` (1–2) steaks (`travelers` stream) and walks at
+    `traveler_speed` (2.5 m/s) to the last free queue slot.
   - The queue advances as slots free up.
-  - At the service point, the front traveler waits `service_time` = 1.0 s, then atomically calls
+  - At the service point, the front traveler waits `service_time` (1.0 s), then atomically calls
     `GameState.sell_from_counter(n)` with `n = min(want, counter)`. That removes `n` steaks, adds
-    `n × 3` to `gold_pile`, and emits `steak_sold`.
+    `n × gold_per_steak` (3) to `gold_pile`, and emits `steak_sold`.
   - If the counter is empty, it waits.
   - After buying, it walks off to (−24, 11) and despawns.
 - Travelers never hold reserved steaks. They are not in GameState, so after a restore to DAY the
@@ -579,7 +607,7 @@ The hero is never a target in S1 (D-005).
 ### 8.5 Gold pile
 
 - Stored in `GameState.gold_pile`, with a visual coin stack of up to 30 plus a label.
-- The hero's `Magnet` within 1.5 m of (−2.5, 5.5) calls `collect_pile()`, which adds everything to
+- The hero's `Magnet` within `magnet_radius` of (−2.5, 5.5) calls `collect_pile()`, which adds everything to
   `gold` at once. Coin FX fly to the hero.
 
 ### 8.6 Build and upgrade (D-007, D-065, D-067)
@@ -588,17 +616,17 @@ The hero is never a target in S1 (D-005).
 - **Inputs:** `GameState.buildings[id]`, `Balance.build`, `GameState.gold`.
 - **Outputs:** `building_changed` and `build_completed`.
 - **Paying:**
-  - While the hero stands in the spot zone during DAY and `level < 3`, each tick pays
+  - While the hero stands in the (armed) spot zone during DAY and `level < max_level` (3), each tick pays
     `min(drain, gold, remaining)` into `paid`.
-  - `drain = ceil(cost / 20)`, where `cost = base_cost × 2^level`.
+  - `drain = ceil(cost / drain_divisor)` (20), where `cost = base_cost × level_cost_mult^level` (×2).
   - When `paid == cost`: `level += 1`, `paid = 0`. For a fence, `hp` is set to its new max.
   - `paid` persists across walking away, dawn and the snapshot.
 - **Labels:** a `Label3D` shows the remaining cost, "MAX" at level 3, and one pip per level.
 - **Visuals:**
   - The model scales ×1.1 per level.
-  - A completed build or upgrade pops (×1.2 overshoot, 0.2 s).
+  - A completed build or upgrade pops (`build_pop_scale` ×1.2, `build_pop_time` 0.2 s).
 - **Tests:**
-  - Unit: the costs 40/80/160 and 20/40/80, and the drain.
+  - Unit (pinned reference at the default Balance): the costs 40/80/160 and 20/40/80, and the drain.
   - Unit (integration): partial pay persists through a snapshot round trip.
 
 ### 8.7 Telegraph (D-029, D-093)
@@ -606,8 +634,8 @@ The hero is never a target in S1 (D-005).
 - **Owner:** `world/lanes/telegraph_marker.gd`.
 - **Inputs:** `GameState.lane_plan`, `state_restored`, `phase_changed`.
 - **Rule:**
-  - `threat[lane] = Σ over waves (count on that lane × 30 × hp_mult)`.
-  - Marker scale = `lerp(0.5, 2.0, threat / max_threat)`.
+  - `threat[lane] = Σ over waves (count on that lane × Balance.enemy.hp × hp_mult)`.
+  - Marker scale = `lerp(telegraph_scale_min, telegraph_scale_max, threat / max_threat)` (0.5 → 2.0, `UiTuning`).
   - Hidden when the lane's threat is 0. Visible in DAY only.
 - **Visual:** a red cone.
 
@@ -620,20 +648,20 @@ The hero is never a target in S1 (D-005).
 - `gold_pile == 0`
 - for every spot with `level < 3`: `gold < next_level_cost(spot) − spot.paid`
 
-It is re-evaluated on each relevant bus signal. When it is true, the sign pulses (scale 1.0 ↔ 1.15,
-at 1 Hz).
+It is re-evaluated on each relevant bus signal. When it is true, the sign pulses (scale 1.0 ↔ `pulse_scale` 1.15,
+at `pulse_hz` 1 Hz).
 
 **Test:** a unit test of the predicate, including the cases where a single condition flips it.
 
 ### 8.9 Economy check (D-063)
 
-| Night | Kills | Steaks (×2) | Gold (×3) |
+| Night | Kills | Steaks (× `steaks_per_kill` 2) | Gold (× `gold_per_steak` 3) |
 |---|---|---|---|
 | 1 | 18 | 36 | 108 |
 | 2 | 24 | 48 | 144 |
 
 - Night-1 gold covers a tower plus a fence (60) with a margin of 1.8×.
-- **Unit test:** `night_gold(1) ≥ 1.3 × (tower_cost + fence_cost)`, computed from the Balance
+- **Unit test:** `night_gold(1) ≥ economy_margin × (tower_cost + fence_cost)` (1.3), computed from the Balance
   formulas.
 - **Sinks:** the one-time total is about 980 gold (2 towers × 280 + 3 fences × 140). Fence rebuilds
   recur. Kills on nights 1–5 yield about 912 gold.
@@ -646,18 +674,18 @@ at 1 Hz).
 
 - **Joystick** (`ui/joystick/`):
   - A touch anywhere spawns the base under the thumb.
-  - Knob radius 64 px at the 720-wide base, deadzone 0.15. Hidden on release.
-  - Touches that start within 16 px of the left or right screen edge are ignored.
+  - Knob radius `joystick_radius_px` (64 px at the 720-wide base), `joystick_deadzone` 0.15. Hidden on release.
+  - Touches that start within `edge_ignore_px` (16 px) of the left or right screen edge are ignored.
 - **Desktop:** mouse drag works the same way, and WASD overrides it when pressed.
 - **Routing:** every source calls `HeroInput.set_move(Vector2)`.
 
 ### 9.2 Camera (D-071, D-090)
 
-- Perspective, `keep_aspect = KEEP_WIDTH`, horizontal FOV 42°, pitch −55°, fixed yaw, 18 m from the
-  hero.
-- Follow smoothing rate 8/s, clamped so the view stays within the map bounds.
+- Perspective, `keep_aspect = KEEP_WIDTH`, horizontal FOV `camera_fov_h` 42°, `camera_pitch` −55°, fixed yaw,
+  `camera_distance` 18 m from the hero.
+- Follow smoothing `camera_follow_rate` 8/s. The focus is clamped to x ∈ [−17, 17], z ∈ [−20, 8] (`CameraMath`, D-112).
 - That gives about 14 m of ground width at the hero, and from about 10 m south to about 28 m north.
-- **Shake** when the diner is hit: amplitude 0.12 m for 0.15 s, at most once per 0.5 s.
+- **Shake** when the diner is hit: `shake_amp` 0.12 m for `shake_time` 0.15 s, at most once per `shake_cooldown` 0.5 s.
 
 ### 9.3 Viewport (D-072)
 
@@ -665,11 +693,11 @@ A 720×1280 base, stretch mode `canvas_items`, aspect `expand`, portrait orienta
 
 ### 9.4 HUD (`ui/hud/`, a listener only)
 
-- **Top left:** gold. It punch-scales ×1.25 over 0.12 s when it changes.
+- **Top left:** gold. It punch-scales `gold_punch_scale` ×1.25 over `gold_punch_time` 0.12 s when it changes.
 - **Top center:** 3 moons at night, "Day N" by day.
 - **Under that:** the diner HP bar.
 - **Edge arrows:** as in 7.9.
-- **Center banners** (2.0 s): "The monsters return", "Dawn", "The diner fell".
+- **Center banners** (`banner_time`, 2.0 s): "The monsters return", "Dawn", "The diner fell".
 - **Safe area (D-077):** the HUD `CanvasLayer` is inset by the safe area, using
   `DisplayServer.get_display_safe_area()`. On web, the fallback reads CSS `env(safe-area-inset-*)`
   through `JavaScriptBridge`.
@@ -682,7 +710,7 @@ A 720×1280 base, stretch mode `canvas_items`, aspect `expand`, portrait orienta
 ### 9.6 Feel budget (D-078)
 
 All of it uses tweens, with no new assets and no audio.
-- Every steak and coin transfer flies on an arc (0.15 s, apex 0.6 m).
+- Every steak and coin transfer flies on an arc (`transfer_arc_time` 0.15 s, `transfer_arc_apex` 0.6 m).
 - The gold number punches.
 - The camera shakes.
 - Builds pop.
@@ -715,7 +743,7 @@ All of it uses tweens, with no new assets and no audio.
 | Telegraph | red cone |
 
 - Each scene keeps a `Visual` child as the S4 swap point.
-- **Stacks drawn:** hero up to 6, counter 12, freezer 10 (plus a label beyond that), coins 30.
+- **Stacks drawn:** hero up to `carry_capacity` (6), counter `counter_capacity` (12), freezer 10 (plus a label beyond that), coins 30.
 
 ---
 
@@ -755,10 +783,11 @@ All of it uses tweens, with no new assets and no audio.
 
 | Pool | Prewarm |
 |---|---|
-| Enemy | 40 |
-| Ground steak | 180, which is `ceil((17 + 25 + 33) × 2 × 1.2)` from the day-10 counts |
+| Enemy | `max_wave_size + 10` = 40 |
+| Ground steak | 173, which is `ceil((17 + 25 + 30) × steaks_per_kill × 1.2)` from the **capped** day-10 counts (D-124) |
 | Projectile | 24 |
-| Coin FX | 32 |
+| Fx (coins and steaks in flight) | 32 |
+| Traveler | `queue_max × 2` = 8 |
 
 A pool that grows at runtime logs a warning and shows it on the debug overlay.
 
@@ -793,6 +822,7 @@ A pool that grows at runtime logs a warning and shows it on the debug overlay.
   | `reach` | 1.2 |
   | `lateral_spread` | 1.0 |
   | `drop_scatter` | 0.6 |
+  | `offset_fade_distance` | 3.0 (D-111) |
 
 - **WaveBalance**
 
@@ -870,6 +900,7 @@ A pool that grows at runtime logs a warning and shows it on the debug overlay.
 | Build pop | `build_pop_scale` 1.2, `build_pop_time` 0.2 |
 | Feedback and banners | `hit_flash_time` 0.08, `banner_time` 2.0 |
 | Telegraph | `telegraph_scale_min` 0.5, `telegraph_scale_max` 2.0 |
+| Sign pulse | `pulse_scale` 1.15, `pulse_hz` 1.0 |
 
 Changing a value in Balance must never need a code change.
 
@@ -944,16 +975,16 @@ Paths use shortest distance on this graph, with no navmesh.
      4. Upgrades, highest-threat lane first (D-067).
   4. Close up.
 
-### 13.4 `tests/sim/` (pass/fail; suite < 60 s headless)
+### 13.4 `tests/sim/` (pass/fail; suite < `sim_suite_budget_s` 60 s headless; thresholds are `SimThresholds`)
 
 | Test | Setup | Pass |
 |---|---|---|
-| First combat (D-085) | New game, fixed seed, NaiveBot | The first Boar enters hero range at ≤ 30 s of game time |
-| Night 1, hero alone (D-058) | New game, NaiveBot | Diner HP at dawn ≥ 50% |
+| First combat (D-085, D-126) | New game, fixed seed: NaiveBot, and an idle player (no input) at the night-1 start | The first Boar enters hero range at ≤ `first_combat_max_s` (30 s) of game time |
+| Night 1, hero alone (D-058) | New game, NaiveBot | Diner HP at dawn ≥ `night1_win_min` (50%) |
 | Night 1, negative control (D-056) | New game, ParkedBot | The diner falls |
-| Night 2, unaided | Night-2 state after a real night 1 and day 1 with no builds, NaiveBot | ≤ 30% or it falls |
-| Night 2, planned | PlannerBot plays a real night 1, then a real day 1 (no dev gold), then night 2 | ≥ 60% |
-| Night-1 fail → restart (D-043) | New game, ParkedBot until the fall | The state equals the new-game snapshot, the phase is NIGHT, and the first spawn is at 5 s again |
+| Night 2, unaided | Night-2 state after a real night 1 and day 1 with no builds, NaiveBot | ≤ `night2_unaided_max` (30%) or it falls |
+| Night 2, planned | PlannerBot plays a real night 1, then a real day 1 (no dev gold), then night 2 | ≥ `night2_comfort_min` (60%) |
+| Night-1 fail → restart (D-043) | New game, ParkedBot until the fall | The state equals the new-game snapshot, the phase is NIGHT, and the first spawn is at `first_wave_delay` (5 s) again |
 | Determinism (D-028) | The same seed, run twice (NaiveBot, night 1 and night 2) | Identical lane plan, diner HP at dawn, kill count and steak count |
 
 ### 13.5 Sweep (manual report, D-059, D-066, D-067)

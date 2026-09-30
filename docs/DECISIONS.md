@@ -304,7 +304,7 @@ target for S2 card power. `tests/sim/out/` is gitignored.
 **D-060 Projectile rule, restated (author).** Damage applies on hit only. If the target dies
 mid-flight, the projectile despawns, with no retarget and no damage carry.
 
-**D-061 Pools are sized from the Balance caps (author).**
+**D-061 [AMENDED by D-124] Pools are sized from the Balance caps (author).**
 - Enemies: max wave size (30) × 1 wave alive at a time, plus 10, which gives 40.
 - Ground steaks: `ceil(sum of the day-10 counts × steaks_per_kill × 1.2)`.
 - Projectiles: 24.
@@ -582,7 +582,7 @@ most readable first threat. Every other wave's lanes come from the `lane_plan` s
   writes GameState fields directly.
 - Station transfers change state on the tick. Tweens are visual only and never hold state.
 
-**D-097 RNG derivation.** The seed is FNV-1a 64 over the string `"<run_seed>:<day>:<stream>"`,
+**D-097 [AMENDED by D-108] RNG derivation.** The seed is FNV-1a 64 over the string `"<run_seed>:<day>:<stream>"`,
 passed to `RandomNumberGenerator.seed`. Why: Godot's `hash()` isn't guaranteed stable across
 versions.
 
@@ -733,7 +733,18 @@ wording).**
   points and north+east from 16, all at the NW and NE diner corners. West+east is impossible,
   because the west and east stop lines are 10.4 m apart, more than 2 × range.
 
-**D-124 is reserved** for the spec sync below (the capped steak pool).
+**D-124 The steak pool is sized from the CAPPED day-10 counts (author; amends D-061).**
+- The prewarm is `ceil((17 + 25 + 30) × steaks_per_kill × 1.2)` = 173, not 180. A night never
+  spawns more than `max_wave_size` Boars per wave.
+- The same pass synced the spec with D-108 to D-115:
+  - 3.5 says FNV-1a 32;
+  - the 3.2 EventBus table has the five D-109 signals;
+  - 3.7 documents the D-110 orchestrator exception;
+  - 6.5 describes the D-111 offset model and `offset_fade_distance`;
+  - the `LanePlanner.plan(run_seed, day, wave_balance)` signature is used throughout;
+  - the telegraph threat uses `Balance.enemy.hp`.
+- Every Balance literal in the spec is annotated with its field name. In the plan, only the
+  pinned-reference tests assert default numbers; every other test derives its numbers from Balance.
 
 **D-125 Towers don't collide with the hero (author; amends D-094 and D-112).**
 - The hero collides only with the diner, counter and freezer.

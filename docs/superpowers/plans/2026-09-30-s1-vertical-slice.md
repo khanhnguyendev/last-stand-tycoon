@@ -44,6 +44,7 @@
 - EventBus is for cross-system events only; component-to-owner communication uses local signals (D-037).
 - Every tunable number lives in `balance/*.gd` defaults (`balance.tres`, `ui_tuning.tres`). No magic gameplay numbers in node scripts.
 - Every user-facing string goes through `tr()`, with the English text as the key (D-074). The font is Nunito (OFL), logged in `docs/ASSET_LICENSES.md`.
+- Balance literals in tests: only the pinned-reference tests (`test_balance`, `test_wave_math`, `test_economy`, the pool-size row) assert default numbers, and each says so in a comment. Every other test derives its numbers from `Balance.data` / `Balance.ui`, so tuning (Task 35) never breaks a mechanics test.
 - Tests: GUT, headless, `--fixed-fps 60`. The sim suite runs in **< 60 s** (D-035). Pass/fail sims assert thresholds, never exact outcomes (D-105).
 - The Godot binary is always `$GODOT` (set in Task 0), and every test run goes through `./run_tests.sh [unit|sim|all]`.
 - Commits: conventional prefixes (`feat:`, `test:`, `chore:`, `docs:`), ending with the session's attribution lines.
@@ -517,6 +518,8 @@ git commit -m "chore: bootstrap Godot 4.7 project with GUT test runner"
 `tests/unit/test_balance.gd`:
 ```gdscript
 extends GutTest
+## PINNED REFERENCE: asserts the spec 12 defaults on purpose. Task 35 updates these rows (and spec 12)
+## in the same commit as any tuned value. Every other test derives its numbers from Balance.
 
 func before_each() -> void:
 	Balance.reset()
@@ -934,6 +937,7 @@ git commit -m "feat: add seeded Rng streams and global-rand ban test"
 `tests/unit/test_wave_math.gd`:
 ```gdscript
 extends GutTest
+## PINNED REFERENCE: spec 6.2 reference values at the default WaveBalance. Update with Task 35 if tuned.
 
 var wb: WaveBalance
 
@@ -1653,6 +1657,8 @@ func test_height_is_ignored() -> void:
 `tests/unit/test_economy.gd`:
 ```gdscript
 extends GutTest
+## PINNED REFERENCE: spec 8.6 / 8.9 values at the default Balance (the margin check is computed).
+## Update the pinned rows with Task 35 if tuned.
 
 var bd: BalanceData
 
@@ -2188,10 +2194,16 @@ func before_each() -> void:
 	Balance.reset()
 	GameState.new_game(1234)
 
+func _max_hp() -> float:
+	return Balance.data.build.diner_max_hp
+
+func _cap() -> int:
+	return Balance.data.hero.carry_capacity
+
 func test_new_game_defaults() -> void:
 	assert_eq(GameState.day, 1)
 	assert_eq(GameState.gold, 0)
-	assert_eq(GameState.diner_hp, 300.0)
+	assert_eq(GameState.diner_hp, _max_hp())
 	assert_eq(GameState.lane_plan.size(), 3)
 	assert_eq(GameState.lane_plan[0].main, "north")
 	for id in MapLayout.SPOT_IDS:
@@ -2207,8 +2219,8 @@ func test_round_trip_identity() -> void:
 
 func test_round_trip_through_json_keeps_ints() -> void:
 	# Review Focus 1: S3 will serialize; JSON turns ints into floats.
-	GameState.add_gold(55)
-	GameState.pay_into_spot("fence_w", 20)
+	GameState.add_gold(1000)
+	GameState.pay_into_spot("fence_w", GameState.next_level_cost("fence_w"))
 	GameState.advance_day()
 	var d := GameState.to_dict()
 	var parsed: Dictionary = JSON.parse_string(JSON.stringify(d))
@@ -2225,27 +2237,29 @@ func test_from_dict_emits_state_restored() -> void:
 	assert_signal_emitted(EventBus, "state_restored")
 
 func test_carry_capacity_and_transfers() -> void:
-	GameState.add_freezer(10)
-	assert_eq(GameState.move_freezer_to_carry(10), 6)
-	assert_eq(GameState.carried_steaks, 6)
+	GameState.add_freezer(_cap() + 4)
+	assert_eq(GameState.move_freezer_to_carry(_cap() + 4), _cap())
+	assert_eq(GameState.carried_steaks, _cap())
 	assert_false(GameState.pick_steak())
-	assert_eq(GameState.move_carry_to_counter(6), 6)
-	assert_eq(GameState.counter_steaks, 6)
+	assert_eq(GameState.move_carry_to_counter(_cap()), _cap())
+	assert_eq(GameState.counter_steaks, _cap())
 	assert_eq(GameState.freezer_steaks, 4)
 
 func test_counter_capacity() -> void:
-	GameState.counter_steaks = 11  # test-only setup write
+	var cap := Balance.data.economy.counter_capacity
+	GameState.counter_steaks = cap - 1  # test-only setup write
 	GameState.carried_steaks = 3
 	assert_eq(GameState.move_carry_to_counter(3), 1)
-	assert_eq(GameState.counter_steaks, 12)
+	assert_eq(GameState.counter_steaks, cap)
 
 func test_sell_is_atomic_and_partial() -> void:
+	var price := Balance.data.economy.gold_per_steak
 	GameState.counter_steaks = 1
 	watch_signals(EventBus)
 	assert_eq(GameState.sell_from_counter(2), 1)
 	assert_eq(GameState.counter_steaks, 0)
-	assert_eq(GameState.gold_pile, 3)
-	assert_signal_emitted_with_parameters(EventBus, "steak_sold", [1, 3])
+	assert_eq(GameState.gold_pile, price)
+	assert_signal_emitted_with_parameters(EventBus, "steak_sold", [1, price])
 	assert_eq(GameState.sell_from_counter(2), 0)
 
 func test_collect_pile() -> void:
@@ -2255,37 +2269,38 @@ func test_collect_pile() -> void:
 	assert_eq(GameState.gold_pile, 0)
 
 func test_pay_builds_and_levels() -> void:
-	GameState.add_gold(100)
+	var cost := GameState.next_level_cost("fence_n")
+	GameState.add_gold(cost * 5)
 	watch_signals(EventBus)
-	assert_eq(GameState.pay_into_spot("fence_n", 15), 15)
-	assert_eq(GameState.buildings.fence_n.paid, 15)
-	assert_eq(GameState.pay_into_spot("fence_n", 15), 5)
-	assert_eq(GameState.buildings.fence_n, {"level": 1, "paid": 0, "hp": 120.0})
+	assert_eq(GameState.pay_into_spot("fence_n", cost - 1), cost - 1)
+	assert_eq(GameState.buildings.fence_n.paid, cost - 1)
+	assert_eq(GameState.pay_into_spot("fence_n", cost), 1, "pays only what is left")
+	assert_eq(GameState.buildings.fence_n, {"level": 1, "paid": 0, "hp": GameState.fence_max_hp(1)})
 	assert_signal_emitted_with_parameters(EventBus, "build_completed", [&"fence_n", 1])
-	assert_eq(GameState.gold, 80)
-	assert_eq(GameState.next_level_cost("fence_n"), 40)
+	assert_eq(GameState.gold, cost * 4)
+	assert_eq(GameState.next_level_cost("fence_n"), Economy.level_cost("fence_n", 1, Balance.data.build))
 
 func test_diner_fell_once() -> void:
 	watch_signals(EventBus)
-	GameState.damage_diner(299.0)
+	GameState.damage_diner(_max_hp() - 1.0)
 	GameState.damage_diner(5.0)
 	GameState.damage_diner(5.0)
 	assert_eq(GameState.diner_hp, 0.0)
 	assert_signal_emit_count(EventBus, "diner_fell", 1)
 
 func test_fence_damage_rubble_and_dawn() -> void:
-	GameState.add_gold(40)
-	GameState.pay_into_spot("fence_w", 20)
-	GameState.pay_into_spot("fence_e", 20)
-	GameState.damage_fence("fence_w", 500.0)
-	GameState.damage_fence("fence_e", 20.0)
+	GameState.add_gold(GameState.next_level_cost("fence_w") * 2)
+	GameState.pay_into_spot("fence_w", GameState.next_level_cost("fence_w"))
+	GameState.pay_into_spot("fence_e", GameState.next_level_cost("fence_e"))
+	GameState.damage_fence("fence_w", 1e6)
+	GameState.damage_fence("fence_e", 1.0)
 	assert_eq(GameState.buildings.fence_w.hp, 0.0)
-	GameState.damage_diner(100.0)
+	GameState.damage_diner(_max_hp() / 3.0)
 	GameState.heal_for_dawn()
 	GameState.reset_destroyed_fences()
 	assert_eq(GameState.buildings.fence_w, {"level": 0, "paid": 0, "hp": 0.0})
-	assert_eq(GameState.buildings.fence_e.hp, 120.0)
-	assert_eq(GameState.diner_hp, 300.0)
+	assert_eq(GameState.buildings.fence_e.hp, GameState.fence_max_hp(1))
+	assert_eq(GameState.diner_hp, _max_hp())
 
 func test_advance_day_makes_new_plan() -> void:
 	GameState.advance_day()
@@ -3128,7 +3143,7 @@ git commit -m "feat: add Main and World map skeleton built from MapLayout"
     - The director object must provide `providers: TargetProviders` and `on_enemy_died(boar: Boar)`.
   - **`Steak`:** `place(pos: Vector3) -> void`.
   - **`TargetProviders`:** `register(kind: StringName, fn: Callable)`, `find_target(enemy: Boar) -> Dictionary`, static `fence_on_lane(enemy) -> Dictionary`, static `diner(enemy) -> Dictionary`. A target is `{"kind": StringName, "spot_id": String}` for a fence, or `{"kind": &"diner"}`.
-  - **`World`:** `enemy_pool: NodePool`, `steak_pool: NodePool`, and static `World.pool_sizes(bd: BalanceData) -> Dictionary` (`{enemy, steak, projectile, fx}`).
+  - **`World`:** `enemy_pool: NodePool`, `steak_pool: NodePool`, and static `World.pool_sizes(bd: BalanceData) -> Dictionary` (`{enemy, steak, projectile, fx}`; steaks from the capped day-10 counts, D-124).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -3165,39 +3180,44 @@ func _step(b: Boar, seconds: float) -> void:
 	for i in int(round(seconds * 60.0)):
 		b._physics_process(DT)
 
+func _walk_time(lane: String) -> float:
+	return MapLayout.path_length(lane) / Balance.data.enemy.speed
+
 func test_walks_to_zone_and_hits_diner() -> void:
+	var eb := Balance.data.enemy
+	var max_hp := Balance.data.build.diner_max_hp
 	var b := _boar("north", 0.7)
-	_step(b, 9.5)  # 18.8 m at 2 m/s
+	_step(b, _walk_time("north") + 0.1)
 	assert_true(b.at_path_end())
 	assert_true(Geometry.rect_contains(MapLayout.ZONE_RECTS.north, Vector2(b.position.x, b.position.z)))
-	assert_eq(GameState.diner_hp, 300.0)
-	_step(b, 1.05)
-	assert_eq(GameState.diner_hp, 295.0)
+	assert_eq(GameState.diner_hp, max_hp)
+	_step(b, eb.attack_interval - 0.05)
+	assert_eq(GameState.diner_hp, max_hp - eb.damage)
 
 func test_standing_fence_blocks_and_takes_damage() -> void:
-	GameState.add_gold(20)
-	GameState.pay_into_spot("fence_n", 20)
+	GameState.add_gold(GameState.next_level_cost("fence_n"))
+	GameState.pay_into_spot("fence_n", GameState.next_level_cost("fence_n"))
 	var b := _boar("north")
-	_step(b, 12.0)
+	_step(b, _walk_time("north") + 3.0 * Balance.data.enemy.attack_interval)
 	var fence_dist := b.path_length() - MapLayout.FENCE_OFFSET_FROM_END
 	assert_almost_eq(b.dist, fence_dist - Balance.data.enemy.reach, 0.05)
-	assert_lt(GameState.buildings.fence_n.hp, 120.0)
-	assert_eq(GameState.diner_hp, 300.0)
+	assert_lt(GameState.buildings.fence_n.hp, GameState.fence_max_hp(1))
+	assert_eq(GameState.diner_hp, Balance.data.build.diner_max_hp)
 
 func test_rubble_does_not_block() -> void:
-	GameState.add_gold(20)
-	GameState.pay_into_spot("fence_n", 20)
+	GameState.add_gold(GameState.next_level_cost("fence_n"))
+	GameState.pay_into_spot("fence_n", GameState.next_level_cost("fence_n"))
 	GameState.damage_fence("fence_n", 1000.0)
 	var b := _boar("north")
-	_step(b, 10.0)
+	_step(b, _walk_time("north") + 0.1)
 	assert_true(b.at_path_end())
 
 func test_priority_is_data_driven() -> void:
-	GameState.add_gold(20)
-	GameState.pay_into_spot("fence_n", 20)
+	GameState.add_gold(GameState.next_level_cost("fence_n"))
+	GameState.pay_into_spot("fence_n", GameState.next_level_cost("fence_n"))
 	Balance.data.wave.target_priority.kinds.assign([&"diner"])
 	var b := _boar("north")
-	_step(b, 10.0)
+	_step(b, _walk_time("north") + 0.1)
 	assert_true(b.at_path_end(), "fence ignored when not in priority list")
 
 func test_death_reports_once() -> void:
@@ -3212,11 +3232,13 @@ func test_hp_mult_applies() -> void:
 	var b := Boar.new()
 	add_child_autofree(b)
 	b.spawn("east", 3, 0.0, 1.15, dir)
-	assert_almost_eq(b.health.max_hp, 34.5, 0.0001)
+	assert_almost_eq(b.health.max_hp, Balance.data.enemy.hp * 1.15, 0.0001)
 	assert_eq(b.candidate().spawn_index, 3)
 
 func test_pool_sizes_from_balance() -> void:
-	assert_eq(World.pool_sizes(Balance.data), {"enemy": 40, "steak": 180, "projectile": 24, "fx": 32})
+	# PINNED REFERENCE: spec 11 at the default Balance (D-124: steaks from the CAPPED day-10 counts
+	# 17 + 25 + 30). If Task 35 changes a wave or economy value, update this row and spec 11 together.
+	assert_eq(World.pool_sizes(Balance.data), {"enemy": 40, "steak": 173, "projectile": 24, "fx": 32})
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -3404,7 +3426,7 @@ var steak_pool: NodePool
 static func pool_sizes(bd: BalanceData) -> Dictionary:
 	var steaks := 0
 	for w in bd.wave.base_counts.size():
-		steaks += WaveMath.raw_total(10, w, bd.wave)
+		steaks += WaveMath.total_count(10, w, bd.wave)  # capped counts (D-124)
 	return {
 		"enemy": bd.wave.max_wave_size + 10,
 		"steak": int(ceil(steaks * bd.economy.steaks_per_kill * 1.2)),
@@ -3766,7 +3788,7 @@ func test_moves_at_speed() -> void:
 	hero.teleport(Vector2(10, 8))
 	hero.input.set_move(Vector2(1, 0))
 	await _ticks(60)
-	assert_almost_eq(hero.xz().x, 15.0, 0.2)
+	assert_almost_eq(hero.xz().x, 10.0 + Balance.data.hero.move_speed, 0.2)
 
 func test_blocked_by_diner() -> void:
 	hero.teleport(Vector2(-3, 7))
@@ -4327,9 +4349,9 @@ func test_new_game_starts_night_with_night_snapshot() -> void:
 	assert_eq(main.world.wave_director.state, WaveDirector.State.WAITING)
 
 func test_dawn_steps_in_order() -> void:
-	GameState.add_gold(20)
-	GameState.pay_into_spot("fence_w", 20)
-	GameState.damage_fence("fence_w", 999.0)
+	GameState.add_gold(GameState.next_level_cost("fence_w"))
+	GameState.pay_into_spot("fence_w", GameState.next_level_cost("fence_w"))
+	GameState.damage_fence("fence_w", 1e6)
 	GameState.damage_diner(50.0)
 	GameState.carried_steaks = 2  # test-only setup write
 	for i in 3:
@@ -4339,7 +4361,7 @@ func test_dawn_steps_in_order() -> void:
 	assert_eq(pc.phase, Phase.DAY)
 	assert_eq(GameState.freezer_steaks, 3)
 	assert_eq(GameState.carried_steaks, 2)
-	assert_eq(GameState.diner_hp, 300.0)
+	assert_eq(GameState.diner_hp, Balance.data.build.diner_max_hp)
 	assert_eq(GameState.buildings.fence_w, {"level": 0, "paid": 0, "hp": 0.0})
 	assert_eq(GameState.day, 2)
 	assert_ne(GameState.lane_plan[0].side, "")
@@ -4606,32 +4628,32 @@ func test_tower_inactive_until_built() -> void:
 	var t: TowerSpot = main.world.build_spots.tower_nw
 	assert_false(t.attacker.enabled)
 	assert_eq(t.find_children("*", "CollisionObject3D", true, false).size(), 0, "towers never collide (D-125)")
-	GameState.add_gold(40)
-	GameState.pay_into_spot("tower_nw", 40)
+	GameState.add_gold(GameState.next_level_cost("tower_nw"))
+	GameState.pay_into_spot("tower_nw", GameState.next_level_cost("tower_nw"))
 	assert_true(t.attacker.enabled)
-	assert_eq(t.attacker.attack_range, 7.0)
+	assert_eq(t.attacker.attack_range, Balance.data.build.tower_range[0])
 
 func test_built_tower_kills_boar() -> void:
-	GameState.add_gold(40)
-	GameState.pay_into_spot("tower_nw", 40)
+	GameState.add_gold(GameState.next_level_cost("tower_nw"))
+	GameState.pay_into_spot("tower_nw", GameState.next_level_cost("tower_nw"))
 	var b := main.world.wave_director.debug_spawn("north")
-	b.dist = 12.0  # (0,-12): 8.6 m from the tower, walks into its 7 m range
+	b.dist = 12.0  # (0,-12): 8.6 m from the tower, walks into its level-1 range
 	await _ticks(60 * 5)
 	assert_false(b.alive)
 
 func test_upgrade_changes_tower_stats() -> void:
-	GameState.add_gold(120)
-	GameState.pay_into_spot("tower_ne", 40)
-	GameState.pay_into_spot("tower_ne", 80)
+	GameState.add_gold(10000)
+	GameState.pay_into_spot("tower_ne", GameState.next_level_cost("tower_ne"))
+	GameState.pay_into_spot("tower_ne", GameState.next_level_cost("tower_ne"))
 	var t: TowerSpot = main.world.build_spots.tower_ne
-	assert_eq(t.attacker.damage, 12.0)
-	assert_eq(t.attacker.attack_range, 7.5)
+	assert_eq(t.attacker.damage, Balance.data.build.tower_damage[1])
+	assert_eq(t.attacker.attack_range, Balance.data.build.tower_range[1])
 
 func test_fence_rubble_and_restore() -> void:
 	var f: FenceSpot = main.world.build_spots.fence_n
 	assert_false(f.visual.visible)
-	GameState.add_gold(20)
-	GameState.pay_into_spot("fence_n", 20)
+	GameState.add_gold(GameState.next_level_cost("fence_n"))
+	GameState.pay_into_spot("fence_n", GameState.next_level_cost("fence_n"))
 	assert_true(f.visual.visible)
 	assert_false(f.is_rubble())
 	GameState.damage_fence("fence_n", 999.0)
@@ -5331,7 +5353,7 @@ func test_freezer_fills_carry_to_capacity() -> void:
 	GameState.add_freezer(10)
 	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
 	await _ticks(30)
-	assert_between(GameState.carried_steaks, 2, 4)
+	assert_between(GameState.carried_steaks, 2, 4)  # PINNED to the default 0.25 s still + 0.08 s tick
 	await _ticks(30)
 	assert_eq(GameState.carried_steaks, Balance.data.hero.carry_capacity)
 	assert_eq(GameState.freezer_steaks, 10 - Balance.data.hero.carry_capacity)
@@ -5741,7 +5763,7 @@ func test_gold_pile_visual() -> void:
 	main.phase_controller.debug_skip_to_day()
 	GameState.counter_steaks = 1
 	GameState.sell_from_counter(1)
-	assert_eq(main.world.gold_pile.coin_count(), 3)
+	assert_eq(main.world.gold_pile.coin_count(), Balance.data.economy.gold_per_steak)
 
 func _wait_front_at_counter() -> bool:
 	for i in 60 * 20:
@@ -5978,14 +6000,21 @@ func _ticks(n: int) -> void:
 func _stand(spot_id: String) -> void:
 	await TestHelpers.walk_in(main.hero, WaypointGraph.create_default().position_of(spot_id))
 
-func test_fence_builds_in_about_1_6s_and_keeps_paying() -> void:
-	GameState.add_gold(25)
+## Frames to finish `cost` by standing: still time + ticks at the drain rate, +10 % margin.
+func _frames_to_pay(cost: int) -> int:
+	var e := Balance.data.economy
+	var ticks := ceili(float(cost) / Economy.drain_per_tick(cost, Balance.data.build))
+	return int(ceil((e.stand_still_time + ticks * e.transfer_tick) * 60.0 * 1.1))
+
+func test_fence_builds_and_keeps_paying() -> void:
+	var cost := GameState.next_level_cost("fence_n")
+	GameState.add_gold(cost + 5)
 	await _stand("fence_n")
-	await _ticks(15 + 100)  # 0.25 s still + ~1.67 s of ticks
+	await _ticks(_frames_to_pay(cost))
 	assert_eq(GameState.buildings.fence_n.level, 1)
 	await _ticks(30)
 	assert_eq(GameState.gold, 0)
-	assert_eq(GameState.buildings.fence_n.paid, 5)
+	assert_eq(GameState.buildings.fence_n.paid, 5, "keeps paying toward the next level")
 
 func test_partial_payment_persists_after_leaving() -> void:
 	GameState.add_gold(10)
@@ -5996,26 +6025,27 @@ func test_partial_payment_persists_after_leaving() -> void:
 	main.hero.teleport(MapLayout.HOME)
 	await _ticks(10)
 	assert_eq(GameState.buildings.tower_nw.paid, 10)
-	assert_eq(main.world.build_spots.tower_nw.label.text, "30")
+	assert_eq(main.world.build_spots.tower_nw.label.text, str(GameState.next_level_cost("tower_nw") - 10))
 
 func test_pays_only_what_gold_allows() -> void:
 	# Review Focus 5: gold below the drain never goes negative.
+	assert_gt(Economy.drain_per_tick(GameState.next_level_cost("tower_ne"), Balance.data.build), 1, "precondition: drain >= 2")
 	GameState.add_gold(1)
-	await _stand("tower_ne")  # drain 2 per tick
+	await _stand("tower_ne")
 	await _ticks(40)
 	assert_eq(GameState.gold, 0)
 	assert_eq(GameState.buildings.tower_ne.paid, 1)
 
 func test_max_level_spot_takes_nothing() -> void:
 	# Review Focus 5
-	GameState.add_gold(20 + 40 + 80 + 50)
-	GameState.pay_into_spot("fence_w", 20)
-	GameState.pay_into_spot("fence_w", 40)
-	GameState.pay_into_spot("fence_w", 80)
+	GameState.add_gold(10000)
+	for i in Balance.data.build.max_level:
+		GameState.pay_into_spot("fence_w", GameState.next_level_cost("fence_w"))
+	var left := GameState.gold
 	assert_eq(main.world.build_spots.fence_w.label.text, "MAX")
 	await _stand("fence_w")
 	await _ticks(60)
-	assert_eq(GameState.gold, 50)
+	assert_eq(GameState.gold, left)
 
 func test_dawn_inside_zone_needs_reentry() -> void:
 	# D-121: hero inside a build-spot zone when dawn activates it -> no payment until exit and re-entry.
@@ -6120,9 +6150,12 @@ func _ticks(n: int) -> void:
 func test_standing_on_sign_starts_night_after_hold() -> void:
 	main.phase_controller.debug_skip_to_day()
 	await TestHelpers.walk_in(main.hero, MapLayout.SIGN)
-	await _ticks(15 + 55)  # still time + < 1 s of hold
+	var e := Balance.data.economy
+	var still := int(ceil(e.stand_still_time * 60.0))
+	var hold := int(ceil(ceil(e.closeup_hold / e.transfer_tick) * e.transfer_tick * 60.0))
+	await _ticks(still + int(hold * 0.85))
 	assert_eq(main.phase_controller.phase, Phase.DAY)
-	await _ticks(15)
+	await _ticks(int(hold * 0.3) + 2)
 	assert_eq(main.phase_controller.phase, Phase.NIGHT)
 	assert_eq(main.phase_controller.snapshot.resume_phase, "DAY")
 
@@ -6635,16 +6668,16 @@ func _ticks(n: int) -> void:
 
 func test_restore_rebuilds_world_from_snapshot() -> void:
 	pc.debug_skip_to_day()
-	GameState.add_gold(60)
-	GameState.pay_into_spot("tower_nw", 40)
-	GameState.pay_into_spot("fence_n", 15)
+	GameState.add_gold(1000)
+	GameState.pay_into_spot("tower_nw", GameState.next_level_cost("tower_nw"))
+	GameState.pay_into_spot("fence_n", GameState.next_level_cost("fence_n") - 5)  # leaves 5 to pay
 	GameState.add_freezer(4)
 	pc.close_up()  # snapshot (resume DAY), now NIGHT
 	var snap: Dictionary = pc.snapshot.duplicate(true)
 	# mutate everything
 	pc.debug_skip_to_day()
 	GameState.add_gold(500)
-	GameState.pay_into_spot("tower_ne", 40)
+	GameState.pay_into_spot("tower_ne", GameState.next_level_cost("tower_ne"))
 	GameState.pay_into_spot("fence_n", 5)
 	GameState.damage_diner(40.0)
 	GameState.add_freezer(9)
@@ -7111,10 +7144,11 @@ func test_day_label_and_moons_visibility() -> void:
 	assert_false(hud.moons[0].visible)
 
 func test_diner_bar() -> void:
+	var max_hp := Balance.data.build.diner_max_hp
 	GameState.damage_diner(30.0)
-	assert_almost_eq(hud.diner_bar.value, 270.0, 0.001)
+	assert_almost_eq(hud.diner_bar.value, max_hp - 30.0, 0.001)
 	GameState.from_dict(main.phase_controller.snapshot)
-	assert_almost_eq(hud.diner_bar.value, 300.0, 0.001)
+	assert_almost_eq(hud.diner_bar.value, max_hp, 0.001)
 
 func test_banner_shows_then_hides() -> void:
 	EventBus.banner_requested.emit("Dawn")
@@ -7447,8 +7481,8 @@ func test_freezer_transfer_spawns_fly() -> void:
 
 func test_build_pop_overshoots() -> void:
 	var s: BuildSpot = main.world.build_spots.fence_w
-	GameState.add_gold(20)
-	GameState.pay_into_spot("fence_w", 20)
+	GameState.add_gold(GameState.next_level_cost("fence_w"))
+	GameState.pay_into_spot("fence_w", GameState.next_level_cost("fence_w"))
 	await get_tree().process_frame
 	assert_gt(s.visual.scale.x, 1.0)
 	for i in 30:
@@ -8158,6 +8192,7 @@ Expected: the latest `ci` run shows `completed success`. If the run is red only 
 
 **Rules:**
 - Change only Balance defaults. No code or geometry changes.
+- Update the pinned-reference rows (`test_balance`, `test_wave_math`, `test_economy`, `test_pool_sizes_from_balance`) and the matching spec sections (6.2, 8.9, 11, 12) in the same commit.
 - The priority order is D-103:
   1. night 1 NaiveBot ≥ 50% must hold;
   2. night 2 PlannerBot ≥ 60% must hold;
