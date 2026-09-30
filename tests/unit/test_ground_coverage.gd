@@ -1,7 +1,8 @@
 extends GutTest
-## D-152: no camera view (any focus corner, 9:16 or 16:9) shows past the ground.
+## D-152/D-153: no camera view (any focus corner, any window aspect) shows past the ground.
+## 0.30 and 32:9 are outside [ASPECT_MIN, ASPECT_MAX] and must be clamped by CameraMath.
 
-const ASPECTS := [CameraMath.ASPECT, 16.0 / 9.0]
+const ASPECTS := [0.30, 9.0 / 21.0, 9.0 / 19.5, CameraMath.ASPECT, 16.0 / 9.0, 21.0 / 9.0, 32.0 / 9.0]
 
 func before_each() -> void:
 	Balance.reset()
@@ -11,9 +12,10 @@ func _corners() -> Array:
 	var hi := CameraMath.FOCUS_MAX
 	return [lo, hi, Vector2(lo.x, hi.y), Vector2(hi.x, lo.y)]
 
-## Viewport corners and the top-edge midpoint, in pixels of a 1280-high viewport.
+## Viewport corners only, in pixels; the farthest ground point of a perspective view is always a corner,
+## so a top-mid sample adds nothing.
 func _sample_points(size: Vector2) -> Array:
-	return [Vector2(0, 0), Vector2(size.x, 0), Vector2(0, size.y), size, Vector2(size.x * 0.5, 0)]
+	return [Vector2(0, 0), Vector2(size.x, 0), Vector2(0, size.y), size]
 
 func test_ground_rect_contains_bounds() -> void:
 	var r := World.ground_rect()
@@ -24,7 +26,7 @@ func test_every_camera_view_hits_ground_inside_rect() -> void:
 	var rect := World.ground_rect()
 	var max_dist := 0.0
 	for aspect in ASPECTS:
-		var size := Vector2(roundf(1280.0 * aspect), 1280.0)
+		var size := Vector2(maxf(roundf(1280.0 * aspect), 1.0), 1280.0)
 		var vp := SubViewport.new()
 		vp.size = Vector2i(size)
 		add_child_autofree(vp)
@@ -52,6 +54,7 @@ func test_every_camera_view_hits_ground_inside_rect() -> void:
 			max_dist = maxf(max_dist, far_d)
 			gut.p("aspect %.3f focus %s: farthest hit %s, %.2f m past bounds" % [aspect, focus, far_hit, far_d])
 	gut.p("max distance past bounds over all corners/aspects: %.2f m" % max_dist)
+	assert_lt(max_dist, World.GROUND_MARGIN - 5.0, "headroom inside the ground margin")
 
 ## Distance from the bounds rectangle (0 when inside).
 func _outside_bounds(p: Vector2) -> float:

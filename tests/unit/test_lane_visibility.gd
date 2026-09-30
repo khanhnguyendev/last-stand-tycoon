@@ -27,7 +27,7 @@ func test_boar_visible_two_seconds_before_range() -> void:
 	var eb := Balance.data.enemy
 	var hero_range := Balance.data.hero.attack_range
 	var dt := 1.0 / 60.0
-	for aspect in [CameraMath.ASPECT, 16.0 / 9.0]:
+	for aspect in [CameraMath.ASPECT_MIN, CameraMath.ASPECT, 16.0 / 9.0, CameraMath.ASPECT_MAX]:
 		var proj := CameraMath.projection(ui, aspect)
 		for lane in LanePlanner.LANES:
 			var length := MapLayout.path_length(lane)
@@ -58,7 +58,8 @@ func test_projection_matches_godot_camera() -> void:
 	var ui := Balance.ui
 	# Round trip: the portrait vertical FOV reproduces the horizontal FOV at 9:16.
 	assert_almost_eq(tan(deg_to_rad(CameraMath.portrait_fov_v(ui)) / 2.0) * CameraMath.ASPECT, tan(deg_to_rad(ui.camera_fov_h) / 2.0), 1e-6)
-	for size in [Vector2i(720, 1280), Vector2i(1280, 720)]:
+	# 384x1280 (0.30) and 4096x1152 (32:9) exercise the clamped branches.
+	for size in [Vector2i(720, 1280), Vector2i(1280, 720), Vector2i(384, 1280), Vector2i(4096, 1152)]:
 		var vp := SubViewport.new()
 		vp.size = size
 		add_child_autofree(vp)
