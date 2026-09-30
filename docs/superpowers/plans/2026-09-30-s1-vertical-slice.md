@@ -909,6 +909,10 @@ extends Resource
 @export var pulse_hz := 1.0
 ## Visual scale added per built level (spec 8.6).
 @export var build_level_scale := 1.1
+## D-151 occlusion fade: diner alpha while it hides an actor, fade time, AABB growth (m).
+@export var occluder_alpha := 0.3
+@export var occluder_fade_s := 0.15
+@export var occluder_grow := 0.2
 ```
 
 `balance/balance.tres`:
@@ -6975,6 +6979,7 @@ func test_clear_queue_recalls_everyone() -> void:
 ## Spawns of the first day: (tick, want) for the first queue_max travelers.
 func _record_spawns() -> Array:
 	var e := Balance.data.economy
+	await get_tree().physics_frame  # D-118: start both runs at the same kind of point
 	main.phase_controller.start_new_game(21)
 	main.phase_controller.debug_skip_to_day()
 	var seen := {}
@@ -7724,6 +7729,18 @@ git commit -m "feat: add close-up sign with pulse and day lane telegraph"
 ---
 
 ## Phase 7: Economy, upgrades, PlannerBot, night-2 sims
+
+### Task 24b: The ground covers every camera view (D-152, author at CP1)
+
+The sky-coloured band at the top of `cp1_night1.png` is the edge of the ground (z = −24), not the horizon.
+
+**Files:**
+- Modify: `world/world.gd` (`_build_ground`); this is its main purpose, so the implementer edits it (D-139)
+- Test: `tests/unit/test_ground_coverage.gd`
+
+- [ ] **Step 1: Write the failing test.** For each of the four `CameraMath.FOCUS_MIN/FOCUS_MAX` corners, at both 9:16 and 16:9 (D-145), build the camera with `CameraMath.camera_transform` and `CameraMath.projection`. Cast the rays through the four viewport corners and the top-edge midpoint onto the y = 0 plane. Each ray must hit the plane (it points downward), and every hit point must lie inside the ground rectangle `World.ground_rect()`. It fails today.
+- [ ] **Step 2: Implement.** Keep the map ground (bounds) as is, and add a far "skirt" plane underneath it (y = −0.01, same ground colour, no collider), sized from `World.ground_rect()`. `ground_rect()` is a static function that returns the bounds grown by a margin derived from the camera (compute the worst-case hit distance, or use a constant, e.g. 60 m, that the test proves is enough).
+- [ ] **Step 3: Run the tests and commit** `feat: extend the ground so no camera view shows past it`.
 
 ### Task 25: `PlannerBot`, day and night-2 sims, and the sweep
 
@@ -8972,10 +8989,28 @@ git commit -m "feat: add HUD with gold punch, moons, diner bar, banners, edge ar
 
 ### Task 30: Feel budget (`FlyFx` arcs, build pop, hit flash)
 
+**Occlusion fade (D-151, author at CP1).** In addition to the feel work below:
+- **`components/occluder_fade.gd`** (`class_name OccluderFade`, Node). It is generic, so S4's diner model reuses it. It is a child of the occluder's `Visual` node, and `setup(box: AABB, camera_source: Callable, targets: Callable)` takes:
+  - the occluder's world AABB;
+  - a Callable that returns the current `Camera3D`;
+  - a Callable that returns the world positions to keep visible (the hero, plus every alive Boar via `WaveDirector.alive_enemies()`).
+- **Each `_process` frame** (visual only), it tests the segment camera→target, with the target at its chest height, against the AABB grown by `UiTuning.occluder_grow` (0.2).
+  - If any target is occluded, it tweens every `MeshInstance3D` under the Visual toward alpha `UiTuning.occluder_alpha` (0.3) over `UiTuning.occluder_fade_s` (0.15 s), through a per-instance material override with `TRANSPARENCY_ALPHA`.
+  - When nothing is occluded, it tweens back to 1.0 and restores the opaque material, so no transparent material is left when the diner isn't blocking anything.
+  - `is_faded() -> bool` and `current_alpha() -> float` are for tests.
+- **Diner wiring (main session, D-139):** `World` creates an `OccluderFade` under the diner's Visual. The camera source is `get_viewport().get_camera_3d`, and the targets are the hero plus `wave_director.alive_enemies()`.
+- **Compatibility renderer:** the faded diner must not hide the hero or the Boars behind it. Transparent meshes draw after opaque ones, so check this in the re-rendered screenshots. If sorting artifacts appear, set `render_priority` on the faded material and document it.
+- **S4 note:** the real diner model keeps the roof and walls as separate `MeshInstance3D`s under `Visual`, compatible with this fade.
+- **Tests (`tests/unit/test_occluder_fade.gd`)**, through `CameraMath` so they need no renderer:
+  - hero at the north zone centre → faded, and the hero's screen point is not covered by an opaque diner face (the camera→hero segment hits the grown AABB, and the fade alpha is at most `occluder_alpha` after `occluder_fade_s`);
+  - a Boar in the north attack zone with the hero at HOME → faded;
+  - nothing occluded (hero south of the diner, no Boars) → alpha 1.0 and no transparent override.
+- **Screenshots:** after Task 30, re-run Task 33's three per-lane captures, and add `docs/screenshots/s1/north_zone_center.png` with the hero at the north zone centre (`capture.gd --hero-at=zone_center --lane=north`). Commit them.
+
 **From the Task 23 review:** at night, hide a build spot's payment ring (`not zone.is_active()`), and refresh it on `phase_changed`, so partial-payment rings don't glow on the lanes during combat.
 
 **Files:**
-- Create: `world/fx/fly_fx.gd`
+- Create: `world/fx/fly_fx.gd`, `components/occluder_fade.gd`, `tests/unit/test_occluder_fade.gd`
 - Modify:
   - `world/world.gd`
   - `world/stations/freezer.gd`, `world/stations/counter.gd`
@@ -9917,6 +9952,8 @@ done
 ```
 
 Expected: three `saved ... (720, 1280)` lines.
+
+After Task 30 (D-151), re-run these captures and also capture `north_zone_center.png` (hero at the north zone centre), then check that the hero and the Boars show through the faded diner.
 
 - [ ] **Step 2: Check each image**
 

@@ -1155,3 +1155,32 @@ wording).**
   `sweep_runner.gd` (a typed `Node`) to the tree.
 - `docs/.gdignore` keeps Godot from importing `docs/` (screenshots got `.import` files). No test reads
   `docs/` through `res://`.
+
+## 2026-09-30: CP1 approved
+
+**D-151 The diner fades when it hides an actor (author at CP1; implemented in Task 30).**
+- The spec camera (pitch 55°, distance 18) looks over a 3 m diner, which hides the north zone. In
+  the CP1 render only a sliver of the hero showed.
+- Each frame, the camera→actor segment is tested against the diner's AABB (slightly grown), for the
+  hero and every alive Boar. If any actor is occluded, the diner's Visual (walls and roof) fades to
+  `UiTuning.occluder_alpha` (0.3) over `UiTuning.occluder_fade_s`. It fades back to fully opaque when
+  nothing is occluded.
+- A generic `OccluderFade` component under the occluder's Visual does this, so S4's real diner model
+  reuses it. S4 note: the diner model keeps its roof and walls as separate meshes compatible with the
+  fade.
+- The Compatibility renderer's transparency sorting must not hide the actors behind the diner. The
+  re-rendered screenshots are the check.
+- Tests project through `CameraMath`: the hero at the north zone centre fades the diner; a Boar in the
+  north zone with the hero at HOME fades it; with nothing occluded it stays fully opaque.
+- After Task 30, the three per-lane screenshots (D-076) and a hero-at-north-zone-centre shot are
+  re-rendered and committed.
+
+**D-152 The ground extends past every camera view (author at CP1; Task 24b).**
+- The sky-coloured band at the top of `cp1_night1.png` was the edge of the ground at z = −24, not
+  the horizon.
+- A far ground "skirt" under the map means no camera focus inside `FOCUS_MIN/FOCUS_MAX` (at 9:16
+  and 16:9) ever shows past the ground. A projection test checks the four focus corners.
+
+**CP1 outcome (author).** CP1 approved. Night-1 sims at the default balance: first combat at 12.45 s
+(idle player 12.27 s; limit 30 s); NaiveBot keeps 67% of diner HP (target ≥ 50%); ParkedBot's diner
+falls and the night restarts identically.
