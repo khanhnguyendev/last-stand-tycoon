@@ -181,3 +181,16 @@ func test_hover_point_is_clamped_below_the_hud() -> void:
 	var rect := Rect2(0, 200, 600, 800)
 	assert_eq(hud._hover_point(Vector2(100, 210), rect), Vector2(100, 200), "clamped to the rect top")
 	assert_eq(hud._hover_point(Vector2(100, 700), rect), Vector2(100, 700 - Balance.ui.arrow_hover_px))
+
+func test_card_strip_lists_owned_cards_in_catalog_order() -> void:
+	assert_eq(main.hud.card_strip.text, "")
+	GameState.debug_grant_card(&"tank")
+	GameState.debug_grant_card(&"hero_damage")
+	GameState.debug_grant_card(&"tank")
+	assert_eq(main.hud.card_strip.text, "DM1  TK2")
+	GameState.new_game(2)
+	assert_eq(main.hud.card_strip.text, "")
+
+func test_day_label_shows_new_day_on_offer() -> void:
+	EventBus.wave_cleared.emit(2)
+	assert_eq(main.hud.day_label.text, "Day 2")
