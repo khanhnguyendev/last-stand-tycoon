@@ -41,12 +41,26 @@ func _build_environment() -> void:
 	env.environment.ambient_light_color = Color(0.7, 0.7, 0.7)
 	add_child(env)
 
+## Ground margin past MapLayout bounds; the projection test proves it covers every camera view (D-152).
+const GROUND_MARGIN := 60.0
+
+## The area the ground (map plus far skirt) covers, in xz.
+static func ground_rect() -> Rect2:
+	var lo := MapLayout.BOUNDS_MIN - Vector2(GROUND_MARGIN, GROUND_MARGIN)
+	var hi := MapLayout.BOUNDS_MAX + Vector2(GROUND_MARGIN, GROUND_MARGIN)
+	return Rect2(lo, hi - lo)
+
 func _build_ground() -> void:
 	var size := MapLayout.BOUNDS_MAX - MapLayout.BOUNDS_MIN
 	var ground := Visuals.plane(size, Visuals.COLORS.ground)
 	ground.name = "Ground"
 	ground.position = MapLayout.to3((MapLayout.BOUNDS_MIN + MapLayout.BOUNDS_MAX) * 0.5)
 	add_child(ground)
+	var rect := ground_rect()
+	var skirt := Visuals.plane(rect.size, Visuals.COLORS.ground)
+	skirt.name = "GroundSkirt"
+	skirt.position = MapLayout.to3(rect.get_center(), -0.01)
+	add_child(skirt)
 	var road := Visuals.box(Vector3(size.x, 0.02, 2.0), Visuals.COLORS.road)
 	road.name = "Road"
 	road.position = Vector3(0, 0.01, MapLayout.ROAD_Z)

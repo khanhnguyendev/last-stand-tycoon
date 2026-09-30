@@ -1,0 +1,62 @@
+extends GutTest
+## D-152: no camera view (any focus corner, 9:16 or 16:9) shows past the ground.
+
+const ASPECTS := [CameraMath.ASPECT, 16.0 / 9.0]
+
+func before_each() -> void:
+	Balance.reset()
+
+func _corners() -> Array:
+	var lo := CameraMath.FOCUS_MIN
+	var hi := CameraMath.FOCUS_MAX
+	return [lo, hi, Vector2(lo.x, hi.y), Vector2(hi.x, lo.y)]
+
+## Viewport corners and the top-edge midpoint, in pixels of a 1280-high viewport.
+func _sample_points(size: Vector2) -> Array:
+	return [Vector2(0, 0), Vector2(size.x, 0), Vector2(0, size.y), size, Vector2(size.x * 0.5, 0)]
+
+func test_ground_rect_contains_bounds() -> void:
+	var r := World.ground_rect()
+	assert_true(r.encloses(Rect2(MapLayout.BOUNDS_MIN, MapLayout.BOUNDS_MAX - MapLayout.BOUNDS_MIN)))
+
+func test_every_camera_view_hits_ground_inside_rect() -> void:
+	var ui := Balance.ui
+	var rect := World.ground_rect()
+	var max_dist := 0.0
+	for aspect in ASPECTS:
+		var size := Vector2(roundf(1280.0 * aspect), 1280.0)
+		var vp := SubViewport.new()
+		vp.size = Vector2i(size)
+		add_child_autofree(vp)
+		var cam := Camera3D.new()
+		CameraMath.apply_lens(cam, ui, aspect)
+		vp.add_child(cam)
+		for focus in _corners():
+			cam.global_transform = CameraMath.camera_transform(focus, ui)
+			var far_hit := Vector2.ZERO
+			var far_d := -1.0
+			for p in _sample_points(size):
+				var o := cam.project_ray_origin(p)
+				var d := cam.project_ray_normal(p)
+				var label := "aspect %.3f focus %s px %s" % [aspect, focus, p]
+				assert_lt(d.y, 0.0, "ray points downward: " + label)
+				if d.y >= 0.0:
+					continue
+				var hit := o + d * (-o.y / d.y)
+				var hit_xz := Vector2(hit.x, hit.z)
+				assert_true(rect.has_point(hit_xz), "hit %s inside %s: %s" % [hit_xz, rect, label])
+				var dist := _outside_bounds(hit_xz)
+				if dist > far_d:
+					far_d = dist
+					far_hit = hit_xz
+			max_dist = maxf(max_dist, far_d)
+			gut.p("aspect %.3f focus %s: farthest hit %s, %.2f m past bounds" % [aspect, focus, far_hit, far_d])
+	gut.p("max distance past bounds over all corners/aspects: %.2f m" % max_dist)
+
+## Distance from the bounds rectangle (0 when inside).
+func _outside_bounds(p: Vector2) -> float:
+	var lo := MapLayout.BOUNDS_MIN
+	var hi := MapLayout.BOUNDS_MAX
+	var dx := maxf(maxf(lo.x - p.x, p.x - hi.x), 0.0)
+	var dy := maxf(maxf(lo.y - p.y, p.y - hi.y), 0.0)
+	return Vector2(dx, dy).length()
