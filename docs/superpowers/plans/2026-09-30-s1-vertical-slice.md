@@ -4864,8 +4864,8 @@ func test_bot_walks_route_and_stops_at_goal() -> void:
 	assert_gt(h.main.hero.still_time, 0.3)
 
 func test_parked_bot_stays_home() -> void:
-	h.start(11, ParkedBot)
-	await h.run_until(func(): return false, 3.0)
+	h.start(11, ParkedBot)  # spawns at NIGHT1_START (D-126), walks home in about 6 s
+	await h.run_until(func(): return false, 10.0)
 	assert_lt(h.main.hero.xz().distance_to(MapLayout.HOME), 0.1)
 
 func test_naive_bot_heads_for_main_lane_at_night_start() -> void:
@@ -4953,7 +4953,7 @@ func _steer() -> void:
 ```gdscript
 class_name ParkedBot
 extends BotBase
-## Negative control (D-056, D-091): never leaves home (0, 8).
+## Negative control (D-056, D-122): walks from the night-1 start to home (0, 9.5) and stays there.
 
 func think(_delta: float) -> void:
 	go_to("home")
