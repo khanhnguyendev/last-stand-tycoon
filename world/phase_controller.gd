@@ -143,6 +143,24 @@ func _restore_snapshot() -> void:
 	else:
 		_enter_day()
 
+## Boot resume (S3 spec 5.3, D-176). DAY/NIGHT reuse the S1 restore contract; CARD_PICK re-opens the saved offer.
+func resume_from(state: Dictionary) -> void:
+	_fail_id += 1  # cancel any stale fail timer
+	snapshot = state.duplicate(true)
+	if String(state.resume_phase) != "CARD_PICK":
+		_restore_snapshot()
+		return
+	wave_director.stop()
+	traveler_spawner.stop()
+	failing = false
+	_recall_all()
+	GameState.from_dict(state)
+	dawn_substate = "CARD_PICK"
+	phase = Phase.DAWN
+	EventBus.hero_place_requested.emit(MapLayout.HOME)
+	EventBus.phase_changed.emit(phase, GameState.day)
+	GameState.set_card_offer(GameState.card_offer)
+
 func _steaks_to_freezer() -> void:
 	GameState.add_freezer(steak_pool.recall_all())
 
