@@ -7,6 +7,7 @@ const SCENE_PATH := "res://world/main.tscn"
 
 @export var auto_start := true
 @export var world: World
+@export var phase_controller: PhaseController
 
 static func create(p_auto_start := false) -> Main:
 	var m: Main = (load(SCENE_PATH) as PackedScene).instantiate()
@@ -20,3 +21,5 @@ func _ready() -> void:
 	add_child(hero)
 	hero.setup(world)
 	hero.teleport(MapLayout.HOME)
+	if auto_start:
+		phase_controller.start_new_game.call_deferred()
