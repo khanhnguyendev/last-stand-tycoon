@@ -17,8 +17,12 @@ static func create(p_auto_start := false) -> Main:
 var hero: Hero
 var camera_rig: CameraRig
 var joystick: Joystick
+var focus_pause: FocusPause
 
 func _ready() -> void:
+	focus_pause = FocusPause.new()
+	focus_pause.name = "FocusPause"
+	add_child(focus_pause)
 	hero = Hero.new()
 	add_child(hero)
 	hero.setup(world)
