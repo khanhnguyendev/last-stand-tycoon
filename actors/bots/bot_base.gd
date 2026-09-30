@@ -60,7 +60,7 @@ func day_think(_delta: float) -> void:
 	go_to("sign")  # walking in arms the sign (D-121); standing there closes up
 
 func _steer() -> void:
-	var step := Balance.data.hero.move_speed / float(Engine.physics_ticks_per_second)
+	var step := hero.move_speed() / float(Engine.physics_ticks_per_second)
 	while not _route.is_empty():
 		var tol := step if _route.size() > 1 else 0.02
 		if hero.xz().distance_to(_route[0]) <= tol:

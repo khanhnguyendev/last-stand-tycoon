@@ -3,8 +3,18 @@ extends NaiveBot
 ## NaiveBot at night; by day: haul and sell everything, collect gold, then build/upgrade by tonight's
 ## telegraph (spec 13.3, D-067), then close up. Drives only through HeroInput (BotBase.go_to).
 
+## Card preference (D-168): the Tank first (its post is on a lane with one tower), then the Archer, then upgrades.
+const CARD_PREFERENCE: Array[StringName] = [&"tank", &"archer", &"hero_damage", &"attack_speed",
+	&"gold_per_steak", &"carry_capacity", &"move_speed"]
+
+func choose_card(offer: Array) -> StringName:
+	for id in CARD_PREFERENCE:
+		if id in offer:
+			return id
+	return offer[0]
+
 func day_think(_delta: float) -> void:
-	var cap := Balance.data.hero.carry_capacity
+	var cap := GameState.carry_capacity()
 	var counter_cap := Balance.data.economy.counter_capacity
 	# keep loading / unloading until the stack or the station is done
 	if goal == "freezer" and GameState.freezer_steaks > 0 and GameState.carried_steaks < cap:

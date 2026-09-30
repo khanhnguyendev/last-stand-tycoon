@@ -8,6 +8,10 @@ func reset_route() -> void:
 	super()
 	_decide_timer = 0.0
 
+## D-168: the Archer when offered (the strongest unaided pick, so the night-2 check is the worst case).
+func choose_card(offer: Array) -> StringName:
+	return &"archer" if &"archer" in offer else offer[0]
+
 func think(delta: float) -> void:
 	var pc := main.phase_controller
 	if pc.failing:
