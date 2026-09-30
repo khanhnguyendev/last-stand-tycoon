@@ -20,6 +20,7 @@ func _night2(bot: GDScript, harness: SimHarness) -> Dictionary:
 	var closeup: Dictionary = harness.main.phase_controller.snapshot.duplicate(true)  # taken at close-up
 	var plan2: Array = GameState.lane_plan.duplicate(true)  # night 2's plan (dawn replaces it)
 	var n2 := await harness.run_night()
+	n2["steaks"] = GameState.freezer_steaks + GameState.carried_steaks
 	n2["day1_seconds"] = d1.seconds
 	n2["closeup"] = closeup
 	n2["lane_plan"] = plan2
@@ -53,7 +54,8 @@ func test_night2_naive_unaided_is_hard_and_deterministic() -> void:
 	var r2 := await _night2(NaiveBot, h2)
 	h2.finish()
 	assert_eq(_levels(r1.closeup.buildings), 0, "the naive bot never builds")
-	assert_eq([r1.failed, r1.diner_frac, r1.kills, r1.lane_plan], [r2.failed, r2.diner_frac, r2.kills, r2.lane_plan],
+	assert_eq([r1.failed, r1.diner_frac, r1.kills, r1.steaks, r1.lane_plan],
+		[r2.failed, r2.diner_frac, r2.kills, r2.steaks, r2.lane_plan],
 		"same seed, same outcome")
 
 func test_night2_planner_is_comfortable() -> void:

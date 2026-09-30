@@ -59,23 +59,40 @@ func test_unbuilt_tower_ne_competes() -> void:
 	_build("tower_ne")
 	assert_eq(bot.next_purchase(), "fence_e")
 
+func test_tower_score_is_max_not_sum() -> void:
+	# threat west 7, north 5 (4 main + 1 side), east 10. Side lane north -> fence_n, then the adjacent tower
+	# with the higher threat (tower_ne: max(north 5, east 10) = 10, not tower_nw: 7).
+	GameState.lane_plan = [
+		{"main": "west", "side": "", "main_count": 7, "side_count": 0, "hp_mult": 1.0},
+		{"main": "north", "side": "", "main_count": 4, "side_count": 0, "hp_mult": 1.0},
+		{"main": "east", "side": "north", "main_count": 10, "side_count": 1, "hp_mult": 1.0}]
+	GameState.add_gold(1000)
+	assert_eq(bot.next_purchase(), "fence_n")
+	_build("fence_n")
+	assert_eq(bot.next_purchase(), "tower_ne")
+	_build("tower_ne")
+	# step 3: fence_e scores 10, tower_nw max(7, 5) = 7 (summed it would be 12 and jump ahead of fence_e)
+	assert_eq(bot.next_purchase(), "fence_e")
+	_build("fence_e")
+	assert_eq(bot.next_purchase(), "tower_nw", "tower_nw (7) ties fence_w (7): SPOT_IDS order")
+
 func test_upgrade_highest_threat_lane_first() -> void:
 	_plan("east", 10, "west", 3)
-	GameState.add_gold(1000)
+	GameState.add_gold(2000)
 	for id in ["fence_w", "tower_nw", "tower_ne", "fence_e"]:
 		_build(id)
-	# everything with threat is built: upgrade next to the east lane, cheapest affordable first
-	var expect := ""
-	var best := 0
-	for id in ["tower_ne", "fence_e"]:
-		var rem := GameState.remaining_cost(id)
-		if expect == "" or rem < best:
-			expect = id
-			best = rem
-	assert_eq(bot.next_purchase(), expect)
-	# with only fence_e's price in hand the choice is still an east spot
-	GameState.gold = GameState.remaining_cost("fence_e")
+	# upgrades next to the east lane, towers before fences even though the fence is cheaper
+	assert_lt(GameState.remaining_cost("fence_e"), GameState.remaining_cost("tower_ne"))
+	assert_eq(bot.next_purchase(), "tower_ne")
+	GameState.gold = 40  # the tower's upgrade (80) is out of reach, the fence's (40) is not
 	assert_eq(bot.next_purchase(), "fence_e")
+	# fall-through: east exhausted, the next lane by threat is west
+	for id in ["tower_ne", "fence_e"]:
+		while GameState.next_level_cost(id) >= 0:
+			GameState.gold = 2000
+			_build(id)
+	GameState.gold = 40
+	assert_eq(bot.next_purchase(), "fence_w")
 
 func test_hysteresis() -> void:
 	GameState.add_gold(100)
@@ -93,3 +110,28 @@ func test_hysteresis() -> void:
 	assert_eq(GameState.gold, 0)
 	bot.day_think(0.0)
 	assert_eq(bot.goal, "sign", "released once gold hits 0")
+
+func test_hysteresis_released_on_completion() -> void:
+	GameState.add_gold(25)
+	var spot := "fence_w" if bot.next_purchase() != "fence_w" else "fence_e"
+	GameState.pay_into_spot(spot, 5)
+	main.hero.teleport(bot.graph.position_of(spot))
+	bot.go_to(spot)
+	bot._route.clear()
+	bot.day_think(0.0)
+	assert_eq(bot.goal, spot, "kept mid-payment")
+	GameState.pay_into_spot(spot, GameState.remaining_cost(spot))  # completes level 1
+	assert_eq(int(GameState.buildings[spot].level), 1)
+	bot.day_think(0.0)
+	assert_eq(bot.goal, "sign", "released once the level completes (5 gold left buys nothing)")
+
+func test_hysteresis_not_held_while_walking() -> void:
+	GameState.add_gold(100)
+	var first := bot.next_purchase()
+	var spot := "fence_w" if first != "fence_w" else "fence_e"
+	GameState.pay_into_spot(spot, 5)
+	main.hero.teleport(MapLayout.HOME)
+	bot.go_to(spot)  # walking, not arrived
+	assert_false(bot.arrived())
+	bot.day_think(0.0)
+	assert_eq(bot.goal, bot.next_purchase(), "a walk is not held by the payment rule")

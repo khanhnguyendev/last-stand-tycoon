@@ -23,7 +23,7 @@ func _run() -> void:
 		var retries := 0
 		var enemy_count := Economy.night_kills(GameState.day, Balance.data.wave)
 		var defending := _builds()  # what stands when the night starts (spent during the day before)
-		var freezer0 := GameState.freezer_steaks
+		var stock0 := GameState.freezer_steaks + GameState.carried_steaks
 		var t0 := h.elapsed
 		var n := await h.run_night()
 		# Retries are deterministic: the restored night replays identically (spec 13.5 keeps them), so a
@@ -42,8 +42,8 @@ func _run() -> void:
 			broke_at = day
 			rows.append("%d,%.3f,%d,%d,0,0,%s,%d,%.1f,," % [day, n.diner_frac, retries, n.kills, defending, enemy_count, night_s])
 			break
-		# dawn moved the night's steaks to the freezer; gold is what the day's sales pay out
-		var steaks := GameState.freezer_steaks - freezer0
+		# dawn moved the night's steaks to the freezer (freezer + carried, as test_night_sims counts); gold is what the day's sales pay out
+		var steaks := GameState.freezer_steaks + GameState.carried_steaks - stock0
 		_gold_sold = 0
 		var d := await h.run_day()
 		if not d.closed:
