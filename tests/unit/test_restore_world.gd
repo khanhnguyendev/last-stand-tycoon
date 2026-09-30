@@ -407,3 +407,28 @@ func test_restore_unfades_the_diner() -> void:
 	for i in frames + 30:
 		await get_tree().process_frame
 	assert_false(fade.is_faded(), "opaque again after the restore recalled the boar")
+
+func test_restore_brings_back_cards_and_guards() -> void:
+	EventBus.wave_cleared.emit(2)
+	EventBus.card_chosen.emit(&"tank")
+	GameState.debug_grant_card(&"hero_damage")
+	pc.close_up()  # snapshot: tank 1, hero_damage 1
+	await get_tree().physics_frame
+	GameState.damage_guard(&"tank", 1e6)  # knocked out at night
+	GameState.damage_diner(1e6)
+	await _ticks(_fail_ticks())
+	assert_eq(pc.phase, Phase.DAY)
+	var t: Guard = main.world.guard_roster.guards[&"tank"]
+	assert_eq(t.state, Guard.State.POSTED)
+	assert_eq(float(GameState.guards[&"tank"].hp), GameState.guard_max_hp(&"tank"))
+	assert_almost_eq(main.hero.attacker.damage, Balance.data.hero.attack_damage * (1.0 + Balance.data.cards.damage_step), 1e-5)
+	assert_false(main.hero.input.blocked)
+	assert_false(main.card_overlay.visible)
+
+func test_new_game_removes_guards() -> void:
+	GameState.debug_grant_card(&"archer")
+	GameState.debug_grant_card(&"tank")
+	pc.start_new_game(5)
+	await get_tree().process_frame
+	assert_eq(main.world.guard_roster.guards.size(), 0)
+	assert_eq(main.hud.card_strip.text, "")
