@@ -5879,7 +5879,7 @@ func after_each() -> void:
 func test_bot_walks_route_and_stops_at_goal() -> void:
 	h.start(11, BotBase)  # base bot: no think(), only steering
 	h.bot.go_to("zone_north")
-	var ok := await h.run_until(func(): return h.bot.arrived(), 15.0)
+	var ok: bool = await h.run_until(func(): return h.bot.arrived(), 15.0)
 	assert_true(ok)
 	assert_lt(h.main.hero.xz().distance_to(MapLayout.lane_end("north")), 0.15)
 	await h.run_until(func(): return false, 0.5)
@@ -5900,6 +5900,45 @@ func test_route_reset_on_restore() -> void:
 	await h.run_until(func(): return false, 1.2)
 	GameState.from_dict(GameState.to_dict())
 	assert_eq(h.bot.goal, "")
+
+func test_naive_bot_redecides_right_after_restore() -> void:
+	h.start(11, NaiveBot)
+	await h.run_until(func(): return false, 1.2)
+	GameState.from_dict(GameState.to_dict())
+	assert_eq(h.bot.goal, "")
+	await h.run_until(func(): return false, 0.05)
+	assert_eq(h.bot.goal, "zone_north")  # decision timer was reset, not left counting down
+
+func test_route_reset_on_hero_placement() -> void:
+	h.start(11, NaiveBot)
+	await h.run_until(func(): return false, 1.2)
+	EventBus.hero_place_requested.emit(MapLayout.HOME)
+	assert_eq(h.bot.goal, "")
+
+func test_stuck_hero_warns_and_reroutes() -> void:
+	h.start(11, BotBase)
+	h.bot.go_to("home")
+	h.bot._route = [Vector2.ZERO]  # straight through the diner collider: the hero cannot get there
+	await h.run_until(func(): return h.bot.stuck_count > 0, 6.0)
+	assert_gt(h.bot.stuck_count, 0)
+	assert_eq(h.bot.goal, "home")
+
+## Both boars are spawned before the first wave, so they are the only live enemies.
+func _lane_choice(lanes: Array) -> String:
+	h.start(11, NaiveBot)
+	var wd := h.main.world.wave_director
+	await h.run_until(func(): return false, 1.2)
+	for l in lanes:
+		wd.debug_spawn(l)
+	assert_lt(1.2 + 1.1, Balance.data.wave.first_wave_delay)  # still before wave 0 starts
+	await h.run_until(func(): return false, 1.1)
+	return h.bot.goal
+
+func test_naive_bot_picks_most_enemies_then_lane_order() -> void:
+	assert_eq(await _lane_choice(["east", "west"]), "zone_west")  # tie: west first (LANES order)
+
+func test_naive_bot_picks_lane_with_more_enemies() -> void:
+	assert_eq(await _lane_choice(["east", "west", "east"]), "zone_east")
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -5920,23 +5959,29 @@ var main: Main
 var hero: Hero
 var graph := WaypointGraph.create_default()
 var goal := ""
+var stuck_count := 0
 var _route: Array = []
+var _stuck_pos := Vector2.ZERO
+var _stuck_ticks := 0
 
 func setup(m: Main) -> void:
 	main = m
 	hero = m.hero
 	hero.input.player_control = false
 	EventBus.state_restored.connect(reset_route)
+	EventBus.hero_place_requested.connect(func(_p): reset_route())
 
 func reset_route() -> void:
 	goal = ""
 	_route = []
+	_reset_stuck()
 
 func go_to(node_name: String) -> void:
 	if goal == node_name:
 		return
 	goal = node_name
 	_route = graph.route_from(hero.xz(), node_name)
+	_reset_stuck()
 
 func arrived() -> bool:
 	return goal != "" and _route.is_empty() and hero.xz().distance_to(graph.position_of(goal)) < 0.15
@@ -5963,12 +6008,29 @@ func _steer() -> void:
 			break
 	if _route.is_empty():
 		hero.input.set_move(Vector2.ZERO)
+		_reset_stuck()
 		return
+	_check_stuck()
 	var d: Vector2 = _route[0] - hero.xz()
 	if _route.size() > 1 or d.length() > step:
 		hero.input.set_move(d.normalized())
 	else:
 		hero.input.set_move(d / step)
+
+func _reset_stuck() -> void:
+	_stuck_ticks = 0
+	_stuck_pos = hero.xz() if hero != null else Vector2.ZERO
+
+## Moved < 0.01 m over 60 ticks while a route is pending: warn (never an error) and re-route.
+func _check_stuck() -> void:
+	_stuck_ticks += 1
+	if _stuck_ticks < 60:
+		return
+	if hero.xz().distance_to(_stuck_pos) < 0.01:
+		stuck_count += 1
+		push_warning("BotBase stuck at %s -> %s" % [hero.xz(), goal])
+		_route = graph.route_from(hero.xz(), goal)
+	_reset_stuck()
 ```
 
 `actors/bots/parked_bot.gd`:
@@ -5988,6 +6050,10 @@ extends BotBase
 ## Night: defend the main lane, then the lane with most live enemies; re-decide every 1 s; never builds.
 
 var _decide_timer := 0.0
+
+func reset_route() -> void:
+	super()
+	_decide_timer = 0.0
 
 func think(delta: float) -> void:
 	var pc := main.phase_controller
@@ -6012,7 +6078,7 @@ func _night(delta: float) -> void:
 			return  # enemies in range: stay
 	var counts := {"west": 0, "north": 0, "east": 0}
 	for b in wd.alive_enemies():
-		counts[b.lane] += 1
+		counts[String(b.lane)] += 1
 	var best := ""
 	var best_n := 0
 	for lane in LanePlanner.LANES:
@@ -6044,7 +6110,7 @@ var failed := false
 func _init(p_parent: Node) -> void:
 	parent = p_parent
 
-func start(seed: int, bot_script: GDScript) -> void:
+func start(p_seed: int, bot_script: GDScript) -> void:
 	main = Main.create()
 	parent.add_child(main)
 	bot = bot_script.new()
@@ -6054,15 +6120,18 @@ func start(seed: int, bot_script: GDScript) -> void:
 	EventBus.diner_damaged.connect(_on_diner_damaged)
 	EventBus.enemy_killed.connect(_on_killed)
 	EventBus.night_failed.connect(_on_failed)
-	main.phase_controller.start_new_game(seed)
+	main.phase_controller.start_new_game(p_seed)
 
+## Call only from test code between ticks, never from a signal emitted under main (synchronous free).
 func finish() -> void:
 	for pair in [[EventBus.diner_damaged, _on_diner_damaged], [EventBus.enemy_killed, _on_killed], [EventBus.night_failed, _on_failed]]:
 		var sig: Signal = pair[0]
 		if sig.is_connected(pair[1]):
 			sig.disconnect(pair[1])
 	if is_instance_valid(main):
-		main.queue_free()
+		if main.get_parent() != null:
+			main.get_parent().remove_child(main)  # so GUT's unfreed-children check doesn't see it
+		main.free()
 
 func tick() -> void:
 	await parent.get_tree().physics_frame
@@ -6181,8 +6250,9 @@ func test_first_combat_idle_player_within_30s() -> void:
 func test_night1_fail_restarts_night() -> void:
 	h.start(SEED, ParkedBot)
 	var snap: Dictionary = h.main.phase_controller.snapshot.duplicate(true)
-	await h.run_night()
-	await h.run_until(func(): return not h.main.phase_controller.failing, 5.0)
+	var r := await h.run_night()
+	assert_true(r.failed, "ParkedBot must fall")
+	assert_true(await h.run_until(func(): return not h.main.phase_controller.failing, 5.0), "restore fired")
 	assert_eq(h.main.phase_controller.phase, Phase.NIGHT)
 	var now := GameState.to_dict()
 	now.resume_phase = snap.resume_phase
@@ -6224,8 +6294,11 @@ extends SceneTree
 ## Renders the real game and saves a 720x1280 PNG. Run WITH rendering (no --headless):
 ## "$GODOT" --path . --resolution 720x1280 -s res://tests/sim/capture.gd -- --out=docs/screenshots/s1/x.png --seconds=12
 ## --lane=<west|north|east>: hero parked at that lane's zone, one Boar 2 s before it reaches hero range.
+## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
+## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
 
 var _args := {}
+var _bal: Node
 
 func _initialize() -> void:
 	for a in OS.get_cmdline_user_args():
@@ -6234,29 +6307,37 @@ func _initialize() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	Balance.reset()
-	var main := Main.create()
+	var camera_math = load("res://core/camera_math.gd")
+	var map_layout = load("res://core/map_layout.gd")
+	var enemy_path = load("res://core/enemy_path.gd")
+	_bal = root.get_node("Balance")
+	_bal.reset()
+	var main = load("res://world/main.gd").create()
 	root.add_child(main)
-	var bot: BotBase = (ParkedBot if _args.has("lane") else NaiveBot).new()
+	var bot = load("res://actors/bots/parked_bot.gd" if _args.has("lane") else "res://actors/bots/naive_bot.gd").new()
 	main.add_child(bot)
 	bot.setup(main)
 	main.phase_controller.start_new_game(int(_args.get("seed", "20260930")))
 	var cam := Camera3D.new()
 	var vp := root.get_visible_rect().size
-	CameraMath.apply_lens(cam, Balance.ui, vp.x / vp.y)  # D-145
+	camera_math.apply_lens(cam, _bal.ui, vp.x / vp.y)  # D-145
 	cam.current = true
 	root.add_child(cam)
 	if _args.has("lane"):
 		var lane: String = _args.lane
-		main.phase_controller.phase = Phase.DAY  # freeze waves for a staged shot
+		if not map_layout.LANE_PATHS.has(lane):
+			push_error("bad --lane %s" % lane)
+			quit(2)
+			return
+		main.phase_controller.phase = load("res://core/phase.gd").DAY  # freeze waves for a staged shot
 		main.world.wave_director.stop()
-		main.hero.teleport(MapLayout.lane_end(lane))
+		main.hero.teleport(map_layout.lane_end(lane))
 		bot.queue_free()
-		var eb := Balance.data.enemy
-		var b := main.world.wave_director.debug_spawn(lane)
-		var length := MapLayout.path_length(lane)
-		var d := length
-		while d > 0.0 and EnemyPath.position_at(lane, d, 0.0, eb.offset_fade_distance).distance_to(MapLayout.lane_end(lane)) <= Balance.data.hero.attack_range:
+		var eb = _bal.data.enemy
+		var b = main.world.wave_director.debug_spawn(lane)
+		var length: float = map_layout.path_length(lane)
+		var d: float = length
+		while d > 0.0 and enemy_path.position_at(lane, d, 0.0, eb.offset_fade_distance).distance_to(map_layout.lane_end(lane)) <= _bal.data.hero.attack_range:
 			d -= 0.05
 		b.dist = maxf(d - eb.speed * 2.0, 0.0)
 		b.set_physics_process(false)
@@ -6264,13 +6345,20 @@ func _run() -> void:
 	else:
 		for i in int(float(_args.get("seconds", "12")) * 60.0):
 			await physics_frame
-	cam.global_transform = CameraMath.camera_transform(CameraMath.focus_for(main.hero.xz()), Balance.ui)
+	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(main.hero.xz()), _bal.ui)
 	for i in 3:
 		await process_frame
 	var img := root.get_texture().get_image()
+	if img.get_size() != Vector2i(720, 1280):
+		push_warning("capture size %s" % img.get_size())
 	var out: String = _args.get("out", "docs/screenshots/s1/capture.png")
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://").path_join(out.get_base_dir()))
-	img.save_png(ProjectSettings.globalize_path("res://").path_join(out))
+	var path := out if out.is_absolute_path() else ProjectSettings.globalize_path("res://").path_join(out)
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var err := img.save_png(path)
+	if err != OK:
+		push_error("save failed %d" % err)
+		quit(1)
+		return
 	print("saved ", out, " ", img.get_size())
 	quit(0)
 ```
@@ -6345,6 +6433,7 @@ static func walk_in(hero: Hero, target: Vector2, from_offset := Vector2(0, 2.0))
 		hero.input.set_move((d / step).limit_length(1.0))
 		await tree.physics_frame
 	hero.input.set_move(Vector2.ZERO)
+	assert((target - hero.xz()).length() < 0.05, "walk_in did not reach %s" % target)
 ```
 
 `tests/unit/test_stations.gd`:
@@ -6367,20 +6456,33 @@ func _ticks(n: int) -> void:
 func _day() -> void:
 	main.phase_controller.debug_skip_to_day()
 
+## Physics ticks that are enough for the still requirement plus n transfer ticks.
+func _wait_for(n_transfers: int) -> int:
+	var eco := Balance.data.economy
+	return ceili((eco.stand_still_time + n_transfers * eco.transfer_tick) * Engine.physics_ticks_per_second) + 2
+
+func _ring_progress(z: StationZone) -> float:
+	var v: Variant = (z.ring.material_override as ShaderMaterial).get_shader_parameter("progress")
+	return 0.0 if v == null else float(v)
+
 func test_freezer_fills_carry_to_capacity() -> void:
 	_day()
 	GameState.add_freezer(10)
 	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
 	await _ticks(30)
-	assert_between(GameState.carried_steaks, 2, 4)  # PINNED to the default 0.25 s still + 0.08 s tick
-	await _ticks(30)
+	# 30 ticks minus the still requirement, one steak per transfer tick (derived from Balance, +-1 for tick sampling)
+	var eco := Balance.data.economy
+	var expect := (30.0 / Engine.physics_ticks_per_second - eco.stand_still_time) / eco.transfer_tick
+	assert_gt(expect, 1.0)
+	assert_between(GameState.carried_steaks, maxi(int(floor(expect)) - 1, 1), int(floor(expect)) + 1)
+	await _ticks(_wait_for(Balance.data.hero.carry_capacity))
 	assert_eq(GameState.carried_steaks, Balance.data.hero.carry_capacity)
 	assert_eq(GameState.freezer_steaks, 10 - Balance.data.hero.carry_capacity)
 
 func test_freezer_inactive_at_night() -> void:
 	GameState.add_freezer(10)
 	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
-	await _ticks(60)
+	await _ticks(_wait_for(3))
 	assert_eq(GameState.carried_steaks, 0)
 
 func test_teleport_into_zone_does_not_arm() -> void:
@@ -6388,7 +6490,7 @@ func test_teleport_into_zone_does_not_arm() -> void:
 	_day()
 	GameState.add_freezer(10)
 	main.hero.teleport(MapLayout.FREEZER_ZONE)
-	await _ticks(60)
+	await _ticks(_wait_for(3))
 	assert_false(main.world.freezer.zone.armed)
 	assert_eq(GameState.carried_steaks, 0)
 
@@ -6397,18 +6499,19 @@ func test_inside_when_zone_activates_needs_reentry() -> void:
 	GameState.add_freezer(10)
 	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
 	_day()
-	await _ticks(60)
+	await _ticks(_wait_for(3))
 	assert_eq(GameState.carried_steaks, 0)
 	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
-	await _ticks(60)
+	await _ticks(_wait_for(3))
 	assert_gt(GameState.carried_steaks, 0)
 
 func test_moving_hero_does_not_transfer() -> void:
 	_day()
 	GameState.add_freezer(10)
 	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE + Vector2(-0.8, 0))
-	main.hero.input.set_move(Vector2(1, 0) * 0.1)  # 0.5 m/s drift inside the zone
-	await _ticks(20)
+	# drift at twice the stand-still speed threshold, so still_time keeps resetting
+	main.hero.input.set_move(Vector2(1, 0) * (2.0 * Balance.data.economy.stand_still_speed / Balance.data.hero.move_speed))
+	await _ticks(_wait_for(3))
 	assert_eq(GameState.carried_steaks, 0)
 
 func test_counter_fills_up_to_capacity() -> void:
@@ -6417,7 +6520,7 @@ func test_counter_fills_up_to_capacity() -> void:
 	GameState.carried_steaks = 3  # test-only setup
 	GameState.counter_steaks = cap - 1
 	await TestHelpers.walk_in(main.hero, MapLayout.COUNTER_DROP)
-	await _ticks(60)
+	await _ticks(_wait_for(3))
 	assert_eq(GameState.counter_steaks, cap)
 	assert_eq(GameState.carried_steaks, 2)
 
@@ -6438,6 +6541,67 @@ func test_labels_follow_state() -> void:
 	assert_eq(main.world.freezer.stack_count(), 10)
 	GameState.from_dict(main.phase_controller.snapshot)
 	assert_eq(main.world.freezer.label.text, "0")
+
+func test_phase_change_disarms_armed_hero() -> void:
+	_day()
+	GameState.add_freezer(10)
+	var z: StationZone = main.world.freezer.zone
+	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
+	await _ticks(_wait_for(1))
+	assert_true(z.armed, "precondition: armed and transferring")
+	main.phase_controller.debug_skip_to_night()
+	main.phase_controller.debug_skip_to_day()
+	assert_eq(main.phase_controller.phase, Phase.DAY)
+	var before := GameState.carried_steaks
+	await _ticks(_wait_for(3))
+	assert_eq(GameState.carried_steaks, before, "a hero standing inside across a phase change must re-enter")
+	assert_false(z.armed)
+
+func test_state_restored_disarms() -> void:
+	_day()
+	GameState.add_freezer(10)
+	var z: StationZone = main.world.freezer.zone
+	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
+	await _ticks(_wait_for(1))
+	assert_true(z.armed, "precondition: armed")
+	var before := GameState.carried_steaks
+	GameState.from_dict(GameState.to_dict())  # emits state_restored, stocks unchanged
+	assert_false(z.armed)
+	await _ticks(_wait_for(3))
+	assert_eq(GameState.carried_steaks, before)
+
+func test_ring_shows_stand_still_charge() -> void:
+	_day()
+	GameState.add_freezer(10)
+	var z: StationZone = main.world.freezer.zone
+	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
+	var n := 0
+	while not z.ring.visible and n < _wait_for(1):
+		await _ticks(1)
+		n += 1
+	assert_true(z.ring.visible, "ring appears once the hero is armed and still")
+	var p := _ring_progress(z)
+	assert_gt(p, 0.0)
+	assert_lt(p, 1.0)
+	await _ticks(_wait_for(1))
+	assert_eq(_ring_progress(z), 1.0)
+	main.hero.teleport(Vector2(15, 8))
+	await _ticks(2)
+	assert_false(z.ring.visible)
+
+func test_freezer_body_blocks_hero() -> void:
+	_day()
+	main.hero.teleport(MapLayout.FREEZER_ZONE)
+	main.hero.input.set_move(Vector2(0, -1))
+	await _ticks(60)
+	assert_gte(main.hero.xz().y, MapLayout.FREEZER.y + MapLayout.FREEZER_SIZE.y / 2.0 + MapLayout.HERO_RADIUS - 0.05)
+
+func test_counter_body_blocks_hero() -> void:
+	_day()
+	main.hero.teleport(Vector2(0, 7))
+	main.hero.input.set_move(Vector2(0, -1))
+	await _ticks(60)
+	assert_gte(main.hero.xz().y, MapLayout.COUNTER.y + MapLayout.COUNTER_SIZE.y / 2.0 + MapLayout.HERO_RADIUS - 0.05)
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -6494,6 +6658,7 @@ func set_progress(p: float) -> void:
 class_name StationZone
 extends Node3D
 ## Stand-still interaction (D-006, spec 8.1): hero inside radius, still for stand_still_time, phase active.
+## Zones must exist before the first phase_changed; an owner that spawns one mid-game calls sync_phase().
 ## Emits `ticked` every transfer_tick while standing. State changes happen in the owner's tick handler.
 
 signal stand_started
@@ -6506,6 +6671,8 @@ var standing := false
 ## Armed only when the hero walks INTO the radius while the zone is active (D-121).
 var armed := false
 var ring: ProgressRing
+## Tasks 23/24 set false and drive the ring themselves.
+var drive_ring := true
 var _phase := Phase.NIGHT
 var _tick_timer := 0.0
 var _seen_outside := false
@@ -6530,6 +6697,9 @@ func disarm() -> void:
 		_end()
 
 func _on_phase_changed(p: int, _day: int) -> void:
+	sync_phase(p)
+
+func sync_phase(p: int) -> void:
 	_phase = p
 	disarm()
 
@@ -6553,7 +6723,6 @@ func _physics_process(delta: float) -> void:
 		if not standing:
 			standing = true
 			_tick_timer = 0.0
-			ring.visible = true
 			stand_started.emit()
 		_tick_timer += delta
 		var tick := Balance.data.economy.transfer_tick
@@ -6562,10 +6731,16 @@ func _physics_process(delta: float) -> void:
 			ticked.emit()
 	elif standing:
 		_end()
+	if drive_ring:
+		# Visual only: shows the stand-still charge while armed (spec 8.1).
+		var charge := 0.0
+		if is_active() and inside and armed:
+			charge = clampf(hero.still_time / Balance.data.economy.stand_still_time, 0.0, 1.0)
+		ring.visible = charge > 0.0
+		ring.set_progress(charge)
 
 func _end() -> void:
 	standing = false
-	ring.visible = false
 	stand_ended.emit()
 ```
 
@@ -6582,6 +6757,7 @@ extends Node3D
 var zone: StationZone
 var label: WorldLabel
 var _stack: Array = []
+const _stack_cap := 10
 
 func setup(world: World) -> void:
 	name = "Freezer"
@@ -6592,9 +6768,9 @@ func setup(world: World) -> void:
 	add_child(zone)
 	zone.ticked.connect(_on_tick)
 	label = WorldLabel.make("0")
-	label.position = MapLayout.to3(MapLayout.FREEZER - MapLayout.FREEZER_ZONE, 2.6)
+	label.position = MapLayout.to3(MapLayout.FREEZER - MapLayout.FREEZER_ZONE, 1.5 + _stack_cap * 0.18 + 0.5)
 	add_child(label)
-	for i in 10:
+	for i in _stack_cap:
 		var m := Visuals.box(Vector3(0.35, 0.16, 0.25), Visuals.COLORS.steak)
 		m.position = MapLayout.to3(MapLayout.FREEZER - MapLayout.FREEZER_ZONE, 1.5 + i * 0.18)
 		add_child(m)
@@ -6639,7 +6815,7 @@ func setup(world: World) -> void:
 	for i in Balance.data.economy.counter_capacity:
 		var m := Visuals.box(Vector3(0.35, 0.16, 0.25), Visuals.COLORS.steak)
 		var col := i % 6
-		var row := i / 6
+		var row := floori(i / 6.0)
 		m.position = MapLayout.to3(MapLayout.COUNTER - MapLayout.COUNTER_DROP + Vector2(-1.1 + col * 0.44, -0.2 + row * 0.4), 1.1)
 		add_child(m)
 		_stack.append(m)
@@ -7158,6 +7334,7 @@ var zone: StationZone
 
 # in setup(), before refresh():
 	zone = StationZone.new()
+	zone.drive_ring = false  # this owner drives the ring itself (Task 21 review)
 	zone.radius = MapLayout.BUILD_RADIUS
 	add_child(zone)
 	zone.ticked.connect(_on_tick)
@@ -7315,6 +7492,7 @@ func setup(_world: World) -> void:
 	l.position.y = 2.4
 	add_child(l)
 	zone = StationZone.new()
+	zone.drive_ring = false  # this owner drives the ring itself (Task 21 review)
 	zone.radius = MapLayout.STATION_RADIUS
 	add_child(zone)
 	zone.ticked.connect(_on_tick)
@@ -7434,7 +7612,7 @@ git commit -m "feat: add close-up sign with pulse and day lane telegraph"
 ### Task 25: `PlannerBot`, day and night-2 sims, and the sweep
 
 **Files:**
-- Create: `actors/bots/planner_bot.gd`, `tests/sim/test_day_sims.gd`, `tests/sim/sweep.gd`
+- Create: `actors/bots/planner_bot.gd`, `tests/sim/test_day_sims.gd`, `tests/sim/sweep.gd`, `tests/sim/sweep_runner.gd`
 - Test: `tests/unit/test_planner_choice.gd`
 
 **Interfaces:**
@@ -7632,10 +7810,22 @@ func test_night2_planner_is_comfortable() -> void:
 `tests/sim/sweep.gd`:
 ```gdscript
 extends SceneTree
-## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1–10 → tests/sim/out/sweep.csv.
+## Manual difficulty sweep launcher (D-059, D-066, D-067).
 ## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/sweep.gd [-- --seed=N --days=10]
+## D-150: a `-s` script compiles before the autoloads exist, so it must not name them (or classes that
+## use them). It only loads the typed runner at run time.
 
 func _initialize() -> void:
+	root.add_child.call_deferred(load("res://tests/sim/sweep_runner.gd").new())
+```
+
+`tests/sim/sweep_runner.gd`:
+```gdscript
+extends Node
+## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1–10 → tests/sim/out/sweep.csv.
+## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
+
+func _ready() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
@@ -7646,7 +7836,7 @@ func _run() -> void:
 			args[kv[0]] = kv[1]
 	Balance.reset()
 	var holder := Node.new()
-	root.add_child(holder)
+	get_tree().root.add_child(holder)
 	var h := SimHarness.new(holder)
 	h.start(int(args.seed), PlannerBot)
 	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup"]
@@ -7681,7 +7871,7 @@ func _run() -> void:
 	print("\n".join(rows))
 	print("SWEEP broke_at_day=%d" % broke_at)
 	h.finish()
-	quit(0)
+	get_tree().quit(0)
 
 func _builds() -> String:
 	var parts: Array = []
@@ -7705,7 +7895,7 @@ Expected: the CSV rows print, then `SWEEP broke_at_day=<n>`, and `tests/sim/out/
 - [ ] **Step 8: Commit**
 
 ```bash
-git add actors/bots/planner_bot.gd tests/sim/test_day_sims.gd tests/sim/sweep.gd tests/unit/test_planner_choice.gd
+git add actors/bots/planner_bot.gd tests/sim/test_day_sims.gd tests/sim/sweep.gd tests/sim/sweep_runner.gd tests/unit/test_planner_choice.gd
 git commit -m "feat: add PlannerBot, night-2 sims and the difficulty sweep"
 ```
 
@@ -8181,6 +8371,7 @@ func before_each() -> void:
 func test_camera_lens_follows_d145() -> void:
 	var cam := main.camera_rig.camera
 	var vp := main.get_viewport().get_visible_rect().size
+	assert_true(vp.x > 0.0 and vp.y > 0.0)
 	var probe := Camera3D.new()
 	CameraMath.apply_lens(probe, Balance.ui, vp.x / vp.y)
 	assert_eq(cam.keep_aspect, probe.keep_aspect)
@@ -8198,10 +8389,28 @@ func test_shake_has_cooldown() -> void:
 	GameState.damage_diner(5.0)
 	GameState.damage_diner(5.0)
 	assert_eq(main.camera_rig.shake_count, 1)
-	for i in 40:
-		await get_tree().process_frame
+	await wait_seconds(Balance.ui.shake_cooldown + 0.1)
+	assert_eq(main.camera_rig.shake_count, 1)
 	GameState.damage_diner(5.0)
 	assert_eq(main.camera_rig.shake_count, 2)
+
+func test_lens_reapplied_on_resize_d145() -> void:
+	var svp := SubViewport.new()
+	svp.size = Vector2i(720, 1280)
+	add_child_autofree(svp)
+	var m := Main.create()
+	svp.add_child(m)
+	var cam := m.camera_rig.camera
+	assert_eq(cam.keep_aspect, Camera3D.KEEP_WIDTH)
+	svp.size = Vector2i(1280, 720)
+	assert_eq(cam.keep_aspect, Camera3D.KEEP_HEIGHT)
+	assert_almost_eq(cam.fov, CameraMath.portrait_fov_v(Balance.ui), 0.0001)
+
+func test_shake_decays_to_rest() -> void:
+	GameState.damage_diner(5.0)
+	await wait_seconds(Balance.ui.shake_time + 0.1)
+	var expect := CameraMath.camera_transform(CameraMath.focus_for(main.hero.xz()), Balance.ui)
+	assert_true(main.camera_rig.camera.global_transform.is_equal_approx(expect))
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -8233,9 +8442,14 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_apply_lens)
 	camera.current = true
 	EventBus.diner_damaged.connect(_on_diner_damaged)
+	EventBus.hero_place_requested.connect(snap_to)
 
 func _apply_lens() -> void:
+	if not is_inside_tree():
+		return
 	var vp := get_viewport().get_visible_rect().size
+	if vp.y <= 0.0:
+		return
 	CameraMath.apply_lens(camera, Balance.ui, vp.x / vp.y)  # D-145: KEEP_HEIGHT on windows wider than 9:16
 
 func setup(hero: Hero) -> void:
@@ -8243,7 +8457,12 @@ func setup(hero: Hero) -> void:
 	snap()
 
 func snap() -> void:
-	_focus = CameraMath.focus_for(_hero.xz())
+	if _hero == null:
+		return
+	snap_to(_hero.xz())
+
+func snap_to(p: Vector2) -> void:
+	_focus = CameraMath.focus_for(p)
 	camera.global_transform = CameraMath.camera_transform(_focus, Balance.ui)
 
 func _process(delta: float) -> void:
