@@ -42,7 +42,7 @@ func test_no_writes_at_night() -> void:
 
 func test_offer_pick_build_and_day_writes() -> void:
 	pc.start_new_game(9)
-	EventBus.wave_cleared.emit(2)
+	EventBus.wave_cleared.emit(GameState.lane_plan.size() - 1)
 	assert_eq(String(_saved().resume_phase), "CARD_PICK")
 	EventBus.card_chosen.emit(GameState.card_offer[0])
 	assert_eq(String(_saved().resume_phase), "DAY")
@@ -130,15 +130,26 @@ func test_nothing_written_during_a_day_snapshot_fail() -> void:
 	for i in _fail_ticks() - 5:
 		await get_tree().physics_frame
 	assert_eq(main.autosave.writes, w, "no write before the restore")
+	for i in 10:
+		await get_tree().physics_frame
+	assert_eq(main.autosave.writes, w + 1)
+	assert_eq(String(_saved().resume_phase), "DAY")
 
 func test_throttle_holds_while_paused() -> void:
 	pc.start_new_game(9)
 	pc.debug_skip_to_day()
 	GameState.add_gold(1)
-	get_tree().paused = true
-	var n := int(Balance.ui.autosave_interval_s * Engine.physics_ticks_per_second) + 10
-	for i in n:
-		await get_tree().physics_frame
 	var w := main.autosave.writes
+	get_tree().paused = true
+	var n := int(Balance.ui.autosave_interval_s * Engine.physics_ticks_per_second)
+	for i in n + 10:
+		await get_tree().physics_frame
+	var during := main.autosave.writes
 	get_tree().paused = false
-	assert_eq(main.autosave.writes, w)
+	assert_eq(during, w, "no write while paused")
+	for i in n - 5:
+		await get_tree().physics_frame
+	assert_eq(main.autosave.writes, w, "timer did not run during the pause")
+	for i in 10:
+		await get_tree().physics_frame
+	assert_eq(main.autosave.writes, w + 1)

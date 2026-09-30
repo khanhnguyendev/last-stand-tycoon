@@ -74,10 +74,14 @@ func test_night_save_resumes_night1_start() -> void:
 func test_quit_mid_night_resumes_the_day_without_mercy() -> void:
 	await _session(func():
 		pc.debug_skip_to_day()
-		pc.close_up())  # now at night 2; quit mid-night
+		pc.close_up()
+		GameState.damage_diner(1e6)
+		for i in _fail_ticks():
+			await get_tree().physics_frame
+		pc.close_up())  # night 3 with night_fails 1 saved; quit mid-night
 	_boot()
 	assert_eq(pc.phase, Phase.DAY)
-	assert_eq(GameState.night_fails, 0, "a quit adds no mercy (D-174)")
+	assert_eq(GameState.night_fails, 1, "the quit adds no mercy; the count is what the real fail earned (D-174)")
 
 func test_quit_during_night1_retry_keeps_mercy() -> void:
 	await _session(func():
@@ -138,6 +142,7 @@ func test_debug_fresh_start_wipes() -> void:
 	main.debug_fresh_start = true
 	main._boot()
 	assert_eq([main.phase_controller.phase, GameState.day], [Phase.NIGHT, 1])
+	assert_ne(GameState.run_seed, 1, "a fresh random seed, not the post-quit state")
 	assert_false(FileAccess.file_exists(dir.path_join("save_bak.json")), "wiped: no backup of the old run")
 
 func test_debug_r_key_wipes_and_restarts() -> void:
