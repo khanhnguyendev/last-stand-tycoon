@@ -1337,3 +1337,73 @@ falls and the night restarts identically.
   to S2 anyway.
 - Reversible: in REVIEW_QUEUE. The knob is `traveler_interval`, and 4.4 to 4.6 is the usable band (5.0 stalls the sweep).
 - The only S1 default change in Task 35 is `UiTuning.occluder_alpha` 0.3 → 0.45 (D-159).
+
+## 2026-09-30: S2 hero cards + adventurer guards (autonomous brainstorm, D-159)
+
+Spec: `docs/superpowers/specs/2026-09-30-s2-hero-cards-guards-design.md`. The main session answered every question from
+IDEA.md, the pillars, DECISIONS.md and the S1 sweep; a reviewer pass replaced the author's approval.
+
+**D-161 The player's hero stays untargetable in v0.1 (S2; refines D-005).**
+- IDEA's night targeting list is exhaustive: "a fence in the way, then a guard hero in reach, then the diner". It names
+  only guard heroes, so only guard heroes take damage, get knocked out and respawn ("a knocked-out hero respawns at
+  the diner door" applies to them).
+- D-005 read "no hero HP … until S2 adds guards", which could also mean the player's hero joins. This decision
+  resolves it the other way. The one-thumb hero never dies, which keeps pillar 2's flow, and pressure stays on the
+  diner (pillar 3).
+- Hero HP moves to the spec's post-v0.1 list. Reversible, so it is in REVIEW_QUEUE.
+
+**D-162 Cards are picked by tapping one of up to 3 panels (S2).**
+- A full-screen overlay at dawn; 1/2/3 or a click on desktop.
+- Pillar 2 bans buttons for *core actions*. The pick is a once-a-day decision, and phone-readable card text needs panels,
+  not world props.
+- It reuses the fade button's finger-ownership pattern, plus a 0.5 s input guard so a joystick thumb held as the night
+  ends can't pick by accident.
+- Hero input is blocked during DAWN.
+- Reversible, so it is in REVIEW_QUEUE: the alternative is standing still on card pedestals.
+
+**D-163 Guard posts: the Tank on the west lane, the Archer on the roof (S2).**
+- The Tank stands on the west lane's center line, 3.0 m before the end. The Archer stands on the diner roof at
+  (2.5, -2.5).
+- The S1 towers double-cover north (tower_nw: west + north; tower_ne: north + east), so the Tank takes a side lane, and
+  the roof lets the Archer reach all three lane ends plus the north and east fence stops.
+- Tank range is 2.5, so it also hits Boars held at the west fence.
+- Reversible, so it is in REVIEW_QUEUE.
+
+**D-164 "In reach" means reachable from the enemy's lane position (S2; keeps D-003).**
+- A guard is a target when it is within `enemy.reach` + the guard's body radius, measured in XZ, from where the Boar
+  walks. Enemies never leave their lanes.
+- So the Tank on the lane is a living fence behind the fence, and the roof Archer can never be targeted.
+- Boar gains one `guard` match arm and nothing else.
+
+**D-165 Guard knockout and respawn (S2).**
+- A knocked-out guard poofs, respawns at `DINER_DOOR` (-3.0, 4.6) after 3.0 s with full HP, and walks a fixed path back
+  to its post.
+- Dawn heals every guard (with a `guard_healed` signal) and places it on its post.
+
+**D-166 Card offers (S2).**
+- The first offer is Archer + Tank + one seeded upgrade.
+- After that, a pinned draw without replacement from the types below level 5, seeded by `Rng.stream(seed, day,
+  &"cards")`. Fewer eligible types means fewer cards; none means no pick.
+- Picks are permanent, with no rerolls.
+- `debug_skip_to_day` skips the pick without granting a card.
+
+**D-167 Upgrade steps per level (S2 starting values; the S2 tuning pass may change them).**
+- hero damage +20%, attack speed +15% (interval ÷), move speed +8%, carry +2, gold per steak +1.
+- Guard stat at level L = base × (1 + growth × (L − 1)).
+
+**D-168 Bot card policies (S2).**
+- NaiveBot: the Archer on dawn 1 (the strongest unaided pick, so the night-2 check is the worst case), otherwise the
+  leftmost card.
+- PlannerBot: tank > archer > hero_damage > attack_speed > gold_per_steak > carry_capacity > move_speed.
+- ParkedBot: the leftmost card.
+- Bots read the carry capacity and move speed with card effects applied.
+
+**D-169 S2 tuning precedence (refines D-103).**
+- The order: night 1 NaiveBot ≥ 0.50 > night 2 PlannerBot ≥ 0.60 > sweep break day 10 ± 1 > night 2 NaiveBot (with the
+  Archer) ≤ 0.30, relaxable to ≤ 0.45.
+- The Archer's L1 damage and range are the first knobs for the last target.
+- Escalate on conflicts in that order, or after 3 rounds with no progress.
+
+**D-170 Target break day with cards: 10 ± 1 (S2; D-156).**
+- S1 without cards broke at day 8 (D-160). The PlannerBot plays near-perfectly; humans break earlier and get S3 mercy.
+- Reversible, so it is in REVIEW_QUEUE.
