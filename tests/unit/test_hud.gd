@@ -85,8 +85,7 @@ func test_safe_area_reapplied_on_resize() -> void:
 
 func test_offscreen_arrow_is_pinned_inside_root_space() -> void:
 	var cam := main.camera_rig.camera
-	var margin := Balance.ui.arrow_edge_margin
-	var grown := hud.root.get_global_rect().grow(-margin)
+	var grown := hud._arrow_rect()
 	var far := ""
 	for k in main.world.lanes:
 		var pos: Vector3 = main.world.lanes[k].entrance_position()
@@ -133,8 +132,10 @@ func test_diner_bar_is_visible_with_real_size_and_styles() -> void:
 	assert_gte(r.size.x, Hud.BAR_SIZE.x, "fills its slot, not the 4px default")
 	assert_gte(r.size.y, Hud.BAR_SIZE.y)
 	assert_not_null(hud.diner_bar.get_theme_stylebox("fill"))
-	assert_true(hud.diner_bar.get_theme_stylebox("fill") is StyleBoxFlat)
-	assert_true(hud.diner_bar.get_theme_stylebox("background") is StyleBoxFlat)
+	assert_true(hud.diner_bar.has_theme_stylebox_override("fill"))
+	assert_true(hud.diner_bar.has_theme_stylebox_override("background"))
+	var fill := hud.diner_bar.get_theme_stylebox("fill") as StyleBoxFlat
+	assert_eq(fill.bg_color, Visuals.COLORS.diner_hp)
 	main.phase_controller.debug_skip_to_night()
 	await get_tree().process_frame
 	assert_true(hud.diner_bar.is_visible_in_tree(), "still visible at night")
@@ -154,3 +155,29 @@ func test_banner_has_readable_backing() -> void:
 		await get_tree().process_frame
 	assert_false(panel.visible)
 	assert_false(hud.banner.visible)
+
+func test_arrows_stay_below_the_top_hud() -> void:
+	EventBus.wave_incoming.emit(0, &"north", &"")
+	await get_tree().process_frame
+	var col := hud._top_column
+	var arrow_top: float = hud.arrows.main.position.y + hud.root.position.y - Hud.ARROW_EXTENT
+	assert_gte(arrow_top, col.get_global_rect().end.y)
+	assert_gte(arrow_top, hud.gold_label.get_global_rect().end.y)
+
+func test_second_banner_resets_the_fade() -> void:
+	EventBus.banner_requested.emit("One")
+	for i in int(Balance.ui.banner_time * 60 * 0.9):
+		await get_tree().process_frame
+	EventBus.banner_requested.emit("Two")
+	assert_true(hud.banner_panel.visible)
+	assert_eq(hud.banner_panel.modulate.a, 1.0)
+
+func test_arrow_rect_top_clears_the_hud() -> void:
+	var need := maxf(hud._top_column.get_global_rect().end.y, hud.gold_label.get_global_rect().end.y) \
+		+ Balance.ui.arrow_hud_gap + Hud.ARROW_EXTENT
+	assert_gte(hud._arrow_rect().position.y, need)
+
+func test_hover_point_is_clamped_below_the_hud() -> void:
+	var rect := Rect2(0, 200, 600, 800)
+	assert_eq(hud._hover_point(Vector2(100, 210), rect), Vector2(100, 200), "clamped to the rect top")
+	assert_eq(hud._hover_point(Vector2(100, 700), rect), Vector2(100, 700 - Balance.ui.arrow_hover_px))

@@ -20,10 +20,13 @@ var _banner_tween: Tween
 var _gold_tween: Tween
 var _bar_tween: Tween
 var _moon_row: HBoxContainer
+var _top_column: VBoxContainer
 
 ## Layout constants in 720-base units (spec 9.4: slim diner bar under the moons).
 const BAR_SIZE := Vector2(220, 12)
 const BANNER_SIDE_MARGIN := 40.0
+## Half the arrow's height (its polygon spans -16..20 at scale 1, rounded up for the big one).
+const ARROW_EXTENT := 26.0
 
 func setup(main: Main) -> void:
 	_camera = main.camera_rig.camera
@@ -41,6 +44,7 @@ func _ready() -> void:
 	gold_label.pivot_offset = Vector2(0, 30)
 	# Day label / moons / diner bar sit in one column anchored to the top centre.
 	var column := VBoxContainer.new()
+	_top_column = column
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	column.add_theme_constant_override("separation", 6)
 	root.add_child(column)
@@ -68,12 +72,14 @@ func _ready() -> void:
 	diner_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar_slot.add_child(diner_bar)
 	diner_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# The default theme draws nothing readable here; the bar is always visible (day and night).
+	# Explicit styles: the bar must read over the ground by day and night.
 	var fill := StyleBoxFlat.new()
-	fill.bg_color = Visuals.COLORS.boar
+	fill.bg_color = Visuals.COLORS.diner_hp
 	fill.set_corner_radius_all(6)
+	fill.set_border_width_all(2)
+	fill.border_color = Color(0, 0, 0, 0.8)
 	var back := StyleBoxFlat.new()
-	back.bg_color = Color(0, 0, 0, 0.55)
+	back.bg_color = Color(0, 0, 0, Balance.ui.banner_panel_alpha)
 	back.set_corner_radius_all(6)
 	back.set_border_width_all(2)
 	back.border_color = Color(0, 0, 0, 0.8)
@@ -230,10 +236,24 @@ func _on_banner(text: String) -> void:
 func _process(_delta: float) -> void:
 	_place_arrows()
 
+## Where arrow tips may sit: the safe root rect, inset by the edge margin, below the top HUD.
+func _arrow_rect() -> Rect2:
+	var rect := root.get_global_rect().grow(-Balance.ui.arrow_edge_margin)
+	var hud_bottom := maxf(_top_column.get_global_rect().end.y, gold_label.get_global_rect().end.y)
+	var top := hud_bottom + Balance.ui.arrow_hud_gap + ARROW_EXTENT
+	if top > rect.position.y:
+		rect.size.y -= top - rect.position.y
+		rect.position.y = top
+	return rect
+
+## Tip position for an on-screen entrance: hover above it, but never above the arrow rect.
+func _hover_point(entrance: Vector2, rect: Rect2) -> Vector2:
+	return Vector2(entrance.x, maxf(entrance.y - Balance.ui.arrow_hover_px, rect.position.y))
+
 func _place_arrows() -> void:
 	if _camera == null:
 		return
-	var rect := root.get_global_rect().grow(-Balance.ui.arrow_edge_margin)
+	var rect := _arrow_rect()
 	for key in ["main", "side"]:
 		var arrow: Polygon2D = arrows[key]
 		var lane: String = _arrow_lane[key]
@@ -244,7 +264,7 @@ func _place_arrows() -> void:
 		if _camera.is_position_behind(world_pos):
 			p = rect.get_center() - (p - rect.get_center())
 		if rect.has_point(p):
-			arrow.position = p + Vector2(0, -Balance.ui.arrow_hover_px) - root.position
+			arrow.position = _hover_point(p, rect) - root.position
 			arrow.rotation = 0.0
 		else:
 			var c := rect.get_center()
