@@ -5,9 +5,11 @@ extends Node3D
 var zone: StationZone
 var label: WorldLabel
 var _stack: Array = []
+var _fx: FlyFx
 
 func setup(world: World) -> void:
 	name = "Counter"
+	_fx = world.fly_fx
 	world.add_static_box("CounterBody", Vector3(MapLayout.COUNTER_SIZE.x, 1.0, MapLayout.COUNTER_SIZE.y), MapLayout.COUNTER, Visuals.COLORS.counter)
 	position = MapLayout.to3(MapLayout.COUNTER_DROP)
 	zone = StationZone.new()
@@ -29,7 +31,10 @@ func setup(world: World) -> void:
 	refresh()
 
 func _on_tick() -> void:
-	GameState.move_carry_to_counter(1)
+	if GameState.move_carry_to_counter(1) > 0:
+		var hero := get_tree().get_first_node_in_group(&"hero") as Node3D
+		if _fx != null and hero != null:
+			_fx.fly("steak", hero.global_position + Vector3(0, 1.2, 0.5), MapLayout.to3(MapLayout.COUNTER, 1.2))
 
 func refresh() -> void:
 	label.text = str(GameState.counter_steaks)

@@ -5,10 +5,12 @@ extends Node3D
 var zone: StationZone
 var label: WorldLabel
 var _stack: Array = []
+var _fx: FlyFx
 const _stack_cap := 10
 
 func setup(world: World) -> void:
 	name = "Freezer"
+	_fx = world.fly_fx
 	world.add_static_box("FreezerBody", Vector3(MapLayout.FREEZER_SIZE.x, 1.4, MapLayout.FREEZER_SIZE.y), MapLayout.FREEZER, Visuals.COLORS.freezer)
 	position = MapLayout.to3(MapLayout.FREEZER_ZONE)
 	zone = StationZone.new()
@@ -28,7 +30,10 @@ func setup(world: World) -> void:
 	refresh()
 
 func _on_tick() -> void:
-	GameState.move_freezer_to_carry(1)
+	if GameState.move_freezer_to_carry(1) > 0:
+		var hero := get_tree().get_first_node_in_group(&"hero") as Node3D
+		if _fx != null and hero != null:
+			_fx.fly("steak", MapLayout.to3(MapLayout.FREEZER, 1.6), hero.global_position + Vector3(0, 1.2, 0.5))
 
 func refresh() -> void:
 	label.text = str(GameState.freezer_steaks)

@@ -2,6 +2,9 @@ class_name Hero
 extends CharacterBody3D
 ## The player's cook (spec 7.3). Moves only through HeroInput.
 
+## Height above the feet the camera aims at when checking occlusion (D-151); the body capsule is 1.6 m.
+const AIM_HEIGHT := 1.0
+
 var input: HeroInput
 var magnet: Magnet
 var carry_stack: CarryStack
@@ -44,7 +47,7 @@ func _ready() -> void:
 	EventBus.hero_place_requested.connect(teleport)
 
 func setup(world: World) -> void:
-	magnet.setup(world.steak_pool)
+	magnet.setup(world.steak_pool, world.fly_fx)
 	var hb := Balance.data.hero
 	attacker.configure(hb.attack_damage, hb.attack_range, hb.attack_interval, hb.retarget_interval,
 		hb.moving_attack_speed_mult, hb.projectile_speed)

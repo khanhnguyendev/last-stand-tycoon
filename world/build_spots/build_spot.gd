@@ -9,10 +9,13 @@ var zone: StationZone
 var visual: Node3D
 var _world: World
 var _pips: Array = []
+var _fx: FlyFx
+var _pop: Tween
 
 func setup(id: String, world: World) -> void:
 	spot_id = id
 	_world = world
+	_fx = world.fly_fx
 	name = "Spot_" + id
 	position = MapLayout.to3(MapLayout.spot_position(id))
 	visual = Visuals.visual_root()
@@ -34,6 +37,8 @@ func setup(id: String, world: World) -> void:
 	add_child(zone)
 	zone.ticked.connect(_on_tick)
 	EventBus.building_changed.connect(_on_building_changed)
+	EventBus.build_completed.connect(_on_build_completed)  # after building_changed: the pop starts from the new scale
+	EventBus.phase_changed.connect(_on_phase_changed)  # after the zone's own connection (it syncs its phase first)
 	EventBus.state_restored.connect(refresh)
 	refresh()
 
@@ -41,14 +46,37 @@ func _on_tick() -> void:
 	var cost := GameState.next_level_cost(spot_id)
 	if cost < 0:
 		return
-	GameState.pay_into_spot(spot_id, Economy.drain_per_tick(cost, Balance.data.build))
+	var paid := GameState.pay_into_spot(spot_id, Economy.drain_per_tick(cost, Balance.data.build))
+	if paid > 0:
+		var hero := get_tree().get_first_node_in_group(&"hero") as Node3D
+		if _fx != null and hero != null:
+			_fx.fly("coin", hero.global_position + Vector3(0, 1.2, 0), global_position + Vector3(0, 1.0, 0))
 
 func _on_building_changed(id: StringName, _level: int, _paid: int) -> void:
 	if String(id) == spot_id:
 		refresh()
 
+func _on_build_completed(id: StringName, _level: int) -> void:
+	if String(id) != spot_id:
+		return
+	_kill_pop()
+	var base := visual.scale
+	visual.scale = base * Balance.ui.build_pop_scale
+	_pop = create_tween()
+	_pop.tween_property(visual, "scale", base, Balance.ui.build_pop_time)
+
+func _kill_pop() -> void:
+	if _pop != null and _pop.is_valid():
+		_pop.kill()
+	_pop = null
+
+## Task 23 review: partial-payment rings don't glow on the lanes during combat.
+func _on_phase_changed(_phase: int, _day: int) -> void:
+	refresh()
+
 ## Rebuilds everything from GameState. Safe before the first new_game (buildings is empty then).
 func refresh() -> void:
+	_kill_pop()
 	var b: Dictionary = GameState.buildings.get(spot_id, {"level": 0, "paid": 0, "hp": 0.0})
 	level = int(b.level)
 	visual.scale = Vector3.ONE * pow(Balance.ui.build_level_scale, maxi(level - 1, 0))
@@ -63,7 +91,7 @@ func refresh() -> void:
 	if zone != null:
 		var cost := GameState.next_level_cost(spot_id) if GameState.buildings.has(spot_id) else -1
 		var progress := 0.0 if cost <= 0 else float(b.paid) / float(cost)
-		zone.ring.visible = progress > 0.0
+		zone.ring.visible = progress > 0.0 and zone.is_active()
 		zone.ring.set_progress(progress)
 
 ## Subclasses build their meshes under `visual`.
