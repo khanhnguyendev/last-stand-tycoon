@@ -11,10 +11,10 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same PR or branch supersedes the older run.
+# A newer push to a PR cancels that PR's older run; main pushes group by SHA, so no main run is cancelled.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: true
 
 env:
   # EXACT tag from D-116 (D-129); must equal CLAUDE.md "GODOT_TAG=" and pages.yml (D-135)
@@ -30,7 +30,7 @@ jobs:
 
       - name: Check the pinned Godot tag matches CLAUDE.md and pages.yml
         run: |
-          grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+          grep -qF "GODOT_TAG=${GODOT_TAG}**" CLAUDE.md && [ "$(grep -c 'GODOT_TAG=' CLAUDE.md)" -eq 1 ] || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
           grep -qF "GODOT_TAG: \"${GODOT_TAG}\"" .github/workflows/pages.yml || { echo "pages.yml pins a different GODOT_TAG"; exit 1; }
 
       # Same paths and key as pages.yml, so the two workflows share one cache entry.
@@ -84,7 +84,7 @@ jobs:
 
       - name: Check the pinned Godot tag matches CLAUDE.md and pages.yml
         run: |
-          grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+          grep -qF "GODOT_TAG=${GODOT_TAG}**" CLAUDE.md && [ "$(grep -c 'GODOT_TAG=' CLAUDE.md)" -eq 1 ] || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
           grep -qF "GODOT_TAG: \"${GODOT_TAG}\"" .github/workflows/pages.yml || { echo "pages.yml pins a different GODOT_TAG"; exit 1; }
 
       - name: Cache Godot editor and export templates

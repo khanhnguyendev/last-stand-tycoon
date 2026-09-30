@@ -80,4 +80,5 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 on Linux with the pinned, SHA-512-verified Godot (D-116, D-129), for every PR and push to main. Each job also checks
 that `GODOT_TAG` matches CLAUDE.md and pages.yml. The job names `unit` and `sim` are the required checks for branch
 protection (D-133); don't rename them. CI is canonical for sim thresholds (D-105). If the sim suite goes over 60 s:
-never drop tests; report timings and escalate (D-132). The sweep is manual.
+never drop tests; report timings and escalate (D-132). The sweep is manual. The `pages` workflow's
+`deploy` job (release/profile packs free of `ui/debug`, DoD 5) is a required check too.

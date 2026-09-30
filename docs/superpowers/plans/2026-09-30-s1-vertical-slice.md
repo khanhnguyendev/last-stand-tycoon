@@ -11615,10 +11615,10 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same PR or branch supersedes the older run.
+# A newer push to a PR cancels that PR's older run; main pushes group by SHA, so no main run is cancelled.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: true
 
 env:
   # EXACT tag from D-116 (D-129); must equal CLAUDE.md "GODOT_TAG=" and pages.yml (D-135)
@@ -11634,7 +11634,7 @@ jobs:
 
       - name: Check the pinned Godot tag matches CLAUDE.md and pages.yml
         run: |
-          grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+          grep -qF "GODOT_TAG=${GODOT_TAG}**" CLAUDE.md && [ "$(grep -c 'GODOT_TAG=' CLAUDE.md)" -eq 1 ] || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
           grep -qF "GODOT_TAG: \"${GODOT_TAG}\"" .github/workflows/pages.yml || { echo "pages.yml pins a different GODOT_TAG"; exit 1; }
 
       # Same paths and key as pages.yml, so the two workflows share one cache entry.
@@ -11688,7 +11688,7 @@ jobs:
 
       - name: Check the pinned Godot tag matches CLAUDE.md and pages.yml
         run: |
-          grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+          grep -qF "GODOT_TAG=${GODOT_TAG}**" CLAUDE.md && [ "$(grep -c 'GODOT_TAG=' CLAUDE.md)" -eq 1 ] || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
           grep -qF "GODOT_TAG: \"${GODOT_TAG}\"" .github/workflows/pages.yml || { echo "pages.yml pins a different GODOT_TAG"; exit 1; }
 
       - name: Cache Godot editor and export templates
@@ -11744,9 +11744,11 @@ Expected: `yaml ok`. If PyYAML is missing, run `pip3 install --user pyyaml` firs
 ```markdown
 ## CI
 `.github/workflows/ci.yml` runs two parallel jobs, `unit` (`./run_tests.sh unit`) and `sim` (`./run_tests.sh sim`),
-on Linux with the pinned, SHA-512-verified Godot (D-116, D-129), for every PR and push to main. CI is canonical
-for sim thresholds (D-105). If the sim suite goes over 60 s: never drop tests; report timings and escalate
-(D-132). The sweep is manual.
+on Linux with the pinned, SHA-512-verified Godot (D-116, D-129), for every PR and push to main. Each job also checks
+that `GODOT_TAG` matches CLAUDE.md and pages.yml. The job names `unit` and `sim` are the required checks for branch
+protection (D-133); don't rename them. CI is canonical for sim thresholds (D-105). If the sim suite goes over 60 s:
+never drop tests; report timings and escalate (D-132). The sweep is manual. The `pages` workflow's
+`deploy` job (release/profile packs free of `ui/debug`, DoD 5) is a required check too.
 ```
 
 - [ ] **Step 4: Commit**
@@ -11768,7 +11770,7 @@ Expected: both `unit` and `sim` pass. If the run is red only on thresholds, CI w
 gh api -X PUT repos/khanhnguyendev/last-stand-tycoon/branches/main/protection \
   -H "Accept: application/vnd.github+json" --input - <<'JSON'
 {
-  "required_status_checks": { "strict": true, "contexts": ["unit", "sim"] },
+  "required_status_checks": { "strict": true, "contexts": ["unit", "sim", "deploy"] },
   "enforce_admins": true,
   "required_pull_request_reviews": { "required_approving_review_count": 0 },
   "restrictions": null
