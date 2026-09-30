@@ -19,6 +19,7 @@ var camera_rig: CameraRig
 var joystick: Joystick
 var focus_pause: FocusPause
 var hud: Hud
+var card_overlay: CardPickOverlay
 
 func _ready() -> void:
 	focus_pause = FocusPause.new()
@@ -43,6 +44,9 @@ func _ready() -> void:
 	joystick = Joystick.new()
 	input_layer.add_child(joystick)
 	joystick.setup(hero.input)
+	# S2 (D-162): after InputLayer so its _input runs before the joystick's.
+	card_overlay = CardPickOverlay.new()
+	add_child(card_overlay)
 	if OS.is_debug_build() and ResourceLoader.exists("res://ui/debug/debug_overlay.gd"):
 		# D-099: load(), never preload, so release/profile can exclude ui/debug/*. Added after InputLayer
 		# so its _input (the fade button) runs before the joystick's.
