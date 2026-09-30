@@ -840,3 +840,14 @@ wording).**
   already in place.
 - If the budget is still exceeded: report per-test timings and escalate.
 - The rule is written in the plan (Tasks 1 and 34) and in CLAUDE.md.
+
+**D-133 Git workflow (author).**
+- One branch and one PR per plan phase (`s1/p<N>-<slug>`), and one commit per task inside it.
+- The `reviewer` subagent still reviews every task; the author reviews each phase PR.
+- Before CI exists, the PR body carries the local test output. After CI exists, the `unit` and `sim`
+  checks must be green.
+- Only the author merges. After CI lands, the agent gives the author the exact `gh api` command that
+  protects `main` (PR plus green `unit` and `sim` required, admins included). The agent never applies
+  it.
+- Branch protection on a private repo needs GitHub Pro.
+- Written in CLAUDE.md (plan Task 1) and in the plan's Git Workflow section.

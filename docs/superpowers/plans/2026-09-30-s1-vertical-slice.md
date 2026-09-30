@@ -62,6 +62,32 @@ These are the input classes the spec implies but no feature test naturally cover
 4. **A second finger, or a touch that starts in a 16 px edge strip:** it is ignored. Lifting the second finger doesn't stop the joystick. Pinned in **Task 27**.
 5. **Paying with less gold than the drain, or standing on a level-3 spot:** the spot takes only what's there (gold never goes negative), and a max-level spot takes nothing. Pinned in **Task 23**.
 
+## Git Workflow (D-133)
+
+- **One branch and one PR per phase**, branched from an up-to-date `main` after the previous phase's PR is merged. **One commit per task** inside it.
+
+  | Phase | Branch |
+  |---|---|
+  | 0 | `s1/p0-spike` |
+  | 1 | `s1/p1-bootstrap` |
+  | 2 | `s1/p2-core` |
+  | 3 | `s1/p3-state` |
+  | 4 | `s1/p4-night-loop` |
+  | 5 | `s1/p5-sims` |
+  | 6 | `s1/p6-day` |
+  | 7 | `s1/p7-planner` |
+  | 8 | `s1/p8-restore` |
+  | 9 | `s1/p9-input-hud` |
+  | 10 | `s1/p10-web` |
+  | 11 | `s1/p11-screenshots-ci` |
+  | 12 | `s1/p12-tuning` |
+  | 13 | `s1/p13-perf` |
+  | 14 | `s1/p14-gate` |
+
+- **Reviews:** the `reviewer` subagent reviews every task before its commit counts as done. The author reviews each phase PR.
+- **Before CI exists** (Phases 0–10), the PR body carries the local test output: `./run_tests.sh all`, or the spike results for Phase 0. **After CI lands** (Phase 11), `unit` and `sim` must be green before asking for review.
+- **Only the author merges.** Agents never merge, never push to `main`, and never change branch protection. After CI lands, Task 34 hands the author the exact `gh` command to protect `main`.
+
 ## Checkpoints and Estimates
 
 Stop at each checkpoint and wait for the author:
@@ -143,6 +169,8 @@ Estimates in working days, **for information only** (D-131: no deadline; nothing
 ### Task 0: Spike on the Godot 4.7 toolchain (throwaway, D-104, D-131)
 
 **Goal:** answer spec Appendix B plus the tool facts this plan depends on. Nothing from the probe project is kept. Only the installed toolchain and DECISIONS entries remain.
+
+**Branch (D-133):** `s1/p0-spike`, from `main` after PR #1 is merged. The PR body carries the spike results (D-116 to D-120).
 
 **Stop rule (D-131, no timebox):** work through the checks in order. When a check fails, apply its pre-agreed fallback. Escalate only when the fallback also fails.
 
@@ -535,6 +563,12 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
   - `TravelerSpawner.start()`, `stop()`, `clear_queue()`
   - hero placement is the bus event `EventBus.hero_place_requested(position)`.
 - Tests and tools create the game with `Main.create()` (instantiates `main.tscn`), never `Main.new()`.
+
+## Git workflow (D-133)
+- One branch and one PR per plan phase: `s1/p<N>-<slug>` (the table is in the plan), from an up-to-date `main`. One commit per task inside it.
+- The `reviewer` subagent reviews every task; the author reviews each phase PR.
+- Before CI exists, the PR body carries the local test output. After CI exists, `unit` and `sim` must be green.
+- **Only the author merges.** Never push to `main`, never merge, never change branch protection. After CI lands, give the author the exact `gh api ... /branches/main/protection` command (plan Task 34, Step 6) instead of running it.
 
 ## Scope and time (D-131)
 - v0.1 has no deadline. Scope is decided by quality and the v0.1 gate, never by the calendar. Plan estimates are information only.
@@ -8626,11 +8660,27 @@ git add .github/workflows/ci.yml CLAUDE.md
 git commit -m "ci: run unit and sim suites as parallel jobs on every PR"
 ```
 
-- [ ] **Step 5: HUMAN step, and the verification.** The repo has no git remote yet. Ask the author to create the GitHub repo and push, for example `gh repo create <name> --private --source . --push`. Then:
+- [ ] **Step 5: Push the phase branch and open its PR.** The remote is `origin` (`khanhnguyendev/last-stand-tycoon`). Push `s1/p11-screenshots-ci` and open the Phase 11 PR (D-133). Then:
 
-Run: `gh run list --limit 1`
+Run: `gh pr checks --watch`
 
-Expected: the latest `ci` run shows `completed success`. If the run is red only on thresholds, CI wins (D-105). Compare with the local numbers and escalate if they differ by more than 5 percentage points of diner HP.
+Expected: both `unit` and `sim` pass. If the run is red only on thresholds, CI wins (D-105). Compare with the local numbers and escalate if they differ by more than 5 percentage points of diner HP.
+
+- [ ] **Step 6: Hand the author the branch-protection command. Don't run it (D-133).** In the Phase 11 PR, and in the report, give the author exactly this. It requires a PR and green `unit` and `sim` checks for `main`, admins included:
+
+```bash
+gh api -X PUT repos/khanhnguyendev/last-stand-tycoon/branches/main/protection \
+  -H "Accept: application/vnd.github+json" --input - <<'JSON'
+{
+  "required_status_checks": { "strict": true, "contexts": ["unit", "sim"] },
+  "enforce_admins": true,
+  "required_pull_request_reviews": { "required_approving_review_count": 0 },
+  "restrictions": null
+}
+JSON
+```
+
+Note for the author: branch protection on a **private** repo needs GitHub Pro (or Team). If the call returns `403 Upgrade to GitHub Pro`, the options are upgrading or making the repo public. From Phase 12 on, every phase PR must be green before review.
 
 ---
 
