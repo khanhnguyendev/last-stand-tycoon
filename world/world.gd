@@ -7,11 +7,14 @@ var diner_body: StaticBody3D
 var build_spots := {}
 var freezer: Freezer
 var counter: Counter
+var gold_pile: GoldPile
 
 @export var enemy_pool: NodePool
 @export var steak_pool: NodePool
 @export var projectile_pool: NodePool
 @export var wave_director: WaveDirector
+@export var traveler_pool: NodePool
+@export var traveler_spawner: TravelerSpawner
 
 func _ready() -> void:
 	_build_environment()
@@ -92,6 +95,11 @@ func _build_stations() -> void:
 	counter = Counter.new()
 	add_child(counter)
 	counter.setup(self)
+	gold_pile = GoldPile.new()
+	add_child(gold_pile)
+	gold_pile.setup(self)
+	traveler_pool.setup(func(): return Traveler.new(), Balance.data.economy.queue_max * 2)
+	traveler_spawner.setup(traveler_pool)
 
 static func pool_sizes(bd: BalanceData) -> Dictionary:
 	var steaks := 0
