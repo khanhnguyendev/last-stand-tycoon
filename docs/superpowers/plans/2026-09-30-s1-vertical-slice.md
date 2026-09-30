@@ -3724,10 +3724,48 @@ func test_death_reports_once() -> void:
 
 func test_hp_mult_applies() -> void:
 	var b := Boar.new()
+	b.process_mode = Node.PROCESS_MODE_DISABLED
 	add_child_autofree(b)
 	b.spawn("east", 3, 0.0, 1.15, dir)
 	assert_almost_eq(b.health.max_hp, Balance.data.enemy.hp * 1.15, 0.0001)
 	assert_eq(b.candidate().spawn_index, 3)
+
+func test_listed_but_unregistered_fence_kind_does_not_stall() -> void:
+	GameState.add_gold(GameState.next_level_cost("fence_n"))
+	GameState.pay_into_spot("fence_n", GameState.next_level_cost("fence_n"))
+	assert_true(Balance.data.wave.target_priority.kinds.has(&"fence_on_lane"))
+	dir.providers = TargetProviders.new()
+	dir.providers.register(&"diner", func(e): return TargetProviders.diner(e))
+	var b := _boar("north")
+	_step(b, _walk_time("north") + 0.1)
+	assert_true(b.at_path_end(), "no fence provider registered: the boar walks")
+
+func test_reuse_resets_state() -> void:
+	var pool := NodePool.new()
+	add_child_autofree(pool)
+	pool.setup(func(): return Boar.new(), 1)
+	var b: Boar = pool.acquire()
+	b.process_mode = Node.PROCESS_MODE_DISABLED  # tests step it by hand
+	b.spawn("west", 5, 0.4, 1.0, dir)
+	var gen := b.generation
+	_step(b, 2.0)
+	assert_gt(b.dist, 0.0)
+	b.take_hit(1e9)
+	assert_false(b.alive)
+	b.play_death(pool)
+	b.visual.scale = Vector3(0.01, 0.01, 0.01)  # what the death tween leaves behind
+	pool.release(b)
+	var b2: Boar = pool.acquire()
+	assert_same(b2, b)
+	b2.process_mode = Node.PROCESS_MODE_DISABLED
+	b2.spawn("east", 6, 0.0, 1.0, dir)
+	assert_eq(b2.dist, 0.0)
+	assert_true(b2.alive)
+	assert_eq(b2.health.hp, b2.health.max_hp)
+	assert_eq(b2.visual.scale, Vector3.ONE)
+	assert_true(b2.current_target.is_empty())
+	assert_eq(b2.generation, gen + 1)
+	assert_eq(dir.died, [5], "exactly one death, for the first life")
 
 func test_pool_sizes_from_balance() -> void:
 	# PINNED REFERENCE: spec 11 at the default Balance (D-124: steaks from the CAPPED day-10 counts
@@ -3755,6 +3793,10 @@ var _providers := {}
 func register(kind: StringName, fn: Callable) -> void:
 	_providers[kind] = fn
 
+## True when a provider is registered for the kind AND the kind is in the priority list.
+func has_kind(kind: StringName) -> bool:
+	return _providers.has(kind) and Balance.data.wave.target_priority.kinds.has(kind)
+
 func find_target(enemy) -> Dictionary:
 	for kind in Balance.data.wave.target_priority.kinds:
 		if _providers.has(kind):
@@ -3763,14 +3805,16 @@ func find_target(enemy) -> Dictionary:
 				return t
 	return {}
 
-static func fence_on_lane(enemy) -> Dictionary:
-	var spot_id: String = MapLayout.LANE_FENCE[enemy.lane]
-	var b: Dictionary = GameState.buildings[spot_id]
+## Distance along the path where a boar stops for its lane's fence; INF when no fence stands.
+static func fence_stop_dist(enemy) -> float:
+	var b: Dictionary = GameState.buildings[MapLayout.LANE_FENCE[enemy.lane]]
 	if int(b.level) < 1 or float(b.hp) <= 0.0:
-		return {}
-	var fence_dist: float = enemy.path_length() - MapLayout.FENCE_OFFSET_FROM_END
-	if enemy.dist >= fence_dist - Balance.data.enemy.reach - 1e-4:
-		return {"kind": &"fence_on_lane", "spot_id": spot_id}
+		return INF
+	return enemy.path_length() - MapLayout.FENCE_OFFSET_FROM_END - Balance.data.enemy.reach
+
+static func fence_on_lane(enemy) -> Dictionary:
+	if enemy.dist >= fence_stop_dist(enemy) - 1e-4:
+		return {"kind": &"fence_on_lane", "spot_id": MapLayout.LANE_FENCE[enemy.lane]}
 	return {}
 
 static func diner(enemy) -> Dictionary:
@@ -3785,6 +3829,8 @@ extends Node3D
 
 var lane := ""
 var spawn_index := -1
+## Increments on every spawn; projectiles/attackers compare it to detect pool reuse across nights (Review Focus 2).
+var generation := 0
 var dist := 0.0
 var offset := 0.0
 var alive := false
@@ -3794,7 +3840,6 @@ var visual: Node3D
 var current_target: Dictionary = {}
 var _mesh: MeshInstance3D
 var _length := 0.0
-var _stop_dist := INF
 var _attack_timer := 0.0
 var _director: Object
 var _death_tween: Tween
@@ -3814,6 +3859,7 @@ func _init() -> void:
 	add_child(visual)
 
 func spawn(p_lane: String, p_index: int, p_offset: float, hp_mult: float, director: Object) -> void:
+	generation += 1
 	lane = p_lane
 	spawn_index = p_index
 	targetable.spawn_index = p_index
@@ -3844,12 +3890,8 @@ func _physics_process(delta: float) -> void:
 		var step := eb.speed * delta
 		var next := minf(dist + step, _length)
 		# do not walk past a standing fence's stop point in one tick
-		var spot_id: String = MapLayout.LANE_FENCE[lane]
-		var b: Dictionary = GameState.buildings[spot_id]
-		if int(b.level) >= 1 and float(b.hp) > 0.0:
-			var stop := _length - MapLayout.FENCE_OFFSET_FROM_END - eb.reach
-			if dist <= stop:
-				next = minf(next, stop)
+		if _director.providers.has_kind(&"fence_on_lane") and dist <= TargetProviders.fence_stop_dist(self):
+			next = minf(next, TargetProviders.fence_stop_dist(self))
 		dist = next
 		_update_position()
 		return
@@ -7605,6 +7647,11 @@ func _end() -> void:
 	_input_api.set_move(Vector2.ZERO)
 	queue_redraw()
 
+## D-147: a paused tree drops the touch release, so end the stick when FocusPause pauses.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PAUSED and is_active():
+		_end()
+
 func _draw() -> void:
 	if not is_active():
 		return
@@ -8431,6 +8478,41 @@ func test_focus_out_pauses_and_in_resumes() -> void:
 	for i in 5:
 		await get_tree().physics_frame
 	assert_gt(counter.ticks, t0)
+
+func test_window_focus_out_and_in() -> void:
+	fp.notification(Node.NOTIFICATION_WM_WINDOW_FOCUS_OUT)
+	assert_true(get_tree().paused)
+	fp.notification(Node.NOTIFICATION_WM_WINDOW_FOCUS_IN)
+	assert_false(get_tree().paused)
+
+func test_visibility_hidden_and_visible() -> void:
+	fp.on_visibility_changed(true)
+	assert_true(get_tree().paused)
+	fp.on_visibility_changed(false)
+	assert_false(get_tree().paused)
+
+func test_focus_out_then_visible_resumes() -> void:
+	fp.notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	assert_true(get_tree().paused)
+	fp.on_visibility_changed(false)
+	assert_false(get_tree().paused)
+
+func test_foreign_pause_not_cleared_by_focus_in() -> void:
+	get_tree().paused = true
+	fp.notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	assert_true(get_tree().paused)
+	fp.on_visibility_changed(false)
+	assert_true(get_tree().paused)
+
+func test_process_mode_always() -> void:
+	assert_eq(fp.process_mode, Node.PROCESS_MODE_ALWAYS)
+
+func test_focus_out_on_already_paused_tree_keeps_foreign_pause() -> void:
+	get_tree().paused = true
+	fp.notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	fp.notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	assert_true(get_tree().paused)
+	get_tree().paused = false
 ```
 
 GUT's own runner must keep processing while paused. If `await get_tree().process_frame` hangs, set GUT's node to `PROCESS_MODE_ALWAYS` in this test's `before_each` with `gut.process_mode = Node.PROCESS_MODE_ALWAYS`.
@@ -8448,8 +8530,11 @@ Expected: FAIL (`FocusPause` not declared).
 class_name FocusPause
 extends Node
 ## Pause on focus loss / hidden tab so switching away never costs the diner (D-046).
+## Resume rule: the latest focus-in or visible event resumes (iOS may never send focus-in).
+## Only undoes a pause FocusPause itself set.
 
 var _js_cb: JavaScriptObject
+var _paused_by_focus := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -8457,24 +8542,38 @@ func _ready() -> void:
 		_js_cb = JavaScriptBridge.create_callback(_on_visibility)
 		JavaScriptBridge.get_interface("document").addEventListener("visibilitychange", _js_cb)
 
+func _exit_tree() -> void:
+	if OS.has_feature("web") and _js_cb != null:
+		JavaScriptBridge.get_interface("document").removeEventListener("visibilitychange", _js_cb)
+		_js_cb = null
+
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
 		set_paused(true)
-	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+	elif what == NOTIFICATION_APPLICATION_FOCUS_IN or what == NOTIFICATION_WM_WINDOW_FOCUS_IN:
 		set_paused(false)
 
 func set_paused(p: bool) -> void:
-	get_tree().paused = p
+	if p:
+		if not get_tree().paused:
+			get_tree().paused = true
+			_paused_by_focus = true
+	elif _paused_by_focus:
+		get_tree().paused = false
+		_paused_by_focus = false
+
+func on_visibility_changed(hidden: bool) -> void:
+	set_paused(hidden)
 
 func _on_visibility(_args: Array) -> void:
-	set_paused(bool(JavaScriptBridge.eval("document.hidden", true)))
+	on_visibility_changed(bool(JavaScriptBridge.eval("document.hidden", true)))
 ```
 
 Modify `world/main.gd`:
 ```gdscript
 var focus_pause: FocusPause
 
-# in _ready(), after hud:
+# first statements in _ready() (the one Task 15 creates); D-139 wiring applied by the main session:
 	focus_pause = FocusPause.new()
 	focus_pause.name = "FocusPause"
 	add_child(focus_pause)

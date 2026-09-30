@@ -1121,3 +1121,21 @@ wording).**
   `JSON.stringify(d, "", true, true)` (full precision). The round-trip test pins it.
 - Also from the review: `fence_max_hp` asserts its level range, `add_gold` ignores non-positive
   amounts, and `test_balance` pins that the per-level arrays have `max_level` entries.
+
+**D-147 Focus pause also covers window focus loss (Task 31 review; refines D-046).**
+- On web, Godot reports canvas focus and blur as `NOTIFICATION_WM_WINDOW_FOCUS_OUT/IN`, not as
+  application focus. With only `visibilitychange`, desktop alt-tab (browser still visible) and iOS
+  overlays would not pause, and would cost diner HP. `FocusPause` now pauses on window focus out and
+  on a hidden tab. The latest focus-in or visible event resumes, because iOS may never send focus-in.
+- `FocusPause` only undoes a pause it set itself. It removes its JS listener on exit.
+- A paused tree drops the touch release, so the joystick (Task 27) ends its stick on
+  `NOTIFICATION_PAUSED`. Otherwise the hero kept walking after resume.
+- Its `main.gd` wiring goes first in `Main._ready()`, which Task 15 creates.
+
+**D-148 Fences stop Boars only as a target kind (Task 13 review).**
+- Spec 7.2 and D-049: "the first non-null target wins; with none, it walks". The plan's Boar stopped
+  at a standing fence even when `fence_on_lane` was not a target kind, so it stood still forever.
+- The stop distance lives in `TargetProviders` (a single source). The Boar stops only when a
+  `fence_on_lane` provider is registered, so S2's `guard` kind stays enemy-code-free.
+- Boars carry a `generation` counter, incremented on every spawn, so projectiles and attackers can
+  detect pool reuse across nights (Review Focus 2). `spawn_index` restarts every night.
