@@ -19,6 +19,16 @@ var _retarget := 0.0
 var _target: Dictionary = {}
 var _target_generation := 0
 
+func _ready() -> void:
+	EventBus.state_restored.connect(_on_state_restored)
+
+## A restore drops every target and cooldown (D-036): nothing carries over from the lost timeline.
+func _on_state_restored() -> void:
+	_cooldown = 0.0
+	_retarget = 0.0
+	_target = {}
+	_target_generation = 0
+
 func configure(p_damage: float, p_range: float, p_interval: float, p_retarget: float, p_moving_mult: float, p_speed: float) -> void:
 	damage = p_damage
 	attack_range = p_range
