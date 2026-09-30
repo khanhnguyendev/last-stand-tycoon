@@ -53,7 +53,7 @@ jobs:
       - name: Check the pinned Godot tag matches CLAUDE.md
         run: |
           if [ -f CLAUDE.md ]; then
-            grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+            grep -qF "GODOT_TAG=${GODOT_TAG}**" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
           else
             echo "CLAUDE.md not present yet; skipping the pin check"
           fi

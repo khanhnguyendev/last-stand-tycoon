@@ -11602,59 +11602,133 @@ git commit -m "docs: add per-lane S1 visibility screenshots"
 
 `.github/workflows/ci.yml`:
 ```yaml
+# Unit and sim suites as two parallel jobs (D-087, D-132). The job names `unit` and `sim`
+# are the required status checks for branch protection (D-133); do not rename them.
+# CI (Linux) is canonical for sim thresholds (D-105).
 name: ci
+
 on:
   pull_request:
   push:
     branches: [main]
+
+permissions:
+  contents: read
+
+# A newer push to a PR cancels that PR's older run; main pushes group by SHA, so no main run is cancelled.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: true
+
 env:
-  GODOT_TAG: "4.7-stable"   # EXACT tag from D-116; must equal CLAUDE.md "GODOT_TAG=" (D-129)
+  # EXACT tag from D-116 (D-129); must equal CLAUDE.md "GODOT_TAG=" and pages.yml (D-135)
+  GODOT_TAG: "4.7.2-stable"
+
 jobs:
-  # Two parallel jobs (D-132). Their names are the required checks for branch protection (D-133).
   unit:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - name: Check the pinned Godot tag matches CLAUDE.md
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check the pinned Godot tag matches CLAUDE.md and pages.yml
         run: |
-          grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+          grep -qF "GODOT_TAG=${GODOT_TAG}**" CLAUDE.md && [ "$(grep -c 'GODOT_TAG=' CLAUDE.md)" -eq 1 ] || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
           grep -qF "GODOT_TAG: \"${GODOT_TAG}\"" .github/workflows/pages.yml || { echo "pages.yml pins a different GODOT_TAG"; exit 1; }
-      - name: Download Godot headless (official, SHA-512 verified)
+
+      # Same paths and key as pages.yml, so the two workflows share one cache entry.
+      - name: Cache Godot editor and export templates
+        id: godot_cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_TAG }}-web-v1
+
+      - name: Download and verify Godot (cache miss only)
+        if: steps.godot_cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           BASE="https://github.com/godotengine/godot-builds/releases/download/${GODOT_TAG}"
           ZIP="Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          TPZ="Godot_v${GODOT_TAG}_export_templates.tpz"
+          TPL_DIR="$HOME/.local/share/godot/export_templates/${GODOT_TAG/-/.}"
+          DL="$RUNNER_TEMP/godot-dl"
+          rm -rf "$DL"; mkdir -p "$DL" "$HOME/godot" "$TPL_DIR"
+          cd "$DL"
           curl -fsSL -o SHA512-SUMS.txt "$BASE/SHA512-SUMS.txt"
           curl -fsSL -o "$ZIP" "$BASE/$ZIP"
-          grep -E "[[:space:]]\*?${ZIP}\$" SHA512-SUMS.txt > wanted.sha512
+          curl -fsSL -o "$TPZ" "$BASE/$TPZ"
+          awk -v a="$ZIP" -v b="$TPZ" '$2==a || $2==b' SHA512-SUMS.txt > wanted.sha512
+          [ "$(wc -l < wanted.sha512)" -eq 2 ] || { echo "expected exactly 2 checksum lines"; cat wanted.sha512; exit 1; }
           sha512sum -c wanted.sha512
-          unzip -q "$ZIP"
-          mv "Godot_v${GODOT_TAG}_linux.x86_64" godot-bin && chmod +x godot-bin
-          echo "GODOT=$PWD/godot-bin" >> "$GITHUB_ENV"
+          unzip -p "$ZIP" "Godot_v${GODOT_TAG}_linux.x86_64" > "$HOME/godot/godot"
+          chmod +x "$HOME/godot/godot"
+          unzip -o -j "$TPZ" templates/web_nothreads_release.zip templates/web_nothreads_debug.zip templates/version.txt -d "$TPL_DIR"
+          rm -f "$TPZ"
+          ls -l "$TPL_DIR"
+
+      - name: Locate Godot
+        run: |
+          set -euo pipefail
+          echo "GODOT=$HOME/godot/godot" >> "$GITHUB_ENV"
+          "$HOME/godot/godot" --version
+
       - name: Unit tests + grep ban
         run: ./run_tests.sh unit
+
   sim:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - name: Check the pinned Godot tag matches CLAUDE.md
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check the pinned Godot tag matches CLAUDE.md and pages.yml
         run: |
-          grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+          grep -qF "GODOT_TAG=${GODOT_TAG}**" CLAUDE.md && [ "$(grep -c 'GODOT_TAG=' CLAUDE.md)" -eq 1 ] || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
           grep -qF "GODOT_TAG: \"${GODOT_TAG}\"" .github/workflows/pages.yml || { echo "pages.yml pins a different GODOT_TAG"; exit 1; }
-      - name: Download Godot headless (official, SHA-512 verified)
+
+      - name: Cache Godot editor and export templates
+        id: godot_cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_TAG }}-web-v1
+
+      - name: Download and verify Godot (cache miss only)
+        if: steps.godot_cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           BASE="https://github.com/godotengine/godot-builds/releases/download/${GODOT_TAG}"
           ZIP="Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          TPZ="Godot_v${GODOT_TAG}_export_templates.tpz"
+          TPL_DIR="$HOME/.local/share/godot/export_templates/${GODOT_TAG/-/.}"
+          DL="$RUNNER_TEMP/godot-dl"
+          rm -rf "$DL"; mkdir -p "$DL" "$HOME/godot" "$TPL_DIR"
+          cd "$DL"
           curl -fsSL -o SHA512-SUMS.txt "$BASE/SHA512-SUMS.txt"
           curl -fsSL -o "$ZIP" "$BASE/$ZIP"
-          grep -E "[[:space:]]\*?${ZIP}\$" SHA512-SUMS.txt > wanted.sha512
+          curl -fsSL -o "$TPZ" "$BASE/$TPZ"
+          awk -v a="$ZIP" -v b="$TPZ" '$2==a || $2==b' SHA512-SUMS.txt > wanted.sha512
+          [ "$(wc -l < wanted.sha512)" -eq 2 ] || { echo "expected exactly 2 checksum lines"; cat wanted.sha512; exit 1; }
           sha512sum -c wanted.sha512
-          unzip -q "$ZIP"
-          mv "Godot_v${GODOT_TAG}_linux.x86_64" godot-bin && chmod +x godot-bin
-          echo "GODOT=$PWD/godot-bin" >> "$GITHUB_ENV"
+          unzip -p "$ZIP" "Godot_v${GODOT_TAG}_linux.x86_64" > "$HOME/godot/godot"
+          chmod +x "$HOME/godot/godot"
+          unzip -o -j "$TPZ" templates/web_nothreads_release.zip templates/web_nothreads_debug.zip templates/version.txt -d "$TPL_DIR"
+          rm -f "$TPZ"
+          ls -l "$TPL_DIR"
+
+      - name: Locate Godot
+        run: |
+          set -euo pipefail
+          echo "GODOT=$HOME/godot/godot" >> "$GITHUB_ENV"
+          "$HOME/godot/godot" --version
+
       - name: Sim tests (thresholds, < 60 s; never drop tests, D-132)
         run: ./run_tests.sh sim
 ```
@@ -11670,9 +11744,11 @@ Expected: `yaml ok`. If PyYAML is missing, run `pip3 install --user pyyaml` firs
 ```markdown
 ## CI
 `.github/workflows/ci.yml` runs two parallel jobs, `unit` (`./run_tests.sh unit`) and `sim` (`./run_tests.sh sim`),
-on Linux with the pinned, SHA-512-verified Godot (D-116, D-129), for every PR and push to main. CI is canonical
-for sim thresholds (D-105). If the sim suite goes over 60 s: never drop tests; report timings and escalate
-(D-132). The sweep is manual.
+on Linux with the pinned, SHA-512-verified Godot (D-116, D-129), for every PR and push to main. Each job also checks
+that `GODOT_TAG` matches CLAUDE.md and pages.yml. The job names `unit` and `sim` are the required checks for branch
+protection (D-133); don't rename them. CI is canonical for sim thresholds (D-105). If the sim suite goes over 60 s:
+never drop tests; report timings and escalate (D-132). The sweep is manual. The `pages` workflow's
+`deploy` job (release/profile packs free of `ui/debug`, DoD 5) is a required check too.
 ```
 
 - [ ] **Step 4: Commit**
@@ -11694,7 +11770,7 @@ Expected: both `unit` and `sim` pass. If the run is red only on thresholds, CI w
 gh api -X PUT repos/khanhnguyendev/last-stand-tycoon/branches/main/protection \
   -H "Accept: application/vnd.github+json" --input - <<'JSON'
 {
-  "required_status_checks": { "strict": true, "contexts": ["unit", "sim"] },
+  "required_status_checks": { "strict": true, "contexts": ["unit", "sim", "deploy"] },
   "enforce_admins": true,
   "required_pull_request_reviews": { "required_approving_review_count": 0 },
   "restrictions": null
