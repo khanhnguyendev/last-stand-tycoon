@@ -7,6 +7,8 @@ var diner_body: StaticBody3D
 var build_spots := {}
 var freezer: Freezer
 var counter: Counter
+var closeup_sign: CloseUpSign
+var telegraph_markers := {}
 
 @export var enemy_pool: NodePool
 @export var steak_pool: NodePool
@@ -92,6 +94,14 @@ func _build_stations() -> void:
 	counter = Counter.new()
 	add_child(counter)
 	counter.setup(self)
+	closeup_sign = CloseUpSign.new()
+	add_child(closeup_sign)
+	closeup_sign.setup(self)
+	for id in LanePlanner.LANES:
+		var m := TelegraphMarker.new()
+		add_child(m)
+		m.setup(id)
+		telegraph_markers[id] = m
 
 static func pool_sizes(bd: BalanceData) -> Dictionary:
 	var steaks := 0
