@@ -1061,10 +1061,17 @@ Paths use shortest distance on this graph, with no navmesh.
 
 | Item | Value |
 |---|---|
-| Release build size, compressed as served (wasm + pck) (D-086) | gzip -9: 10,326,534 B (≈ 9.85 MiB: wasm 10,054,769 + pck 271,765; js 68,480 more). Brotli -q 11: 7,171,732 B. Raw: wasm 39,514,754, pck 295,840 (Task 36, commit 0cd6168). |
-| Phone load time (page open → playable) | Deferred to the final review (D-159). For information: iOS Simulator (Safari, localhost, cache state unknown) showed the HUD about 5.2 s after `simctl openurl`. |
+| Release build size, compressed as served (wasm + pck) (D-086) | gzip -9: 10,326,534 B (≈ 9.85 MiB: wasm 10,054,769 + pck 271,765; js 68,480 more). Brotli -q 11: 7,171,732 B (for reference; Pages serves gzip, level unknown). Raw: wasm 39,514,754, pck 295,840 (Task 36, commit 0cd6168). |
+| Phone load time (page open → playable) | Deferred to the final review (D-159), so it will be measured on the post-S5 build and there is no pre-S4 phone baseline. For information only: the iOS Simulator (Safari, localhost, cache state unknown) showed the HUD about 5.2 s after `simctl openurl`. Localhost has no network transfer of the 10.3 MB payload, so this is not comparable to a phone load time. |
 | Page open → first combat, on the phone (D-085) | Deferred to the final review (D-159). |
-| Criterion 4: phone model, average fps, worst frame (profile build) | Deferred to the final review (D-159). For information (`web_profile` from localhost, 60 s window, night 1 combat): iOS Simulator avg 58.4 fps, worst 143 ms; Pixel 7 **emulated** (software WebGL) avg 7.8, worst 150 ms; desktop Chrome, software WebGL, avg 16.4, worst 147 ms. The ~145 ms worst frame appears in every run, idle included, so it is likely a startup stall. |
+| Criterion 4: phone model, average fps, worst frame (profile build) | Deferred to the final review (D-159). For information only (`web_profile` from localhost, no input):
+- iOS Simulator: avg 58.4 fps, worst 143 ms, the rolling 60 s window read at about 80 s (night 1 combat).
+- Pixel 7 **emulated** (software WebGL): avg 7.8, worst 150 ms, over the first 60 s from engine start (startup, dusk and night 1).
+- Desktop Chrome with software WebGL: avg 16.4, worst 147 ms, over the same window.
+
+None of these is criterion 4: the Simulator renders on the host GPU. Against D-159's quality gate (Simulator ≥ 58 fps at night 3 with the final art), this night-1 reading with placeholder art leaves 0.4 fps of headroom.
+
+A ~145 ms worst frame appears in all three runs, cause not identified. The iOS window excludes the first ~20 s, so it is not only startup. A first-combat shader compile is a candidate; S5 checks it. |
 | Sweep break day | Day 8 (D-155, D-160). |
 | Playtest answers 1–6 | |
 | Gate verdict (criterion 5) | |
