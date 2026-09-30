@@ -315,3 +315,17 @@ Phase branches `s3/p<N>-<slug>`, starting after S2 is merged:
 - Cloud save and sync across devices.
 - A visible save indicator.
 - Multiple save slots.
+
+## 11. Results (S3, filled in at the end of S3)
+
+| Item | Value |
+|---|---|
+| Tests | unit 449, sim 9 (suite about 6 s, budget 60 s) |
+| Sweep with mercy (seeds 20260930 / 11 / 777) | first_fail_day 10 / 11 / 10 (target 10 ± 1); hard_break_day none within 14 days. Every lost night cleared within 3 retries. |
+| Web resume smoke (preview s3-p4-results /debug/) | Playwright Pixel 7 (emulated): pick overlay resumes after a reload; after picking, DAY at HOME with the card. Saves under `lst:<path>:save` and `save_bak`. 0 page or console errors. iOS Simulator Safari: the reload resumes Day 2 DAWN with the same offer and TK1. |
+| Validation | Two review rounds hardened `SaveCodec.validate` (types, ranges, lanes, CARD_PICK soft-lock), so no checksum-valid save can crash `from_dict`. |
+| Save size | about 0.9 KB per key |
+
+Notes for later sub-projects:
+- With mercy, a run never hard-breaks within 14 days, and gold piles up (about 1,000 to 2,300 by day 14) with no sink. See REVIEW_QUEUE.
+- Release builds can't be reset from the URL. Testers use a fresh browser profile, or S5's "New game".
