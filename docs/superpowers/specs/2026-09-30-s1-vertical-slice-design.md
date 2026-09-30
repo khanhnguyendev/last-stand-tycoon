@@ -383,7 +383,7 @@ Then:
 
 | Test | Assertion | Value on paper |
 |---|---|---|
-| A (D-054) | The smallest circle enclosing all 3 zone rectangles has radius > `hero.range + 1` | 5.41 > 5.0 |
+| A′ (D-123) | On a 0.25 m grid of hero-reachable positions (the map bounds minus the diner, counter and freezer, grown by the hero radius), no position has enemy stop points (the D-111 model, full lateral spread) from all 3 lanes within hero range. The positions reaching 2 lanes are printed as info. The zone-corner enclosing radius (5.41) is printed as info only. | max 2 lanes; west+north 16 points, north+east 16 points, west+east impossible |
 | B (D-055) | Each tower reaches every point of the zones of its two adjacent lanes (NW: west + north, NE: north + east) | worst 6.5 ≤ 7 |
 | C (D-076) | Each tower reaches the fence spots of its two adjacent lanes | NW → west 2.5, north 6.53 |
 | D (D-093) | For 1,000 sampled lateral offsets in [−1, 1], every enemy stop point lies inside its lane's zone rectangle | none |
@@ -894,7 +894,7 @@ GUT runs headless with `--fixed-fps 60` (D-013, D-035, D-080).
 - **Wave-clear edge case (D-044).**
 - **`Pulse.should_pulse`** (D-068).
 - **Economy check** (8.9); upgrade costs and drain.
-- **Geometry tests A–E** (6.3).
+- **Geometry tests A′ and B–E** (6.3).
 
 ### 13.2 `tests/unit/`: single-scene integration
 

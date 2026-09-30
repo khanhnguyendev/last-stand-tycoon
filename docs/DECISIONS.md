@@ -259,7 +259,7 @@ here).**
   - east: x = +5.2, z ∈ [−1.5, 1.5]
 - Enemies stop in their lane's zone and never path around to the door.
 - Hero range drops from 5 m to 4 m.
-- Geometry test A: the smallest circle enclosing all three zones has a radius of about 5.41 m, which
+- [SUPERSEDED by D-123] Geometry test A: the smallest circle enclosing all three zones has a radius of about 5.41 m, which
   must be greater than hero range + 1 (5.0). No hero position covers all three walls.
 
 **D-055 [AMENDED by D-076, D-093] Tower and fence spots are placed for coverage.**
@@ -716,3 +716,19 @@ diner to fall. Debug builds only.
   (magnet radius 1.5).
 - The sign stays at (0, 8). The waypoint graph gets a `sign` node (edge home–sign). Bots close up by
   walking to `sign`, and ParkedBot stays at `home`.
+
+**D-123 Geometry test A′ replaces the enclosing-circle test (author; supersedes the D-054 test
+wording).**
+- The old assertion (the minimal enclosing circle of the zone corners > range + 1) only proved that
+  no point reaches every corner. It did not prove that no reachable point reaches an enemy in all
+  three lanes.
+- Test A′:
+  - Sample hero-reachable positions on a 0.25 m grid inside the map bounds, excluding the diner,
+    counter and freezer grown by the hero radius (the hero's only colliders, D-125).
+  - For each position, count the lanes that have a possible enemy stop point within hero range. The
+    stop points come from the D-111 model, sampled over the full ±1 m lateral spread.
+  - Assert that no position reaches all 3 lanes.
+  - Print the 2-lane positions per lane pair as info, and print the old 5.41 radius as info only.
+- On paper: 28,148 reachable positions and a maximum of 2 lanes. West+north is reachable from 16
+  points and north+east from 16, all at the NW and NE diner corners. West+east is impossible,
+  because the west and east stop lines are 10.4 m apart, more than 2 × range.

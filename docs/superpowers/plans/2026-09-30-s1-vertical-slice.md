@@ -1219,7 +1219,7 @@ git add core/lane_planner.gd tests/unit/test_lane_planner.gd
 git commit -m "feat: add seeded lane planner and lane threat"
 ```
 
-### Task 6: `MapLayout`, `Geometry`, `EnemyPath` and geometry tests A–E
+### Task 6: `MapLayout`, `Geometry`, `EnemyPath` and geometry tests A′–E
 
 **Files:**
 - Create: `core/map_layout.gd`, `core/geometry.gd`, `core/enemy_path.gd`
@@ -1255,7 +1255,7 @@ git commit -m "feat: add seeded lane planner and lane threat"
 `tests/unit/test_geometry.gd`:
 ```gdscript
 extends GutTest
-## Spec 6.3 tests A–E, plus the Geometry helpers. Re-run after any path change (D-076).
+## Spec 6.3 tests A′ and B–E, plus the Geometry helpers. Re-run after any path change (D-076).
 
 func before_each() -> void:
 	Balance.reset()
@@ -1277,10 +1277,63 @@ func _zone_points() -> Array:
 		pts.append_array(Geometry.rect_corners(MapLayout.ZONE_RECTS[lane]))
 	return pts
 
-func test_A_no_hero_position_covers_all_three_zones() -> void:
-	var r := Geometry.enclosing_radius(_zone_points())
-	gut.p("enclosing radius = %.3f" % r)
-	assert_gt(r, Balance.data.hero.attack_range + 1.0)
+## Colliders the hero cannot enter (D-094, D-125): diner, counter, freezer. Towers and fences are walk-through.
+func _hero_colliders() -> Array:
+	return [
+		Rect2(-MapLayout.DINER_HALF, -MapLayout.DINER_HALF, MapLayout.DINER_HALF * 2, MapLayout.DINER_HALF * 2),
+		Rect2(MapLayout.COUNTER - MapLayout.COUNTER_SIZE / 2, MapLayout.COUNTER_SIZE),
+		Rect2(MapLayout.FREEZER - MapLayout.FREEZER_SIZE / 2, MapLayout.FREEZER_SIZE),
+	]
+
+func _reachable(p: Vector2, colliders: Array) -> bool:
+	for r in colliders:
+		if Geometry.dist_point_rect(p, r) < MapLayout.HERO_RADIUS:
+			return false
+	return true
+
+func test_A_prime_no_reachable_position_hits_all_three_lanes() -> void:
+	# D-123 (supersedes the D-054 enclosing-circle assertion): sample every hero-reachable point on a
+	# 0.25 m grid; count lanes with at least one possible enemy stop point (D-111 model, full lateral
+	# spread) within hero range. No point may reach all 3 lanes.
+	var eb := Balance.data.enemy
+	var hero_range := Balance.data.hero.attack_range
+	var stops := {}
+	for lane in LanePlanner.LANES:
+		var pts: Array = []
+		var length := MapLayout.path_length(lane)
+		for i in 41:
+			var offset := lerpf(-1.0, 1.0, i / 40.0) * eb.lateral_spread
+			pts.append(EnemyPath.position_at(lane, length, offset, eb.offset_fade_distance))
+		stops[lane] = pts
+	var colliders := _hero_colliders()
+	var pairs := {}
+	var max_lanes := 0
+	var positions := 0
+	var x := MapLayout.BOUNDS_MIN.x
+	while x <= MapLayout.BOUNDS_MAX.x + 1e-6:
+		var z := MapLayout.BOUNDS_MIN.y
+		while z <= MapLayout.BOUNDS_MAX.y + 1e-6:
+			var p := Vector2(x, z)
+			if _reachable(p, colliders):
+				positions += 1
+				var reached: Array = []
+				for lane in LanePlanner.LANES:
+					if p.distance_to(MapLayout.lane_end(lane)) > hero_range + eb.lateral_spread + 0.01:
+						continue
+					for q in stops[lane]:
+						if p.distance_to(q) <= hero_range:
+							reached.append(lane)
+							break
+				max_lanes = maxi(max_lanes, reached.size())
+				if reached.size() == 2:
+					var key := "+".join(reached)
+					pairs[key] = int(pairs.get(key, 0)) + 1
+			z += 0.25
+		x += 0.25
+	gut.p("A': %d reachable positions, max lanes reached = %d" % [positions, max_lanes])
+	gut.p("A' info: 2-lane positions per pair = %s" % [pairs])
+	gut.p("info only: enclosing radius of zone corners = %.3f" % Geometry.enclosing_radius(_zone_points()))
+	assert_lt(max_lanes, 3, "a reachable position covers all three lanes")
 
 func test_B_towers_reach_adjacent_zones() -> void:
 	var tower_range: float = Balance.data.build.tower_range[0]
@@ -1527,13 +1580,13 @@ static func position_at(lane: String, dist: float, offset: float, fade: float) -
 
 Run: `./run_tests.sh unit`
 
-Expected: exit 0. The log shows `enclosing radius = 5.412`. If test E fails by a few centimeters at the NW tower, **do not move the tower**. Escalate with the printed failing point, because geometry changes are design changes.
+Expected: exit 0. The log shows `A': 28148 reachable positions, max lanes reached = 2`, the 2-lane info `{"west+north": 16, "north+east": 16}` (computed on paper, D-123) and the info-only enclosing radius 5.412. If test E fails by a few centimeters at the NW tower, **do not move the tower**. Escalate with the printed failing point, because geometry changes are design changes.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add core/map_layout.gd core/geometry.gd core/enemy_path.gd tests/unit/test_geometry.gd
-git commit -m "feat: add map layout, geometry helpers, enemy path and geometry tests A-E"
+git commit -m "feat: add map layout, geometry helpers, enemy path and geometry tests A'-E"
 ```
 
 ### Task 7: `Targeting`, `Economy` and `Pulse`
