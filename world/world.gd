@@ -7,6 +7,7 @@ var diner_body: StaticBody3D
 
 @export var enemy_pool: NodePool
 @export var steak_pool: NodePool
+@export var wave_director: WaveDirector
 
 func _ready() -> void:
 	_build_environment()
@@ -14,6 +15,7 @@ func _ready() -> void:
 	_build_diner()
 	_build_lanes()
 	_setup_pools()
+	wave_director.setup(enemy_pool, steak_pool)
 
 func _build_environment() -> void:
 	var sun := DirectionalLight3D.new()
