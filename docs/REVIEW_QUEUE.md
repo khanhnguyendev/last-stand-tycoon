@@ -8,7 +8,7 @@ direction, and anything that deviates from IDEA.md. Ranked by impact, highest fi
 3. Cards are picked by tapping panels (not by standing on pedestals) — [D-162](DECISIONS.md)
 4. Day length left at the bot's lower bound (day-2 cycle 199 s for a perfect bot; 4–6 min judged by you). Longer days = `traveler_interval` 2.5 → 4.4, which only adds waiting — [D-160](DECISIONS.md), [D-066](DECISIONS.md)
 5. Target difficulty with cards: a perfect bot breaks at day 10 ± 1 — [D-170](DECISIONS.md)
-6. Closing the tab mid-night counts as losing that night (mercy +1, back to the day) — [D-174](DECISIONS.md)
+6. Closing the tab mid-night loses that night (resume at its start), but only real failures add mercy; alternative: count quits too (farmable, and it greets night-1 bouncers with "monsters look tired") — [D-174](DECISIONS.md)
 7. S1 difficulty: the PlannerBot sweep breaks at day 8; S2 re-tunes wave scaling for cards — [D-155](DECISIONS.md), [D-156](DECISIONS.md)
 8. Guard posts: the Tank holds the west lane, the Archer sits on the roof and can never be hit — [D-163](DECISIONS.md), [D-164](DECISIONS.md)
 9. Upgrade card sizes (+20% damage, +15% attack speed, +8% move, +2 carry, +1 gold per level) — [D-167](DECISIONS.md)

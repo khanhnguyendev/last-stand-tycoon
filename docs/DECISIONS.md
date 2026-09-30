@@ -1412,51 +1412,57 @@ IDEA.md, the pillars, DECISIONS.md and the S1 sweep; a reviewer pass replaced th
 
 Spec: `docs/superpowers/specs/2026-09-30-s3-save-failure-mercy-design.md`.
 
-**D-171 The web save lives in `localStorage` (S3).**
-- `localStorage` is written through `JavaScriptBridge` and is synchronous, so it survives a tab closing right after a
-  write.
-- Godot's web `user://` is IndexedDB with an asynchronous sync, which can lose the last write.
-- Desktop, the editor and tests use `user://save/`, with a temp file plus a rename.
+**D-171 The web save lives in `localStorage`, with keys per deployment path (S3).**
+- `localStorage` is written through `JavaScriptBridge`. Every call is wrapped in a JS try/catch, because
+  `JavaScriptBridge.eval` swallows JS exceptions.
+- Keys are prefixed `lst:<location.pathname>:`, so `/`, each `preview/<slug>/` and `debug/` keep separate saves on the
+  shared `github.io` origin.
+- Godot's web `user://` is IndexedDB with an asynchronous sync, which can lose the last write. Desktop and tests use
+  `user://save/`.
 
 **D-172 Save envelope and backup (S3).**
-- The envelope is `{format 1, saved_at_unix, build, night_in_progress, state, check}`. `check` is FNV-1a 32 over the
-  full-precision state JSON (D-146).
-- Each write first copies a valid primary to the backup.
-- Load tries primary, then backup, then a new game. A corrupt primary is kept as `…_corrupt`.
-- Migrations live in `SaveCodec` (1→2 adds cards and guards; 2→3 adds `night_fails`).
+- The envelope is `{format 1, saved_at_unix, build, state_json, check}`, with `check` = FNV-1a 32 over the raw
+  `state_json` string. A JSON round trip reformats numbers, so the check runs before parsing.
+- Each write first copies the last good text to the backup. Load order: primary, then backup, then a new game. A
+  corrupt primary is kept as `:corrupt`.
+- A newer `format` or schema is never overwritten: autosave stays off for that session.
+- Migration is a hook, empty at ship (no disk save is older than v3). Content is validated: card ids, levels and
+  `resume_phase`.
 
 **D-173 Autosave triggers (S3; IDEA Save).**
 - A save is written at:
-  - the new-game and close-up snapshots (the night-start save);
-  - dawn with the offer open (CARD_PICK);
-  - after the pick;
-  - each completed build level;
-  - an empty-offer day start;
-  - every 3 s during DAY when dirty;
-  - on hidden or `pagehide` during DAY.
-- Nothing is written during NIGHT. At most the current night and 3 s of the day are lost.
+  - the `snapshot_taken` restore points (new game, close-up, each night-1 retry);
+  - `card_offered` (CARD_PICK);
+  - every `phase_changed(DAY)`;
+  - each `build_completed`;
+  - at most once per 3 s during DAY while dirty;
+  - a flush on hidden or `pagehide`.
+- Nothing is written during NIGHT, and the unit and sim suites never write (Autosave has no store by default).
 
-**D-174 A mid-night quit counts as a failed night (S3; IDEA "quitting mid-night costs exactly the same").**
-- The night-start save carries `night_in_progress`. Loading it counts one failure: mercy + 1, the flavor line, and a
-  resume at the close-up state.
-- The rule is reversible, so it is in REVIEW_QUEUE. Closing the tab right after a night starts costs that night.
+**D-174 A mid-night quit costs the night but adds no mercy (S3; IDEA Failure; amended at spec review).**
+- The only save during a night is its restore point, so reopening resumes exactly where a failure would.
+- IDEA gives mercy for failed retries only. Counting quits would allow mercy farming by reloading, would greet a player
+  who bounced in night 1 with "the monsters look tired", and would count tab discards as failures.
+- Reversible, so it is in REVIEW_QUEUE.
 
 **D-175 Mercy (S3; IDEA Failure).**
-- Factor = `max(1 − 0.15 × night_fails, 0.40)`. It scales Boar HP at spawn and Boar damage per hit.
-- `night_fails` counts the consecutive failures of the current night. It survives the fail restore (re-applied after
-  `from_dict`), is saved, and clears at dawn.
-- It is shown only as a banner: "The monsters look tired tonight."
+- Factor = `max(1 − 0.15 × night_fails, 0.40)`. It applies to Boar HP at spawn on the plan path, and to Boar damage on
+  the fence, guard and diner arms.
+- `night_fails` is in the snapshot (schema v3). A fail writes `+1` into the restore point before restoring, and a
+  night-1 retry re-emits `snapshot_taken`, so a quit during a retry keeps the count. Dawn clears it.
+- It is shown only as the banner "The monsters look tired tonight.". A HUD FIFO banner queue lets it follow "The
+  monsters return".
 
 **D-176 Boot resumes without a menu (S3; pillar 2, first combat within 30 s).**
-- With a valid save, Main resumes: DAY at HOME, CARD_PICK with the saved offer re-emitted, or NIGHT (the night-1
-  start).
+- With a valid save, a deferred `_boot` calls `PhaseController.resume_from`. DAY and NIGHT reuse `_restore_snapshot`;
+  CARD_PICK re-emits the saved offer.
 - Without one, it starts a new game.
 
 **D-177 Restart is debug-only in S3 (S3).**
-- Debug builds: key `R` and `?reset=1` wipe the save and start a new game.
+- Debug builds: the `R` key wipes the save. Any `?scene=`, `?cards=` or `?reset=1` URL skips the read and starts a new
+  game, so URL scenes never mix with a resumed run.
 - Release gets "New game" (with a confirmation) in the S5 settings panel.
 
 **D-178 The sweep reports `first_fail_day` and `hard_break_day` (S3; refines D-155, D-170).**
-- With mercy, a lost night is retried at lower strength, so the run keeps going.
 - The difficulty target stays on the first failure (day 10 ± 1 with cards).
-- `hard_break_day` is the first night still lost after 3 retries with mercy.
+- `hard_break_day` is the first night still lost after 4 retries, when mercy has reached its 0.40 floor.
