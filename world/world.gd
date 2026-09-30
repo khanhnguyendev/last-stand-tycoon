@@ -4,7 +4,7 @@ extends Node3D
 
 ## Ground margin past MapLayout bounds. The projection test proves it covers every camera view for
 ## window aspects 9:21..21:9 (CameraMath clamps beyond that) at every focus corner (D-152, D-153).
-const GROUND_MARGIN := 60.0
+const GROUND_MARGIN := 80.0
 
 var lanes := {}
 var diner_body: StaticBody3D
