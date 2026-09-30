@@ -7,7 +7,7 @@ direction, and anything that deviates from IDEA.md. Ranked by impact, highest fi
 2. The player's hero is never targeted and has no HP; only guard heroes take damage (IDEA reading) — [D-161](DECISIONS.md)
 3. Cards are picked by tapping panels (not by standing on pedestals) — [D-162](DECISIONS.md)
 4. Day length left at the bot's lower bound (day-2 cycle 199 s for a perfect bot; 4–6 min judged by you). Longer days = `traveler_interval` 2.5 → 4.4, which only adds waiting — [D-160](DECISIONS.md), [D-066](DECISIONS.md)
-5. Target difficulty with cards: a perfect bot breaks at day 10 ± 1 — [D-170](DECISIONS.md)
+5. Target difficulty with cards: a perfect bot first fails at day 10 ± 1 (with mercy it then keeps going) — [D-170](DECISIONS.md), [D-178](DECISIONS.md)
 6. Late-game gold has no use: all builds max out around day 7 and gold piles up (IDEA: towers/fences are the only sink) — [D-180](DECISIONS.md)
 7. With mercy no run ever ends (all seeds survive 14 days, every lost night clears within 3 retries); late-game has no end state or goal — [D-175](DECISIONS.md), [D-178](DECISIONS.md)
 8. Night 2 difficulty varies by seed (a perfect bot ends it at 52–100% diner HP); thresholds are pinned on one seed — [D-180](DECISIONS.md)

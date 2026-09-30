@@ -26,17 +26,21 @@ try {
   const page = await (await browser.newContext(ctxOpts)).newPage();
   page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
   page.on('pageerror', e => { failed = true; pageErrors.push(e.message); });
-  const sep = base.includes('?') ? '&' : '?';
+  // Steps 2-3 must resume, so strip any fresh-start keys (?reset/scene/cards wipe the save; D-177).
+  const plainUrl = new URL(base);
+  for (const k of ['reset', 'scene', 'cards']) plainUrl.searchParams.delete(k);
+  const plain = plainUrl.toString();
+  const sep = plain.includes('?') ? '&' : '?';
   const shot = name => page.screenshot({ path: path.join(outDir, name) });
 
-  await page.goto(`${base}${sep}cards=tank:1&scene=cardpick`, { waitUntil: 'load', timeout: 60000 });
+  await page.goto(`${plain}${sep}cards=tank:1&scene=cardpick`, { waitUntil: 'load', timeout: 60000 });
   const build = await page.waitForFunction(() => window.LST_BUILD, null, { timeout: 30000 })
     .then(h => h.jsonValue()).catch(() => null);
   if (!build) { failed = true; console.log('no window.LST_BUILD'); }
   await page.waitForTimeout(12000);
   await shot('1_pick.png');
 
-  await page.goto(base, { waitUntil: 'load', timeout: 60000 });
+  await page.goto(plain, { waitUntil: 'load', timeout: 60000 });
   await page.waitForTimeout(12000);
   await shot('2_resumed_pick.png');
 
