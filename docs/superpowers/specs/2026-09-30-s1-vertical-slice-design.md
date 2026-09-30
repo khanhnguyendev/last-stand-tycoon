@@ -129,6 +129,7 @@ docs/            IDEA.md, DECISIONS.md, ASSET_LICENSES.md, specs, screenshots/s1
 | `banner_requested` (D-109) | `text: String` (already translated) | PhaseController |
 | `wave_incoming` (D-109) | `wave_index: int, main_lane: StringName, side_lane: StringName` (the pre-wave delay started) | WaveDirector |
 | `wave_spawned_out` (D-109) | `wave_index: int` (the wave's last planned enemy spawned) | WaveDirector |
+| `hero_place_requested` (D-128) | `position: Vector2` (new game and restore placement; the Hero teleports and the CameraRig snaps) | PhaseController |
 
 **`GameState`**
 - Holds data only. **All mutation goes through its methods, which emit the matching bus signals**
@@ -151,7 +152,8 @@ docs/            IDEA.md, DECISIONS.md, ASSET_LICENSES.md, specs, screenshots/s1
 ### 3.3 Main scene tree
 
 ```
-Main (Node3D)                      world/main.tscn
+Main (Node3D)                      world/main.tscn: holds World, its pools, WaveDirector,
+                                   TravelerSpawner and PhaseController, wired by typed @export (D-128)
 ├─ PhaseController                 owns phase, snapshot, dawn + close-up steps
 ├─ FocusPause                      pauses tree on focus loss / hidden tab (D-046)
 ├─ World (map.tscn)
@@ -217,13 +219,14 @@ Main (Node3D)                      world/main.tscn
 
 - Nodes read `Balance`, change `GameState` through its methods, and listen on `EventBus`.
 - The HUD and world visuals only listen.
-- No system reaches into another system's nodes, **with one exception (D-110):** `PhaseController` is the
-  orchestrator and holds injected references it calls directly, so the step order of dawn, close-up and the
-  fail restore is explicit and testable. Its narrow interface:
-  - `WaveDirector.start_night()`, `stop()`
-  - `TravelerSpawner.set_active(bool)`
-  - `NodePool.release_all()` on this Main's pools, and the steak pool's active count (steaks to the freezer)
-  - `Hero.teleport(p)` and `CameraRig.snap()`
+- No system reaches into another system's nodes, **with one exception (D-110, D-128):** `PhaseController`
+  is the orchestrator. It calls other systems only through this narrow interface, via **typed `@export`
+  references assigned in `world/main.tscn`**. It never uses `get_node` paths, groups or tree searches, and
+  a unit test greps its source to enforce that.
+  - `WaveDirector.start_night(plan)`, `WaveDirector.stop()`
+  - `NodePool.recall_all() -> int` (enemy, steak, projectile and fx pools; the steak count goes to the freezer)
+  - `TravelerSpawner.start()`, `stop()`, `clear_queue()`
+  - The hero is placed with the bus event `hero_place_requested(position)`, which the Hero and CameraRig handle.
 - PhaseController is the only writer of the phase.
 
 ---

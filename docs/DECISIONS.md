@@ -666,7 +666,7 @@ overflows. A 32-bit seed is plenty for the streams.
 `state_restored` is also emitted by `GameState.new_game()`, meaning "GameState was replaced
 wholesale".
 
-**D-110 PhaseController is the one orchestrator.** It holds injected references to WaveDirector,
+**D-110 [AMENDED by D-128] PhaseController is the one orchestrator.** It holds injected references to WaveDirector,
 TravelerSpawner, the pools and the hero, and calls them directly, so the ordering of the dawn and
 close-up steps is explicit and testable. This is the only exception to spec 3.7's "no system
 reaches into another's nodes".
@@ -790,7 +790,20 @@ wording).**
 - The exact tag from D-116 is pinned as `GODOT_TAG` in CLAUDE.md and in `.github/workflows/ci.yml`.
   A CI step fails when the two differ, so local and CI always match.
 
-**D-128 is logged below with item 4** (the narrow PhaseController interface).
+**D-128 PhaseController's narrow interface is explicit and wired in the scene (author; amends D-110).**
+- PhaseController may call only these:
+  - `WaveDirector.start_night(plan)` and `stop()`
+  - `NodePool.recall_all() -> int`
+  - `TravelerSpawner.start()`, `stop()` and `clear_queue()`
+- It reaches them only through typed `@export` references assigned in `world/main.tscn`: never
+  `get_node` paths, groups or tree searches. A unit test greps its source to enforce that.
+- The hero and camera are no longer called directly. PhaseController emits the new bus signal
+  `hero_place_requested(position)`; the Hero teleports and the CameraRig snaps.
+- So `main.tscn` now holds World, the pools, WaveDirector, TravelerSpawner and PhaseController, and
+  tests and tools create the game with `Main.create()`, which instantiates the scene.
+- `NodePool.release_all` is renamed `recall_all` and returns the count, which the dawn and close-up
+  steps use for the freezer. The pools no longer join a group.
+- This is documented as the single exception under Architecture in CLAUDE.md (plan Task 1).
 
 **D-130 Golden RNG test (author).**
 - `test_rng.gd` commits a golden list for run seed 20260930, the 4 stream names and days 1–30. It

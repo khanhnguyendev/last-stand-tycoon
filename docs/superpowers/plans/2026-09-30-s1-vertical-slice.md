@@ -109,7 +109,7 @@ At CP1, re-forecast the remaining phases against this 18.5-day baseline from eac
 | `core/camera_math.gd` | camera transform and projection (shared by the rig and the tests) | 9 |
 | `core/phase.gd`, `autoload/EventBus.gd`, `autoload/GameState.gd` | phase ids, signals, state | 10 |
 | `world/visuals.gd`, `ui/world_label/world_label.gd`, `ui/fonts/`, `components/node_pool.gd`, `components/health.gd`, `components/targetable.gd` | placeholder meshes, 3D labels, pooling, HP | 11 |
-| `world/main.tscn`, `world/main.gd`, `world/world.gd`, `world/lanes/lane.gd` | scene root, map build | 12 |
+| `world/main.tscn`, `world/main.gd`, `world/world.gd`, `world/lanes/lane.gd` | scene root (orchestrated nodes and typed @export wiring, D-128), map build | 12 (+13, 14, 16, 17, 22, 30) |
 | `actors/enemy/boar.gd`, `actors/pickups/steak.gd`, `world/target_providers.gd` | enemy, steak, target kinds | 13 |
 | `world/wave_director.gd` | night waves | 14 |
 | `actors/hero/hero.gd`, `actors/hero/hero_input.gd`, `components/magnet.gd`, `components/carry_stack.gd` | hero body, input, pickup | 15 |
@@ -502,6 +502,17 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - `./run_tests.sh unit` · `./run_tests.sh sim` · `./run_tests.sh all`
 - Sweep: `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/sweep.gd`
 - Web export: see `export/README.md`
+
+## Architecture
+- Autoloads: EventBus (cross-system signals), GameState (the only mutable game data), Balance (typed tuning).
+- No system reaches into another system's nodes. **Single exception (D-110, D-128):** `PhaseController`
+  calls other systems only through this narrow interface, via typed `@export` references assigned in
+  `world/main.tscn` (never `get_node` paths, never groups):
+  - `WaveDirector.start_night(plan)`, `WaveDirector.stop()`
+  - `NodePool.recall_all() -> int`
+  - `TravelerSpawner.start()`, `stop()`, `clear_queue()`
+  - hero placement is the bus event `EventBus.hero_place_requested(position)`.
+- Tests and tools create the game with `Main.create()` (instantiates `main.tscn`), never `Main.new()`.
 
 ## Rules
 - Gameplay in `_physics_process` only; never depend on frame delta.
@@ -2489,6 +2500,8 @@ signal stocks_changed()
 signal closeup_requested()
 ## PhaseController -> HUD. Already translated text.
 signal banner_requested(text: String)
+## PhaseController -> Hero, CameraRig. Place the hero (new game, restore). Replaces a node call (D-128).
+signal hero_place_requested(position: Vector2)
 ```
 
 - [ ] **Step 4: Implement `GameState`**
@@ -2737,10 +2750,10 @@ git commit -m "feat: add EventBus signals and GameState with snapshot round trip
   - **`WorldLabel`** (extends `Label3D`): `WorldLabel.FONT_PATH`, `WorldLabel.make(text: String, size: int = 48) -> WorldLabel`.
   - **`NodePool`:**
     - `setup(factory: Callable, prewarm: int) -> void`
-    - `acquire() -> Node3D`, `release(n: Node3D) -> void`, `release_all() -> void`
+    - `acquire() -> Node3D`, `release(n: Node3D) -> void`, `recall_all() -> int` (the number recalled; part of the D-128 interface)
     - `active() -> Array` (in acquire order), `size: int`
     - `signal grew(new_size: int)`
-    - It is in the group `&"pools"`. Items may implement `on_acquire()` and `on_release()`.
+    - Items may implement `on_acquire()` and `on_release()`. Pools are never found by group (D-128).
   - **`Health`:** `max_hp`, `hp`, `reset(max_value: float)`, `damage(amount: float)`, `is_alive() -> bool`, `signal died`, `signal damaged(amount: float)`.
   - **`Targetable`:** `kind: StringName`, `spawn_index: int`.
 
@@ -2824,7 +2837,7 @@ func test_pool_prewarm_acquire_release() -> void:
 	pool.release(a)
 	assert_false(a.visible)
 	assert_eq(pool.active(), [b])
-	pool.release_all()
+	pool.recall_all()
 	assert_eq(pool.active(), [])
 
 func test_pool_grows_and_warns() -> void:
@@ -2959,9 +2972,6 @@ var _factory: Callable
 var _free: Array = []
 var _active: Array = []
 
-func _init() -> void:
-	add_to_group(&"pools")
-
 func setup(factory: Callable, prewarm: int) -> void:
 	_factory = factory
 	for i in prewarm:
@@ -2991,9 +3001,12 @@ func release(n: Node3D) -> void:
 	n.process_mode = Node.PROCESS_MODE_DISABLED
 	_free.append(n)
 
-func release_all() -> void:
+## D-128 interface: return every active item to the pool; returns how many were recalled.
+func recall_all() -> int:
+	var count := _active.size()
 	for n in _active.duplicate():
 		release(n)
+	return count
 
 func active() -> Array:
 	return _active
@@ -3063,13 +3076,14 @@ git commit -m "feat: add placeholder visuals, Nunito world labels, pool and heal
 - [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
-- Modify: `world/main.gd`
+- Modify: `world/main.gd`, `world/main.tscn`
 - Create: `world/world.gd`, `world/lanes/lane.gd`
 - Test: `tests/unit/test_world_build.gd`
 
 **Interfaces:**
 - Produces:
-  - **`Main`:** `auto_start: bool`, `world: World`. Later tasks add `hero`, `phase_controller`, `camera_rig`, `hud` and `focus_pause`.
+  - **`Main`:** `auto_start: bool`, `@export world: World`, and `static create(p_auto_start := false) -> Main`, which instantiates `world/main.tscn`. Tests and tools always use `Main.create()`, never `Main.new()`. Later tasks add `hero`, `phase_controller` (an export), `camera_rig`, `hud` and `focus_pause`.
+  - **`world/main.tscn`** holds the nodes that PhaseController orchestrates, wired with typed `@export` references (D-128). Everything else is built in code.
   - **`World`:** `lanes: Dictionary` (String → `Lane`), `diner_body: StaticBody3D`. Later tasks add the pools, `wave_director`, `build_spots`, the stations, `traveler_spawner`, `telegraph_markers` and `fly_fx`.
   - **`Lane`:** `lane_id: String`, `path3d: Path3D`, `entrance_position() -> Vector3`.
   - **Collision layers:** layer 1 = static world (diner, counter, freezer only; towers and fences never collide, D-094, D-125); layer 2 = hero.
@@ -3084,8 +3098,7 @@ func before_each() -> void:
 	Balance.reset()
 
 func test_main_builds_world_without_starting() -> void:
-	var main := Main.new()
-	main.auto_start = false
+	var main := Main.create()
 	add_child_autofree(main)
 	assert_not_null(main.world)
 	assert_eq(main.world.lanes.size(), 3)
@@ -3094,8 +3107,7 @@ func test_main_builds_world_without_starting() -> void:
 	assert_eq(shape.size, Vector3(8, 3, 8))
 
 func test_lane_curve_matches_layout() -> void:
-	var main := Main.new()
-	main.auto_start = false
+	var main := Main.create()
 	add_child_autofree(main)
 	var lane: Lane = main.world.lanes["west"]
 	assert_eq(lane.path3d.curve.point_count, 3)
@@ -3216,16 +3228,35 @@ func add_static_box(node_name: String, size: Vector3, xz: Vector2, color: Color)
 ```gdscript
 class_name Main
 extends Node3D
-## Scene root. Builds the game in code (spec 3.3). Extended in Tasks 15, 17, 27–32.
+## Scene root (world/main.tscn, spec 3.3). Orchestrated nodes live in the scene and are wired with
+## typed @export references (D-128); everything else is built in code. Extended in Tasks 13–32.
+
+const SCENE_PATH := "res://world/main.tscn"
 
 @export var auto_start := true
+@export var world: World
 
-var world: World
+static func create(p_auto_start := false) -> Main:
+	var m: Main = (load(SCENE_PATH) as PackedScene).instantiate()
+	m.auto_start = p_auto_start
+	return m
+```
 
-func _ready() -> void:
-	world = World.new()
-	world.name = "World"
-	add_child(world)
+Replace the Task 1 stub
+
+`world/main.tscn` (full content at this stage):
+```
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://world/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://world/world.gd" id="2_world"]
+
+[node name="Main" type="Node3D" node_paths=PackedStringArray("world")]
+script = ExtResource("1_main")
+world = NodePath("World")
+
+[node name="World" type="Node3D" parent="."]
+script = ExtResource("2_world")
 ```
 
 - [ ] **Step 4: Run the tests and see them pass**
@@ -3250,7 +3281,7 @@ git commit -m "feat: add Main and World map skeleton built from MapLayout"
 
 **Files:**
 - Create: `actors/enemy/boar.gd`, `actors/pickups/steak.gd`, `world/target_providers.gd`
-- Modify: `world/world.gd` (pools)
+- Modify: `world/world.gd` (pools), `world/main.tscn`
 - Test: `tests/unit/test_boar.gd`
 
 **Interfaces:**
@@ -3538,14 +3569,14 @@ func place(pos: Vector3) -> void:
 	position = Vector3(pos.x, 0.0, pos.z)
 ```
 
-Modify `world/world.gd`: add the fields, a call at the end of `_ready()`, and the functions.
+Modify `world/world.gd`: add the exports, a call at the end of `_ready()`, and the functions. The pool nodes are declared in `main.tscn` (below), so PhaseController can reference them with typed exports (D-128).
 
 ```gdscript
-var enemy_pool: NodePool
-var steak_pool: NodePool
+@export var enemy_pool: NodePool
+@export var steak_pool: NodePool
 
 # in _ready(), after _build_lanes():
-	_build_pools()
+	_setup_pools()
 
 static func pool_sizes(bd: BalanceData) -> Dictionary:
 	var steaks := 0
@@ -3558,17 +3589,36 @@ static func pool_sizes(bd: BalanceData) -> Dictionary:
 		"fx": 32,
 	}
 
-func _build_pools() -> void:
+func _setup_pools() -> void:
 	var sizes := World.pool_sizes(Balance.data)
-	enemy_pool = _pool("EnemyPool", func(): return Boar.new(), sizes.enemy)
-	steak_pool = _pool("SteakPool", func(): return Steak.new(), sizes.steak)
+	enemy_pool.setup(func(): return Boar.new(), sizes.enemy)
+	steak_pool.setup(func(): return Steak.new(), sizes.steak)
+```
 
-func _pool(node_name: String, factory: Callable, prewarm: int) -> NodePool:
-	var p := NodePool.new()
-	p.name = node_name
-	add_child(p)
-	p.setup(factory, prewarm)
-	return p
+Add the pool nodes
+
+`world/main.tscn` (full content at this stage):
+```
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://world/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://world/world.gd" id="2_world"]
+[ext_resource type="Script" path="res://components/node_pool.gd" id="3_pool"]
+
+[node name="Main" type="Node3D" node_paths=PackedStringArray("world")]
+script = ExtResource("1_main")
+world = NodePath("World")
+
+[node name="World" type="Node3D" parent="." node_paths=PackedStringArray("enemy_pool", "steak_pool")]
+script = ExtResource("2_world")
+enemy_pool = NodePath("EnemyPool")
+steak_pool = NodePath("SteakPool")
+
+[node name="EnemyPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="SteakPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
 ```
 
 - [ ] **Step 4: Run the tests and see them pass**
@@ -3590,7 +3640,7 @@ git commit -m "feat: add Boar enemy, steaks, data-driven target providers and po
 
 **Files:**
 - Create: `world/wave_director.gd`
-- Modify: `world/world.gd`
+- Modify: `world/world.gd`, `world/main.tscn`
 - Test: `tests/unit/test_wave_director.gd`
 
 **Interfaces:**
@@ -3599,7 +3649,8 @@ git commit -m "feat: add Boar enemy, steaks, data-driven target providers and po
   - **`WaveDirector`:**
     - `enemy_pool`, `steak_pool`, `providers: TargetProviders`, `wave_index: int`, `state: int` (`State.IDLE/WAITING/ACTIVE`)
     - `setup(p_enemy_pool: NodePool, p_steak_pool: NodePool)`
-    - `start_night()`, `stop()`
+    - **D-128 interface:** `start_night(plan: Array)`, `stop()`
+    - the `plan` passed in is used for the whole night (`GameState.lane_plan` from PhaseController)
     - `on_enemy_died(boar: Boar)`
     - `alive_enemies() -> Array`, `alive_count() -> int`, `enemy_candidates() -> Array`
     - `upcoming_main_lane() -> String`
@@ -3619,8 +3670,7 @@ var wd: WaveDirector
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	GameState.new_game(4242)
 	wd = main.world.wave_director
@@ -3631,7 +3681,7 @@ func _ticks(n: int) -> void:
 
 func test_first_wave_starts_after_delay() -> void:
 	watch_signals(EventBus)
-	wd.start_night()
+	wd.start_night(GameState.lane_plan)
 	assert_signal_emitted_with_parameters(EventBus, "wave_incoming", [0, &"north", &""])
 	await _ticks(299)
 	assert_signal_not_emitted(EventBus, "wave_started")
@@ -3641,14 +3691,14 @@ func test_first_wave_starts_after_delay() -> void:
 
 func test_spawns_follow_schedule_and_spawn_out() -> void:
 	watch_signals(EventBus)
-	wd.start_night()
+	wd.start_night(GameState.lane_plan)
 	await _ticks(301 + 48 * 3)  # 3 more spawns at 0.8 s
 	assert_eq(wd.alive_count(), 4)
 	assert_signal_emitted_with_parameters(EventBus, "wave_spawned_out", [0])
 
 func test_clear_breather_next_wave() -> void:
 	watch_signals(EventBus)
-	wd.start_night()
+	wd.start_night(GameState.lane_plan)
 	await _ticks(301 + 48 * 3 + 2)
 	wd.debug_kill_all()
 	await _ticks(2)
@@ -3662,7 +3712,7 @@ func test_clear_breather_next_wave() -> void:
 func test_main_group_dead_before_side_spawns_is_not_clear() -> void:
 	GameState.advance_day()  # day 2: side groups
 	watch_signals(EventBus)
-	wd.start_night()
+	wd.start_night(GameState.lane_plan)
 	await _ticks(301 + 60)  # 1 s into wave 0: side group starts at 4 s
 	wd.debug_kill_all()
 	await _ticks(30)
@@ -3673,26 +3723,26 @@ func test_main_group_dead_before_side_spawns_is_not_clear() -> void:
 	assert_signal_emitted_with_parameters(EventBus, "wave_cleared", [0])
 
 func test_kill_drops_two_steaks() -> void:
-	wd.start_night()
+	wd.start_night(GameState.lane_plan)
 	await _ticks(302)
 	wd.debug_kill_all()
 	await _ticks(1)
 	assert_eq(main.world.steak_pool.active().size(), 2)
 
 func test_same_seed_same_offsets() -> void:
-	wd.start_night()
+	wd.start_night(GameState.lane_plan)
 	await _ticks(301 + 48 * 3 + 1)
 	var a: Array = wd.alive_enemies().map(func(b): return b.offset)
 	wd.stop()
-	main.world.enemy_pool.release_all()
-	wd.start_night()
+	main.world.enemy_pool.recall_all()
+	wd.start_night(GameState.lane_plan)
 	await _ticks(301 + 48 * 3 + 1)
 	var b: Array = wd.alive_enemies().map(func(x): return x.offset)
 	assert_eq(a, b)
 
 func test_stop_halts_everything() -> void:
 	watch_signals(EventBus)
-	wd.start_night()
+	wd.start_night(GameState.lane_plan)
 	wd.stop()
 	await _ticks(400)
 	assert_signal_not_emitted(EventBus, "wave_started")
@@ -3710,7 +3760,7 @@ Expected: FAIL (`main.world.wave_director` is null / not declared).
 ```gdscript
 class_name WaveDirector
 extends Node
-## Runs the 3 waves of a night from GameState.lane_plan (spec 7.1). Never changes the phase.
+## Runs the 3 waves of a night from _plan (spec 7.1). Never changes the phase.
 
 enum State { IDLE, WAITING, ACTIVE }
 
@@ -3729,6 +3779,7 @@ var _spawn_counter := 0
 var _spawned_out_sent := false
 var _spawn_rng: RandomNumberGenerator
 var _drop_rng: RandomNumberGenerator
+var _plan: Array = []
 
 func setup(p_enemy_pool: NodePool, p_steak_pool: NodePool) -> void:
 	enemy_pool = p_enemy_pool
@@ -3736,14 +3787,17 @@ func setup(p_enemy_pool: NodePool, p_steak_pool: NodePool) -> void:
 	providers.register(&"fence_on_lane", func(e): return TargetProviders.fence_on_lane(e))
 	providers.register(&"diner", func(e): return TargetProviders.diner(e))
 
-func start_night() -> void:
+## D-128 interface.
+func start_night(plan: Array) -> void:
 	stop()
+	_plan = plan
 	_spawn_counter = 0
 	_spawn_rng = Rng.stream(GameState.run_seed, GameState.day, &"spawns")
 	_drop_rng = Rng.stream(GameState.run_seed, GameState.day, &"drops")
 	wave_index = -1
 	_begin_wait(Balance.data.wave.first_wave_delay, 0)
 
+## D-128 interface.
 func stop() -> void:
 	state = State.IDLE
 	_alive.clear()
@@ -3754,7 +3808,7 @@ func _begin_wait(seconds: float, w: int) -> void:
 	state = State.WAITING
 	_timer = seconds
 	_pending_wave = w
-	var plan: Dictionary = GameState.lane_plan[w]
+	var plan: Dictionary = _plan[w]
 	EventBus.wave_incoming.emit(w, StringName(plan.main), StringName(plan.side))
 
 func _physics_process(delta: float) -> void:
@@ -3770,12 +3824,12 @@ func _physics_process(delta: float) -> void:
 				var cleared := wave_index
 				state = State.IDLE
 				EventBus.wave_cleared.emit(cleared)
-				if state == State.IDLE and cleared < GameState.lane_plan.size() - 1:
+				if state == State.IDLE and cleared < _plan.size() - 1:
 					_begin_wait(Balance.data.wave.breather, cleared + 1)
 
 func _start_wave(w: int) -> void:
 	wave_index = w
-	var plan: Dictionary = GameState.lane_plan[w]
+	var plan: Dictionary = _plan[w]
 	_schedule = WaveSchedule.build(plan, Balance.data.wave)
 	_next = 0
 	_t = 0.0
@@ -3794,7 +3848,7 @@ func _spawn_due() -> void:
 
 func _spawn(lane: String, unit_offset: float, hp_mult: float = -1.0) -> Boar:
 	var boar: Boar = enemy_pool.acquire()
-	var mult := hp_mult if hp_mult > 0.0 else float(GameState.lane_plan[maxi(wave_index, 0)].hp_mult)
+	var mult := hp_mult if hp_mult > 0.0 else float(_plan[maxi(wave_index, 0)].hp_mult)
 	boar.spawn(lane, _spawn_counter, unit_offset * Balance.data.enemy.lateral_spread, mult, self)
 	_spawn_counter += 1
 	_alive.append(boar)
@@ -3824,9 +3878,9 @@ func enemy_candidates() -> Array:
 
 func upcoming_main_lane() -> String:
 	var w := _pending_wave if state == State.WAITING else wave_index
-	if w < 0 or w >= GameState.lane_plan.size():
+	if w < 0 or w >= _plan.size():
 		return "north"
-	return String(GameState.lane_plan[w].main)
+	return String(_plan[w].main)
 
 ## Test/debug helpers (used by tests and ui/debug only).
 func debug_spawn(lane: String, unit_offset: float = 0.0, hp_mult: float = 1.0) -> Boar:
@@ -3841,16 +3895,41 @@ func debug_kill_all() -> void:
 
 Modify `world/world.gd`:
 ```gdscript
-var wave_director: WaveDirector
+@export var wave_director: WaveDirector
 
-# in _ready(), after _build_pools():
-	_build_director()
-
-func _build_director() -> void:
-	wave_director = WaveDirector.new()
-	wave_director.name = "WaveDirector"
+# in _ready(), after _setup_pools():
 	wave_director.setup(enemy_pool, steak_pool)
-	add_child(wave_director)
+```
+
+Add the WaveDirector node after the pools, so pooled Boars process before the director in each tick
+
+`world/main.tscn` (full content at this stage):
+```
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://world/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://world/world.gd" id="2_world"]
+[ext_resource type="Script" path="res://components/node_pool.gd" id="3_pool"]
+[ext_resource type="Script" path="res://world/wave_director.gd" id="4_wave"]
+
+[node name="Main" type="Node3D" node_paths=PackedStringArray("world")]
+script = ExtResource("1_main")
+world = NodePath("World")
+
+[node name="World" type="Node3D" parent="." node_paths=PackedStringArray("enemy_pool", "steak_pool", "wave_director")]
+script = ExtResource("2_world")
+enemy_pool = NodePath("EnemyPool")
+steak_pool = NodePath("SteakPool")
+wave_director = NodePath("WaveDirector")
+
+[node name="EnemyPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="SteakPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="WaveDirector" type="Node" parent="World"]
+script = ExtResource("4_wave")
 ```
 
 - [ ] **Step 4: Run the tests and see them pass**
@@ -3901,8 +3980,7 @@ var hero: Hero
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	GameState.new_game(1)
 	hero = main.hero
@@ -3952,8 +4030,7 @@ func test_magnet_collects_gold_pile() -> void:
 	assert_eq(GameState.gold_pile, 0)
 
 func test_starts_at_home() -> void:
-	var m := Main.new()
-	m.auto_start = false
+	var m := Main.create()
 	add_child_autofree(m)
 	assert_eq(m.hero.xz(), MapLayout.HOME)
 ```
@@ -4124,15 +4201,21 @@ func teleport(p: Vector2) -> void:
 	input.set_move(Vector2.ZERO)
 ```
 
-Modify `world/main.gd`:
+Modify `world/main.gd` (its first `_ready`):
 ```gdscript
 var hero: Hero
 
-# in _ready(), after add_child(world):
+func _ready() -> void:
 	hero = Hero.new()
 	add_child(hero)
 	hero.setup(world)
 	hero.teleport(MapLayout.HOME)
+```
+
+Add to `actors/hero/hero.gd`, so PhaseController places the hero through the bus instead of a node reference (D-128):
+```gdscript
+func _ready() -> void:
+	EventBus.hero_place_requested.connect(teleport)
 ```
 
 - [ ] **Step 4: Run the tests and see them pass**
@@ -4154,7 +4237,7 @@ git commit -m "feat: add hero body, input API, magnet pickup and carry stack"
 
 **Files:**
 - Create: `components/attacker.gd`, `actors/projectile/projectile.gd`
-- Modify: `actors/hero/hero.gd`, `world/world.gd`
+- Modify: `actors/hero/hero.gd`, `world/world.gd`, `world/main.tscn`
 - Test: `tests/unit/test_attacker.gd`, `tests/unit/test_hero_combat.gd`
 
 **Interfaces:**
@@ -4236,8 +4319,7 @@ var main: Main
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	GameState.new_game(3)
 	main.hero.input.player_control = false
@@ -4392,10 +4474,45 @@ func _target_valid(origin: Vector3) -> bool:
 
 Modify `world/world.gd`:
 ```gdscript
-var projectile_pool: NodePool
+@export var projectile_pool: NodePool
 
-# in _build_pools(), after steak_pool:
-	projectile_pool = _pool("ProjectilePool", func(): return Projectile.new(), sizes.projectile)
+# in _setup_pools(), after steak_pool:
+	projectile_pool.setup(func(): return Projectile.new(), sizes.projectile)
+```
+
+Add the ProjectilePool node
+
+`world/main.tscn` (full content at this stage):
+```
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://world/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://world/world.gd" id="2_world"]
+[ext_resource type="Script" path="res://components/node_pool.gd" id="3_pool"]
+[ext_resource type="Script" path="res://world/wave_director.gd" id="4_wave"]
+
+[node name="Main" type="Node3D" node_paths=PackedStringArray("world")]
+script = ExtResource("1_main")
+world = NodePath("World")
+
+[node name="World" type="Node3D" parent="." node_paths=PackedStringArray("enemy_pool", "steak_pool", "projectile_pool", "wave_director")]
+script = ExtResource("2_world")
+enemy_pool = NodePath("EnemyPool")
+steak_pool = NodePath("SteakPool")
+projectile_pool = NodePath("ProjectilePool")
+wave_director = NodePath("WaveDirector")
+
+[node name="EnemyPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="SteakPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="ProjectilePool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="WaveDirector" type="Node" parent="World"]
+script = ExtResource("4_wave")
 ```
 
 Modify `actors/hero/hero.gd`:
@@ -4438,19 +4555,19 @@ git commit -m "feat: add auto-attacker and homing projectiles for hero combat"
 
 **Files:**
 - Create: `world/phase_controller.gd`
-- Modify: `world/main.gd`
+- Modify: `world/main.gd`, `world/main.tscn`
 - Test: `tests/unit/test_phase_controller.gd`
 
 **Interfaces:**
-- Consumes: `WaveDirector.start_night/stop`, `World.steak_pool`, the `pools` group, `GameState.*`, `Hero.teleport`.
+- Consumes, ONLY through the D-128 narrow interface and typed `@export` references assigned in `main.tscn` (no `get_node` paths, no groups): `WaveDirector.start_night(plan)` and `stop()`, `NodePool.recall_all()`. Task 22 adds `TravelerSpawner.start()`, `stop()` and `clear_queue()`. It places the hero with `EventBus.hero_place_requested`. It also uses `GameState.*`.
 - Produces:
   - **`PhaseController`:**
     - `phase: int`, `dawn_substate: String`, `snapshot: Dictionary`, `failing: bool`
-    - `setup(main: Main)`
+    - exports: `wave_director`, `enemy_pool`, `steak_pool`, `projectile_pool` (Task 22 adds `traveler_spawner`, Task 30 adds `fx_pool`)
     - `start_new_game(seed: int = 0)`, `close_up()`
     - `debug_skip_to_day()`, `debug_skip_to_night()`
   - It listens to `wave_cleared`, `diner_fell` and `closeup_requested`.
-  - **`Main`:** `phase_controller: PhaseController`. With `auto_start`, it calls `start_new_game()` deferred.
+  - **`Main`:** `@export phase_controller: PhaseController` (assigned in `main.tscn`). With `auto_start`, it calls `start_new_game()` deferred.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -4463,8 +4580,7 @@ var pc: PhaseController
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	pc = main.phase_controller
 	main.hero.input.player_control = false
@@ -4473,6 +4589,14 @@ func before_each() -> void:
 func _ticks(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
+
+func test_phase_controller_uses_only_the_narrow_interface() -> void:
+	# D-128: typed @export references only; no node paths, groups or tree searches.
+	var src := FileAccess.get_file_as_string("res://world/phase_controller.gd")
+	for banned in ["get_node", "$", "get_nodes_in_group", "find_children", "find_child", "get_parent", "owner."]:
+		assert_false(src.contains(banned), "phase_controller.gd uses %s" % banned)
+	for prop in ["wave_director", "enemy_pool", "steak_pool", "projectile_pool"]:
+		assert_not_null(pc.get(prop), "%s not wired in main.tscn" % prop)
 
 func test_new_game_starts_night_with_night_snapshot() -> void:
 	assert_eq(pc.phase, Phase.NIGHT)
@@ -4569,16 +4693,24 @@ Expected: FAIL (`main.phase_controller` is null).
 ```gdscript
 class_name PhaseController
 extends Node
-## Owns the phase, the snapshot and the dawn / close-up / fail steps (spec 5, D-043, D-110).
+## Owns the phase, the snapshot and the dawn / close-up / fail steps (spec 5, D-043).
+## The single architecture exception (D-110, D-128): it calls other systems directly, but ONLY through
+## this narrow interface, via typed @export references assigned in world/main.tscn (never get_node
+## paths, never groups):
+##   WaveDirector.start_night(plan), WaveDirector.stop()
+##   NodePool.recall_all() -> int
+##   TravelerSpawner.start(), stop(), clear_queue()      (added in Task 22)
+## The hero is placed with the bus event EventBus.hero_place_requested(position).
+
+@export var wave_director: WaveDirector
+@export var enemy_pool: NodePool
+@export var steak_pool: NodePool
+@export var projectile_pool: NodePool
 
 var phase := Phase.NIGHT
 var dawn_substate := ""
 var snapshot: Dictionary = {}
 var failing := false
-var _main: Main
-
-func setup(main: Main) -> void:
-	_main = main
 
 func _ready() -> void:
 	EventBus.wave_cleared.connect(_on_wave_cleared)
@@ -4591,7 +4723,7 @@ func start_new_game(seed: int = 0) -> void:
 	GameState.new_game(seed)
 	snapshot = GameState.to_dict()
 	snapshot.resume_phase = "NIGHT"
-	_main.hero.teleport(MapLayout.NIGHT1_START)  # D-126: combat comes to a new player
+	EventBus.hero_place_requested.emit(MapLayout.NIGHT1_START)  # D-126: combat comes to a new player
 	EventBus.banner_requested.emit(tr("The monsters return"))
 	_enter_night()
 
@@ -4607,7 +4739,7 @@ func close_up() -> void:
 func _enter_night() -> void:
 	phase = Phase.NIGHT
 	EventBus.phase_changed.emit(phase, GameState.day)
-	_main.world.wave_director.start_night()
+	wave_director.start_night(GameState.lane_plan)
 
 func _enter_day() -> void:
 	phase = Phase.DAY
@@ -4621,12 +4753,12 @@ func _on_wave_cleared(w: int) -> void:
 	_run_dawn()
 
 func _run_dawn() -> void:
-	_main.world.wave_director.stop()
+	wave_director.stop()
 	phase = Phase.DAWN
 	EventBus.phase_changed.emit(phase, GameState.day)
 	EventBus.banner_requested.emit(tr("Dawn"))
 	_steaks_to_freezer()                 # 1
-	_main.world.projectile_pool.release_all()
+	_recall_all()                        # projectiles (and later fx) in flight
 	GameState.heal_for_dawn()            # 2
 	GameState.reset_destroyed_fences()   # 3
 	GameState.advance_day()              # 4
@@ -4642,7 +4774,7 @@ func _on_diner_fell() -> void:
 	if phase != Phase.NIGHT or failing:
 		return
 	failing = true
-	_main.world.wave_director.stop()
+	wave_director.stop()
 	EventBus.night_failed.emit(GameState.day)
 	EventBus.banner_requested.emit(tr("The diner fell"))
 	await get_tree().create_timer(Balance.ui.banner_time, false, true).timeout
@@ -4652,7 +4784,7 @@ func _restore_snapshot() -> void:
 	_recall_all()
 	GameState.from_dict(snapshot)
 	var night_restart := String(snapshot.resume_phase) == "NIGHT"
-	_main.hero.teleport(MapLayout.NIGHT1_START if night_restart else MapLayout.HOME)  # D-122, D-126
+	EventBus.hero_place_requested.emit(MapLayout.NIGHT1_START if night_restart else MapLayout.HOME)  # D-122, D-126
 	failing = false
 	if night_restart:
 		EventBus.banner_requested.emit(tr("The monsters return"))  # spec 5.2: each night-1 restart
@@ -4661,19 +4793,18 @@ func _restore_snapshot() -> void:
 		_enter_day()
 
 func _steaks_to_freezer() -> void:
-	var pool: NodePool = _main.world.steak_pool
-	var n := pool.active().size()
-	pool.release_all()
-	GameState.add_freezer(n)
+	GameState.add_freezer(steak_pool.recall_all())
 
 func _recall_all() -> void:
-	for pool in _main.find_children("*", "NodePool", true, false):
-		pool.release_all()
+	enemy_pool.recall_all()
+	steak_pool.recall_all()
+	projectile_pool.recall_all()
 
-## Debug helpers (ui/debug hotkeys, tests).
+## Debug helpers (ui/debug hotkeys, tests). Same narrow interface.
 func debug_skip_to_day() -> void:
 	if phase == Phase.NIGHT and not failing:
-		_main.world.wave_director.debug_kill_all()
+		wave_director.stop()
+		enemy_pool.recall_all()
 		_run_dawn()
 
 func debug_skip_to_night() -> void:
@@ -4681,19 +4812,57 @@ func debug_skip_to_night() -> void:
 		close_up()
 ```
 
-`_recall_all` uses `find_children` under this Main, not the global `pools` group, so pools belonging to other Main instances (in tests) are never touched.
-
 Modify `world/main.gd`:
 ```gdscript
-var phase_controller: PhaseController
+@export var phase_controller: PhaseController
 
-# in _ready(), after hero setup:
-	phase_controller = PhaseController.new()
-	phase_controller.name = "PhaseController"
-	phase_controller.setup(self)
-	add_child(phase_controller)
+# at the end of _ready():
 	if auto_start:
 		phase_controller.start_new_game.call_deferred()
+```
+
+Add the PhaseController node with its typed references
+
+`world/main.tscn` (full content at this stage):
+```
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://world/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://world/world.gd" id="2_world"]
+[ext_resource type="Script" path="res://components/node_pool.gd" id="3_pool"]
+[ext_resource type="Script" path="res://world/wave_director.gd" id="4_wave"]
+[ext_resource type="Script" path="res://world/phase_controller.gd" id="5_phase"]
+
+[node name="Main" type="Node3D" node_paths=PackedStringArray("world", "phase_controller")]
+script = ExtResource("1_main")
+world = NodePath("World")
+phase_controller = NodePath("PhaseController")
+
+[node name="World" type="Node3D" parent="." node_paths=PackedStringArray("enemy_pool", "steak_pool", "projectile_pool", "wave_director")]
+script = ExtResource("2_world")
+enemy_pool = NodePath("EnemyPool")
+steak_pool = NodePath("SteakPool")
+projectile_pool = NodePath("ProjectilePool")
+wave_director = NodePath("WaveDirector")
+
+[node name="EnemyPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="SteakPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="ProjectilePool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="WaveDirector" type="Node" parent="World"]
+script = ExtResource("4_wave")
+
+[node name="PhaseController" type="Node" parent="." node_paths=PackedStringArray("wave_director", "enemy_pool", "steak_pool", "projectile_pool")]
+script = ExtResource("5_phase")
+wave_director = NodePath("../World/WaveDirector")
+enemy_pool = NodePath("../World/EnemyPool")
+steak_pool = NodePath("../World/SteakPool")
+projectile_pool = NodePath("../World/ProjectilePool")
 ```
 
 - [ ] **Step 4: Run the tests and see them pass**
@@ -4741,8 +4910,7 @@ var main: Main
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	GameState.new_game(5)
 	main.hero.input.player_control = false
@@ -4921,7 +5089,7 @@ Modify `world/world.gd`:
 ```gdscript
 var build_spots := {}
 
-# in _ready(), after _build_director():
+# in _ready(), after wave_director.setup(...):
 	_build_spots()
 
 func _build_spots() -> void:
@@ -5159,8 +5327,7 @@ func _init(p_parent: Node) -> void:
 	parent = p_parent
 
 func start(seed: int, bot_script: GDScript) -> void:
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	parent.add_child(main)
 	bot = bot_script.new()
 	bot.name = "Bot"
@@ -5352,8 +5519,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	Balance.reset()
-	var main := Main.new()
-	main.auto_start = false
+	var main := Main.create()
 	root.add_child(main)
 	var bot: BotBase = (ParkedBot if _args.has("lane") else NaiveBot).new()
 	main.add_child(bot)
@@ -5482,8 +5648,7 @@ var main: Main
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(8)
@@ -5823,7 +5988,7 @@ git commit -m "feat: add stand-still station zones that arm on entry, freezer an
 
 **Files:**
 - Create: `actors/traveler/traveler.gd`, `world/traveler_spawner.gd`, `world/stations/gold_pile.gd`
-- Modify: `world/world.gd`, `world/phase_controller.gd`
+- Modify: `world/world.gd`, `world/phase_controller.gd`, `world/main.tscn`
 - Test: `tests/unit/test_travelers.gd`
 
 **Interfaces:**
@@ -5833,14 +5998,14 @@ git commit -m "feat: add stand-still station zones that arm on entry, freezer an
     - `want: int`, `service_timer: float`, `leaving: bool`
     - `begin(p_want: int)`, `set_target(p: Vector2)`, `leave()`
     - `at_target() -> bool`, `gone() -> bool`, `xz() -> Vector2`
-  - **`TravelerSpawner`:** `set_active(on: bool)`, `queue: Array`, `leaving: Array`, `pool: NodePool`, `active: bool`.
+  - **`TravelerSpawner`:** the D-128 interface is `start()`, `stop()` (queued travelers leave) and `clear_queue()` (drops every traveler and recalls its pool). Also `setup(pool)`, `queue: Array`, `leaving: Array`, `active: bool`.
   - **`GoldPile`:** `setup(world)`, `coin_count() -> int`.
   - **`World`:** `traveler_spawner`, `gold_pile`.
   - **PhaseController hooks:**
-    - `_enter_day()` calls `set_active(true)`.
-    - `_enter_night()` calls `set_active(false)`.
-    - `close_up()` calls `set_active(false)` before taking the snapshot.
-    - `_recall_all()` already recalls the traveler pool, and the spawner clears its lists on `state_restored`.
+    - `_enter_day()` calls `traveler_spawner.start()`.
+    - `_enter_night()` calls `traveler_spawner.stop()`.
+    - `close_up()` calls `traveler_spawner.stop()` before taking the snapshot.
+    - `_recall_all()` calls `traveler_spawner.clear_queue()`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -5853,8 +6018,7 @@ var sp: TravelerSpawner
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(21)
@@ -5991,23 +6155,26 @@ var _rng: RandomNumberGenerator
 
 func setup(p_pool: NodePool) -> void:
 	pool = p_pool
-	EventBus.state_restored.connect(_on_state_restored)
 
-func set_active(on: bool) -> void:
-	active = on
-	if on:
-		_rng = Rng.stream(GameState.run_seed, GameState.day, &"travelers")
-		_timer = _next_interval()
-	else:
-		for t in queue:
-			t.leave()
-		leaving.append_array(queue)
-		queue.clear()
+## D-128 interface: start spawning for today's day number.
+func start() -> void:
+	active = true
+	_rng = Rng.stream(GameState.run_seed, GameState.day, &"travelers")
+	_timer = _next_interval()
 
-func _on_state_restored() -> void:
-	# The pools were recalled by PhaseController; drop stale references.
+## D-128 interface: stop spawning; queued travelers walk away holding nothing (D-045).
+func stop() -> void:
+	active = false
+	for t in queue:
+		t.leave()
+	leaving.append_array(queue)
+	queue.clear()
+
+## D-128 interface: drop every traveler immediately (restore / new game).
+func clear_queue() -> void:
 	queue.clear()
 	leaving.clear()
+	pool.recall_all()
 
 func _next_interval() -> float:
 	var e := Balance.data.economy
@@ -6077,29 +6244,87 @@ func coin_count() -> int:
 
 Modify `world/world.gd`:
 ```gdscript
-var traveler_spawner: TravelerSpawner
+@export var traveler_pool: NodePool
+@export var traveler_spawner: TravelerSpawner
 var gold_pile: GoldPile
 
 # append to _build_stations():
 	gold_pile = GoldPile.new()
 	add_child(gold_pile)
 	gold_pile.setup(self)
-	traveler_spawner = TravelerSpawner.new()
-	traveler_spawner.name = "TravelerSpawner"
-	add_child(traveler_spawner)
-	traveler_spawner.setup(_pool("TravelerPool", func(): return Traveler.new(), Balance.data.economy.queue_max * 2))
+	traveler_pool.setup(func(): return Traveler.new(), Balance.data.economy.queue_max * 2)
+	traveler_spawner.setup(traveler_pool)
 ```
 
 Modify `world/phase_controller.gd`:
 ```gdscript
+@export var traveler_spawner: TravelerSpawner
+
 # _enter_night(): add as the first line
-	_main.world.traveler_spawner.set_active(false)
+	traveler_spawner.stop()
 
 # _enter_day(): add after phase_changed.emit(...)
-	_main.world.traveler_spawner.set_active(true)
+	traveler_spawner.start()
 
 # close_up(): after _steaks_to_freezer() and before the snapshot
-	_main.world.traveler_spawner.set_active(false)
+	traveler_spawner.stop()
+
+# _recall_all(): add as the last line
+	traveler_spawner.clear_queue()
+```
+
+Add the TravelerPool and TravelerSpawner nodes, and wire `traveler_spawner` into PhaseController
+
+`world/main.tscn` (full content at this stage):
+```
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://world/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://world/world.gd" id="2_world"]
+[ext_resource type="Script" path="res://components/node_pool.gd" id="3_pool"]
+[ext_resource type="Script" path="res://world/wave_director.gd" id="4_wave"]
+[ext_resource type="Script" path="res://world/phase_controller.gd" id="5_phase"]
+[ext_resource type="Script" path="res://world/traveler_spawner.gd" id="6_spawner"]
+
+[node name="Main" type="Node3D" node_paths=PackedStringArray("world", "phase_controller")]
+script = ExtResource("1_main")
+world = NodePath("World")
+phase_controller = NodePath("PhaseController")
+
+[node name="World" type="Node3D" parent="." node_paths=PackedStringArray("enemy_pool", "steak_pool", "projectile_pool", "wave_director", "traveler_pool", "traveler_spawner")]
+script = ExtResource("2_world")
+enemy_pool = NodePath("EnemyPool")
+steak_pool = NodePath("SteakPool")
+projectile_pool = NodePath("ProjectilePool")
+wave_director = NodePath("WaveDirector")
+traveler_pool = NodePath("TravelerPool")
+traveler_spawner = NodePath("TravelerSpawner")
+
+[node name="EnemyPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="SteakPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="ProjectilePool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="WaveDirector" type="Node" parent="World"]
+script = ExtResource("4_wave")
+
+[node name="TravelerPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="TravelerSpawner" type="Node" parent="World"]
+script = ExtResource("6_spawner")
+
+[node name="PhaseController" type="Node" parent="." node_paths=PackedStringArray("wave_director", "enemy_pool", "steak_pool", "projectile_pool", "traveler_spawner")]
+script = ExtResource("5_phase")
+wave_director = NodePath("../World/WaveDirector")
+enemy_pool = NodePath("../World/EnemyPool")
+steak_pool = NodePath("../World/SteakPool")
+projectile_pool = NodePath("../World/ProjectilePool")
+traveler_spawner = NodePath("../World/TravelerSpawner")
 ```
 
 - [ ] **Step 4: Run the tests and see them pass**
@@ -6111,7 +6336,7 @@ Expected: exit 0. Re-run the Task 17 tests too; they are in the same suite.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add actors/traveler world tests/unit/test_travelers.gd
+git add actors/traveler world tests/unit/test_travelers.gd   # world/ includes main.tscn
 git commit -m "feat: add travelers, atomic counter purchases and the gold pile"
 ```
 
@@ -6137,8 +6362,7 @@ var main: Main
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(31)
@@ -6290,8 +6514,7 @@ var main: Main
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(41)
@@ -6532,8 +6755,7 @@ var bot: PlannerBot
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	bot = PlannerBot.new()
 	main.add_child(bot)
@@ -6812,8 +7034,7 @@ var pc: PhaseController
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
 	pc = main.phase_controller
@@ -7137,8 +7358,7 @@ var main: Main
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(71)
@@ -7238,7 +7458,15 @@ var camera_rig: CameraRig
 	camera_rig.setup(hero)
 ```
 
-Modify `PhaseController._restore_snapshot()` and `start_new_game()`: after `_main.hero.teleport(...)`, add `_main.camera_rig.snap()`, so the camera doesn't sweep across the map after a restore.
+The camera follows placements through the bus, so PhaseController needs no camera reference (D-128). Add to `world/camera_rig.gd`:
+```gdscript
+# in _ready():
+	EventBus.hero_place_requested.connect(snap_to)
+
+func snap_to(p: Vector2) -> void:
+	_focus = CameraMath.focus_for(p)
+	camera.global_transform = CameraMath.camera_transform(_focus, Balance.ui)
+```
 
 Modify `tests/sim/capture.gd`: delete the manual `Camera3D` block and use `main.camera_rig.snap()` before capturing.
 
@@ -7246,12 +7474,12 @@ Modify `tests/sim/capture.gd`: delete the manual `Camera3D` block and use `main.
 
 Run: `./run_tests.sh all`
 
-Expected: exit 0. Run `all` because `capture.gd` and PhaseController changed.
+Expected: exit 0. Run `all` because `capture.gd` changed.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add world/camera_rig.gd world/main.gd world/phase_controller.gd tests/sim/capture.gd tests/unit/test_camera_rig.gd
+git add world/camera_rig.gd world/main.gd tests/sim/capture.gd tests/unit/test_camera_rig.gd
 git commit -m "feat: add follow camera rig with capped diner-hit shake"
 ```
 
@@ -7282,8 +7510,7 @@ var hud: Hud
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(81)
@@ -7621,8 +7848,7 @@ var main: Main
 
 func before_each() -> void:
 	Balance.reset()
-	main = Main.new()
-	main.auto_start = false
+	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(91)
@@ -7716,15 +7942,82 @@ The item's `on_release()` kills a running tween, so a restore mid-flight never r
 
 Modify `world/world.gd`:
 ```gdscript
-var fx_pool: NodePool
+@export var fx_pool: NodePool
 var fly_fx: FlyFx
 
-# in _build_pools(), after projectile_pool:
-	fx_pool = _pool("FxPool", func(): return FlyFx.make_item(), sizes.fx)
+# in _setup_pools(), after projectile_pool:
+	fx_pool.setup(func(): return FlyFx.make_item(), sizes.fx)
 	fly_fx = FlyFx.new()
 	fly_fx.name = "FlyFx"
 	add_child(fly_fx)
 	fly_fx.setup(fx_pool)
+```
+
+Modify `world/phase_controller.gd`:
+```gdscript
+@export var fx_pool: NodePool
+
+# _recall_all(): add
+	fx_pool.recall_all()
+```
+
+Add the FxPool node and wire it into World and PhaseController
+
+`world/main.tscn` (full content at this stage):
+```
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://world/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://world/world.gd" id="2_world"]
+[ext_resource type="Script" path="res://components/node_pool.gd" id="3_pool"]
+[ext_resource type="Script" path="res://world/wave_director.gd" id="4_wave"]
+[ext_resource type="Script" path="res://world/phase_controller.gd" id="5_phase"]
+[ext_resource type="Script" path="res://world/traveler_spawner.gd" id="6_spawner"]
+
+[node name="Main" type="Node3D" node_paths=PackedStringArray("world", "phase_controller")]
+script = ExtResource("1_main")
+world = NodePath("World")
+phase_controller = NodePath("PhaseController")
+
+[node name="World" type="Node3D" parent="." node_paths=PackedStringArray("enemy_pool", "steak_pool", "projectile_pool", "fx_pool", "wave_director", "traveler_pool", "traveler_spawner")]
+script = ExtResource("2_world")
+enemy_pool = NodePath("EnemyPool")
+steak_pool = NodePath("SteakPool")
+projectile_pool = NodePath("ProjectilePool")
+fx_pool = NodePath("FxPool")
+wave_director = NodePath("WaveDirector")
+traveler_pool = NodePath("TravelerPool")
+traveler_spawner = NodePath("TravelerSpawner")
+
+[node name="EnemyPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="SteakPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="ProjectilePool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="FxPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="WaveDirector" type="Node" parent="World"]
+script = ExtResource("4_wave")
+
+[node name="TravelerPool" type="Node" parent="World"]
+script = ExtResource("3_pool")
+
+[node name="TravelerSpawner" type="Node" parent="World"]
+script = ExtResource("6_spawner")
+
+[node name="PhaseController" type="Node" parent="." node_paths=PackedStringArray("wave_director", "enemy_pool", "steak_pool", "projectile_pool", "fx_pool", "traveler_spawner")]
+script = ExtResource("5_phase")
+wave_director = NodePath("../World/WaveDirector")
+enemy_pool = NodePath("../World/EnemyPool")
+steak_pool = NodePath("../World/SteakPool")
+projectile_pool = NodePath("../World/ProjectilePool")
+fx_pool = NodePath("../World/FxPool")
+traveler_spawner = NodePath("../World/TravelerSpawner")
 ```
 
 The hooks are visual only, and each is added right after the state call it decorates:
@@ -7938,8 +8231,7 @@ func test_debug_overlay_present_in_debug_build_and_hotkey_gold() -> void:
 	if not OS.is_debug_build():
 		pass_test("release runner: overlay intentionally absent")
 		return
-	var main := Main.new()
-	main.auto_start = false
+	var main := Main.create()
 	add_child_autofree(main)
 	main.phase_controller.start_new_game(101)
 	var o := main.get_node_or_null("DebugOverlay")
