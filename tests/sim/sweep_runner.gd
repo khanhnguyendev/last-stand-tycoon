@@ -20,7 +20,8 @@ func _run() -> void:
 	EventBus.card_picked.connect(_on_picked)
 	EventBus.guard_knocked_out.connect(_on_knockout)
 	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked"]
-	var broke_at := -1
+	var first_fail_day := -1
+	var hard_break_day := -1
 	for day in range(1, int(args.days) + 1):
 		var retries := 0
 		_picked = ""
@@ -30,9 +31,10 @@ func _run() -> void:
 		var stock0 := GameState.freezer_steaks + GameState.carried_steaks
 		var t0 := h.elapsed
 		var n := await h.run_night()
-		# Retries are deterministic: the restored night replays identically (spec 13.5 keeps them), so a
-		# failed night stays failed; the count only shows the game would have looped.
-		while n.failed and retries < 3:
+		if n.failed and first_fail_day < 0:
+			first_fail_day = day
+		# Retries run with mercy (S3, D-175): each retry of the same night is weaker, so a failed night can clear on a later retry.
+		while n.failed and retries < 4:
 			retries += 1
 			var restored := await h.run_until(func(): return not h.main.phase_controller.failing, Balance.ui.banner_time + 1.0)
 			if not restored:
@@ -44,7 +46,7 @@ func _run() -> void:
 			n = await h.run_night()
 		var night_s := h.elapsed - t0
 		if n.failed:
-			broke_at = day
+			hard_break_day = day
 			rows.append("%d,%.3f,%d,%d,0,0,%s,%d,%.1f,,,%s,%d," % [day, n.diner_frac, retries, n.kills, defending, enemy_count, night_s, _cards(), _knockouts])
 			break
 		# dawn moved the night's steaks to the freezer (freezer + carried, as test_night_sims counts); gold is what the day's sales pay out
@@ -70,7 +72,7 @@ func _run() -> void:
 	f.store_string("\n".join(rows) + "\n")
 	f.close()
 	print("\n".join(rows))
-	print("SWEEP broke_at_day=%d target=%d±%d" % [broke_at, Balance.data.sim.break_day_target, Balance.data.sim.break_day_tolerance])
+	print("SWEEP first_fail_day=%d hard_break_day=%d target=%d±%d" % [first_fail_day, hard_break_day, Balance.data.sim.break_day_target, Balance.data.sim.break_day_tolerance])
 	h.finish()
 	get_tree().quit(0)
 

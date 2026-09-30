@@ -67,3 +67,14 @@ func test_night1_deterministic() -> void:
 		await get_tree().process_frame
 	gut.p("determinism: %s" % [results])
 	assert_eq(results[0], results[1])
+
+func test_parked_retry_has_mercy_hp() -> void:
+	h.start(SEED, ParkedBot)
+	var r := await h.run_night()
+	assert_true(r.failed)
+	assert_true(await h.run_until(func(): return not h.main.phase_controller.failing, 5.0))
+	assert_eq(GameState.night_fails, 1)
+	await h.run_until(func(): return h.main.world.wave_director.alive_enemies().size() > 0, 15.0)
+	var b: Boar = h.main.world.wave_director.alive_enemies()[0]
+	assert_almost_eq(b.health.max_hp, Balance.data.enemy.hp * float(GameState.lane_plan[0].hp_mult) * GameState.mercy_factor(), 1e-4)
+	assert_lt(b.health.max_hp, Balance.data.enemy.hp * float(GameState.lane_plan[0].hp_mult), "lower spawn HP on the retry")
