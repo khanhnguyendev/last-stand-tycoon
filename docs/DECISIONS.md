@@ -1272,3 +1272,68 @@ falls and the night restarts identically.
   (only `Nunito.ttf`), so the lines had no effect.
 - S4 (art) restores `for_mobile=true` together with `import_etc2_astc=true`. Without both, phones fall back to
   decompressing textures on the CPU.
+
+**D-159 Build v0.1 autonomously; one final review at the end of S5 (author; amends D-137, D-138, D-140, D-142).**
+- The author won't test placeholder builds. CP2 (phone check) and CP3 (S1 gate) are deferred, not approved, and merged
+  into a single FINAL REVIEW after S5. S6 (itch.io friend playtests, release) starts only after the author approves it.
+- PR #12 (Phase 10) was self-merged under D-137 with CP2 deferred. PR #13 (Task 34 CI) was retargeted to `main` and
+  merged when green. There are no checkpoint PRs before the final review; every phase is self-merged under D-137.
+- Branch protection on `main` was applied by the main session on the author's instruction: a PR plus the `unit`, `sim`
+  and Pages `deploy` checks, strict, admins included. Self-merges must pass it. No other protection changes.
+- Default `UiTuning.occluder_alpha` is 0.45; the author confirms it at the final review.
+- Order: finish S1 (Task 35 tuning, Task 36 perf on the profile build: iOS Simulator plus emulated Pixel; Task 37
+  moves to the final review), then S2 hero cards and adventurer guards, S3 save/load plus failure and mercy, S4 asset
+  pipeline and full art pass (ART_BIBLE.md and the asset validator first; CC0 packs first; kitbash and restyle
+  through Blender; procedural props; AI generation only for gaps and only after a commercial-license check;
+  everything in ASSET_LICENSES.md), S5 UI/HUD polish, contextual onboarding, audio, VFX and juice.
+- Autonomy for S2–S5:
+  - the full Superpowers flow per sub-project, with the brainstorming questions answered by the main session from
+    IDEA.md, the three pillars, DECISIONS.md and the S1 sweep data;
+  - every decision logged, and every reversible player-facing, balance, art-direction or IDEA.md-deviating one also
+    added to `docs/REVIEW_QUEUE.md`, ranked by impact;
+  - the v0.1 scope stays as in IDEA.md, with nothing from its "Later" list; new ideas go to "Post v0.1" in the spec.
+- Quality gates replace the author:
+  - CI green and a reviewer pass for every task;
+  - sims and the sweep re-run after every balance-affecting change;
+  - an iOS Simulator screenshot self-review against ART_BIBLE for every visual task;
+  - the profile build at ≥ 58 fps average on the simulator at night 3, with the final art.
+- Stop and ask only for:
+  - one-time setup the agents can't do;
+  - anything that costs money;
+  - asset license uncertainty;
+  - irreversible or destructive actions outside the repo;
+  - a design conflict that can't be resolved inside IDEA.md's pillars.
+- The final review delivers:
+  - the release and /debug/ Pages URLs;
+  - `docs/review/FINAL_REVIEW.md` (contents as the author listed them);
+  - media in `docs/review/media/`: a 60–90 s iOS Simulator video covering a full night, the dawn card pick and a
+    day, before/after screenshots, and one screenshot per lane.
+
+**D-160 S1 tuning pass: the baseline balance stands (Task 35; D-066, D-103).**
+- Baseline, seed 20260930, with no balance change:
+  - night 1 NaiveBot clears at 0.667 diner HP (target ≥ 0.50);
+  - night 2 PlannerBot clears at 1.000 (target ≥ 0.60);
+  - night 2 NaiveBot falls (target ≤ 0.30). There is no relaxation.
+- Sweep (PlannerBot): breaks at day 8, as in D-155. Unspent gold at close-up, days 1–5: 8 / 32 / 38 / 34 / 12, all under
+  one tower (40). **S1 breaks at day 8; this is the target for S2 card power** (D-156).
+- PlannerBot cycle (night + day seconds), days 1–7: 189 / 199 / 262 / 269 / 298 / 336 / 391. Day 2 misses the plan's
+  "≥ 4 min from day 2" stop condition by 41 s.
+- Rounds tried, one knob each, all reverted:
+  - `side_share_base` 0.20 → 0.25: no cycle change;
+  - `EnemyBalance.hp` 30 → 40 and 30 → 33: night 1 NaiveBot falls, so night 1 sits on an HP cliff;
+  - `EnemyBalance.speed` 2.0 → 1.8: +3 s;
+  - `WaveBalance.count_growth` 0.35 → 0.5: the break moves to day 5, which is a design change;
+  - `traveler_interval` 2.5 → 4.4: meets 4 min (day 2 = 243 s) with identical gold and diner HP;
+  - `traveler_interval` 2.5 → 5.0: the sweep stalls at the harness cap.
+- Decision: keep `traveler_interval` 2.5. The 4.4 value only adds time spent waiting at an empty counter, the opposite
+  of a queue building up in an arcade-idle day.
+  - D-066 already treats bot cycle times as a lower bound (the PlannerBot hauls and builds perfectly) and judges the
+    4–6 min criterion in the human playtest.
+  - S2 (cards, adventurer guards) and S5 (onboarding) change cycle length anyway, so the criterion is re-measured at
+    the final review.
+- `count_growth` was also considered, since it is the only knob that adds combat without touching night 1. It fails
+  too: day 2 is already paced by traveler arrivals (about 2.6 s per steak against the 2.5 s interval), and closing the
+  41 s needs g ≈ 0.8. That breaks the unspent-gold condition and pulls the break day earlier; D-156 hands wave scaling
+  to S2 anyway.
+- Reversible: in REVIEW_QUEUE. The knob is `traveler_interval`, and 4.4 to 4.6 is the usable band (5.0 stalls the sweep).
+- The only S1 default change in Task 35 is `UiTuning.occluder_alpha` 0.3 → 0.45 (D-159).
