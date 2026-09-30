@@ -54,3 +54,6 @@ signal guard_knocked_out(guard_id: StringName)
 signal guard_revived(guard_id: StringName)
 ## GameState -> guards. Dawn healed the guard to hp (spec 5.2: after phase_changed(DAWN)).
 signal guard_healed(guard_id: StringName, hp: float)
+
+## PhaseController -> Autosave. A new restore point was taken (new game, close-up, night-1 retry). Never mutate it.
+signal snapshot_taken(snapshot: Dictionary)
