@@ -36,3 +36,4 @@ Desktop.ini
 
 # --- Local agent settings (per-machine) ---
 .claude/settings.local.json
+CLAUDE.local.md
