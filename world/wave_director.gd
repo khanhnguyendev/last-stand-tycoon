@@ -95,7 +95,7 @@ func _spawn_due() -> void:
 
 func _spawn(lane: String, unit_offset: float, hp_mult: float = -1.0) -> Boar:
 	var boar: Boar = enemy_pool.acquire()
-	var mult := hp_mult if hp_mult > 0.0 else float(_plan[maxi(wave_index, 0)].hp_mult)
+	var mult := hp_mult if hp_mult > 0.0 else float(_plan[maxi(wave_index, 0)].hp_mult) * GameState.mercy_factor()
 	boar.spawn(lane, _spawn_counter, unit_offset * Balance.data.enemy.lateral_spread, mult, self)
 	_spawn_counter += 1
 	_alive.append(boar)

@@ -139,3 +139,27 @@ func test_guard_arm_damages_the_guard_and_stops_the_boar() -> void:
 	_step(b, Balance.data.enemy.attack_interval)
 	assert_almost_eq(b.dist, held, 1e-4, "a boar with a guard target stops advancing")
 	assert_eq(float(GameState.guards[&"tank"].hp), GameState.guard_max_hp(&"tank") - Balance.data.enemy.damage)
+
+func test_mercy_scales_fence_arm_damage() -> void:
+	GameState.set_night_fails(2)
+	GameState.add_gold(GameState.next_level_cost("fence_n"))
+	GameState.pay_into_spot("fence_n", GameState.next_level_cost("fence_n"))
+	var b := _boar("north")
+	var stop := b.path_length() - MapLayout.FENCE_OFFSET_FROM_END - Balance.data.enemy.reach
+	_step(b, stop / Balance.data.enemy.speed + 0.1)
+	var hp0 := float(GameState.buildings.fence_n.hp)
+	_step(b, Balance.data.enemy.attack_interval)
+	assert_almost_eq(hp0 - float(GameState.buildings.fence_n.hp), Balance.data.enemy.damage * GameState.mercy_factor(), 1e-4)
+	assert_lt(GameState.mercy_factor(), 1.0)
+
+func test_mercy_scales_guard_arm_damage() -> void:
+	GameState.set_night_fails(2)
+	GameState.debug_grant_card(&"tank")
+	var stop := 10.0
+	dir.providers.register(&"guard", func(e): return {"kind": &"guard", "guard_id": &"tank"} if e.dist >= stop else {})
+	Balance.data.wave.target_priority.kinds.assign([&"fence_on_lane", &"guard", &"diner"])
+	var b := _boar("north")
+	_step(b, stop / Balance.data.enemy.speed + 0.1)
+	_step(b, Balance.data.enemy.attack_interval)
+	var per_hit := Balance.data.enemy.damage * GameState.mercy_factor()
+	assert_almost_eq(float(GameState.guards[&"tank"].hp), GameState.guard_max_hp(&"tank") - per_hit, 1e-4)

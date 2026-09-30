@@ -46,6 +46,7 @@ func test_night1_fail_restarts_night() -> void:
 	assert_eq(h.main.phase_controller.phase, Phase.NIGHT)
 	var now := GameState.to_dict()
 	now.resume_phase = snap.resume_phase
+	snap.night_fails = 1  # the night-1 retry carries one mercy step (S3 spec 6)
 	assert_eq(now, snap)
 	var t0 := h.elapsed
 	await h.run_until(func(): return h.main.world.wave_director.state == WaveDirector.State.ACTIVE, 10.0)

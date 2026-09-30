@@ -82,13 +82,14 @@ func _physics_process(delta: float) -> void:
 	_attack_timer += delta
 	if _attack_timer >= eb.attack_interval - 1e-6:
 		_attack_timer -= eb.attack_interval
+		var dmg := eb.damage * GameState.mercy_factor()
 		match current_target.kind:
 			&"fence_on_lane":
-				GameState.damage_fence(current_target.spot_id, eb.damage)
+				GameState.damage_fence(current_target.spot_id, dmg)
 			&"guard":
-				GameState.damage_guard(current_target.guard_id, eb.damage)
+				GameState.damage_guard(current_target.guard_id, dmg)
 			&"diner":
-				GameState.damage_diner(eb.damage)
+				GameState.damage_diner(dmg)
 
 func take_hit(amount: float) -> void:
 	if alive:
