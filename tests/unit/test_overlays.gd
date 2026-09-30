@@ -83,13 +83,13 @@ func test_fade_alpha_cycles_three_values_and_writes_balance() -> void:
 		return
 	var o: Node = _main_with_overlay()[1]
 	assert_not_null(o)
-	assert_almost_eq(Balance.ui.occluder_alpha, 0.30, 1e-4)
-	o.cycle_occluder_alpha()
 	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4)
 	o.cycle_occluder_alpha()
 	assert_almost_eq(Balance.ui.occluder_alpha, 0.60, 1e-4)
 	o.cycle_occluder_alpha()
 	assert_almost_eq(Balance.ui.occluder_alpha, 0.30, 1e-4)
+	o.cycle_occluder_alpha()
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4)
 
 func test_real_o_key_event_cycles_exactly_once_and_button_shows_value() -> void:
 	if not OS.is_debug_build():
@@ -98,14 +98,14 @@ func test_real_o_key_event_cycles_exactly_once_and_button_shows_value() -> void:
 	var pair := _main_with_overlay()
 	var main: Main = pair[0]
 	var o: Node = pair[1]
-	assert_eq(o.fade_button.text, "Fade alpha 0.30")
+	assert_eq(o.fade_button.text, "Fade alpha 0.45")
 	var e := InputEventKey.new()
 	e.physical_keycode = KEY_O
 	e.keycode = KEY_O
 	e.pressed = true
 	main.get_viewport().push_input(e, true)
-	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4)
-	assert_eq(o.fade_button.text, "Fade alpha 0.45")
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.60, 1e-4)
+	assert_eq(o.fade_button.text, "Fade alpha 0.60")
 
 func test_active_occluder_fade_follows_live_alpha_change() -> void:
 	if not OS.is_debug_build():
@@ -120,11 +120,11 @@ func test_active_occluder_fade_follows_live_alpha_change() -> void:
 	for i in 40:
 		await get_tree().process_frame
 	assert_true(main.world.occluder_fade.is_faded())
-	assert_almost_eq(main.world.occluder_fade.current_alpha(), 0.30, 1e-3)
+	assert_almost_eq(main.world.occluder_fade.current_alpha(), 0.45, 1e-3)
 	o.cycle_occluder_alpha()
 	for i in 40:
 		await get_tree().process_frame
-	assert_almost_eq(main.world.occluder_fade.current_alpha(), 0.45, 1e-3)
+	assert_almost_eq(main.world.occluder_fade.current_alpha(), 0.60, 1e-3)
 
 func test_button_rect_is_bottom_right_inside_safe_area_clear_of_edge_strips() -> void:
 	if not OS.is_debug_build():
@@ -150,9 +150,9 @@ func test_touch_on_button_cycles_and_does_not_start_the_stick() -> void:
 	var c: Vector2 = pair[1].button_rect().get_center()
 	_touch(main.get_viewport(), c, true)
 	assert_false(main.joystick.is_active(), "a press on the button must not start the stick")
-	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4, "press cycles once")
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.60, 1e-4, "press cycles once")
 	_touch(main.get_viewport(), c, false)
-	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4, "release does not cycle")
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.60, 1e-4, "release does not cycle")
 
 func test_stick_released_over_button_still_ends() -> void:
 	if not OS.is_debug_build():
@@ -164,7 +164,7 @@ func test_stick_released_over_button_still_ends() -> void:
 	assert_true(main.joystick.is_active())
 	_touch(main.get_viewport(), pair[1].button_rect().get_center(), false)
 	assert_false(main.joystick.is_active(), "the stick's release must not be swallowed by the button")
-	assert_almost_eq(Balance.ui.occluder_alpha, 0.30, 1e-4, "no cycle")
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4, "no cycle")
 
 func test_touch_elsewhere_still_starts_the_stick() -> void:
 	if not OS.is_debug_build():
@@ -187,7 +187,7 @@ func test_mouse_click_on_button_cycles_once_and_skips_stick() -> void:
 	e.pressed = true
 	main.get_viewport().push_input(e, true)
 	assert_false(main.joystick.is_active())
-	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4)
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.60, 1e-4)
 
 func test_emulated_mouse_event_on_button_is_ignored() -> void:
 	if not OS.is_debug_build():
@@ -201,7 +201,7 @@ func test_emulated_mouse_event_on_button_is_ignored() -> void:
 	e.position = pair[1].button_rect().get_center()
 	e.pressed = true
 	main.get_viewport().push_input(e, true)
-	assert_almost_eq(Balance.ui.occluder_alpha, 0.30, 1e-4)
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4)
 
 func test_stale_owned_finger_does_not_swallow_the_stick_release() -> void:
 	if not OS.is_debug_build():
