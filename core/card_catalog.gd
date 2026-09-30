@@ -23,7 +23,7 @@ static func max_level(cb: CardBalance) -> int:
 	return cb.max_level
 
 static func display_name(id: StringName) -> String:
-	return TranslationServer.translate(NAMES[id])
+	return TranslationServer.translate(NAMES.get(id, String(id)))
 
 static func effect_text(id: StringName, cb: CardBalance) -> String:
 	match id:
@@ -39,7 +39,10 @@ static func effect_text(id: StringName, cb: CardBalance) -> String:
 			return TranslationServer.translate("+%d gold per steak") % cb.gold_step
 		&"archer":
 			return TranslationServer.translate("Shoots from the roof")
-	return TranslationServer.translate("Holds the west lane")
+		&"tank":
+			return TranslationServer.translate("Holds the west lane")
+	assert(false, "unknown card %s" % id)
+	return ""
 
 ## The level line on a card: NEW for an unowned card, otherwise "Lv n → n+1".
 static func level_text(current_level: int) -> String:

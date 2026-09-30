@@ -6,7 +6,7 @@ func before_each() -> void:
 func test_ids_kinds_and_order() -> void:
 	assert_eq(CardCatalog.IDS, [&"hero_damage", &"attack_speed", &"move_speed", &"carry_capacity",
 		&"gold_per_steak", &"archer", &"tank"] as Array[StringName])
-	assert_eq(CardCatalog.UPGRADES.size() + CardCatalog.ADVENTURERS.size(), CardCatalog.IDS.size())
+	assert_eq(CardCatalog.UPGRADES + CardCatalog.ADVENTURERS, CardCatalog.IDS)
 	for id in CardCatalog.UPGRADES:
 		assert_eq(CardCatalog.kind(id), &"upgrade")
 	for id in CardCatalog.ADVENTURERS:

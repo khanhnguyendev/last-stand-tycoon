@@ -28,8 +28,7 @@ func test_first_offer_is_archer_tank_and_one_upgrade_for_any_seed() -> void:
 		assert_true(o[2] in CardCatalog.UPGRADES, "third is an upgrade: %s" % o[2])
 
 func test_zero_level_entries_still_mean_first_offer() -> void:
-	var o := CardOffer.make(SEED, 2, {&"tank": 0}, cb)
-	assert_eq([o[0], o[1]], [&"archer", &"tank"])
+	assert_eq(CardOffer.make(SEED, 2, {&"tank": 0}, cb), CardOffer.make(SEED, 2, {}, cb))
 
 func test_later_offers_are_distinct_and_eligible() -> void:
 	var levels := {&"tank": 1, &"hero_damage": 5, &"archer": 5}
@@ -51,6 +50,9 @@ func test_fewer_eligible_means_fewer_cards() -> void:
 
 func test_all_maxed_is_empty() -> void:
 	assert_eq(CardOffer.make(SEED, 9, _all(5), cb), [] as Array[StringName])
+
+func test_levels_above_max_are_ineligible() -> void:
+	assert_eq(CardOffer.make(SEED, 9, _all(6), cb), [] as Array[StringName])
 
 func test_deterministic_per_seed_and_day() -> void:
 	var lv := {&"tank": 2, &"move_speed": 1}
