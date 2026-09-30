@@ -54,13 +54,15 @@ func test_night2_naive_unaided_is_hard_and_deterministic() -> void:
 	var r2 := await _night2(NaiveBot, h2)
 	h2.finish()
 	assert_eq(_levels(r1.closeup.buildings), 0, "the naive bot never builds")
-	assert_eq([r1.failed, r1.diner_frac, r1.kills, r1.steaks, r1.lane_plan],
-		[r2.failed, r2.diner_frac, r2.kills, r2.steaks, r2.lane_plan],
+	assert_eq(int(r1.closeup.cards.get("archer", 0)), 1, "naive took the Archer")
+	assert_eq([r1.failed, r1.diner_frac, r1.kills, r1.steaks, r1.lane_plan, r1.closeup.cards],
+		[r2.failed, r2.diner_frac, r2.kills, r2.steaks, r2.lane_plan, r2.closeup.cards],
 		"same seed, same outcome")
 
 func test_night2_planner_is_comfortable() -> void:
 	var r := await _night2(PlannerBot, h)
 	gut.p("night2 planner: %s" % r)
+	assert_eq(int(r.closeup.cards.get("tank", 0)), 1, "planner took the Tank")
 	var b: Dictionary = r.closeup.buildings
 	var side_lane := _side_lane(r.lane_plan)
 	assert_ne(side_lane, "", "night 2 has a side group")

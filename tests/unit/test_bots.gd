@@ -72,3 +72,62 @@ func test_naive_bot_picks_most_enemies_then_lane_order() -> void:
 
 func test_naive_bot_picks_lane_with_more_enemies() -> void:
 	assert_eq(await _lane_choice(["east", "west", "east"]), "zone_east")
+
+func test_card_policies() -> void:
+	var naive := NaiveBot.new()
+	var planner := PlannerBot.new()
+	var parked := ParkedBot.new()
+	assert_eq(naive.choose_card([&"tank", &"move_speed", &"archer"]), &"archer")
+	assert_eq(naive.choose_card([&"move_speed", &"tank"]), &"move_speed")
+	assert_eq(planner.choose_card([&"archer", &"tank", &"carry_capacity"]), &"tank")
+	assert_eq(planner.choose_card([&"move_speed", &"carry_capacity", &"gold_per_steak"]), &"gold_per_steak")
+	assert_eq(planner.choose_card([&"move_speed"]), &"move_speed")
+	assert_eq(parked.choose_card([&"carry_capacity", &"archer"]), &"carry_capacity")
+	for b in [naive, planner, parked]:
+		b.free()
+
+func test_planner_fills_to_effective_carry_capacity() -> void:
+	h.start(11, PlannerBot)
+	for i in Balance.data.cards.max_level:
+		GameState.debug_grant_card(&"carry_capacity")
+	h.main.phase_controller.debug_skip_to_day()
+	GameState.freezer_steaks = 40  # test-only setup write
+	var ok: bool = await h.run_until(func(): return GameState.carried_steaks >= GameState.carry_capacity(), 60.0)
+	assert_true(ok, "loaded to %d (base %d)" % [GameState.carry_capacity(), Balance.data.hero.carry_capacity])
+
+func test_fast_hero_arrives_without_overshoot() -> void:
+	h.start(11, BotBase)
+	for i in Balance.data.cards.max_level:
+		GameState.debug_grant_card(&"move_speed")
+	h.main.phase_controller.debug_skip_to_day()
+	h.bot.go_to("sign")
+	var goal: Vector2 = h.bot.graph.position_of("sign")
+	var overshoot := false
+	var prev: Vector2 = h.main.hero.xz()
+	for i in 60 * 30:
+		await h.tick()
+		var now: Vector2 = h.main.hero.xz()
+		if h.bot._route.size() <= 1 and (goal - prev).dot(goal - now) < -1e-6:
+			overshoot = true  # passed the goal on the final approach
+		prev = now
+		if h.bot.arrived():
+			break
+	assert_true(h.bot.arrived(), "arrives at move_speed L5")
+	assert_false(overshoot, "the arrival step uses the effective speed")
+	assert_eq(h.bot.stuck_count, 0)
+
+func test_bot_picks_one_tick_after_the_offer() -> void:
+	h.start(11, BotBase)
+	EventBus.wave_cleared.emit(2)
+	assert_eq(h.main.phase_controller.phase, Phase.DAWN)
+	await h.tick()
+	await h.tick()
+	assert_eq(h.main.phase_controller.phase, Phase.DAY)
+	assert_eq(GameState.card_level(&"archer"), 1)
+
+func test_debug_skip_leaves_a_stale_bot_pick_ignored() -> void:
+	h.start(11, BotBase)
+	h.main.phase_controller.debug_skip_to_day()
+	await h.tick()
+	await h.tick()
+	assert_eq(GameState.cards, {})

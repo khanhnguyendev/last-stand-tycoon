@@ -1,7 +1,7 @@
 extends Node
 ## The only mutable game data (spec 4, D-096). Only these methods change it; they emit EventBus signals.
 
-const SCHEMA_VERSION := 1
+const SCHEMA_VERSION := 2
 
 var resume_phase := "NIGHT"
 var run_seed := 0
@@ -14,6 +14,10 @@ var carried_steaks := 0
 var diner_hp := 0.0
 var buildings := {}
 var lane_plan: Array = []
+## S2: card levels (StringName -> int; missing = 0), the open dawn offer, and targetable guards' HP.
+var cards := {}
+var card_offer: Array[StringName] = []
+var guards := {}
 
 func new_game(seed: int = 0) -> void:
 	run_seed = seed if seed != 0 else Rng.new_run_seed()
@@ -28,6 +32,9 @@ func new_game(seed: int = 0) -> void:
 	buildings = {}
 	for id in MapLayout.SPOT_IDS:
 		buildings[id] = {"level": 0, "paid": 0, "hp": 0.0}
+	cards = {}
+	card_offer = []
+	guards = {}
 	lane_plan = LanePlanner.plan(run_seed, day, Balance.data.wave)
 	EventBus.state_restored.emit()
 
@@ -39,6 +46,8 @@ func to_dict() -> Dictionary:
 		"gold": gold, "gold_pile": gold_pile, "freezer_steaks": freezer_steaks,
 		"counter_steaks": counter_steaks, "carried_steaks": carried_steaks, "diner_hp": diner_hp,
 		"buildings": buildings.duplicate(true), "lane_plan": lane_plan.duplicate(true),
+		"cards": _string_keys(cards), "card_offer": card_offer.map(func(id): return String(id)),
+		"guards": _guards_out(),
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -62,6 +71,15 @@ func from_dict(d: Dictionary) -> void:
 			"main": String(w.main), "side": String(w.side),
 			"main_count": int(w.main_count), "side_count": int(w.side_count), "hp_mult": float(w.hp_mult),
 		})
+	cards = {}
+	for k in d.cards:
+		cards[StringName(k)] = int(d.cards[k])
+	card_offer = []
+	for id in d.card_offer:
+		card_offer.append(StringName(id))
+	guards = {}
+	for k in d.guards:
+		guards[StringName(k)] = {"hp": float(d.guards[k].hp)}
 	EventBus.state_restored.emit()
 
 # --- gold and stocks ------------------------------------------------------
@@ -89,7 +107,7 @@ func add_freezer(n: int) -> void:
 	EventBus.stocks_changed.emit()
 
 func pick_steak() -> bool:
-	if carried_steaks >= Balance.data.hero.carry_capacity:
+	if carried_steaks >= carry_capacity():
 		return false
 	carried_steaks += 1
 	EventBus.steak_picked.emit(carried_steaks)
@@ -97,7 +115,7 @@ func pick_steak() -> bool:
 	return true
 
 func move_freezer_to_carry(n: int = 1) -> int:
-	var m := mini(n, mini(freezer_steaks, Balance.data.hero.carry_capacity - carried_steaks))
+	var m := mini(n, mini(freezer_steaks, carry_capacity() - carried_steaks))
 	if m <= 0:
 		return 0
 	freezer_steaks -= m
@@ -119,7 +137,7 @@ func sell_from_counter(want: int) -> int:
 	if m <= 0:
 		return 0
 	counter_steaks -= m
-	var g := m * Balance.data.economy.gold_per_steak
+	var g := m * gold_per_steak()
 	gold_pile += g
 	EventBus.steak_sold.emit(m, g)
 	EventBus.stocks_changed.emit()
@@ -187,6 +205,9 @@ func heal_for_dawn() -> void:
 		if MapLayout.spot_kind(id) == "fence" and int(b.level) >= 1 and float(b.hp) > 0.0:
 			b.hp = fence_max_hp(b.level)
 			EventBus.building_changed.emit(StringName(id), b.level, b.paid)
+	for id in guards:
+		guards[id].hp = guard_max_hp(id)
+		EventBus.guard_healed.emit(id, float(guards[id].hp))
 
 func reset_destroyed_fences() -> void:
 	for id in buildings:
@@ -198,3 +219,71 @@ func reset_destroyed_fences() -> void:
 func advance_day() -> void:
 	day += 1
 	lane_plan = LanePlanner.plan(run_seed, day, Balance.data.wave)
+
+# --- cards and guards (S2) ------------------------------------------------
+
+func card_level(id: StringName) -> int:
+	return int(cards.get(id, 0))
+
+func carry_capacity() -> int:
+	return CardEffects.carry_capacity(Balance.data.hero.carry_capacity, cards, Balance.data.cards)
+
+func gold_per_steak() -> int:
+	return CardEffects.gold_per_steak(Balance.data.economy.gold_per_steak, cards, Balance.data.cards)
+
+func guard_max_hp(id: StringName) -> float:
+	return float(CardEffects.guard_stats(id, maxi(card_level(id), 1), Balance.data.guards).max_hp)
+
+func set_card_offer(offer: Array[StringName]) -> void:
+	card_offer = offer.duplicate()
+	EventBus.card_offered.emit(Array(card_offer.duplicate()))
+
+## Debug skip only (spec 5.1): no signal, so no overlay shows.
+func clear_card_offer() -> void:
+	card_offer = []
+
+func pick_card(id: StringName) -> int:
+	assert(id in card_offer, "pick_card: %s is not offered" % id)
+	var level := card_level(id) + 1
+	assert(level <= Balance.data.cards.max_level, "pick_card: %s is maxed" % id)
+	cards[id] = level
+	card_offer = []
+	if CardCatalog.kind(id) == &"adventurer" and Balance.data.guards.stats(id).targetable:
+		guards[id] = {"hp": guard_max_hp(id)}
+	EventBus.card_picked.emit(id, level)
+	return level
+
+## Debug and test helper: picks exactly this card; an open dawn offer is kept.
+func debug_grant_card(id: StringName) -> int:
+	var prev := card_offer.duplicate()
+	card_offer = [id]
+	var lvl := pick_card(id)
+	card_offer = prev
+	return lvl
+
+func damage_guard(id: StringName, amount: float) -> void:
+	if not guards.has(id) or float(guards[id].hp) <= 0.0:
+		return
+	var hp := maxf(float(guards[id].hp) - amount, 0.0)
+	guards[id].hp = hp
+	EventBus.guard_damaged.emit(id, hp)
+	if hp <= 0.0:
+		EventBus.guard_knocked_out.emit(id)
+
+func revive_guard(id: StringName) -> void:
+	if not guards.has(id):
+		return
+	guards[id].hp = guard_max_hp(id)
+	EventBus.guard_revived.emit(id)
+
+static func _string_keys(d: Dictionary) -> Dictionary:
+	var out := {}
+	for k in d:
+		out[String(k)] = d[k]
+	return out
+
+func _guards_out() -> Dictionary:
+	var out := {}
+	for k in guards:
+		out[String(k)] = {"hp": float(guards[k].hp)}
+	return out

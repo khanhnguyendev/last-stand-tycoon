@@ -180,3 +180,23 @@ func test_main_wires_joystick_in_input_layer() -> void:
 	var layer := m.joystick.get_parent() as CanvasLayer
 	assert_eq(layer.name, &"InputLayer")
 	assert_eq(layer.layer, 5)
+
+func test_blocked_input_ends_stick_and_ignores_new_press() -> void:
+	_touch(0, Vector2(200, 700), true)
+	assert_true(js.is_active())
+	input.blocked = true
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert_false(js.is_active(), "blocked ends the stick")
+	_touch(1, Vector2(300, 700), true)
+	assert_false(js.is_active(), "no new stick while blocked")
+	var m := InputEventMouseButton.new()
+	m.button_index = MOUSE_BUTTON_LEFT
+	m.pressed = true
+	m.position = Vector2(300, 700)
+	js.handle(m)
+	assert_false(js.is_active(), "no mouse stick while blocked")
+	input.blocked = false
+	_touch(1, Vector2(300, 700), false)
+	_touch(2, Vector2(300, 700), true)
+	assert_true(js.is_active())

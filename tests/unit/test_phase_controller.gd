@@ -19,6 +19,9 @@ func after_each() -> void:
 func _on_spawned_out(w: int) -> void:
 	_spawned_out.append(w)
 
+func _pick_first() -> void:
+	EventBus.card_chosen.emit(GameState.card_offer[0])
+
 func _ticks(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
@@ -93,8 +96,15 @@ func test_dawn_steps_in_order() -> void:
 	for i in 3:
 		main.world.steak_pool.acquire().place(Vector3(20, 0, 0))
 	watch_signals(EventBus)
+	var seen := []
+	EventBus.card_offered.connect(func(_o): seen.append(GameState.day), CONNECT_ONE_SHOT)
 	EventBus.wave_cleared.emit(2)
-	assert_eq(pc.phase, Phase.DAY)
+	assert_eq(seen, [2], "the offer is built after advance_day")
+	assert_eq(pc.phase, Phase.DAWN)
+	assert_eq(pc.dawn_substate, "CARD_PICK")
+	assert_eq(GameState.card_offer.size(), 3)
+	assert_eq([GameState.card_offer[0], GameState.card_offer[1]], [&"archer", &"tank"])
+	assert_signal_emitted(EventBus, "card_offered")
 	assert_eq(GameState.freezer_steaks, 3)
 	assert_eq(GameState.carried_steaks, 2)
 	assert_eq(GameState.diner_hp, Balance.data.build.diner_max_hp)
@@ -103,6 +113,9 @@ func test_dawn_steps_in_order() -> void:
 	assert_eq(GameState.day, 2)
 	assert_ne(GameState.lane_plan[0].side, "")
 	assert_eq(main.world.steak_pool.active().size(), 0)
+	_pick_first()
+	assert_eq(pc.phase, Phase.DAY)
+	assert_eq(GameState.card_level(&"archer"), 1)
 	assert_eq(get_signal_parameters(EventBus, "phase_changed", 0), [Phase.DAWN, 1])
 	assert_eq(get_signal_parameters(EventBus, "phase_changed", 1), [Phase.DAY, 2])
 	assert_eq(pc.dawn_substate, "")
@@ -113,6 +126,7 @@ func test_early_wave_clear_is_not_dawn() -> void:
 
 func test_close_up_collects_and_snapshots_day() -> void:
 	EventBus.wave_cleared.emit(2)
+	_pick_first()
 	GameState.gold_pile = 12  # test-only setup write
 	main.world.steak_pool.acquire().place(Vector3(20, 0, 0))
 	pc.close_up()
@@ -145,6 +159,7 @@ func test_fail_night1_restarts_night() -> void:
 
 func test_fail_after_close_up_returns_to_day() -> void:
 	EventBus.wave_cleared.emit(2)
+	_pick_first()
 	GameState.add_gold(30)
 	pc.close_up()
 	GameState.damage_diner(1000.0)
@@ -212,3 +227,53 @@ func test_debug_skip_to_day_runs_dawn() -> void:
 	pc.debug_skip_to_day()
 	assert_eq(pc.phase, Phase.DAY)
 	assert_eq(GameState.day, 2)
+
+func test_invalid_stale_and_night_choices_are_ignored() -> void:
+	EventBus.card_chosen.emit(&"tank")  # at night
+	assert_eq(GameState.card_level(&"tank"), 0)
+	EventBus.wave_cleared.emit(2)
+	EventBus.card_chosen.emit(&"gold_per_steak" if GameState.card_offer[2] != &"gold_per_steak" else &"move_speed")
+	assert_eq(pc.phase, Phase.DAWN, "a card not in the offer is ignored")
+	EventBus.card_chosen.emit(&"tank")
+	assert_eq(pc.phase, Phase.DAY)
+	EventBus.card_chosen.emit(&"archer")  # stale: the offer is closed
+	assert_eq(GameState.card_level(&"archer"), 0)
+	assert_eq(GameState.card_level(&"tank"), 1)
+
+func test_pick_shows_banner() -> void:
+	EventBus.wave_cleared.emit(2)
+	watch_signals(EventBus)
+	EventBus.card_chosen.emit(&"archer")
+	assert_signal_emitted_with_parameters(EventBus, "banner_requested", ["The Archer joins!"])
+
+func test_empty_offer_skips_to_day() -> void:
+	for id in CardCatalog.IDS:
+		GameState.cards[id] = Balance.data.cards.max_level  # test-only setup write
+	watch_signals(EventBus)
+	EventBus.wave_cleared.emit(2)
+	assert_eq(pc.phase, Phase.DAY)
+	assert_eq(pc.dawn_substate, "")
+	assert_signal_not_emitted(EventBus, "card_offered")
+	pc.close_up()
+	EventBus.wave_cleared.emit(2)
+	assert_eq(pc.phase, Phase.DAY, "a later dawn still works")
+	assert_eq(GameState.day, 3)
+
+func test_debug_skip_grants_no_card_from_night_and_from_pick() -> void:
+	pc.debug_skip_to_day()
+	assert_eq(pc.phase, Phase.DAY)
+	assert_eq(GameState.cards, {})
+	assert_eq(GameState.card_offer, [] as Array[StringName])
+	pc.close_up()
+	EventBus.wave_cleared.emit(2)
+	assert_eq(pc.dawn_substate, "CARD_PICK")
+	pc.debug_skip_to_day()
+	assert_eq([pc.phase, pc.dawn_substate, GameState.cards], [Phase.DAY, "", {}])
+
+func test_new_game_during_pick_resets_substate() -> void:
+	EventBus.wave_cleared.emit(2)
+	pc.start_new_game(3)
+	assert_eq(pc.dawn_substate, "")
+	assert_eq(pc.phase, Phase.NIGHT)
+	EventBus.card_chosen.emit(&"archer")
+	assert_eq(GameState.card_level(&"archer"), 0)

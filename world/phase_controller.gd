@@ -27,10 +27,12 @@ func _ready() -> void:
 	EventBus.wave_cleared.connect(_on_wave_cleared)
 	EventBus.diner_fell.connect(_on_diner_fell)
 	EventBus.closeup_requested.connect(close_up)
+	EventBus.card_chosen.connect(_on_card_chosen)
 
 func start_new_game(seed: int = 0) -> void:
 	failing = false
 	_fail_id += 1
+	dawn_substate = ""
 	_recall_all()
 	GameState.new_game(seed)
 	snapshot = GameState.to_dict()
@@ -77,12 +79,24 @@ func _run_dawn() -> void:
 	GameState.heal_for_dawn()            # 2
 	GameState.reset_destroyed_fences()   # 3
 	GameState.advance_day()              # 4
-	dawn_substate = "CARD_PICK"          # 5
 	_card_pick()
 
+## Spec 5.4 step 5 (S2 spec 5.1): offer the dawn cards and wait for EventBus.card_chosen.
 func _card_pick() -> void:
-	# S1 stub (spec 5.4 step 5). S2 presents the 3 hero cards here and continues on pick.
+	var offer := CardOffer.make(GameState.run_seed, GameState.day, GameState.cards, Balance.data.cards)
+	if offer.is_empty():
+		dawn_substate = ""
+		_enter_day()
+		return
+	dawn_substate = "CARD_PICK"
+	GameState.set_card_offer(offer)
+
+func _on_card_chosen(id: StringName) -> void:
+	if phase != Phase.DAWN or dawn_substate != "CARD_PICK" or not GameState.card_offer.has(id):
+		return
+	var level := GameState.pick_card(id)
 	dawn_substate = ""
+	EventBus.banner_requested.emit(CardCatalog.pick_banner(id, level))
 	_enter_day()
 
 func _on_diner_fell() -> void:
@@ -105,6 +119,7 @@ func _on_fail_timer(fail_id: int) -> void:
 func _restore_snapshot() -> void:
 	wave_director.stop()  # a DAY restore never calls start_night(), which would drop the live boar list
 	_recall_all()
+	dawn_substate = ""
 	GameState.from_dict(snapshot)
 	var night_restart := String(snapshot.resume_phase) == "NIGHT"
 	EventBus.hero_place_requested.emit(MapLayout.NIGHT1_START if night_restart else MapLayout.HOME)  # D-122, D-126
@@ -126,9 +141,14 @@ func _recall_all() -> void:
 	traveler_spawner.clear_queue()
 
 ## Debug helpers (ui/debug hotkeys, tests). Same narrow interface.
+## Skips the card pick without granting a card (S2 spec 5.1), from NIGHT or during CARD_PICK.
 func debug_skip_to_day() -> void:
 	if phase == Phase.NIGHT and not failing:
 		_run_dawn()
+	if phase == Phase.DAWN and dawn_substate == "CARD_PICK":
+		GameState.clear_card_offer()
+		dawn_substate = ""
+		_enter_day()
 
 func debug_skip_to_night() -> void:
 	if phase == Phase.DAY:
