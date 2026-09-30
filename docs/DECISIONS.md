@@ -1407,3 +1407,56 @@ IDEA.md, the pillars, DECISIONS.md and the S1 sweep; a reviewer pass replaced th
 **D-170 Target break day with cards: 10 ± 1 (S2; D-156).**
 - S1 without cards broke at day 8 (D-160). The PlannerBot plays near-perfectly; humans break earlier and get S3 mercy.
 - Reversible, so it is in REVIEW_QUEUE.
+
+## 2026-09-30: S3 save/load + failure & mercy (autonomous brainstorm, D-159)
+
+Spec: `docs/superpowers/specs/2026-09-30-s3-save-failure-mercy-design.md`.
+
+**D-171 The web save lives in `localStorage` (S3).**
+- `localStorage` is written through `JavaScriptBridge` and is synchronous, so it survives a tab closing right after a
+  write.
+- Godot's web `user://` is IndexedDB with an asynchronous sync, which can lose the last write.
+- Desktop, the editor and tests use `user://save/`, with a temp file plus a rename.
+
+**D-172 Save envelope and backup (S3).**
+- The envelope is `{format 1, saved_at_unix, build, night_in_progress, state, check}`. `check` is FNV-1a 32 over the
+  full-precision state JSON (D-146).
+- Each write first copies a valid primary to the backup.
+- Load tries primary, then backup, then a new game. A corrupt primary is kept as `…_corrupt`.
+- Migrations live in `SaveCodec` (1→2 adds cards and guards; 2→3 adds `night_fails`).
+
+**D-173 Autosave triggers (S3; IDEA Save).**
+- A save is written at:
+  - the new-game and close-up snapshots (the night-start save);
+  - dawn with the offer open (CARD_PICK);
+  - after the pick;
+  - each completed build level;
+  - an empty-offer day start;
+  - every 3 s during DAY when dirty;
+  - on hidden or `pagehide` during DAY.
+- Nothing is written during NIGHT. At most the current night and 3 s of the day are lost.
+
+**D-174 A mid-night quit counts as a failed night (S3; IDEA "quitting mid-night costs exactly the same").**
+- The night-start save carries `night_in_progress`. Loading it counts one failure: mercy + 1, the flavor line, and a
+  resume at the close-up state.
+- The rule is reversible, so it is in REVIEW_QUEUE. Closing the tab right after a night starts costs that night.
+
+**D-175 Mercy (S3; IDEA Failure).**
+- Factor = `max(1 − 0.15 × night_fails, 0.40)`. It scales Boar HP at spawn and Boar damage per hit.
+- `night_fails` counts the consecutive failures of the current night. It survives the fail restore (re-applied after
+  `from_dict`), is saved, and clears at dawn.
+- It is shown only as a banner: "The monsters look tired tonight."
+
+**D-176 Boot resumes without a menu (S3; pillar 2, first combat within 30 s).**
+- With a valid save, Main resumes: DAY at HOME, CARD_PICK with the saved offer re-emitted, or NIGHT (the night-1
+  start).
+- Without one, it starts a new game.
+
+**D-177 Restart is debug-only in S3 (S3).**
+- Debug builds: key `R` and `?reset=1` wipe the save and start a new game.
+- Release gets "New game" (with a confirmation) in the S5 settings panel.
+
+**D-178 The sweep reports `first_fail_day` and `hard_break_day` (S3; refines D-155, D-170).**
+- With mercy, a lost night is retried at lower strength, so the run keeps going.
+- The difficulty target stays on the first failure (day 10 ± 1 with cards).
+- `hard_break_day` is the first night still lost after 3 retries with mercy.
