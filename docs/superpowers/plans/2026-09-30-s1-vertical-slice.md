@@ -250,7 +250,7 @@ cd /tmp/lst-spike
 cat > web_probe.gd <<'GD'
 extends Control
 func _ready() -> void:
-	var l := Label.new(); l.add_theme_font_size_override("font_size", 28); add_child(l)
+	var l := Label.new(); l.add_theme_font_size_override("font_size", 34); l.position = Vector2(24, 220); add_child(l)  # below any notch
 	var safe := DisplayServer.get_display_safe_area()
 	var win := DisplayServer.window_get_size()
 	var css := ""
@@ -278,7 +278,25 @@ ls -la build
 cd build && python3 -m http.server 8000 --bind 0.0.0.0
 ```
 
-**HUMAN step (the author, about 2 min):** open `http://<mac-LAN-IP>:8000/` on the phone. Report the three lines on screen and whether the game started at all. While that runs, open the same URL in desktop Chrome and note the console errors.
+**HUMAN step (the author, about 2 minutes).** The implementer first runs `ipconfig getifaddr en0` (or `en1` on some Macs) and sends the author the exact URL, for example `http://192.168.1.23:8000/`. Then the author:
+
+1. Puts the phone on the **same Wi-Fi** as the Mac.
+2. Opens **Safari** (iPhone) or **Chrome** (Android) and types the URL exactly, starting with `http://`, not `https://`. Taps Go.
+3. Waits up to 60 s for the loading bar to finish. Taps nothing else; there is no button in the probe.
+4. Looks at the three white lines of text, about a third of the way down the screen:
+   - `safe=[P: (x, y), S: (w, h)]`
+   - `win=(w, h)`
+   - `css(top,bottom,secure)=<top>px,<bottom>px,<true|false>`
+5. If the screen stays black, shows a loading bar that never finishes, or shows an error: copy the error text, or write "black".
+6. Replies with exactly one line:
+
+```
+SPIKE phone=<model> browser=<Safari|Chrome> <version> loaded=<yes|no> safe=<text after "safe="> win=<text after "win="> css=<text after "="> notes=<error text or none>
+```
+
+For example: `SPIKE phone=iPhone 13 browser=Safari 18 loaded=yes safe=[P: (0, 141), S: (1170, 2391)] win=(1170, 2532) css=47px,34px,false notes=none`
+
+While the author does this, the implementer opens the same URL in desktop Chrome and notes the console errors.
 
 Apply the fallbacks:
 - The page fails over http on the phone → use the itch.io draft for phone tests (D-083).
