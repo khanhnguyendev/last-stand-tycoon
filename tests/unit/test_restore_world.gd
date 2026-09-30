@@ -4,8 +4,10 @@ extends GutTest
 
 var main: Main
 var pc: PhaseController
+var _boars: Array = []  # the boars the mutation left alive and dying, to check their flash after the restore
 
 func before_each() -> void:
+	_boars = []
 	Balance.reset()
 	main = Main.create()
 	add_child_autofree(main)
@@ -107,6 +109,27 @@ func _mutate_everything(snap: Dictionary) -> void:
 	dying.take_hit(1e9)  # mid-death tween, and drops steaks
 	assert_eq(main.world.wave_director.alive_count(), 1, "precondition: a boar is alive")
 	assert_eq(main.world.enemy_pool.active().size(), 2, "precondition: a boar is mid-death")
+	# a build finishing right before the restore leaves its pop tween running. tower_ne is level 1 here and level 0
+	# in the snapshot, so a surviving pop would end at the level-2 scale, not the restored scale 1.
+	assert_eq(GameState.buildings.tower_ne.level, 1, "precondition: tower_ne is level 1")
+	GameState.add_gold(5000)
+	GameState.pay_into_spot("tower_ne", GameState.next_level_cost("tower_ne"))  # level 2, pop starts
+	GameState.gold = 0
+	EventBus.stocks_changed.emit()
+	assert_eq(GameState.buildings.tower_ne.level, 2, "precondition: tower_ne is level 2")
+	assert_gt(main.world.build_spots.tower_ne.visual.scale.x, 1.001, "precondition: the build pop is running")
+	# visual-only leftovers: a transfer in flight, arrows on screen, hit flashes, a camera shake
+	main.world.fly_fx.fly("coin", Vector3.ZERO, Vector3(2, 0, 2))
+	assert_eq(main.world.fly_fx.in_flight(), 1, "precondition: a transfer is in flight")
+	EventBus.wave_incoming.emit(0, &"west", &"north")
+	assert_true(main.hud.arrows.main.visible, "precondition: an arrow is shown")
+	boar.take_hit(1.0)
+	assert_true(boar.flash_active(), "precondition: the boar flashes")
+	_boars = [boar, dying]
+	assert_true(dying.flash_active(), "precondition: the dying boar flashes")
+	EventBus.diner_damaged.emit(1.0, GameState.diner_hp)
+	assert_gt(main.camera_rig._shake_left, 0.0, "precondition: the camera shakes")
+	_displace_camera()
 	# hidden attacker state
 	var target := {"ref": boar, "spawn_index": boar.spawn_index}
 	for a in [main.hero.attacker, main.world.build_spots.tower_nw.attacker, main.world.build_spots.tower_ne.attacker]:
@@ -123,6 +146,15 @@ func _mutate_everything(snap: Dictionary) -> void:
 			differs = true
 	assert_true(differs, "precondition: some telegraph scale differs from the restored one")
 
+## The camera is somewhere else when the restore hits (the hero is placed by the restore, the camera must follow).
+func _displace_camera() -> void:
+	main.camera_rig.snap_to(Vector2(12, -12))
+	var far := main.camera_rig.camera.global_position
+	var home := CameraMath.camera_transform(CameraMath.focus_for(MapLayout.HOME), Balance.ui).origin
+	assert_gt(far.distance_to(home), 1.0, "precondition: the camera is away from HOME")
+	var start := CameraMath.camera_transform(CameraMath.focus_for(MapLayout.NIGHT1_START), Balance.ui).origin
+	assert_gt(far.distance_to(start), 1.0, "precondition: the camera is away from NIGHT1_START")
+
 ## Everything the world shows must match `snap` (the state that was restored), DAY resumed.
 func _assert_world_matches(snap: Dictionary) -> void:
 	var w := main.world
@@ -137,10 +169,60 @@ func _assert_world_matches(snap: Dictionary) -> void:
 	assert_eq(pc.phase, Phase.DAY)
 	assert_false(pc.failing)
 	_assert_views_match(snap)
+	_assert_hud_camera_fx(snap, true, MapLayout.HOME)
+
+func _assert_hud_values(snap: Dictionary) -> void:
+	var hud := main.hud
+	assert_eq(hud.gold_label.text, str(snap.gold), "hud gold")
+	# ProgressBar rounds its value to its step (0.01), so the exact HP lives in GameState, not in the bar
+	assert_almost_eq(hud.diner_bar.value, float(snap.diner_hp), hud.diner_bar.step, "hud diner bar")
+	assert_eq(hud.day_label.text, tr("Day %d") % int(snap.day), "hud day label")
+
+## HUD, camera and visual-only FX after a restore. `day`: the restore resumed DAY (else the night-1 restart).
+func _assert_hud_camera_fx(snap: Dictionary, day: bool, hero_pos: Vector2) -> void:
+	var hud := main.hud
+	_assert_hud_values(snap)
+	if day:
+		assert_false(hud.arrows.main.visible, "hud main arrow")
+		assert_false(hud.arrows.side.visible, "hud side arrow")
+		assert_true(hud.day_label.visible, "hud day label visible in DAY")
+		for m in hud.moons:
+			assert_false(m.visible, "moons are night-only")
+	else:
+		assert_eq(hud.moons.size(), GameState.lane_plan.size(), "one moon per planned wave")
+		assert_eq(hud.filled_moons(), 0, "no moon filled at night 1 start")
+		for m in hud.moons:
+			assert_true(m.visible, "moons are shown at night")
+		# night 1 restarts with its first wave announced (start_night -> wave_incoming)
+		var first: Dictionary = GameState.lane_plan[0]
+		assert_eq(hud._arrow_lane.main, String(first.main), "main arrow lane")
+		assert_eq(hud.arrows.main.visible, String(first.main) != "")
+		assert_eq(hud.arrows.side.visible, String(first.side) != "", "side arrow only when the wave has a side lane")
+	var expect := CameraMath.camera_transform(CameraMath.focus_for(hero_pos), Balance.ui)
+	var got := main.camera_rig.camera.global_transform
+	assert_almost_eq(got.origin, expect.origin, Vector3.ONE * 0.001, "camera position (before any _process)")
+	assert_true(got.basis.is_equal_approx(expect.basis), "camera basis")
+	assert_lte(main.camera_rig._shake_left, 0.0, "camera shake cleared")
+	assert_eq(main.world.fly_fx.in_flight(), 0, "no transfer in flight")
+	for b in _boars:
+		assert_false(b.flash_active(), "recalled boar does not flash")
+
+## Visual tweens that outlive the restore would show up a little later: wait them out.
+func _assert_no_late_visuals(snap: Dictionary) -> void:
+	await _ticks(int(ceil(maxf(Balance.ui.transfer_arc_time, Balance.ui.build_pop_time) * Engine.physics_ticks_per_second)) + 2)
+	# Only checks the recall: an abandoned transfer is gone. Killing the FlyFx tween on release is test_fx.gd's job.
+	assert_eq(main.world.fly_fx.in_flight(), 0, "still no transfer in flight")
+	for id in MapLayout.SPOT_IDS:
+		var lvl := int(snap.buildings[id].level)
+		var expect_scale := Vector3.ONE * pow(Balance.ui.build_level_scale, maxi(lvl - 1, 0))
+		assert_almost_eq(main.world.build_spots[id].visual.scale, expect_scale, Vector3.ONE * 0.0001, "%s scale after the pop time" % id)
+	for b in _boars:
+		assert_false(b.flash_active())
 
 ## The nodes that must rebuild from GameState on state_restored alone (no phase change, no recall).
 func _assert_views_match(snap: Dictionary) -> void:
 	var w := main.world
+	_assert_hud_values(snap)
 	var spots: Dictionary = w.build_spots
 	for id in MapLayout.SPOT_IDS:
 		var lvl := int(snap.buildings[id].level)
@@ -208,6 +290,7 @@ func test_restore_rebuilds_world_from_snapshot() -> void:
 	assert_eq(main.world.enemy_pool.active().size(), 0, "enemy pool after the death tween")
 	assert_eq(main.world.steak_pool.active().size(), 0, "no steaks dropped after the restore")
 	await _assert_no_pending_transactions(snap)
+	await _assert_no_late_visuals(snap)
 
 func test_from_dict_alone_rebuilds_every_view() -> void:
 	# state_restored is the only trigger here: no recall, no phase change
@@ -231,6 +314,7 @@ func test_restore_from_json_round_trip_at_full_precision() -> void:
 	assert_eq(JSON.parse_string(JSON.stringify(GameState.to_dict(), "", true, true)), parsed)
 	_assert_world_matches(snap)
 	await _assert_no_pending_transactions(snap)
+	await _assert_no_late_visuals(snap)
 
 func test_fail_flow_restore_rebuilds_world() -> void:
 	var snap := _make_snapshot()  # NIGHT now, resume DAY
@@ -263,8 +347,13 @@ func test_night_restart_restore_rebuilds_world() -> void:
 	main.world.wave_director.debug_spawn("north")
 	main.world.steak_pool.acquire().place(Vector3(15, 0, 0))
 	await _ticks(60 * 5)
+	main.world.fly_fx.fly("coin", Vector3.ZERO, Vector3(2, 0, 2))
+	EventBus.wave_cleared.emit(0)
+	assert_eq(main.hud.filled_moons(), 1, "precondition: a moon is filled")
+	_displace_camera()
 	pc.snapshot = snap.duplicate(true)
 	pc._restore_snapshot()
+	_assert_hud_camera_fx(snap, false, MapLayout.NIGHT1_START)
 	var wd := main.world.wave_director
 	assert_eq(GameState.to_dict(), snap)
 	assert_eq(pc.phase, Phase.NIGHT)
@@ -283,3 +372,36 @@ func test_night_restart_restore_rebuilds_world() -> void:
 		assert_eq(pool.active().size(), 0, "pool %s not empty" % pool.name)
 	for lane in main.world.telegraph_markers:
 		assert_false(main.world.telegraph_markers[lane].visible, "telegraphs are day-only")
+
+func test_restore_cancels_a_camera_shake_in_progress() -> void:
+	var snap := _make_snapshot()
+	EventBus.diner_damaged.emit(1.0, GameState.diner_hp)
+	assert_gt(main.camera_rig._shake_left, 0.0, "precondition: shaking")
+	pc.snapshot = snap.duplicate(true)
+	pc._restore_snapshot()
+	assert_lte(main.camera_rig._shake_left, 0.0)
+	var n: int = main.camera_rig.shake_count
+	EventBus.diner_damaged.emit(1.0, GameState.diner_hp)
+	assert_eq(main.camera_rig.shake_count, n + 1, "first hit after a restore shakes")
+
+func test_restore_unfades_the_diner() -> void:
+	var snap := _make_snapshot()  # NIGHT now, resume DAY
+	var fade: OccluderFade = main.world.occluder_fade
+	main.hero.teleport(MapLayout.HOME)
+	main.camera_rig.snap()
+	var b := main.world.wave_director.debug_spawn("north")
+	b.set_physics_process(false)
+	var d := 0.0
+	while EnemyPath.position_at("north", d, 0.0, Balance.data.enemy.offset_fade_distance).y < -9.0:
+		d += 0.05
+	b.dist = d
+	b._update_position()
+	var frames := int(ceil(Balance.ui.occluder_fade_s * 60.0)) + 2
+	for i in frames + 30:
+		await get_tree().process_frame
+	assert_true(fade.is_faded(), "precondition: the boar behind the diner fades it")
+	pc.snapshot = snap.duplicate(true)
+	pc._restore_snapshot()
+	for i in frames + 30:
+		await get_tree().process_frame
+	assert_false(fade.is_faded(), "opaque again after the restore recalled the boar")

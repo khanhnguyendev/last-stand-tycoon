@@ -18,6 +18,7 @@ func _ready() -> void:
 	camera.current = true
 	EventBus.diner_damaged.connect(_on_diner_damaged)
 	EventBus.hero_place_requested.connect(snap_to)
+	EventBus.state_restored.connect(_on_state_restored)
 
 func _apply_lens() -> void:
 	if not is_inside_tree():
@@ -53,6 +54,11 @@ func _process(delta: float) -> void:
 		var k := maxf(_shake_left, 0.0) / Balance.ui.shake_time
 		xf.origin += Vector3(sin(_t * 97.0), cos(_t * 89.0), 0.0) * Balance.ui.shake_amp * k
 	camera.global_transform = xf
+
+## A restore ends any shake in progress (the hit that started it never happened, D-045).
+func _on_state_restored() -> void:
+	_shake_left = 0.0
+	_cooldown = 0.0
 
 func _on_diner_damaged(_amount: float, _hp_left: float) -> void:
 	if _cooldown > 0.0:

@@ -57,15 +57,16 @@ func test_phase_controller_uses_only_the_narrow_interface() -> void:
 	var src := FileAccess.get_file_as_string("res://world/phase_controller.gd")
 	for banned in ["get_node", "$", "get_nodes_in_group", "find_children", "find_child", "get_parent", "owner."]:
 		assert_false(src.contains(banned), "phase_controller.gd uses %s" % banned)
-	for prop in ["wave_director", "enemy_pool", "steak_pool", "projectile_pool", "traveler_spawner"]:
+	for prop in ["wave_director", "enemy_pool", "steak_pool", "projectile_pool", "fx_pool", "traveler_spawner"]:
 		assert_not_null(pc.get(prop), "%s not wired in main.tscn" % prop)
 	# D-128 whitelist: the only members PhaseController may use on its exports.
 	var allowed := {
 		"wave_director": ["start_night", "stop"],
 		"enemy_pool": ["recall_all"], "steak_pool": ["recall_all"], "projectile_pool": ["recall_all"],
+		"fx_pool": ["recall_all"],
 		"traveler_spawner": ["start", "stop", "clear_queue"],
 	}
-	var re := RegEx.create_from_string("\\b(wave_director|enemy_pool|steak_pool|projectile_pool|traveler_spawner)\\.(\\w+)")
+	var re := RegEx.create_from_string("\\b(wave_director|enemy_pool|steak_pool|projectile_pool|fx_pool|traveler_spawner)\\.(\\w+)")
 	var uses := 0
 	for m in re.search_all(src):
 		uses += 1
