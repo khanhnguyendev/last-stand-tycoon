@@ -19,12 +19,18 @@ var camera_rig: CameraRig
 var joystick: Joystick
 var focus_pause: FocusPause
 var hud: Hud
+var autosave: Autosave
 var card_overlay: CardPickOverlay
+var save_store: SaveStore
+var debug_fresh_start := false
 
 func _ready() -> void:
 	focus_pause = FocusPause.new()
 	focus_pause.name = "FocusPause"
 	add_child(focus_pause)
+	autosave = Autosave.new()
+	autosave.name = "Autosave"
+	add_child(autosave)
 	hero = Hero.new()
 	add_child(hero)
 	hero.setup(world)
@@ -57,4 +63,18 @@ func _ready() -> void:
 		add_child(PerfOverlay.new())
 	add_child(BuildLabel.new())
 	if auto_start:
-		phase_controller.start_new_game.call_deferred()
+		save_store = SaveStore.for_platform()
+		autosave.store = save_store
+		_boot.call_deferred()
+
+## S3 (D-176, D-177): resume the saved run, or start fresh. Deferred so every listener has connected.
+func _boot() -> void:
+	if debug_fresh_start:
+		save_store.wipe()
+		phase_controller.start_new_game()
+		return
+	var r := save_store.read()
+	if r.ok:
+		phase_controller.resume_from(r.state)
+	else:
+		phase_controller.start_new_game()
