@@ -614,7 +614,7 @@ versions.
 - ParkedBot stays a negative control; test A remains the formal guarantee.
 - The hero walks through fences, but enemies are still blocked until the fence is destroyed.
 
-**D-103 Balance tuning timebox and priority (author).**
+**D-103 [AMENDED by D-131: no timebox] Balance tuning timebox and priority (author).**
 - 2 working days of sim-driven tuning. If the targets conflict, this is the priority:
   1. Night 1, NaiveBot ≥ 50%: must hold.
   2. Night 2, PlannerBot ≥ 60%: must hold.
@@ -622,7 +622,7 @@ versions.
 - If 1 and 2 can't both hold, stop and escalate with the sweep data. No design changes by the
   implementer.
 
-**D-104 Spike first (author).**
+**D-104 [AMENDED by D-131: no timebox] Spike first (author).**
 - The plan's Task 0 is a fail-fast spike over spec Appendix B, timeboxed to half a day. The
   pre-agreed fallbacks:
 
@@ -771,7 +771,7 @@ wording).**
 
 ## 2026-09-30: PR #1 review, part 2
 
-**D-127 Velocity tracking and the budget rule (author).**
+**D-127 [SUPERSEDED by D-131] Velocity tracking and the budget rule (author).**
 - Every plan task has an **Actual (h)** field that the implementer fills in when the task is done.
   6 h counts as 1 working day.
 - At CP1: `r = actual days for Tasks 0–20 ÷ 8.0 planned`, and the S1 forecast is
@@ -812,3 +812,22 @@ wording).**
   reference PCG32 replica of Godot's `RandomPCG` (`pcg32_srandom_r(seed, PCG_DEFAULT_INC_64)`).
 - A mismatch means the derivation or the engine RNG changed. Escalate; never regenerate the list
   silently.
+
+**D-131 Time is not a constraint (author; supersedes D-127, amends D-103 and D-104).**
+- v0.1 has no deadline. Scope is decided by quality and the v0.1 gate, never by the calendar.
+- IDEA.md's timeline line now reads: "no fixed deadline; scope is driven by quality and the v0.1 gate".
+- Plan estimates stay as information only. There is no "Actual (h)" field, no CP1 re-forecast (CP1 is
+  a quality review only), no budget-extension rule and no cut list (`docs/CUT_CANDIDATES.md` is not
+  created).
+- There are no time-based stop rules:
+  - **Spike:** no half-day timebox. Escalate when a check fails and its pre-agreed fallback also
+    fails.
+  - **Balance tuning:** no 2-day timebox. The D-103 priority order stays:
+    1. night 1 NaiveBot ≥ 50% must hold;
+    2. night 2 PlannerBot ≥ 60% must hold;
+    3. night 2 NaiveBot may relax to ≤ 45%.
+
+    Escalate with the sweep data when the two must-hold targets can't both be met, or when 3
+    consecutive tuning rounds make no progress on any target. Never change the design.
+  - **Task size:** if a task turns out bigger than its plan describes (new files, new systems, or
+    steps the plan didn't anticipate), stop and propose a split before continuing.

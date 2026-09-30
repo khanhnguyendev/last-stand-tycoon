@@ -1092,7 +1092,8 @@ Paths use shortest distance on this graph, with no navmesh.
    - Night 1 needs NaiveBot ≥ 50%, night 2 needs NaiveBot ≤ 30%, and night 2 with PlannerBot needs
      ≥ 60%, all from one set of numbers.
    - The side group may need a larger night-2 share or faster side enemies.
-   - Fixes go into the numbers, not the design. Timebox the tuning.
+   - Fixes go into the numbers, not the design. There is no timebox (D-131): escalate when the two
+     must-hold targets conflict or 3 tuning rounds make no progress (D-103).
 2. **Godot 4.7 unknowns:**
    - GUT compatibility (gdUnit4 is the fallback);
    - `--fixed-fps` behavior;

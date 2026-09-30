@@ -7,6 +7,9 @@
 > - Human checkpoints (**CP1, CP2, CP3**) stop all work until the author says continue.
 > - An implementer escalation (a failing threshold, a spec contradiction, a missing fact) goes back to
 >   the main session. It is never decided inside the task.
+> - **Time is not a constraint (D-131).** Scope follows quality and the v0.1 gate, never the calendar.
+>   There are no time-based stop rules. If a task turns out bigger than this plan describes (new files, new
+>   systems, or steps the plan didn't anticipate), stop and propose a split before continuing.
 
 **Goal:** Build the S1 vertical slice of Last Stand Tycoon: an endless night → dawn → day → close-up loop in Godot 4.7, on the final architecture, with placeholder art. It is proven by headless sims, runs as a mobile web build, and is gated by the author's phone playtest.
 
@@ -65,11 +68,11 @@ Stop at each checkpoint and wait for the author:
 
 | # | Where | What the author reviews |
 |---|---|---|
-| CP1 | end of Task 20 | Headless night loop and night sims green: the sim output plus the `docs/screenshots/s1/cp1_night1.png` render |
+| CP1 | end of Task 20 | Quality review only: headless night loop and night sims green, the sim output plus the `docs/screenshots/s1/cp1_night1.png` render |
 | CP2 | end of Task 32 | Input, camera, HUD and web shell on the author's phone (LAN or itch draft per D-120) |
 | CP3 | Task 37, Step 2 | Before the itch.io draft upload |
 
-Estimates in working days, with agentic execution plus one review per task:
+Estimates in working days, **for information only** (D-131: no deadline; nothing is stopped or cut because of them):
 
 | Phase | Tasks | Days |
 |---|---|---|
@@ -85,12 +88,10 @@ Estimates in working days, with agentic execution plus one review per task:
 | 9 Input, camera, HUD, feel, focus | 27–31 | 2.5 |
 | 10 Web shell and presets (→ CP2) | 32 | 1.0 |
 | 11 Screenshots and CI | 33–34 | 0.5 |
-| 12 Tuning (timebox) | 35 | 2.0 |
+| 12 Tuning | 35 | 2.0 |
 | 13 Perf and results | 36 | 0.5 |
 | 14 Gate (→ CP3) | 37 | 0.5 |
 | **Total** | 38 tasks | **18.5 days (about 3.7 weeks)** |
-
-At CP1, re-forecast the remaining phases against this 18.5-day baseline from each task's **Actual (h)** (6 h = 1 day), using the actual days spent on Phases 0–5 (planned: 8.0). Rule D-127: a forecast over 3 weeks extends the v0.1 budget to 8 weeks; the core loop and the S2 cards are never cut (`docs/CUT_CANDIDATES.md`).
 
 ## File Map
 
@@ -139,11 +140,11 @@ At CP1, re-forecast the remaining phases against this 18.5-day baseline from eac
 
 ## Phase 0: Spike
 
-### Task 0: Spike on the Godot 4.7 toolchain (throwaway, timeboxed to 0.5 day, D-104)
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
+### Task 0: Spike on the Godot 4.7 toolchain (throwaway, D-104, D-131)
 
 **Goal:** answer spec Appendix B plus the tool facts this plan depends on. Nothing from the probe project is kept. Only the installed toolchain and DECISIONS entries remain.
+
+**Stop rule (D-131, no timebox):** work through the checks in order. When a check fails, apply its pre-agreed fallback. Escalate only when the fallback also fails.
 
 **Files:**
 - Create (throwaway, outside the repo): `$SPIKE=/tmp/lst-spike/`
@@ -311,8 +312,6 @@ git commit -m "docs: log S1 toolchain spike results"
 ## Phase 1: Project bootstrap
 
 ### Task 1: Godot project, GUT, test runner, CLAUDE.md
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create: `project.godot`, `.gutconfig.json`, `run_tests.sh`, `CLAUDE.md`, `addons/gut/` (copied), `tests/unit/test_smoke.gd`, `world/main.tscn`, `world/main.gd` (stub)
@@ -514,6 +513,11 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
   - hero placement is the bus event `EventBus.hero_place_requested(position)`.
 - Tests and tools create the game with `Main.create()` (instantiates `main.tscn`), never `Main.new()`.
 
+## Scope and time (D-131)
+- v0.1 has no deadline. Scope is decided by quality and the v0.1 gate, never by the calendar. Plan estimates are information only.
+- No time-based stop rules. If a task turns out bigger than its plan describes (new files, new systems, or steps the plan didn't anticipate), stop and propose a split before continuing.
+- Escalate on facts, not time: a failed check whose pre-agreed fallback also fails (spike); must-hold balance targets that conflict, or 3 tuning rounds without progress (D-103).
+
 ## Rules
 - Gameplay in `_physics_process` only; never depend on frame delta.
 - Randomness only via `Rng.stream(run_seed, day, name)`; a unit test bans global rand calls.
@@ -531,8 +535,6 @@ git commit -m "chore: bootstrap Godot 4.7 project with GUT test runner"
 ```
 
 ### Task 2: Balance resources and the `Balance` autoload
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create:
@@ -821,8 +823,6 @@ git commit -m "feat: add typed balance resources and Balance autoload"
 
 ### Task 3: `Rng` streams and the global-rand ban
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `core/rng.gd`
 - Test: `tests/unit/test_rng.gd`, `tests/unit/test_no_global_rand.gd`
@@ -1031,8 +1031,6 @@ git commit -m "feat: add seeded Rng streams and global-rand ban test"
 
 ### Task 4: `WaveMath` and `WaveSchedule`
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `core/wave_math.gd`, `core/wave_schedule.gd`
 - Test: `tests/unit/test_wave_math.gd`, `tests/unit/test_wave_schedule.gd`
@@ -1203,8 +1201,6 @@ git commit -m "feat: add wave math, spawn schedule and clear rule"
 
 ### Task 5: `LanePlanner` and lane threat
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `core/lane_planner.gd`
 - Test: `tests/unit/test_lane_planner.gd`
@@ -1343,8 +1339,6 @@ git commit -m "feat: add seeded lane planner and lane threat"
 ```
 
 ### Task 6: `MapLayout`, `Geometry`, `EnemyPath` and geometry tests A′–E
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create: `core/map_layout.gd`, `core/geometry.gd`, `core/enemy_path.gd`
@@ -1736,8 +1730,6 @@ git commit -m "feat: add map layout, geometry helpers, enemy path and geometry t
 
 ### Task 7: `Targeting`, `Economy` and `Pulse`
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `core/targeting.gd`, `core/economy.gd`, `core/pulse.gd`
 - Test: `tests/unit/test_targeting.gd`, `tests/unit/test_economy.gd`, `tests/unit/test_pulse.gd`
@@ -1952,8 +1944,6 @@ git commit -m "feat: add targeting, economy costs and close-up pulse predicate"
 
 ### Task 8: `WaypointGraph` for bots
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `core/waypoint_graph.gd`
 - Test: `tests/unit/test_waypoint_graph.gd`
@@ -2137,8 +2127,6 @@ git commit -m "feat: add bot waypoint graph"
 
 ### Task 9: `CameraMath` and the lane-visibility test
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `core/camera_math.gd`
 - Test: `tests/unit/test_lane_visibility.gd`
@@ -2274,8 +2262,6 @@ git commit -m "feat: add camera math and lane visibility test"
 ## Phase 3: State, bus, scene skeleton
 
 ### Task 10: `Phase`, `EventBus` and `GameState`
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create: `core/phase.gd`
@@ -2726,8 +2712,6 @@ git commit -m "feat: add EventBus signals and GameState with snapshot round trip
 
 ### Task 11: Visuals, `WorldLabel` with the Nunito font, `NodePool`, `Health`, `Targetable`
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create:
   - `world/visuals.gd`, `ui/world_label/world_label.gd`, `ui/fonts/Nunito.ttf`
@@ -3073,8 +3057,6 @@ git commit -m "feat: add placeholder visuals, Nunito world labels, pool and heal
 
 ### Task 12: `Main` and the `World` map skeleton
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Modify: `world/main.gd`, `world/main.tscn`
 - Create: `world/world.gd`, `world/lanes/lane.gd`
@@ -3276,8 +3258,6 @@ git commit -m "feat: add Main and World map skeleton built from MapLayout"
 ## Phase 4: Headless night loop
 
 ### Task 13: `Boar`, `Steak`, `TargetProviders` and the enemy/steak pools
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create: `actors/enemy/boar.gd`, `actors/pickups/steak.gd`, `world/target_providers.gd`
@@ -3636,8 +3616,6 @@ git commit -m "feat: add Boar enemy, steaks, data-driven target providers and po
 
 ### Task 14: `WaveDirector`
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `world/wave_director.gd`
 - Modify: `world/world.gd`, `world/main.tscn`
@@ -3947,8 +3925,6 @@ git commit -m "feat: add WaveDirector with schedule, clear rule, breather and dr
 
 ### Task 15: `Hero`, `HeroInput`, `Magnet`, `CarryStack`
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `actors/hero/hero.gd`, `actors/hero/hero_input.gd`, `components/magnet.gd`, `components/carry_stack.gd`
 - Modify: `world/main.gd`
@@ -4232,8 +4208,6 @@ git commit -m "feat: add hero body, input API, magnet pickup and carry stack"
 ```
 
 ### Task 16: `Attacker` and `Projectile` (hero combat)
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create: `components/attacker.gd`, `actors/projectile/projectile.gd`
@@ -4550,8 +4524,6 @@ git commit -m "feat: add auto-attacker and homing projectiles for hero combat"
 ```
 
 ### Task 17: `PhaseController` (new game, night, fail, dawn, close-up)
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create: `world/phase_controller.gd`
@@ -4880,8 +4852,6 @@ git commit -m "feat: add PhaseController with snapshot, fail restore, dawn and c
 
 ### Task 18: Build spots (tower combat, fence rubble, visuals)
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `world/build_spots/build_spot.gd`, `world/build_spots/tower_spot.gd`, `world/build_spots/fence_spot.gd`
 - Modify: `world/world.gd`
@@ -5119,8 +5089,6 @@ git commit -m "feat: add tower and fence build spots with level-driven stats and
 ## Phase 5: Sim bots and night sims
 
 ### Task 19: `BotBase`, `ParkedBot`, `NaiveBot`, `SimHarness`
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create: `actors/bots/bot_base.gd`, `actors/bots/parked_bot.gd`, `actors/bots/naive_bot.gd`, `tests/sim/sim_harness.gd`
@@ -5408,8 +5376,6 @@ git commit -m "feat: add sim bots on the waypoint graph and a headless sim harne
 
 ### Task 20: Night sims and the capture tool → **CHECKPOINT 1**
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `tests/sim/test_night_sims.gd`, `tests/sim/capture.gd`
 - Output (committed): `docs/screenshots/s1/cp1_night1.png`
@@ -5576,14 +5542,7 @@ git commit -m "test: add night-1 sims and a render capture tool"
 
 - [ ] **Step 6: CHECKPOINT 1. Stop and wait for the author.**
 
-Re-forecast first (D-127):
-1. Sum the **Actual (h)** of Tasks 0–20 and convert at 6 h = 1 working day.
-2. Speed ratio `r = actual days ÷ 8.0` (the planned days for Phases 0–5).
-3. S1 forecast = actual days + (18.5 − 8.0) × r.
-4. If the forecast is over 15 working days (3 weeks), D-127 applies: the v0.1 budget extends to 8 weeks. The core loop and the S2 cards are never cut; if more room is needed, take cuts from `docs/CUT_CANDIDATES.md` in rank order.
-
-Report to the author:
-- the re-forecast table (planned vs actual per phase, `r`, the S1 forecast, and whether D-127 applied);
+CP1 is a quality review only (D-131). Report to the author:
 - the full `./run_tests.sh sim` output (first combat, the night-1 NaiveBot diner fraction, the ParkedBot fall, restart timing, determinism);
 - the path `docs/screenshots/s1/cp1_night1.png`;
 - anything escalated.
@@ -5594,8 +5553,6 @@ Do not start Task 21 until the author says continue.
 ## Phase 6: Day stations and travelers
 
 ### Task 21: `StationZone`, `ProgressRing`, `Freezer`, `Counter`
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create:
@@ -5984,8 +5941,6 @@ git commit -m "feat: add stand-still station zones that arm on entry, freezer an
 
 ### Task 22: `Traveler`, `TravelerSpawner`, `GoldPile`, and the phase hooks
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `actors/traveler/traveler.gd`, `world/traveler_spawner.gd`, `world/stations/gold_pile.gd`
 - Modify: `world/world.gd`, `world/phase_controller.gd`, `world/main.tscn`
@@ -6342,8 +6297,6 @@ git commit -m "feat: add travelers, atomic counter purchases and the gold pile"
 
 ### Task 23: Build and upgrade payment on build spots
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Modify: `world/build_spots/build_spot.gd`
 - Test: `tests/unit/test_build_pay.gd`
@@ -6489,8 +6442,6 @@ git commit -m "feat: pay into build spots by standing, with upgrades to level 3"
 ```
 
 ### Task 24: `CloseUpSign` with the pulse, and `TelegraphMarker`
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create: `world/stations/closeup_sign.gd`, `world/lanes/telegraph_marker.gd`
@@ -6731,8 +6682,6 @@ git commit -m "feat: add close-up sign with pulse and day lane telegraph"
 ## Phase 7: Economy, upgrades, PlannerBot, night-2 sims
 
 ### Task 25: `PlannerBot`, day and night-2 sims, and the sweep
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create: `actors/bots/planner_bot.gd`, `tests/sim/test_day_sims.gd`, `tests/sim/sweep.gd`
@@ -7013,8 +6962,6 @@ git commit -m "feat: add PlannerBot, night-2 sims and the difficulty sweep"
 
 ### Task 26: Full restore-contract test (D-036, D-045)
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Test: `tests/unit/test_restore_world.gd`
 - Modify: whichever node fails the test, and only to make it rebuild from GameState on `state_restored`.
@@ -7118,8 +7065,6 @@ git commit -m "test: pin the full snapshot restore contract"
 ## Phase 9: Input, camera, HUD, feel
 
 ### Task 27: Floating `Joystick`
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create: `ui/joystick/joystick.gd`
@@ -7335,8 +7280,6 @@ git commit -m "feat: add floating joystick with edge strips and single-finger co
 
 ### Task 28: `CameraRig` (follow and shake)
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `world/camera_rig.gd`
 - Modify: `world/main.gd`
@@ -7484,8 +7427,6 @@ git commit -m "feat: add follow camera rig with capped diner-hit shake"
 ```
 
 ### Task 29: `Hud` and `SafeArea`
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create: `ui/hud/hud.gd`, `ui/hud/safe_area.gd`
@@ -7818,8 +7759,6 @@ git commit -m "feat: add HUD with gold punch, moons, diner bar, banners, edge ar
 
 ### Task 30: Feel budget (`FlyFx` arcs, build pop, hit flash)
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `world/fx/fly_fx.gd`
 - Modify:
@@ -8077,8 +8016,6 @@ git commit -m "feat: add visual-only transfer arcs, build pop and hit flash"
 
 ### Task 31: `FocusPause`
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Create: `world/focus_pause.gd`
 - Modify: `world/main.gd`
@@ -8193,8 +8130,6 @@ git commit -m "feat: pause the game on focus loss and hidden tab"
 ## Phase 10: Web shell, export presets, overlays
 
 ### Task 32: Web shell, three presets, debug and perf overlays → **CHECKPOINT 2**
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create:
@@ -8554,8 +8489,6 @@ Do not start Task 33 until the author says continue.
 
 ### Task 33: Per-lane screenshots (D-076)
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Output (committed): `docs/screenshots/s1/lane_west.png`, `lane_north.png`, `lane_east.png`
 
@@ -8581,8 +8514,6 @@ git commit -m "docs: add per-lane S1 visibility screenshots"
 ```
 
 ### Task 34: GitHub Actions CI (D-087)
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Create: `.github/workflows/ci.yml`
@@ -8655,11 +8586,9 @@ Expected: the latest `ci` run shows `completed success`. If the run is red only 
 
 ---
 
-## Phase 12: Balance tuning (timebox: 2 working days, D-103)
+## Phase 12: Balance tuning (D-103, D-131)
 
 ### Task 35: Sim-driven tuning pass
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 **Files:**
 - Modify: `balance/*.gd` defaults only
@@ -8672,7 +8601,10 @@ Expected: the latest `ci` run shows `completed success`. If the run is red only 
   1. night 1 NaiveBot ≥ 50% must hold;
   2. night 2 PlannerBot ≥ 60% must hold;
   3. night 2 NaiveBot ≤ 30% may relax to ≤ 45%, which must be logged.
-- If 1 and 2 can't both hold, **stop and escalate** with the sweep CSV.
+- There is no timebox (D-131). **Stop and escalate** with the sweep CSV when either:
+  - 1 and 2 can't both be met; or
+  - 3 consecutive tuning rounds (one knob change plus a sims-and-sweep run each) make no progress on any target.
+- Never change the design yourself.
 
 - [ ] **Step 1: Baseline.** Run `./run_tests.sh sim` and the sweep. Save both outputs to the task report.
 
@@ -8710,8 +8642,6 @@ git commit -m "chore: tune S1 balance from sims and log the sweep break day"
 
 ### Task 36: Profile build, the web baseline, and the results
 
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
-
 **Files:**
 - Modify: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md` §16 (Results)
 
@@ -8746,8 +8676,6 @@ git commit -m "docs: record S1 web baseline and perf results"
 ## Phase 14: Gate
 
 ### Task 37: **CHECKPOINT 3**, then the itch.io draft and the gate playtest
-
-- [ ] **Actual (h):** ____ (the implementer fills this in when the task is done; the CP1 re-forecast reads it, D-127)
 
 - [ ] **Step 1: The pre-upload check.**
   - `./run_tests.sh all` is green.

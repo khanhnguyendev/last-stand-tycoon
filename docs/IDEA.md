@@ -27,7 +27,7 @@ Reference feel (mechanics only, no assets or names): My Little Universe, Alien I
   unprompted. Only after that: Android/iOS, store rules, ads or IAP.
 - Designed for retention: short sessions, quit anytime, non-punishing failure.
 - Engine: Godot 4.7, GDScript, Compatibility renderer, portrait 720×1280.
-- Timeline: about 4–6 weeks solo.
+- Timeline: no fixed deadline; scope is driven by quality and the v0.1 gate (see DECISIONS.md).
 
 ## Design pillars
 
