@@ -36,3 +36,5 @@ extends Resource
 @export var arrow_edge_margin := 48.0
 @export var arrow_hover_px := 40.0
 @export var arrow_side_scale := 0.6
+## Banner backing panel alpha (CP1 review: banners must stay readable over world labels).
+@export var banner_panel_alpha := 0.55
