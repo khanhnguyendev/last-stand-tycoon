@@ -69,8 +69,8 @@ re-tune, snapshot schema v2.
 - `CardCatalog.IDS` fixes the order above. That order is also the tie-break order everywhere.
 - `CardCatalog.kind(id)`, `CardCatalog.UPGRADES` (the 5 upgrade ids in `IDS` order), and `static func max_level()`,
   which returns `Balance.data.cards.max_level` (5).
-- Each card shows: its name, a one-line effect ("+20% hero damage"), and "NEW" for level 0 or "Lv 2 → 3"
-  otherwise. All strings go through `tr()`. `test_glyphs` adds "→" to its sample, so Nunito's coverage is checked.
+- Each card shows: its name, a one-line effect ("+20% hero damage"), and "NEW" for level 0 or "Lv 2 » 3"
+  otherwise (Nunito has no U+2192 arrow). All strings go through `tr()`. `test_glyphs` adds "»" to its sample, so Nunito's coverage is checked.
 
 ### 4.2 Effects (`core/card_effects.gd`, static, pure; D-167)
 

@@ -111,6 +111,7 @@ func test_held_stick_release_over_panel_does_not_pick() -> void:
 
 func test_after_debug_skip_overlay_hides_and_press_reaches_joystick() -> void:
 	_dawn()
+	await _wait_guard()
 	var c := ov.panel_rects()[0].get_center()
 	pc.debug_skip_to_day()
 	assert_false(ov.visible)
@@ -142,7 +143,29 @@ func test_layout_fits_landscape_and_two_cards() -> void:
 				assert_gte(rects[i].size.y, ui.card_panel_min_h)
 				if i > 0:
 					assert_false(rects[i].intersects(rects[i - 1]), "no overlap")
+	assert_eq(CardPickOverlay.layout(Vector2(720, 1280), none, 3, ui)[0].size, ui.card_panel_size)
 	var notch := {"top": 90, "bottom": 60, "left": 0, "right": 0}
 	var r := CardPickOverlay.layout(Vector2(720, 1280), notch, 3, ui)
+	assert_eq(r[0].size, ui.card_panel_size)
 	assert_gte(r[0].position.y, 90.0)
 	assert_lte(r[2].end.y, 1280.0 - 60.0)
+
+func test_state_restored_hides_the_overlay() -> void:
+	_dawn()
+	assert_true(ov.visible)
+	EventBus.state_restored.emit()
+	assert_false(ov.visible)
+
+func test_cancelled_touch_does_not_pick() -> void:
+	_dawn()
+	await _wait_guard()
+	var c := ov.panel_rects()[0].get_center()
+	_touch(0, c, true)
+	var e := InputEventScreenTouch.new()
+	e.index = 0
+	e.position = c
+	e.pressed = false
+	e.canceled = true
+	main.get_viewport().push_input(e, true)
+	assert_eq(pc.phase, Phase.DAWN)
+	assert_eq(GameState.cards, {})

@@ -248,7 +248,7 @@ func _process(_delta: float) -> void:
 ## Where arrow tips may sit: the safe root rect, inset by the edge margin, below the top HUD.
 func _arrow_rect() -> Rect2:
 	var rect := root.get_global_rect().grow(-Balance.ui.arrow_edge_margin)
-	var hud_bottom := maxf(maxf(_top_column.get_global_rect().end.y, gold_label.get_global_rect().end.y), card_strip.get_global_rect().end.y)
+	var hud_bottom := maxf(maxf(_top_column.get_global_rect().end.y, gold_label.get_global_rect().end.y), card_strip.get_global_rect().end.y if card_strip.text != "" else 0.0)
 	var top := hud_bottom + Balance.ui.arrow_hud_gap + ARROW_EXTENT
 	if top > rect.position.y:
 		rect.size.y -= top - rect.position.y

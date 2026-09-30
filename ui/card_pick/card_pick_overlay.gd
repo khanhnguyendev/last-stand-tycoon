@@ -65,8 +65,10 @@ func panel_rects() -> Array[Rect2]:
 func accepting() -> bool:
 	return visible and _guard_left <= 0.0
 
-## Panel rects for n cards in a column centred in the safe area. Panels shrink (not below card_panel_min_h)
-## so the heading, gaps and panels always fit; width is clamped to the safe width minus side margins.
+## Panel rects for n cards in a column centred in the safe area. Panels fit while the safe height >=
+## HEADING_H + (n+1)·gap + n·card_panel_min_h; below that the column is top-aligned and may overflow
+## (unreachable with canvas_items/expand at 1280 logical height). Width is clamped to the safe width
+## minus side margins.
 static func layout(vp: Vector2, insets: Dictionary, n: int, ui: UiTuning) -> Array[Rect2]:
 	var top := float(insets.top)
 	var bottom := vp.y - float(insets.bottom)
@@ -161,6 +163,10 @@ func _input(event: InputEvent) -> void:
 			_owned[idx] = p
 			get_viewport().set_input_as_handled()
 	elif _owned.has(idx):
+		if event is InputEventScreenTouch and event.canceled:
+			_owned.erase(idx)
+			get_viewport().set_input_as_handled()
+			return
 		var p: int = _owned[idx]
 		_owned.erase(idx)
 		get_viewport().set_input_as_handled()

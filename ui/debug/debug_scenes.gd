@@ -1,6 +1,7 @@
 extends RefCounted
 ## Debug-build URL scenes for simulator self-reviews (D-159). Loaded, never preloaded from release code.
 ## ?cards=archer:1,tank:2 grants cards; &scene=cardpick jumps to the dawn pick.
+## ?cards= without scene=cardpick is lost on a night-1 fail restore.
 
 static func parse(query: String) -> Dictionary:
 	var out := {"cards": {}, "scene": ""}
@@ -11,7 +12,7 @@ static func parse(query: String) -> Dictionary:
 		if kv[0] == "scene":
 			out.scene = kv[1]
 		elif kv[0] == "cards":
-			for item in kv[1].split(",", false):
+			for item in kv[1].uri_decode().split(",", false):
 				var il := item.split(":", true, 1)
 				if il.size() == 2 and StringName(il[0]) in CardCatalog.IDS and il[1].is_valid_int():
 					# clamp: release builds strip pick_card's max-level assert (S2 Task 4 review)
