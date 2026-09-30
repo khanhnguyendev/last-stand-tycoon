@@ -846,9 +846,12 @@ wording).**
 **D-133 Git workflow (author).**
 - One branch and one PR per plan phase (`s1/p<N>-<slug>`), and one commit per task inside it.
 - The `reviewer` subagent still reviews every task; the author reviews each phase PR.
+  [AMENDED by D-137: the author reviews the checkpoint phases' PRs (5, 10, 14) and may review any
+  other.]
 - Before CI exists, the PR body carries the local test output. After CI exists, the `unit` and `sim`
   checks must be green.
-- Only the author merges. After CI lands, the agent gives the author the exact `gh api` command that
+- Only the author merges. [AMENDED by D-137: the agent merges non-checkpoint phase PRs that meet
+  D-137's conditions; checkpoint phases stay with the author.] After CI lands, the agent gives the author the exact `gh api` command that
   protects `main` (PR plus green `unit` and `sim` required, admins included). The agent never applies
   it.
 - [AMENDED by D-134: the repo is public now] Branch protection on a private repo needs GitHub Pro.
@@ -944,6 +947,10 @@ wording).**
   indicator, so both sources read 0 there. Cases with nonzero insets (landscape, a home-screen web
   app) were not measured. The phone reading at CP2 (`/probe/` on the Pages site) confirms the
   decision.
+- [Accepted by the author, 2026-09-30.] iPhone Safari has no element Fullscreen API, so portrait
+  Safari with its bars (insets 0) is the normal iPhone case. Nonzero insets matter for Android Chrome
+  fullscreen and home-screen web apps, so the CSS `env()` path stays. S1 has no PWA or home-screen
+  mode; that is an S6 candidate. The game is portrait-only, so no landscape reading is needed.
 
 **D-120 Plain-http LAN does not work; phones use GitHub Pages (spike, D-135).**
 - iPhone Safari on `http://192.168.1.52:8000/` stopped with "Secure Context - Check web server
@@ -951,3 +958,66 @@ wording).**
 - The pre-agreed fallback applies, as amended by D-135: phone tests use the HTTPS GitHub Pages URL.
   `http://localhost` is still fine for desktop checks (localhost is a secure context).
 - The single-threaded export loads on Pages with no COOP/COEP headers (`secure=true`, D-014).
+
+## 2026-09-30: Phase 1 start: parallel work, merges, device testing
+
+**D-136 Parallel task execution (author).**
+- Tasks run in parallel only when their file sets are disjoint. Two tasks that touch the same file
+  never run at the same time.
+- Hot files are always serialized: `project.godot`, `CLAUDE.md`, `autoload/EventBus.gd`,
+  `autoload/GameState.gd`, `balance/*.gd` and `*.tres`, `world/main.gd`, `world/main.tscn`,
+  `world/world.gd`, `run_tests.sh` and `.github/workflows/*`. When parallel tasks each need a small
+  hot-file edit, they run without it, and the main session applies those edits afterwards, one at a
+  time.
+- At most 3 `implementer` subagents at once, each in its own git worktree on a task branch
+  `s1/p<N>-t<NN>-<slug>` cut from the current phase branch. Each worktree runs its own Godot import
+  (its own `.godot/` cache). Shared gitignored inputs are symlinked, never copied.
+- Every task keeps the full flow: TDD, verification with pasted output, and a reviewer pass.
+  Reviewers may run in parallel.
+- Integration: after a task passes review, its task branch is merged into the phase branch with
+  `--no-ff` (the task's one commit is preserved), and the FULL suite runs on the phase branch before
+  the next task is merged. If the integrated run fails, merging stops and the phase branch is
+  debugged first (systematic-debugging).
+- Merge conflicts are resolved by the main session, never by an implementer. A conflict in a hot
+  file or in design intent is escalated to the author.
+- A task that runs alone commits directly on the phase branch, with no worktree (main session's
+  reading of the rule).
+
+**D-137 Phase PR merge policy (author; amends D-133).**
+- The main session may merge a phase PR into `main` itself, with a merge commit (never squash), when
+  ALL of these hold:
+  - CI is green (before CI exists: the full local suite output is in the PR body);
+  - every task in the phase passed its reviewer pass;
+  - there are no open escalations;
+  - the phase doesn't end at a checkpoint.
+- Phases ending at CP1 (Phase 5, Task 20), CP2 (Phase 10, Task 32) and CP3 (Phase 14, Task 37) stay
+  open for the author to review and merge.
+- After each self-merge, the main session posts a PR comment of at most 5 lines: what shipped,
+  tests, decisions.
+- Agents still never push to `main` directly and never change branch protection.
+- PR #2 (Phase 0) was merged this way on 2026-09-30, after the author said "merged" while it was
+  still open.
+
+**D-138 Device testing without the author's phone (author).**
+- Primary devices: the iOS Simulator (Safari on a notch iPhone) and, when Android Studio is
+  installed, the Android Emulator (Chrome). They load `http://localhost` (a secure context) or the
+  Pages preview URL. `export/device_check.sh` (plan Task 32) scripts them, and results are read from
+  screenshots.
+- System components are never installed by the agent. When a runtime is missing, the author gets
+  the one-time install step. As of 2026-09-30: the iOS 26.5 runtime is present (Xcode.app, used
+  through `DEVELOPER_DIR`), and Android Studio is not installed.
+- The author's phone is used only at CP2 and at the gate (CP3). The criterion-4 phone numbers and
+  the phone load and first-combat times move into the CP3 session: the author plays the 3 gate
+  cycles on the profile build (release template plus the small fps overlay). Task 36 records
+  simulator and desktop numbers for information only.
+- Desktop Chrome passes headless with software WebGL (checked 2026-09-30 on `/probe/`, build
+  `30be3ed`). It uses Playwright 1.63.0 (its cached chromium-1243), installed in a scratch dir and
+  never in the repo:
+  - `chromium.launch({headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist']})`;
+  - a 720×1280 viewport, `goto(url, {waitUntil: 'load'})`, then polling for `window.LST_BUILD` and the
+    canvas, plus a 15 s wait before the screenshot;
+  - a hard timeout: `perl -e 'alarm shift; exec @ARGV' 90 node run.js <url>` (macOS has no `timeout`).
+  Result: renderer `ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device ...), SwiftShader driver)`, no page
+  errors, no failed requests. The console only had Godot's banner and "GPU stall due to ReadPixels"
+  performance warnings. The probe read `safe=[P: (0, 0), S: (720, 1280)]` and `css=0,0,0,0`. Plain
+  `chrome --headless=new --virtual-time-budget` hangs on Godot's main loop, so it isn't used.
