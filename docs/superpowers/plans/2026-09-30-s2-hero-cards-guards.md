@@ -35,6 +35,7 @@
 - `./run_tests.sh` fails on GUT errors and any `SCRIPT ERROR`. Don't write tests that expect engine errors.
 - Sims and tests read state after `await get_tree().physics_frame`. `physics_frame` fires before the nodes' `_physics_process` (D-118).
 - The sim suite stays under 60 s (D-132). Never drop, skip or weaken a test.
+- **Only `tests/unit/test_balance.gd` pins balance literals.** Every other test derives its expected numbers from `Balance.data` / `Balance.ui` (the rule in `test_balance.gd:2-3`), so a tuning pass only touches `test_balance.gd`.
 - Commits end with:
   ```
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -277,7 +278,7 @@ func test_ids_kinds_and_order() -> void:
 		assert_eq(CardCatalog.kind(id), &"upgrade")
 	for id in CardCatalog.ADVENTURERS:
 		assert_eq(CardCatalog.kind(id), &"adventurer")
-	assert_eq(CardCatalog.max_level(Balance.data.cards), 5)
+	assert_eq(CardCatalog.max_level(Balance.data.cards), Balance.data.cards.max_level)
 
 func test_every_card_has_text_and_glyph() -> void:
 	var cb := Balance.data.cards
@@ -285,9 +286,9 @@ func test_every_card_has_text_and_glyph() -> void:
 		assert_ne(CardCatalog.display_name(id), "", "name for %s" % id)
 		assert_ne(CardCatalog.effect_text(id, cb), "", "effect for %s" % id)
 		assert_eq(String(CardCatalog.GLYPHS[id]).length(), 2, "glyph for %s" % id)
-	assert_eq(CardCatalog.effect_text(&"hero_damage", cb), "+20% hero damage")
-	assert_eq(CardCatalog.effect_text(&"carry_capacity", cb), "+2 carry")
-	assert_eq(CardCatalog.effect_text(&"gold_per_steak", cb), "+1 gold per steak")
+	assert_eq(CardCatalog.effect_text(&"hero_damage", cb), "+%d%% hero damage" % roundi(cb.damage_step * 100.0))
+	assert_eq(CardCatalog.effect_text(&"carry_capacity", cb), "+%d carry" % cb.carry_step)
+	assert_eq(CardCatalog.effect_text(&"gold_per_steak", cb), "+%d gold per steak" % cb.gold_step)
 
 func test_level_and_banner_text() -> void:
 	assert_eq(CardCatalog.level_text(0), "NEW")
@@ -316,25 +317,27 @@ func test_level_zero_is_base() -> void:
 	assert_eq(CardEffects.gold_per_steak(3, none, cb), 3)
 
 func test_upgrades_at_every_level() -> void:
-	for l in range(0, 6):
+	for l in range(0, cb.max_level + 1):
 		var lv := {&"hero_damage": l, &"attack_speed": l, &"move_speed": l, &"carry_capacity": l, &"gold_per_steak": l}
-		assert_almost_eq(CardEffects.hero_damage(10.0, lv, cb), 10.0 * (1.0 + 0.20 * l), 1e-5)
-		assert_almost_eq(CardEffects.hero_attack_interval(0.5, lv, cb), 0.5 / (1.0 + 0.15 * l), 1e-5)
-		assert_almost_eq(CardEffects.hero_move_speed(5.0, lv, cb), 5.0 * (1.0 + 0.08 * l), 1e-5)
-		assert_eq(CardEffects.carry_capacity(6, lv, cb), 6 + 2 * l)
-		assert_eq(CardEffects.gold_per_steak(3, lv, cb), 3 + l)
+		assert_almost_eq(CardEffects.hero_damage(10.0, lv, cb), 10.0 * (1.0 + cb.damage_step * l), 1e-5)
+		assert_almost_eq(CardEffects.hero_attack_interval(0.5, lv, cb), 0.5 / (1.0 + cb.attack_speed_step * l), 1e-5)
+		assert_almost_eq(CardEffects.hero_move_speed(5.0, lv, cb), 5.0 * (1.0 + cb.move_step * l), 1e-5)
+		assert_eq(CardEffects.carry_capacity(6, lv, cb), 6 + cb.carry_step * l)
+		assert_eq(CardEffects.gold_per_steak(3, lv, cb), 3 + cb.gold_step * l)
 
 func test_guard_stats_scale_per_level() -> void:
 	var gb := Balance.data.guards
+	var t := gb.tank
+	var a := gb.archer
 	var t1 := CardEffects.guard_stats(&"tank", 1, gb)
 	var t3 := CardEffects.guard_stats(&"tank", 3, gb)
-	assert_almost_eq(t1.max_hp, 160.0, 1e-5)
-	assert_almost_eq(t3.max_hp, 160.0 * (1.0 + 0.35 * 2), 1e-4)
-	assert_almost_eq(t3.damage, 5.0 * (1.0 + 0.25 * 2), 1e-5)
-	assert_eq([t3.interval, t3.range, t3.targetable, t3.on_roof], [0.8, 2.5, true, false])
+	assert_almost_eq(t1.max_hp, t.max_hp, 1e-5)
+	assert_almost_eq(t3.max_hp, t.max_hp * (1.0 + t.hp_growth * 2), 1e-4)
+	assert_almost_eq(t3.damage, t.damage * (1.0 + t.damage_growth * 2), 1e-5)
+	assert_eq([t3.interval, t3.range, t3.targetable, t3.on_roof], [t.interval, t.attack_range, true, false])
 	var a5 := CardEffects.guard_stats(&"archer", 5, gb)
-	assert_almost_eq(a5.damage, 6.0 * (1.0 + 0.30 * 4), 1e-5)
-	assert_eq([a5.range, a5.targetable, a5.on_roof], [9.0, false, true])
+	assert_almost_eq(a5.damage, a.damage * (1.0 + a.damage_growth * 4), 1e-5)
+	assert_eq([a5.range, a5.targetable, a5.on_roof], [a.attack_range, false, true])
 ```
 
 - [ ] **Step 2: Run them and see them fail.** Run `./run_tests.sh unit`. Expected: FAIL; `CardCatalog`/`CardEffects` are not declared.
@@ -617,19 +620,22 @@ func test_clear_offer_emits_nothing() -> void:
 	assert_signal_not_emitted(EventBus, "card_offered")
 
 func test_tank_gets_hp_archer_does_not() -> void:
+	var t := Balance.data.guards.tank
 	GameState.debug_grant_card(&"archer")
 	assert_false(GameState.guards.has(&"archer"), "the roof archer has no HP (spec 5.2)")
 	GameState.debug_grant_card(&"tank")
-	assert_eq(GameState.guards[&"tank"].hp, 160.0)
+	assert_eq(GameState.guards[&"tank"].hp, t.max_hp)
 	GameState.debug_grant_card(&"tank")
-	assert_almost_eq(float(GameState.guards[&"tank"].hp), 160.0 * 1.35, 1e-3, "level-up sets HP to the new max")
+	assert_almost_eq(float(GameState.guards[&"tank"].hp), t.max_hp * (1.0 + t.hp_growth), 1e-3,
+		"level-up sets HP to the new max")
 
 func test_damage_knockout_once_then_noop_and_revive() -> void:
+	var mx := Balance.data.guards.tank.max_hp
 	GameState.debug_grant_card(&"tank")
 	watch_signals(EventBus)
-	GameState.damage_guard(&"tank", 100.0)
-	assert_signal_emitted_with_parameters(EventBus, "guard_damaged", [&"tank", 60.0])
-	GameState.damage_guard(&"tank", 100.0)
+	GameState.damage_guard(&"tank", mx * 0.25)
+	assert_signal_emitted_with_parameters(EventBus, "guard_damaged", [&"tank", mx * 0.75])
+	GameState.damage_guard(&"tank", mx)
 	assert_eq(GameState.guards[&"tank"].hp, 0.0)
 	assert_signal_emit_count(EventBus, "guard_knocked_out", 1)
 	GameState.damage_guard(&"tank", 5.0)
@@ -637,7 +643,7 @@ func test_damage_knockout_once_then_noop_and_revive() -> void:
 	assert_signal_emit_count(EventBus, "guard_knocked_out", 1)
 	GameState.damage_guard(&"archer", 5.0)  # no entry: no-op
 	GameState.revive_guard(&"tank")
-	assert_eq(GameState.guards[&"tank"].hp, 160.0)
+	assert_eq(GameState.guards[&"tank"].hp, mx)
 	assert_signal_emitted_with_parameters(EventBus, "guard_revived", [&"tank"])
 
 func test_dawn_heals_guards_with_signal() -> void:
@@ -645,20 +651,24 @@ func test_dawn_heals_guards_with_signal() -> void:
 	GameState.damage_guard(&"tank", 1000.0)
 	watch_signals(EventBus)
 	GameState.heal_for_dawn()
-	assert_eq(GameState.guards[&"tank"].hp, 160.0)
-	assert_signal_emitted_with_parameters(EventBus, "guard_healed", [&"tank", 160.0])
+	var mx := Balance.data.guards.tank.max_hp
+	assert_eq(GameState.guards[&"tank"].hp, mx)
+	assert_signal_emitted_with_parameters(EventBus, "guard_healed", [&"tank", mx])
 
 func test_card_effects_reach_economy() -> void:
+	var cb := Balance.data.cards
 	GameState.debug_grant_card(&"carry_capacity")
 	GameState.debug_grant_card(&"gold_per_steak")
-	assert_eq(GameState.carry_capacity(), Balance.data.hero.carry_capacity + 2)
-	assert_eq(GameState.gold_per_steak(), Balance.data.economy.gold_per_steak + 1)
-	GameState.freezer_steaks = 20  # test-only setup write
-	assert_eq(GameState.move_freezer_to_carry(20), Balance.data.hero.carry_capacity + 2)
+	var cap := Balance.data.hero.carry_capacity + cb.carry_step
+	var price := Balance.data.economy.gold_per_steak + cb.gold_step
+	assert_eq(GameState.carry_capacity(), cap)
+	assert_eq(GameState.gold_per_steak(), price)
+	GameState.freezer_steaks = cap + 10  # test-only setup write
+	assert_eq(GameState.move_freezer_to_carry(cap + 10), cap)
 	GameState.carried_steaks = 0  # test-only setup write
 	GameState.counter_steaks = 2  # test-only setup write
 	GameState.sell_from_counter(2)
-	assert_eq(GameState.gold_pile, 2 * (Balance.data.economy.gold_per_steak + 1))
+	assert_eq(GameState.gold_pile, 2 * price)
 
 func test_round_trip_v2_through_json() -> void:
 	GameState.debug_grant_card(&"tank")
@@ -669,7 +679,7 @@ func test_round_trip_v2_through_json() -> void:
 	assert_eq(int(d.v), 2)
 	assert_eq(d.cards, {"tank": 1, "hero_damage": 1})
 	assert_eq(d.card_offer, ["archer", "move_speed"])
-	assert_eq(d.guards, {"tank": {"hp": 130.0}})
+	assert_eq(d.guards, {"tank": {"hp": Balance.data.guards.tank.max_hp - 30.0}})
 	var back = JSON.parse_string(JSON.stringify(d, "", true, true))  # D-146 full precision
 	GameState.new_game(1)
 	GameState.from_dict(back)
@@ -979,7 +989,7 @@ func choose_card(offer: Array) -> StringName:
 
 - [ ] **Step 4: Run and see them pass.** Run `./run_tests.sh all`. Expected: exit 0.
   - The sims now pass through a real pick. Every bot takes the leftmost card, which is the Archer on dawn 1, and it has no effect yet.
-  - The sim numbers must equal the pre-task numbers (`night2 naive/planner` lines). Paste both into the report.
+  - Report the `night2 naive/planner` sim lines before and after. A small difference is expected and must be explained: the harness bot is Main's last child, so it picks later in the dawn physics frame, and DAY (with its traveler timers) starts one tick later than in S1. All thresholds must still pass.
 
 - [ ] **Step 5: Commit.**
 ```bash
@@ -1003,31 +1013,33 @@ git commit -m "feat(flow): dawn waits for a card pick; debug skip grants none; b
 
 - [ ] **Step 1: Write the failing tests.**
 
-Append to `tests/unit/test_hero.gd`. Use the file's existing `main`/`hero` setup. If it builds a bare `Hero`, add a `Main.create()` fixture exactly like `test_phase_controller.gd`'s `before_each`, and call `pc.start_new_game(99)`.
+Append to `tests/unit/test_hero.gd`. Its fixture is `main`, `hero` and `GameState.new_game(1)`, with no PhaseController game started.
 ```gdscript
 func test_move_speed_card_applies() -> void:
 	var base := Balance.data.hero.move_speed
-	assert_almost_eq(main.hero.move_speed(), base, 1e-5)
+	var fast := base * (1.0 + Balance.data.cards.move_step)
+	assert_almost_eq(hero.move_speed(), base, 1e-5)
 	GameState.debug_grant_card(&"move_speed")
-	assert_almost_eq(main.hero.move_speed(), base * 1.08, 1e-5)
-	main.hero.teleport(Vector2(10, 0))
-	main.hero.input.set_move(Vector2(1, 0))
-	for i in 60:
-		await get_tree().physics_frame
-	main.hero.input.set_move(Vector2.ZERO)
-	assert_almost_eq(main.hero.xz().x, 10.0 + base * 1.08, 0.25)
+	assert_almost_eq(hero.move_speed(), fast, 1e-5)
+	hero.teleport(Vector2(10, 8))
+	hero.input.set_move(Vector2(1, 0))
+	await _ticks(60)
+	hero.input.set_move(Vector2.ZERO)
+	assert_almost_eq(hero.xz().x, 10.0 + fast, 0.25)
 
 func test_attack_cards_reconfigure_attacker_and_restore_resets() -> void:
 	var hb := Balance.data.hero
+	var cb := Balance.data.cards
 	GameState.debug_grant_card(&"hero_damage")
 	GameState.debug_grant_card(&"attack_speed")
-	assert_almost_eq(main.hero.attacker.damage, hb.attack_damage * 1.2, 1e-5)
-	assert_almost_eq(main.hero.attacker.interval, hb.attack_interval / 1.15, 1e-5)
+	assert_almost_eq(hero.attacker.damage, hb.attack_damage * (1.0 + cb.damage_step), 1e-5)
+	assert_almost_eq(hero.attacker.interval, hb.attack_interval / (1.0 + cb.attack_speed_step), 1e-5)
 	GameState.new_game(4)  # cards cleared, state_restored
-	assert_almost_eq(main.hero.attacker.damage, hb.attack_damage, 1e-5)
-	assert_almost_eq(main.hero.attacker.interval, hb.attack_interval, 1e-5)
+	assert_almost_eq(hero.attacker.damage, hb.attack_damage, 1e-5)
+	assert_almost_eq(hero.attacker.interval, hb.attack_interval, 1e-5)
 
 func test_input_blocked_in_dawn_only() -> void:
+	main.phase_controller.start_new_game(1)
 	main.hero.input.player_control = true
 	EventBus.wave_cleared.emit(2)  # -> DAWN / CARD_PICK
 	assert_true(main.hero.input.blocked)
@@ -1042,23 +1054,22 @@ func test_input_blocked_in_dawn_only() -> void:
 	assert_eq(main.hero.input.get_move(), Vector2.RIGHT)
 ```
 
-Append to `tests/unit/test_joystick.gd`, reusing its existing fixture and touch helpers:
+Append to `tests/unit/test_joystick.gd`. Its fixture is `input: HeroInput`, `js: Joystick` and `_touch(i, pos, pressed)`:
 ```gdscript
 func test_blocked_input_ends_stick_and_ignores_new_press() -> void:
 	_touch(0, Vector2(200, 700), true)
-	assert_true(joystick.is_active())
+	assert_true(js.is_active())
 	input.blocked = true
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	assert_false(joystick.is_active(), "blocked ends the stick")
+	assert_false(js.is_active(), "blocked ends the stick")
 	_touch(1, Vector2(300, 700), true)
-	assert_false(joystick.is_active(), "no new stick while blocked")
+	assert_false(js.is_active(), "no new stick while blocked")
 	input.blocked = false
 	_touch(1, Vector2(300, 700), false)
 	_touch(2, Vector2(300, 700), true)
-	assert_true(joystick.is_active())
+	assert_true(js.is_active())
 ```
-If the file names its fixtures differently, use its names. `_touch(index, pos, pressed)` sends an `InputEventScreenTouch` to `joystick.handle()`; add it if it doesn't exist.
 
 - [ ] **Step 2: Run them and see them fail.** Run `./run_tests.sh unit`. Expected: FAIL (`move_speed()` and `blocked` are unknown).
 
@@ -1137,7 +1148,7 @@ git commit -m "feat(hero): card stats for move/damage/attack speed; input blocke
   - `NaiveBot.choose_card`: `&"archer"` if it is offered, otherwise the leftmost card.
   - `PlannerBot.choose_card`: the first card in `PlannerBot.CARD_PREFERENCE` order that is offered.
 
-- [ ] **Step 1: Write the failing tests.** Append to `tests/unit/test_bots.gd`, using its existing `Main` fixture. Add a `Main.create()` fixture like `test_phase_controller.gd` if there is none.
+- [ ] **Step 1: Write the failing tests.** Append to `tests/unit/test_bots.gd`. Its fixture is `h: SimHarness` (`before_each` creates it and `after_each` calls `h.finish()`). Do not add a second Main.
 ```gdscript
 func test_card_policies() -> void:
 	var naive := NaiveBot.new()
@@ -1153,39 +1164,34 @@ func test_card_policies() -> void:
 		b.free()
 
 func test_planner_fills_to_effective_carry_capacity() -> void:
-	for i in 5:
+	h.start(11, PlannerBot)
+	for i in Balance.data.cards.max_level:
 		GameState.debug_grant_card(&"carry_capacity")
-	var bot := PlannerBot.new()
-	main.add_child(bot)
-	bot.setup(main)
-	main.phase_controller.debug_skip_to_day()
+	h.main.phase_controller.debug_skip_to_day()
 	GameState.freezer_steaks = 40  # test-only setup write
-	var ok := false
-	for i in 60 * 60:
-		await get_tree().physics_frame
-		if GameState.carried_steaks >= GameState.carry_capacity():
-			ok = true
-			break
+	var ok: bool = await h.run_until(func(): return GameState.carried_steaks >= GameState.carry_capacity(), 60.0)
 	assert_true(ok, "loaded to %d (base %d)" % [GameState.carry_capacity(), Balance.data.hero.carry_capacity])
-	bot.queue_free()
 
-func test_fast_hero_still_arrives() -> void:
-	for i in 5:
+func test_fast_hero_arrives_without_overshoot() -> void:
+	h.start(11, BotBase)
+	for i in Balance.data.cards.max_level:
 		GameState.debug_grant_card(&"move_speed")
-	var bot := BotBase.new()
-	main.add_child(bot)
-	bot.setup(main)
-	main.phase_controller.debug_skip_to_day()
-	bot.go_to("sign")
-	var ok := false
+	h.main.phase_controller.debug_skip_to_day()
+	h.bot.go_to("sign")
+	var goal: Vector2 = h.bot.graph.position_of("sign")
+	var overshoot := false
+	var prev: Vector2 = h.main.hero.xz()
 	for i in 60 * 30:
-		await get_tree().physics_frame
-		if bot.arrived():
-			ok = true
+		await h.tick()
+		var now: Vector2 = h.main.hero.xz()
+		if h.bot._route.size() <= 1 and (goal - prev).dot(goal - now) < -1e-6:
+			overshoot = true  # passed the goal on the final approach
+		prev = now
+		if h.bot.arrived():
 			break
-	assert_true(ok, "arrives at move_speed L5 without overshooting forever")
-	assert_eq(bot.stuck_count, 0)
-	bot.queue_free()
+	assert_true(h.bot.arrived(), "arrives at move_speed L5")
+	assert_false(overshoot, "the arrival step uses the effective speed")
+	assert_eq(h.bot.stuck_count, 0)
 ```
 
 - [ ] **Step 2: Run them and see them fail.** Run `./run_tests.sh unit`. Expected: FAIL (the policies aren't there, and the planner stops at 6).
@@ -1763,13 +1769,13 @@ func _apply_scene() -> void:
 
 - [ ] **Step 5: Simulator self-review (D-159).** The main session pushes the phase branch. Then:
   - `WAIT_S=25 export/device_check.sh "https://khanhnguyendev.github.io/last-stand-tycoon/preview/s2-p3-pick-ui/debug/?scene=cardpick" <scratch>/pick_ios`
-  - the same with `?cards=tank:2,hero_damage:1&scene=cardpick`
+  - the same with `?cards=hero_damage:5,attack_speed:5,move_speed:5,carry_capacity:5,tank:2&scene=cardpick`. The pool is then exactly gold_per_steak, archer and tank, so the panels show both "NEW" and "Lv 2 → 3" for any seed.
   - `node export/pw_check.mjs "<same url>" <scratch>/pick_android.png android`
 
   Read each screenshot and check:
   - all panels are inside the safe area, with nothing under the notch or home indicator;
   - the text is readable and unclipped, "→" renders, and the level lines read "NEW" / "Lv 2 → 3";
-  - the strip reads "DM1  TK2" under the gold;
+  - the strip reads "DM5  AS5  MV5  CA5  TK2" under the gold (second URL);
   - the heading doesn't collide with the top HUD.
 
   Report each item as pass or fail, with the screenshot paths.
@@ -1896,6 +1902,8 @@ git commit -m "feat(map): guard posts, diner door and the Tank return path with 
 
 ### Task 11: Guards, roster, the guard target and the Boar arm
 
+Deviation from spec §5.5, accepted: the guard HP bar is a flat `MeshInstance3D` box, not a `Sprite3D`/`Label3D`. The camera is fixed (D-071), so a box reads the same, and S4 re-skins it.
+
 **Files:**
 - Create: `actors/guards/guard.gd`, `world/guard_roster.gd`
 - Modify: `actors/enemy/boar.gd`, `world/target_providers.gd` (the comment on line 4)
@@ -1913,7 +1921,7 @@ git commit -m "feat(map): guard posts, diner door and the Tank return path with 
     	if guard_roster != null:
     		out.append_array(guard_roster.occluder_points())
     ```
-- Test: `tests/unit/test_guards.gd`, `tests/unit/test_boar.gd`
+- Test: `tests/unit/test_guards.gd`, `tests/unit/test_boar.gd` (its `FakeDirector` fixture)
 
 **Interfaces:**
 - Consumes: `MapLayout.guard_post`/`tank_return_path`/`DINER_DOOR`, `CardEffects.guard_stats`, `GameState.guards`/`card_level`/`revive_guard`/`damage_guard`, `WaveDirector.providers`/`enemy_candidates`, `World.projectile_pool`.
@@ -2002,11 +2010,13 @@ func test_knockout_respawn_at_door_then_return() -> void:
 	GameState.damage_guard(&"tank", 1e6)
 	assert_eq(t.state, Guard.State.DOWN)
 	assert_false(t.is_targetable())
+	await _ticks(12)
+	assert_false(t.visual.visible, "the knockout poof hides the guard")
 	var b: Boar = main.world.wave_director.debug_spawn("west")
 	b.dist = MapLayout.path_length("west") - MapLayout.TANK_POST_BACK - 1.0
 	b._update_position()
 	assert_eq(roster.guard_target(b), {}, "a downed tank is not a target")
-	await _ticks(int(ceil(Balance.data.guards.tank.respawn_s * 60.0)) + 2)
+	await _ticks(int(ceil(Balance.data.guards.tank.respawn_s * 60.0)) + 2 - 12)  # 12 ticks already waited above
 	assert_eq(t.state, Guard.State.RETURNING)
 	assert_eq(float(GameState.guards[&"tank"].hp), GameState.guard_max_hp(&"tank"))
 	assert_lt(t.xz().distance_to(MapLayout.DINER_DOOR), 0.2, "respawns at the door")
@@ -2025,11 +2035,12 @@ func test_dawn_restores_a_downed_tank() -> void:
 	assert_eq(t.state, Guard.State.POSTED, "no respawn timer carried into the day")
 
 func test_level_up_reconfigures() -> void:
+	var ts := Balance.data.guards.tank
 	GameState.debug_grant_card(&"tank")
 	var t: Guard = roster.guards[&"tank"]
-	assert_almost_eq(t.attacker.damage, 5.0, 1e-5)
+	assert_almost_eq(t.attacker.damage, ts.damage, 1e-5)
 	GameState.debug_grant_card(&"tank")
-	assert_almost_eq(t.attacker.damage, 5.0 * 1.25, 1e-5)
+	assert_almost_eq(t.attacker.damage, ts.damage * (1.0 + ts.damage_growth), 1e-5)
 	assert_eq(float(GameState.guards[&"tank"].hp), GameState.guard_max_hp(&"tank"))
 	assert_eq(roster.guards.size(), 1, "a duplicate levels up; no second tank")
 
@@ -2038,7 +2049,7 @@ func test_occluder_points_include_visible_guards() -> void:
 	assert_eq(roster.occluder_points().size(), 1)
 ```
 
-Append to `tests/unit/test_boar.gd`, using its fixture (it has `main` or a `WaveDirector`; adapt the names to the fixture):
+Also append to `tests/unit/test_guards.gd`, which has `main` and `roster`:
 ```gdscript
 func test_priority_fence_then_guard_then_diner() -> void:
 	assert_eq(Array(Balance.data.wave.target_priority.kinds), [&"fence_on_lane", &"guard", &"diner"])
@@ -2058,6 +2069,22 @@ func test_priority_fence_then_guard_then_diner() -> void:
 	b.dist = b.path_length()
 	b._update_position()
 	assert_eq(main.world.wave_director.providers.find_target(b).kind, &"diner")
+```
+
+Append to `tests/unit/test_boar.gd`, using its `FakeDirector` (`dir`), `_boar()` and `_step()` fixture. This tests the Boar's new `&"guard"` arm:
+```gdscript
+func test_guard_arm_damages_the_guard_and_stops_the_boar() -> void:
+	GameState.debug_grant_card(&"tank")
+	var stop := 10.0
+	dir.providers.register(&"guard", func(e): return {"kind": &"guard", "guard_id": &"tank"} if e.dist >= stop else {})
+	Balance.data.wave.target_priority.kinds.assign([&"fence_on_lane", &"guard", &"diner"])
+	var b := _boar("north")
+	_step(b, stop / Balance.data.enemy.speed + 0.1)
+	var held := b.dist
+	assert_gte(held, stop)
+	_step(b, Balance.data.enemy.attack_interval)
+	assert_almost_eq(b.dist, held, 1e-4, "a boar with a guard target stops advancing")
+	assert_eq(float(GameState.guards[&"tank"].hp), GameState.guard_max_hp(&"tank") - Balance.data.enemy.damage)
 ```
 
 - [ ] **Step 2: Run them and see them fail.** Run `./run_tests.sh unit`. Expected: FAIL; `GuardRoster` is not declared.
@@ -2085,6 +2112,7 @@ var visual: Node3D
 var _bar: MeshInstance3D
 var _respawn_left := 0.0
 var _path: Array = []
+var _poof_tween: Tween
 
 func setup(p_id: StringName, world: World) -> void:
 	id = p_id
@@ -2130,6 +2158,9 @@ func place_at_post() -> void:
 	state = State.POSTED
 	_respawn_left = 0.0
 	_path = []
+	if _poof_tween != null and _poof_tween.is_valid():
+		_poof_tween.kill()
+	visual.scale = Vector3.ONE
 	visual.visible = true
 	attacker.enabled = true
 	position = MapLayout.to3(MapLayout.guard_post(id), MapLayout.DINER_HEIGHT if bool(stats.on_roof) else 0.0)
@@ -2175,8 +2206,21 @@ func _on_knocked_out(g: StringName) -> void:
 	state = State.DOWN
 	_respawn_left = float(stats.respawn_s)
 	attacker.enabled = false
-	visual.visible = false
 	_bar.visible = false
+	poof(false)
+
+## Spec 6.2 poof: a 0.15 s scale tween on the visual (physics time, like Boar.play_death).
+## appear=true pops the guard in from zero; appear=false shrinks it away and hides it.
+func poof(appear: bool) -> void:
+	if _poof_tween != null and _poof_tween.is_valid():
+		_poof_tween.kill()
+	visual.visible = true
+	visual.scale = Vector3.ONE * (0.01 if appear else 1.0)
+	_poof_tween = create_tween()
+	_poof_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
+	_poof_tween.tween_property(visual, "scale", Vector3.ONE if appear else Vector3.ONE * 0.01, 0.15)
+	if not appear:
+		_poof_tween.tween_callback(func(): visual.visible = false)
 
 func _on_card_picked(c: StringName, _level: int) -> void:
 	if c == id:
@@ -2248,6 +2292,7 @@ func _spawn(id: StringName) -> Guard:
 	add_child(g)
 	g.setup(id, _world)
 	guards[id] = g
+	g.poof(true)
 	return g
 
 ## First targetable guard (CardCatalog.IDS order) within the enemy's reach + the guard's body radius (xz).
@@ -2283,13 +2328,19 @@ func occluder_points() -> Array:
 Apply the `world/world.gd` wiring above in your worktree to run the tests. The main session re-applies it from your note (`git diff world/world.gd > /tmp/lst-s2t11-wiring.patch`).
 
 - [ ] **Step 4: Run and see them pass.** Run `./run_tests.sh all`. Expected: exit 0 for unit.
-  - **If a sim threshold fails**, it will most likely be night 2 NaiveBot, now with a working Archer, going above 0.30. Apply D-169 in order: lower `GuardBalance._archer()` `damage` in 1.0 steps, down to a floor of 3.0. Re-run the sims after each step, and report every step's numbers.
-  - If the threshold still fails at the floor, relax nothing and stop: escalate to the main session with the numbers.
+  - **If a sim threshold fails**, it will most likely be night 2 NaiveBot, now with a working Archer, going above 0.30.
+    - `balance/guard_balance.gd` is a D-139 hot file, and this task's main purpose isn't balance, so don't commit a balance change here.
+    - Find the value with local runs, following D-169's order:
+      1. lower the Archer's `damage` in 1.0 steps, down to 3.0;
+      2. then lower `attack_range` from 9.0 toward 8.65 (the §6.1 geometry floor).
+    - Report every step's sim numbers, plus the smallest change that passes, as a wiring note. Include its pin updates: `tests/unit/test_balance.gd` (the Archer literal). No other test pins it, per the Global Constraints.
+    - The main session applies that note and commits it with this task.
+    - If nothing within those floors passes, stop and escalate with the numbers. Relax nothing.
   - Night 2 PlannerBot (with the Tank) must stay ≥ 0.60.
 
 - [ ] **Step 5: Commit** (without `world/world.gd`, which goes in the wiring note).
 ```bash
-git add actors/guards world/guard_roster.gd actors/enemy/boar.gd world/target_providers.gd balance/guard_balance.gd tests/unit/test_guards.gd tests/unit/test_boar.gd
+git add actors/guards world/guard_roster.gd actors/enemy/boar.gd world/target_providers.gd tests/unit/test_guards.gd tests/unit/test_boar.gd
 git commit -m "feat(guards): Archer and Tank at their posts, guard targeting, knockout and respawn (Task S2-11)"
 ```
 
@@ -2318,7 +2369,7 @@ func test_restore_brings_back_cards_and_guards() -> void:
 	var t: Guard = main.world.guard_roster.guards[&"tank"]
 	assert_eq(t.state, Guard.State.POSTED)
 	assert_eq(float(GameState.guards[&"tank"].hp), GameState.guard_max_hp(&"tank"))
-	assert_almost_eq(main.hero.attacker.damage, Balance.data.hero.attack_damage * 1.2, 1e-5)
+	assert_almost_eq(main.hero.attacker.damage, Balance.data.hero.attack_damage * (1.0 + Balance.data.cards.damage_step), 1e-5)
 	assert_false(main.hero.input.blocked)
 	assert_false(main.card_overlay.visible)
 
@@ -2393,7 +2444,7 @@ Main purpose: `balance/*`.
 
 **Files:**
 - Modify: `balance/*.gd` defaults only
-- Modify: the pinned-reference tests that pin a changed value (`test_balance`, `test_wave_math`, `test_economy`, `test_card_effects`, `test_geometry` for Archer range)
+- Modify: `tests/unit/test_balance.gd` pins, plus `test_wave_math` / `test_economy` wherever S1 pinned a wave or economy value that changes. All S2 tests derive their numbers from Balance.
 
 **Rules:** Change only Balance defaults: no code or geometry. Targets, in precedence order:
 1. Night 1 NaiveBot ≥ 0.50.
@@ -2426,9 +2477,13 @@ The main session logs the result as the next D-id ("S2 tuning pass"). It lists e
 - The main session edits `docs/superpowers/specs/2026-09-30-s2-hero-cards-guards-design.md`, adding §15 Results: sims, the sweep, the break day, test counts and screenshot paths.
 
 - [ ] **Step 1: Implement the `--cards` argument** in `capture.gd`:
-  - parse it like `--lane` into `id:level` pairs;
-  - after `start_new_game(...)`, call `debug_grant_card` `level` times for each id;
-  - `--scene=cardpick` emits `root.get_node("EventBus").wave_cleared.emit(lane_plan.size() - 1)`.
+  - Parse it like `--lane` into `id:level` pairs.
+  - After `start_new_game(...)`, call `debug_grant_card` `level` times for each id.
+  - Then, if the Tank exists, call `main.world.guard_roster.guards[&"tank"].place_at_post()`, so it stands at its post instead of walking in from the door.
+  - `--scene=cardpick`:
+    - call `bot.queue_free()` first, so no bot picks the card;
+    - then emit `root.get_node("EventBus").wave_cleared.emit(root.get_node("GameState").lane_plan.size() - 1)`;
+    - capture after `--seconds` (1 s is enough; the pick waits).
 - [ ] **Step 2: Render the shots** (with rendering, not headless):
 ```bash
 for lane in west north east; do "$GODOT" --path . --resolution 720x1280 -s res://tests/sim/capture.gd -- --out=docs/screenshots/s2/lane_$lane.png --lane=$lane --cards=archer:1,tank:1; done
@@ -2441,6 +2496,7 @@ for lane in west north east; do "$GODOT" --path . --resolution 720x1280 -s res:/
   - the card panels are readable;
   - nothing is hidden by the diner (the D-151 fade applies).
 - [ ] **Step 4: Run** `./run_tests.sh all`, and report the unit and sim counts and the SIM SUITE time.
+- [ ] **Step 4b (main session): carry the spec §14 playtest questions forward.** Append them to `docs/REVIEW_QUEUE.md` under a heading "Final review playtest questions (S2)". FINAL_REVIEW.md collects them from there.
 - [ ] **Step 5: Commit, then open the Phase 5 PR.**
 ```bash
 git add tests/sim/capture.gd docs/screenshots/s2
