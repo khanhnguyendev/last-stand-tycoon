@@ -153,6 +153,7 @@ func test_fail_night1_restarts_night() -> void:
 	assert_eq(pc.phase, Phase.NIGHT)
 	var now := GameState.to_dict()
 	now.resume_phase = snap.resume_phase
+	snap.night_fails = 1  # the night-1 retry carries one mercy step (S3 spec 6)
 	assert_eq(now, snap)
 	assert_eq(main.hero.xz(), MapLayout.NIGHT1_START)
 	_assert_pools_empty()

@@ -80,4 +80,6 @@ func test_s3_tuning_defaults() -> void:
 	assert_almost_eq(Balance.data.wave.mercy_step, 0.15, 1e-6)
 	assert_almost_eq(Balance.data.wave.mercy_floor, 0.40, 1e-6)
 	assert_almost_eq(Balance.ui.banner_min_s, 0.6, 1e-6)
+	assert_gt(Balance.ui.banner_time, 0.0)
+	assert_gt(Balance.ui.banner_min_s, 0.0)
 	assert_almost_eq(Balance.ui.autosave_interval_s, 3.0, 1e-6)

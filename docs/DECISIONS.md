@@ -1451,8 +1451,10 @@ Spec: `docs/superpowers/specs/2026-09-30-s3-save-failure-mercy-design.md`.
 - `night_fails` is in the snapshot (schema v3). A fail writes `+1` into the restore point before restoring, and a
   night-1 retry re-emits `snapshot_taken`, so a quit during a retry keeps the count. Dawn clears it.
 - It is shown only as the banner "The monsters look tired tonight.", after an actual failure and never on resume.
-- HUD banner queue: a new banner shortens the current one to `banner_min_s` (0.6 s), then plays in full. So "The
-  monsters return" stays readable before the flavor line, and pick banners don't wait behind "Dawn".
+- HUD banner queue: a new banner shortens the current one to `banner_min_s` (0.6 s). A banner shown while others still
+  wait also plays only `banner_min_s`; the last one in the queue plays the full `banner_time`. The real fail sequence
+  (tested) is: "The diner fell" (cut short), "The monsters return" (0.6 s), then the flavor line (full). Pick banners don't
+  wait behind "Dawn". Amended at the S3 Task 5 review.
 
 **D-176 Boot resumes without a menu (S3; pillar 2, first combat within 30 s).**
 - With a valid save, a deferred `_boot` calls `PhaseController.resume_from`. DAY and NIGHT reuse `_restore_snapshot`;

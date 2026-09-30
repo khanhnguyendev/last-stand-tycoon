@@ -332,6 +332,7 @@ func test_fail_flow_restore_rebuilds_world() -> void:
 	assert_true(pc.failing, "precondition: the diner fell")
 	await _ticks(_fail_ticks())
 	assert_false(pc.failing)
+	snap.night_fails = 1  # a failed night carries one mercy step (S3 spec 6)
 	assert_eq(GameState.to_dict(), snap)
 	_assert_world_matches(snap)
 	await _assert_no_pending_transactions(snap)
