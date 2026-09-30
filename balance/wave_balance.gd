@@ -13,3 +13,6 @@ extends Resource
 @export var side_share_cap := 0.45
 @export var side_group_delay := 4.0
 @export var target_priority: TargetPriority = TargetPriority.new()
+## Mercy (S3, D-175): enemy HP and damage x max(1 - mercy_step x night_fails, mercy_floor).
+@export var mercy_step := 0.15
+@export var mercy_floor := 0.40

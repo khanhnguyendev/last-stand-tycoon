@@ -1,7 +1,7 @@
 extends Node
 ## The only mutable game data (spec 4, D-096). Only these methods change it; they emit EventBus signals.
 
-const SCHEMA_VERSION := 2
+const SCHEMA_VERSION := 3
 
 var resume_phase := "NIGHT"
 var run_seed := 0
@@ -18,6 +18,8 @@ var lane_plan: Array = []
 var cards := {}
 var card_offer: Array[StringName] = []
 var guards := {}
+## Consecutive failures of the current night (S3 mercy, D-175).
+var night_fails := 0
 
 func new_game(seed: int = 0) -> void:
 	run_seed = seed if seed != 0 else Rng.new_run_seed()
@@ -35,6 +37,7 @@ func new_game(seed: int = 0) -> void:
 	cards = {}
 	card_offer = []
 	guards = {}
+	night_fails = 0
 	lane_plan = LanePlanner.plan(run_seed, day, Balance.data.wave)
 	EventBus.state_restored.emit()
 
@@ -47,7 +50,7 @@ func to_dict() -> Dictionary:
 		"counter_steaks": counter_steaks, "carried_steaks": carried_steaks, "diner_hp": diner_hp,
 		"buildings": buildings.duplicate(true), "lane_plan": lane_plan.duplicate(true),
 		"cards": _string_keys(cards), "card_offer": card_offer.map(func(id): return String(id)),
-		"guards": _guards_out(),
+		"guards": _guards_out(), "night_fails": night_fails,
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -80,6 +83,7 @@ func from_dict(d: Dictionary) -> void:
 	guards = {}
 	for k in d.guards:
 		guards[StringName(k)] = {"hp": float(d.guards[k].hp)}
+	night_fails = int(d.night_fails)
 	EventBus.state_restored.emit()
 
 # --- gold and stocks ------------------------------------------------------
@@ -275,6 +279,19 @@ func revive_guard(id: StringName) -> void:
 		return
 	guards[id].hp = guard_max_hp(id)
 	EventBus.guard_revived.emit(id)
+
+# --- failure and mercy (S3) ------------------------------------------------
+
+func set_night_fails(n: int) -> void:
+	night_fails = maxi(n, 0)
+
+func clear_night_fails() -> void:
+	night_fails = 0
+
+## Enemy HP and damage multiplier (D-175).
+func mercy_factor() -> float:
+	var wb := Balance.data.wave
+	return maxf(1.0 - wb.mercy_step * night_fails, wb.mercy_floor)
 
 static func _string_keys(d: Dictionary) -> Dictionary:
 	var out := {}

@@ -232,7 +232,7 @@ func test_round_trip_v2_through_json() -> void:
 	GameState.damage_guard(&"tank", 1.0 / 3.0)
 	GameState.set_card_offer([&"archer", &"move_speed"] as Array[StringName])
 	var d := GameState.to_dict()
-	assert_eq(int(d.v), 2)
+	assert_eq(int(d.v), GameState.SCHEMA_VERSION)
 	assert_eq(d.cards, {"tank": 1, "hero_damage": 1})
 	assert_eq(d.card_offer, ["archer", "move_speed"])
 	assert_eq(d.guards, {"tank": {"hp": Balance.data.guards.tank.max_hp - 1.0 / 3.0}})
@@ -242,3 +242,30 @@ func test_round_trip_v2_through_json() -> void:
 	assert_eq(GameState.to_dict(), d)
 	assert_eq(GameState.card_level(&"tank"), 1)
 	assert_eq(GameState.card_offer, [&"archer", &"move_speed"] as Array[StringName])
+
+func test_night_fails_and_mercy_factor() -> void:
+	var wb := Balance.data.wave
+	assert_eq(GameState.night_fails, 0)
+	assert_almost_eq(GameState.mercy_factor(), 1.0, 1e-6)
+	for n in range(0, 7):
+		GameState.set_night_fails(n)
+		assert_almost_eq(GameState.mercy_factor(), maxf(1.0 - wb.mercy_step * n, wb.mercy_floor), 1e-6)
+	GameState.set_night_fails(-3)
+	assert_eq(GameState.night_fails, 0, "never negative")
+	GameState.set_night_fails(2)
+	GameState.clear_night_fails()
+	assert_eq(GameState.night_fails, 0)
+	GameState.set_night_fails(2)
+	GameState.new_game(8)
+	assert_eq(GameState.night_fails, 0, "a new game starts without mercy")
+
+func test_round_trip_v3_carries_night_fails() -> void:
+	GameState.set_night_fails(3)
+	var d := GameState.to_dict()
+	assert_eq(int(d.v), 3)
+	assert_eq(int(d.night_fails), 3)
+	var back = JSON.parse_string(JSON.stringify(d, "", true, true))
+	GameState.new_game(1)
+	GameState.from_dict(back)
+	assert_eq(GameState.night_fails, 3)
+	assert_eq(GameState.to_dict(), d)
