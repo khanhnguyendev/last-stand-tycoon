@@ -6910,48 +6910,90 @@ func _ticks(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 
+## Ticks needed for `seconds` of physics time, plus a margin.
+func _secs(seconds: float, margin := 1.1) -> int:
+	return int(ceil(seconds * Engine.physics_ticks_per_second * margin))
+
 func test_no_travelers_at_night() -> void:
 	await _ticks(300)
 	assert_eq(sp.queue.size(), 0)
 
 func test_spawn_and_queue_cap_in_day() -> void:
+	var e := Balance.data.economy
 	main.phase_controller.debug_skip_to_day()
-	await _ticks(60 * 3)
+	await _ticks(_secs(e.traveler_interval + e.traveler_jitter))
 	assert_gt(sp.queue.size(), 0)
-	await _ticks(60 * 20)
-	assert_eq(sp.queue.size(), Balance.data.economy.queue_max)
+	await _ticks(_secs((e.queue_max + 1) * (e.traveler_interval + e.traveler_jitter)))
+	assert_eq(sp.queue.size(), e.queue_max)
 
 func test_purchase_is_atomic_after_service_time() -> void:
+	var e := Balance.data.economy
 	main.phase_controller.debug_skip_to_day()
 	GameState.counter_steaks = 5  # test-only setup
 	var ok := await _wait_front_at_counter()
 	assert_true(ok)
 	var front: Traveler = sp.queue[0]
 	var want := front.want
-	await _ticks(30)  # half the service time: nothing sold yet
-	assert_eq(GameState.counter_steaks, 5)
-	assert_eq(GameState.gold_pile, 0)
-	await _ticks(35)
+	var guard := _secs(e.service_time)
+	while not front.leaving and guard > 0:
+		assert_eq(GameState.counter_steaks, 5, "nothing sold before the service time")
+		assert_eq(GameState.gold_pile, 0, "no gold before the service time")
+		await get_tree().physics_frame
+		guard -= 1
+	assert_true(front.leaving, "sale happened within the service time")
 	assert_eq(GameState.counter_steaks, 5 - want)
-	assert_eq(GameState.gold_pile, want * Balance.data.economy.gold_per_steak)
-	assert_true(front.leaving)
+	assert_eq(GameState.gold_pile, want * e.gold_per_steak)
 
 func test_empty_counter_front_waits() -> void:
 	main.phase_controller.debug_skip_to_day()
 	assert_true(await _wait_front_at_counter())
-	await _ticks(120)
+	await _ticks(_secs(Balance.data.economy.service_time * 2.0))
 	assert_false((sp.queue[0] as Traveler).leaving)
 	assert_eq(GameState.gold_pile, 0)
 
 func test_close_up_sends_everyone_away_and_stops() -> void:
 	main.phase_controller.debug_skip_to_day()
-	await _ticks(60 * 6)
+	await _ticks(_secs(Balance.data.economy.traveler_interval * 2.0))
+	assert_gt(sp.queue.size(), 0, "precondition: someone is queued")
 	main.phase_controller.close_up()
 	assert_eq(sp.queue.size(), 0)
+	assert_gt(sp.leaving.size(), 0)
 	for t in sp.leaving:
 		assert_true(t.leaving)
-	await _ticks(60 * 5)
+	await _ticks(_secs(Balance.data.economy.service_time * 5.0))
 	assert_eq(sp.queue.size(), 0)
+
+func test_clear_queue_recalls_everyone() -> void:
+	main.phase_controller.debug_skip_to_day()
+	await _ticks(_secs(Balance.data.economy.traveler_interval * 2.0))
+	assert_gt(sp.queue.size(), 0)
+	sp.clear_queue()
+	assert_eq(sp.queue.size(), 0)
+	assert_eq(sp.leaving.size(), 0)
+	assert_eq(sp.pool.active().size(), 0)
+
+## Spawns of the first day: (tick, want) for the first queue_max travelers.
+func _record_spawns() -> Array:
+	var e := Balance.data.economy
+	main.phase_controller.start_new_game(21)
+	main.phase_controller.debug_skip_to_day()
+	var seen := {}
+	var rec: Array = []
+	for tick in _secs(e.queue_max * (e.traveler_interval + e.traveler_jitter)):
+		await get_tree().physics_frame
+		for t in sp.queue:
+			if not seen.has(t.get_instance_id()):
+				seen[t.get_instance_id()] = true
+				rec.append([tick, t.want])
+		if rec.size() >= e.queue_max:
+			break
+	return rec
+
+func test_same_seed_gives_the_same_traveler_spawns() -> void:
+	var a := await _record_spawns()
+	var b := await _record_spawns()
+	assert_eq(a.size(), Balance.data.economy.queue_max)
+	assert_eq(a, b)
 
 func test_gold_pile_visual() -> void:
 	main.phase_controller.debug_skip_to_day()
@@ -6960,7 +7002,8 @@ func test_gold_pile_visual() -> void:
 	assert_eq(main.world.gold_pile.coin_count(), Balance.data.economy.gold_per_steak)
 
 func _wait_front_at_counter() -> bool:
-	for i in 60 * 20:
+	var e := Balance.data.economy
+	for i in _secs((e.traveler_interval + e.traveler_jitter) + 25.0):
 		if not sp.queue.is_empty() and (sp.queue[0] as Traveler).at_target():
 			return true
 		await get_tree().physics_frame
@@ -7103,7 +7146,7 @@ func setup(_world: World) -> void:
 	position = MapLayout.to3(MapLayout.GOLD_PILE)
 	for i in MAX_COINS:
 		var c := Visuals.cylinder(0.18, 0.06, Visuals.COLORS.coin)
-		c.position = Vector3((i % 3) * 0.38 - 0.38, 0.04 + (i / 3) * 0.07, 0)
+		c.position = Vector3((i % 3) * 0.38 - 0.38, 0.04 + floori(i / 3.0) * 0.07, 0)
 		add_child(c)
 		_coins.append(c)
 	label = WorldLabel.make("")
@@ -7252,7 +7295,7 @@ func _ticks(n: int) -> void:
 		await get_tree().physics_frame
 
 func _stand(spot_id: String) -> void:
-	await TestHelpers.walk_in(main.hero, WaypointGraph.create_default().position_of(spot_id))
+	await TestHelpers.walk_in(main.hero, MapLayout.spot_position(spot_id))
 
 ## Frames to finish `cost` by standing: still time + ticks at the drain rate, +10 % margin.
 func _frames_to_pay(cost: int) -> int:
@@ -7262,24 +7305,40 @@ func _frames_to_pay(cost: int) -> int:
 
 func test_fence_builds_and_keeps_paying() -> void:
 	var cost := GameState.next_level_cost("fence_n")
-	GameState.add_gold(cost + 5)
+	var extra := 5
+	GameState.add_gold(cost + extra)
 	await _stand("fence_n")
 	await _ticks(_frames_to_pay(cost))
 	assert_eq(GameState.buildings.fence_n.level, 1)
 	await _ticks(30)
 	assert_eq(GameState.gold, 0)
-	assert_eq(GameState.buildings.fence_n.paid, 5, "keeps paying toward the next level")
+	assert_eq(GameState.buildings.fence_n.paid, extra, "keeps paying toward the next level")
 
 func test_partial_payment_persists_after_leaving() -> void:
-	GameState.add_gold(10)
+	var have := 10
+	assert_lt(have, GameState.next_level_cost("tower_nw"), "precondition: cannot finish a level")
+	GameState.add_gold(have)
 	await _stand("tower_nw")
 	await _ticks(60)
 	assert_eq(GameState.gold, 0)
-	assert_eq(GameState.buildings.tower_nw.paid, 10)
+	assert_eq(GameState.buildings.tower_nw.paid, have)
 	main.hero.teleport(MapLayout.HOME)
 	await _ticks(10)
+	assert_eq(GameState.buildings.tower_nw.paid, have)
+	assert_eq(main.world.build_spots.tower_nw.label.text, str(GameState.next_level_cost("tower_nw") - have))
+	# The bots' stand point for this spot must also pay.
+	GameState.add_gold(3)
+	await TestHelpers.walk_in(main.hero, WaypointGraph.create_default().position_of("tower_nw"))
+	await _ticks(60)
+	assert_gt(GameState.buildings.tower_nw.paid, have, "bot stand point pays")
+
+func test_partial_payment_survives_dawn() -> void:
+	# Spec 8.6: partial payment persists across nights (rubble fences are the exception and reset).
+	GameState.add_gold(10)
+	GameState.pay_into_spot("tower_nw", 10)
+	main.phase_controller.debug_skip_to_night()
+	main.phase_controller.debug_skip_to_day()
 	assert_eq(GameState.buildings.tower_nw.paid, 10)
-	assert_eq(main.world.build_spots.tower_nw.label.text, str(GameState.next_level_cost("tower_nw") - 10))
 
 func test_pays_only_what_gold_allows() -> void:
 	# Review Focus 5: gold below the drain never goes negative.
@@ -7292,14 +7351,33 @@ func test_pays_only_what_gold_allows() -> void:
 
 func test_max_level_spot_takes_nothing() -> void:
 	# Review Focus 5
-	GameState.add_gold(10000)
+	var total := 0
+	for l in Balance.data.build.max_level:
+		total += Economy.level_cost("fence_w", l, Balance.data.build)
+	GameState.add_gold(total)
 	for i in Balance.data.build.max_level:
 		GameState.pay_into_spot("fence_w", GameState.next_level_cost("fence_w"))
+	assert_eq(GameState.gold, 0, "precondition: exactly paid off")
+	GameState.add_gold(50)
 	var left := GameState.gold
 	assert_eq(main.world.build_spots.fence_w.label.text, "MAX")
 	await _stand("fence_w")
 	await _ticks(60)
+	var z: StationZone = main.world.build_spots.fence_w.zone
+	assert_true(z.standing, "precondition: hero is standing")
+	assert_false(z.ring.visible)
 	assert_eq(GameState.gold, left)
+
+func test_ring_shows_paid_over_cost() -> void:
+	var cost := GameState.next_level_cost("tower_nw")
+	var have := 10
+	assert_lt(have, cost, "precondition")
+	GameState.add_gold(have)
+	GameState.pay_into_spot("tower_nw", have)
+	var z: StationZone = main.world.build_spots.tower_nw.zone
+	assert_true(z.ring.visible)
+	var v: Variant = (z.ring.material_override as ShaderMaterial).get_shader_parameter("progress")
+	assert_almost_eq(float(v), float(have) / float(cost), 1e-4)
 
 func test_dawn_inside_zone_needs_reentry() -> void:
 	# D-121: hero inside a build-spot zone when dawn activates it -> no payment until exit and re-entry.
@@ -7318,6 +7396,9 @@ func test_no_payment_at_night() -> void:
 	GameState.add_gold(40)
 	await _stand("fence_e")
 	await _ticks(60)
+	var d := (main.hero.xz() - MapLayout.spot_position("fence_e")).length()
+	assert_lte(d, MapLayout.BUILD_RADIUS, "precondition: hero is inside the zone")
+	assert_false(main.world.build_spots.fence_e.zone.standing)
 	assert_eq(GameState.gold, 40)
 ```
 
@@ -7349,8 +7430,10 @@ func _on_tick() -> void:
 and at the end of `refresh()`:
 ```gdscript
 	if zone != null:
-		var cost := GameState.next_level_cost(spot_id) if not GameState.buildings.is_empty() else -1
-		zone.ring.set_progress(0.0 if cost <= 0 else float(b.paid) / float(cost))
+		var cost := GameState.next_level_cost(spot_id) if GameState.buildings.has(spot_id) else -1
+		var progress := 0.0 if cost <= 0 else float(b.paid) / float(cost)
+		zone.ring.visible = progress > 0.0
+		zone.ring.set_progress(progress)
 ```
 
 `zone.ring` is created in `StationZone._ready()`. `setup()` runs after `add_child(spot)`, and `add_child(zone)` inside `setup()` triggers `_ready` immediately, so `ring` exists before `refresh()`.
@@ -7415,13 +7498,24 @@ func test_standing_on_sign_starts_night_after_hold() -> void:
 
 func test_hold_resets_when_leaving() -> void:
 	main.phase_controller.debug_skip_to_day()
+	var sign_node: CloseUpSign = main.world.closeup_sign
+	var e := Balance.data.economy
+	var still := int(ceil(e.stand_still_time * 60.0))
+	var hold := int(ceil(ceil(e.closeup_hold / e.transfer_tick) * e.transfer_tick * 60.0))
 	await TestHelpers.walk_in(main.hero, MapLayout.SIGN)
-	await _ticks(50)
-	main.hero.teleport(Vector2(10, 8))
-	await _ticks(5)
+	await _ticks(still + int(hold * 0.5))
+	assert_gt(sign_node.hold, 0.0, "partway through the hold")
+	main.hero.input.set_move(Vector2(1, 0))
+	await _ticks(30)
+	main.hero.input.set_move(Vector2.ZERO)
+	assert_eq(sign_node.hold, 0.0)
+	assert_false(sign_node.zone.ring.visible)
 	await TestHelpers.walk_in(main.hero, MapLayout.SIGN)
-	await _ticks(50)
-	assert_eq(main.phase_controller.phase, Phase.DAY)
+	# Short of a full hold from zero: a leftover half hold would already have closed up.
+	await _ticks(still + hold - 50 + 5)
+	assert_eq(main.phase_controller.phase, Phase.DAY, "a full hold from zero is needed")
+	await _ticks(60)
+	assert_eq(main.phase_controller.phase, Phase.NIGHT)
 
 func test_restore_to_day_does_not_close_up() -> void:
 	# D-121, D-122: the hero lands at HOME after a fail; with no input the day must not end.
@@ -7432,6 +7526,7 @@ func test_restore_to_day_does_not_close_up() -> void:
 	await _ticks(int(Balance.ui.banner_time * 60) + 5)
 	assert_eq(main.phase_controller.phase, Phase.DAY)
 	assert_eq(main.hero.xz(), MapLayout.HOME)
+	main.hero.teleport(MapLayout.SIGN)  # a teleport into the zone must not arm it (D-121)
 	await _ticks(60 * 5)
 	assert_eq(main.phase_controller.phase, Phase.DAY)
 	assert_eq(GameState.gold, 7)
@@ -7440,14 +7535,21 @@ func test_pulse_follows_predicate() -> void:
 	main.phase_controller.debug_skip_to_day()
 	var s: CloseUpSign = main.world.closeup_sign
 	assert_true(s.pulsing)
+	for i in 5:
+		await get_tree().process_frame
+	assert_gt(s._visual.scale.x, 1.0, "the sign is breathing")
 	GameState.add_freezer(1)
 	assert_false(s.pulsing)
+	await get_tree().process_frame
+	assert_eq(s._visual.scale, Vector3.ONE)
 
 func test_telegraph_scales_and_visibility() -> void:
 	var m: Dictionary = main.world.telegraph_markers
 	for lane in m:
 		assert_false(m[lane].visible, "hidden at night")
+	var day1: Array = GameState.lane_plan
 	main.phase_controller.debug_skip_to_day()
+	assert_ne(day1, GameState.lane_plan, "a new day has a new plan")
 	var threat := LanePlanner.threat_by_lane(GameState.lane_plan, Balance.data.enemy.hp)
 	var mx: float = threat.values().max()
 	for lane in m:
@@ -7468,7 +7570,8 @@ Expected: FAIL (`closeup_sign` is null).
 ```gdscript
 class_name CloseUpSign
 extends Node3D
-## "Close up" sign (spec 5.6, 8.8, D-039, D-068). Hold 1 s standing still → closeup_requested.
+## "Close up" sign (spec 5.6, 8.8, D-039, D-068). Hold closeup_hold standing still -> closeup_requested.
+## The zone's own still-charge ring is off (drive_ring = false): this node drives the ring with the hold.
 
 var zone: StationZone
 var hold := 0.0
@@ -7492,9 +7595,10 @@ func setup(_world: World) -> void:
 	l.position.y = 2.4
 	add_child(l)
 	zone = StationZone.new()
-	zone.drive_ring = false  # this owner drives the ring itself (Task 21 review)
 	zone.radius = MapLayout.STATION_RADIUS
+	zone.drive_ring = false  # the sign drives the ring with the hold
 	add_child(zone)
+	zone.stand_started.connect(_on_stand_started)
 	zone.ticked.connect(_on_tick)
 	zone.stand_ended.connect(_on_stand_ended)
 	EventBus.stocks_changed.connect(refresh_pulse)
@@ -7502,10 +7606,17 @@ func setup(_world: World) -> void:
 	EventBus.gold_changed.connect(_on_gold_changed)
 	EventBus.building_changed.connect(_on_building_changed)
 	EventBus.phase_changed.connect(_on_phase_changed)
+	refresh_pulse()
+
+func _on_stand_started() -> void:
+	hold = 0.0
+	zone.ring.visible = true
+	zone.ring.set_progress(0.0)
 
 func _on_stand_ended() -> void:
 	hold = 0.0
 	zone.ring.set_progress(0.0)
+	zone.ring.visible = false
 
 func _on_gold_changed(_gold: int, _delta: int) -> void:
 	refresh_pulse()
@@ -7517,10 +7628,12 @@ func _on_phase_changed(p: int, _day: int) -> void:
 	_phase = p
 	refresh_pulse()
 
+## Runs on the zone's physics ticks (gameplay, D-118).
 func _on_tick() -> void:
-	hold += Balance.data.economy.transfer_tick
-	zone.ring.set_progress(hold / Balance.data.economy.closeup_hold)
-	if hold >= Balance.data.economy.closeup_hold - 1e-6:
+	var eco := Balance.data.economy
+	hold += eco.transfer_tick
+	zone.ring.set_progress(hold / eco.closeup_hold)
+	if hold >= eco.closeup_hold - 1e-6:
 		hold = 0.0
 		zone.ring.set_progress(0.0)
 		EventBus.closeup_requested.emit()
@@ -7528,8 +7641,10 @@ func _on_tick() -> void:
 func refresh_pulse() -> void:
 	pulsing = _phase == Phase.DAY and not GameState.buildings.is_empty() and Pulse.should_pulse(GameState.to_dict(), Balance.data)
 	if not pulsing:
+		_t = 0.0
 		_visual.scale = Vector3.ONE
 
+## Visual only (spec 8.8): the sign breathes while there is nothing left to do but close up.
 func _process(delta: float) -> void:
 	if pulsing:
 		_t += delta
@@ -7566,6 +7681,7 @@ func _on_phase_changed(p: int, _day: int) -> void:
 
 func refresh() -> void:
 	if GameState.lane_plan.is_empty():
+		target_scale = 0.0
 		visible = false
 		return
 	var threat := LanePlanner.threat_by_lane(GameState.lane_plan, Balance.data.enemy.hp)
@@ -8855,6 +8971,8 @@ git commit -m "feat: add HUD with gold punch, moons, diner bar, banners, edge ar
 ```
 
 ### Task 30: Feel budget (`FlyFx` arcs, build pop, hit flash)
+
+**From the Task 23 review:** at night, hide a build spot's payment ring (`not zone.is_active()`), and refresh it on `phase_changed`, so partial-payment rings don't glow on the lanes during combat.
 
 **Files:**
 - Create: `world/fx/fly_fx.gd`

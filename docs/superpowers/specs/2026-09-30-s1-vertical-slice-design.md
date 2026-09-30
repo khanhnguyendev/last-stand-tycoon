@@ -623,7 +623,8 @@ The hero is never a target in S1 (D-005).
     `min(drain, gold, remaining)` into `paid`.
   - `drain = ceil(cost / drain_divisor)` (20), where `cost = base_cost × level_cost_mult^level` (×2).
   - When `paid == cost`: `level += 1`, `paid = 0`. For a fence, `hp` is set to its new max.
-  - `paid` persists across walking away, dawn and the snapshot.
+  - `paid` persists across walking away, dawn and the snapshot, except on a destroyed fence, which
+    resets to level 0 and `paid` 0 at dawn (7.6).
 - **Labels:** a `Label3D` shows the remaining cost, "MAX" at level 3, and one pip per level.
 - **Visuals:**
   - The model scales ×1.1 per level.
