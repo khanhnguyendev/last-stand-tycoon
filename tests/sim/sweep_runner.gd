@@ -1,5 +1,5 @@
 extends Node
-## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1-10 -> tests/sim/out/sweep.csv.
+## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1-14 by default -> tests/sim/out/sweep.csv.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
 
 func _ready() -> void:
@@ -40,6 +40,7 @@ func _run() -> void:
 			if h.main.phase_controller.phase == Phase.DAY:
 				await h.run_day()
 			t0 = h.elapsed
+			_knockouts = 0  # per attempt: the row reports the last attempt's knockouts
 			n = await h.run_night()
 		var night_s := h.elapsed - t0
 		if n.failed:
