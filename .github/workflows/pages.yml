@@ -1,0 +1,370 @@
+# Deploys web builds to GitHub Pages (D-135).
+#
+# Repo setting required: Settings > Pages > Source = "Deploy from a branch",
+# branch gh-pages, folder / (root). This workflow only pushes the gh-pages
+# branch; GitHub builds the site from it.
+#
+# Limits: branch-built Pages has a soft limit of 10 builds per hour, so a burst
+# of pushes can leave the newest deploy waiting. The verify job waits up to
+# 10 minutes for the new build.
+#
+# Layout: main at the site root, every other branch at preview/<slug>/.
+# gh-pages is rewritten as a single parentless commit per deploy.
+name: pages
+
+on:
+  push:
+    branches-ignore: [gh-pages]
+  delete:
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: "Also build the safe-area probe at probe/ (always built on main)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# A newer push of the same branch supersedes the older run, including its verify job.
+# Delete events use their own group so they never cancel a branch deploy.
+concurrency:
+  group: pages-${{ github.event_name == 'delete' && 'prune' || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # EXACT tag from D-116 (D-129); must equal CLAUDE.md "GODOT_TAG=" once CLAUDE.md exists
+  GODOT_TAG: "4.7.2-stable"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      short: ${{ steps.build.outputs.short }}
+      target: ${{ steps.build.outputs.target }}
+      probe: ${{ steps.build.outputs.probe }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Check the pinned Godot tag matches CLAUDE.md
+        run: |
+          if [ -f CLAUDE.md ]; then
+            grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+          else
+            echo "CLAUDE.md not present yet; skipping the pin check"
+          fi
+
+      - name: Cache Godot editor and export templates
+        if: github.event_name != 'delete'
+        id: godot_cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_TAG }}-web-v1
+
+      - name: Download and verify Godot (cache miss only)
+        if: github.event_name != 'delete' && steps.godot_cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/godotengine/godot-builds/releases/download/${GODOT_TAG}"
+          ZIP="Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          TPZ="Godot_v${GODOT_TAG}_export_templates.tpz"
+          TPL_DIR="$HOME/.local/share/godot/export_templates/${GODOT_TAG/-/.}"
+          DL="$RUNNER_TEMP/godot-dl"
+          rm -rf "$DL"; mkdir -p "$DL" "$HOME/godot" "$TPL_DIR"
+          cd "$DL"
+          curl -fsSL -o SHA512-SUMS.txt "$BASE/SHA512-SUMS.txt"
+          curl -fsSL -o "$ZIP" "$BASE/$ZIP"
+          curl -fsSL -o "$TPZ" "$BASE/$TPZ"
+          awk -v a="$ZIP" -v b="$TPZ" '$2==a || $2==b' SHA512-SUMS.txt > wanted.sha512
+          [ "$(wc -l < wanted.sha512)" -eq 2 ] || { echo "expected exactly 2 checksum lines"; cat wanted.sha512; exit 1; }
+          sha512sum -c wanted.sha512
+          unzip -p "$ZIP" "Godot_v${GODOT_TAG}_linux.x86_64" > "$HOME/godot/godot"
+          chmod +x "$HOME/godot/godot"
+          unzip -o -j "$TPZ" templates/web_nothreads_release.zip templates/web_nothreads_debug.zip templates/version.txt -d "$TPL_DIR"
+          rm -f "$TPZ"
+          ls -l "$TPL_DIR"
+
+      - name: Locate Godot
+        if: github.event_name != 'delete'
+        run: |
+          set -euo pipefail
+          echo "GODOT=$HOME/godot/godot" >> "$GITHUB_ENV"
+          "$HOME/godot/godot" --version
+
+      - name: Build site (skipped on delete)
+        if: github.event_name != 'delete'
+        id: build
+        env:
+          PROBE_INPUT: ${{ inputs.probe }}
+        run: |
+          set -euo pipefail
+          SHORT=$(git rev-parse --short=7 HEAD)
+          BRANCH="${GITHUB_REF_NAME}"
+          SLUG=$(printf '%s' "$BRANCH" | sed 's/[^A-Za-z0-9._-]/-/g')
+          if [ "$BRANCH" = "main" ]; then TARGET=""; else TARGET="preview/$SLUG"; fi
+          PROBE=false
+          if [ "$BRANCH" = "main" ] || { [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "${PROBE_INPUT:-}" = "true" ]; }; then
+            PROBE=true
+          else
+            # workflow_dispatch only exists once this file is on the default branch, so a branch
+            # that changes export/probe/ builds the probe too.
+            if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then UNSHALLOW="--unshallow"; else UNSHALLOW=""; fi
+            if git fetch --filter=blob:none --no-tags $UNSHALLOW origin '+refs/heads/main:refs/remotes/origin/main'; then
+              PROBE_CHANGED=$(git diff --name-only origin/main...HEAD -- export/probe/) || PROBE_CHANGED="diff-failed"
+            else
+              PROBE_CHANGED="no-origin-main"
+            fi
+            if [ -n "$PROBE_CHANGED" ]; then PROBE=true; fi
+          fi
+          {
+            echo "SHORT=$SHORT"
+            echo "BRANCH=$BRANCH"
+            echo "SLUG=$SLUG"
+            echo "TARGET=$TARGET"
+          } >> "$GITHUB_ENV"
+          {
+            echo "short=$SHORT"
+            echo "target=$TARGET"
+            echo "probe=$PROBE"
+          } >> "$GITHUB_OUTPUT"
+          OUT="$RUNNER_TEMP/site_out"
+          rm -rf "$OUT"; mkdir -p "$OUT"
+
+          if [ "$PROBE" = "true" ]; then
+            bash export/probe/build_probe.sh "$OUT/probe"
+          fi
+
+          if [ -f project.godot ] && [ -f export_presets.cfg ] && grep -q 'name="web_release"' export_presets.cfg; then
+            "$GODOT" --headless --path . --import || true
+            "$GODOT" --headless --path . --export-release "web_release" "$OUT/index.html"
+            # release safety: no debug UI may ship in the release pack
+            DEBUG_HITS=$(grep -a -c 'ui/debug' "$OUT/index.pck" || true)
+            if [ "$DEBUG_HITS" != "0" ]; then
+              echo "::error::release pack contains ui/debug ($DEBUG_HITS matches)"
+              exit 1
+            fi
+            if grep -q 'name="web_profile"' export_presets.cfg; then
+              mkdir -p "$OUT/profile"
+              "$GODOT" --headless --path . --export-release "web_profile" "$OUT/profile/index.html"
+              PROFILE_HITS=$(grep -a -c 'ui/debug' "$OUT/profile/index.pck" || true)
+              if [ "$PROFILE_HITS" != "0" ]; then
+                echo "::error::profile pack contains ui/debug ($PROFILE_HITS matches)"
+                exit 1
+              fi
+            fi
+          else
+            esc() { printf '%s' "$1" | sed 's/&/\&amp;/g;s/</\&lt;/g;s/>/\&gt;/g'; }
+            {
+              echo '<!DOCTYPE html>'
+              echo '<html lang="en">'
+              echo '<head>'
+              echo '<meta charset="utf-8">'
+              echo '<meta name="viewport" content="width=device-width, initial-scale=1">'
+              echo '<title>Last Stand Tycoon</title>'
+              echo '</head>'
+              echo '<body>'
+              echo '<p>Last Stand Tycoon — no game build on this branch yet</p>'
+              echo "<p>branch: $(esc "$BRANCH")<br>commit: $(esc "$SHORT")</p>"
+              if [ "$PROBE" = "true" ]; then echo '<p><a href="probe/">safe-area probe</a></p>'; fi
+              echo '</body>'
+              echo '</html>'
+            } > "$OUT/index.html"
+          fi
+
+      - name: Inject build id (skipped on delete)
+        if: github.event_name != 'delete'
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/site_out" "${SHORT} ${BRANCH}" <<'PY'
+          import json, pathlib, sys
+          root, build = pathlib.Path(sys.argv[1]), sys.argv[2]
+          tag = "<script>window.LST_BUILD=" + json.dumps(build).replace("<", "\\u003c") + ";</script>"
+          files = sorted(root.rglob("index.html"))
+          if not files:
+              sys.exit("no index.html found under " + str(root))
+          for f in files:
+              text = f.read_text(encoding="utf-8")
+              if "</head>" not in text:
+                  sys.exit("no </head> in " + str(f))
+              f.write_text(text.replace("</head>", tag + "</head>", 1), encoding="utf-8")
+              print("injected build id into", f)
+          PY
+
+      - name: Publish to gh-pages
+        run: |
+          set -euo pipefail
+          EVENT="$GITHUB_EVENT_NAME"
+          PAGES="$RUNNER_TEMP/pages"
+          slugify() { printf '%s' "$1" | sed 's/[^A-Za-z0-9._-]/-/g'; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          if [ "$EVENT" = "delete" ]; then
+            CUR=""
+            MSG="pages: prune"
+          else
+            CUR="$SLUG"
+            MSG="pages: ${BRANCH} ${SHORT}"
+          fi
+
+          # Which previews stay: branches that still exist and are not merged into main,
+          # plus the branch being deployed right now.
+          if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then UNSHALLOW="--unshallow"; else UNSHALLOW=""; fi
+          git fetch --filter=blob:none --no-tags $UNSHALLOW origin '+refs/heads/*:refs/remotes/origin/*'
+          LIVE="$RUNNER_TEMP/live_slugs.txt"
+          : > "$LIVE"
+          while IFS= read -r b; do
+            if [ "$b" = "HEAD" ] || [ "$b" = "main" ]; then continue; fi
+            # a branch still equal to main (no commits of its own yet) is not "merged"
+            if [ "$(git rev-parse "refs/remotes/origin/$b")" != "$(git rev-parse refs/remotes/origin/main 2>/dev/null || echo none)" ] \
+              && git merge-base --is-ancestor "refs/remotes/origin/$b" refs/remotes/origin/main 2>/dev/null; then
+              echo "merged into main: $b"
+              continue
+            fi
+            echo "$(slugify "$b")" >> "$LIVE"
+          done < <(git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin)
+          if [ -n "$CUR" ]; then echo "$CUR" >> "$LIVE"; fi
+
+          attempt=1
+          while :; do
+            rm -rf "$PAGES"
+            git worktree prune
+            set +e
+            git ls-remote --exit-code --heads origin gh-pages >/dev/null
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then
+              git fetch --depth 1 origin '+refs/heads/gh-pages:refs/remotes/origin/gh-pages'
+              SHA=$(git rev-parse refs/remotes/origin/gh-pages)
+              git worktree add --detach "$PAGES" "$SHA"
+            elif [ "$rc" -eq 2 ]; then
+              if [ "$EVENT" = "delete" ]; then
+                echo "no gh-pages branch yet; nothing to prune"
+                exit 0
+              fi
+              SHA=""
+              git worktree add --detach "$PAGES" HEAD
+              find "$PAGES" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+            else
+              echo "::error::git ls-remote failed with exit code $rc"
+              exit 1
+            fi
+
+            if [ "$EVENT" != "delete" ]; then
+              if [ -z "${TARGET:-}" ]; then
+                find "$PAGES" -mindepth 1 -maxdepth 1 ! -name preview ! -name .git -exec rm -rf {} +
+                cp -a "$RUNNER_TEMP/site_out/." "$PAGES/"
+              else
+                rm -rf "$PAGES/preview/$SLUG"
+                mkdir -p "$PAGES/preview/$SLUG"
+                cp -a "$RUNNER_TEMP/site_out/." "$PAGES/preview/$SLUG/"
+              fi
+            fi
+            touch "$PAGES/.nojekyll"
+
+            for d in "$PAGES"/preview/*; do
+              [ -d "$d" ] || continue
+              name=$(basename "$d")
+              if ! grep -Fxq -- "$name" "$LIVE"; then
+                echo "pruning preview/$name"
+                rm -rf "$d"
+              fi
+            done
+
+            SIZE_MB=$(cd "$PAGES" && find . -path ./.git -prune -o -type f -exec du -k {} + | awk '{s+=$1} END{print int(s/1024)}')
+            echo "pages tree: ${SIZE_MB} MB"
+            if [ "$SIZE_MB" -gt 900 ]; then
+              echo "::error::pages tree is ${SIZE_MB} MB (limit 900)"
+              exit 1
+            fi
+
+            git -C "$PAGES" add -A
+            TREE=$(git -C "$PAGES" write-tree)
+            C=$(git -C "$PAGES" commit-tree "$TREE" -m "$MSG")
+            if git push --force-with-lease="refs/heads/gh-pages:${SHA}" origin "${C}:refs/heads/gh-pages"; then
+              echo "published $C (attempt $attempt)"
+              break
+            fi
+            if [ "$attempt" -ge 5 ]; then
+              echo "::error::gh-pages moved on every attempt; giving up after 5"
+              exit 1
+            fi
+            attempt=$((attempt + 1))
+            echo "gh-pages moved; retrying (attempt $attempt)"
+            sleep $((5 + RANDOM % 11))
+          done
+
+  verify:
+    needs: deploy
+    if: github.event_name != 'delete'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      pages: read
+      contents: read
+    steps:
+      - name: Verify deployment
+        env:
+          SHORT: ${{ needs.deploy.outputs.short }}
+          TARGET: ${{ needs.deploy.outputs.target }}
+          PROBE: ${{ needs.deploy.outputs.probe }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          OWNER=$(printf '%s' "${GITHUB_REPOSITORY%%/*}" | tr '[:upper:]' '[:lower:]')
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          COMPUTED="https://${OWNER}.github.io/${REPO_NAME}/"
+
+          # Is Pages enabled? Ask the API (the site root can 404 before main ever deploys).
+          API_CODE=$(curl -sS -o pages_api.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pages" || true)
+          if [ "$API_CODE" = "404" ]; then
+            echo "::warning::GitHub Pages is not enabled: set Settings > Pages > Source to gh-pages / (root)"
+            exit 0
+          fi
+          if [ "$API_CODE" != "200" ]; then
+            echo "::error::Pages API returned HTTP $API_CODE"
+            cat pages_api.json || true
+            exit 1
+          fi
+          python3 - <<'PY' || { echo "::error::Pages source must be Deploy from a branch: gh-pages / (root)"; exit 1; }
+          import json, sys
+          d = json.load(open("pages_api.json"))
+          ok = (d.get("source") or {}).get("branch") == "gh-pages" and d.get("build_type") == "legacy"
+          sys.exit(0 if ok else 1)
+          PY
+          BASE=$(python3 -c 'import json,sys; print(json.load(open("pages_api.json")).get("html_url") or "")')
+          [ -n "$BASE" ] || BASE="$COMPUTED"
+          case "$BASE" in */) ;; *) BASE="${BASE}/" ;; esac
+          URL="${BASE}${TARGET:+$TARGET/}"
+          NEEDLE="window.LST_BUILD=\"${SHORT} "
+
+          wait_for() {
+            local url="$1" end=$((SECONDS + 600)) body
+            while [ "$SECONDS" -lt "$end" ]; do
+              if body=$(curl -fsS "${url}?cb=${RANDOM}" 2>/dev/null) && printf '%s' "$body" | grep -qF -- "$NEEDLE"; then
+                return 0
+              fi
+              sleep 15
+            done
+            return 1
+          }
+          wait_for "$URL" || { echo "::error::$URL does not show build ${SHORT} after 10 minutes"; exit 1; }
+          if [ "$PROBE" = "true" ]; then
+            wait_for "${URL}probe/" || { echo "::error::${URL}probe/ does not show build ${SHORT} after 10 minutes"; exit 1; }
+            CODE=$(curl -sIL -o /dev/null -w '%{http_code}' "${URL}probe/index.wasm")
+            [ "$CODE" = "200" ] || { echo "::error::${URL}probe/index.wasm returned $CODE"; exit 1; }
+          fi
+          echo "PAGES_URL=$URL"
+          {
+            echo "Game: $URL"
+            if [ "$PROBE" = "true" ]; then echo "Probe: ${URL}probe/"; fi
+          } >> "$GITHUB_STEP_SUMMARY"

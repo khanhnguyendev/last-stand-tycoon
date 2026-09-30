@@ -32,7 +32,7 @@ There is no throwaway code. S2 and later add to it; they do not rewrite it.
 | S3 | Save/load + failure & mercy | The Close-up snapshot is the night-start save point, so quitting mid-night costs the same as failing (D-048). |
 | S4 | Asset pipeline + art pass | S4 asset pipeline (TBD, D-024). Swaps each scene's `Visual` child. |
 | S5 | UI/HUD polish, onboarding, audio | |
-| S6 | Web hardening, QA, itch.io release + playtest gate | |
+| S6 | Web hardening, QA, itch.io release + playtest gate | Owns the itch.io draft, the iframe-embed checks (safe area and fullscreen inside the embed) and butler uploads (D-135). |
 
 Each sub-project gets its own spec → plan → build.
 
@@ -774,7 +774,7 @@ All of it uses tweens, with no new assets and no audio.
 |---|---|---|---|---|
 | `debug` | debug template | included | debug overlay (seed, day, phase, wave, alive enemies, fps, pool warnings) plus hotkeys | development |
 | `profile` | release template | excluded | perf overlay only (fps, frame time); feature tag `profile_overlay` | criterion 4 |
-| `release` | release template | excluded | none | LAN and itch.io builds |
+| `release` | release template | excluded | none | GitHub Pages builds (D-135) |
 
 - **Debug hotkeys:** +100 gold, skip to DAY, skip to NIGHT, kill all, force diner fall.
 - The debug overlay is loaded with `load()` only when `OS.is_debug_build()`. It is never
@@ -1019,7 +1019,7 @@ Paths use shortest distance on this graph, with no navmesh.
 | 2 | Night 2 is noticeably harder, and 1 tower plus fences makes it comfortable | Sims: NaiveBot ≤ 30% or falls; PlannerBot ≥ 60% |
 | 3 | A full cycle takes about 4–6 min for a player who builds | Sweep gives a lower bound; judged at the playtest (D-066) |
 | 4 | 60 fps on web on a mid-range phone | `profile` build, night 3, 60 s of combat: average ≥ 58 fps, no frame over 100 ms. Record the phone model. If the phone is clearly high-end, mark it "not validated on mid-range" and carry it as an S6 risk; it does not block S1 (D-084). |
-| 5 | Gate to S2 | The author plays 3 cycles on their phone from the itch.io draft and wants a 4th (D-083) |
+| 5 | Gate to S2 | The author plays 3 cycles on their phone from the GitHub Pages URL and wants a 4th (D-083, D-135) |
 | 6 | First combat within 30 s | Sim: ≤ 30 s of game time. Also record the real time from page open to first combat on the phone (D-085). |
 
 ### 14.2 Definition of done
@@ -1031,15 +1031,15 @@ Paths use shortest distance on this graph, with no navmesh.
 4. The sweep has run, and the break day is logged in DECISIONS.md.
 5. The `release` web export builds with `export/web_shell.html`, and `ui/debug/*` is absent from
    the `release` and `profile` packs.
-6. The release build is uploaded as an **itch.io draft** (by the author). The embed is portrait
-   720×1280 with mobile-friendly and fullscreen on, and the game loads and plays on the author's
-   phone from that page.
+6. The release build is deployed to **GitHub Pages** by the `pages` workflow (D-135). The page
+   shows the build's git hash, and the game loads and plays on the author's phone from the Pages
+   URL.
 7. One screenshot per lane is committed under `docs/screenshots/s1/`.
 8. Every asset and font has a line in `docs/ASSET_LICENSES.md`.
 9. The results section (16) is filled in: the web baseline, criterion 4 with the phone model, the
    first-combat time, and the playtest answers.
-10. If plain-http LAN breaks anything in the 4.7 web build, it is logged and itch.io is used for
-    phone testing (D-083).
+10. Plain-http LAN does not work with the 4.7 web build (it needs a secure context, D-120), so
+    phone testing uses the HTTPS GitHub Pages URL (D-135).
 
 ---
 
@@ -1082,7 +1082,7 @@ Paths use shortest distance on this graph, with no navmesh.
 10. CI.
 11. Sim-driven balance tuning.
 12. The perf check.
-13. The itch.io draft and the gate playtest.
+13. The gate playtest from the GitHub Pages URL.
 
 ---
 
@@ -1127,5 +1127,5 @@ Paths use shortest distance on this graph, with no navmesh.
 | GUT supports Godot 4.7 | gdUnit4 |
 | `--fixed-fps 60` headless runs unthrottled with a fixed delta | `Engine.time_scale` plus raised `max_physics_steps_per_frame` |
 | `DisplayServer.get_display_safe_area()` on web | CSS `env()` through `JavaScriptBridge` |
-| The single-threaded web export works over plain-http LAN | itch.io draft for phone tests |
+| The single-threaded web export works over plain-http LAN | HTTPS GitHub Pages URL for phone tests (D-135) |
 | Headless camera projection works without a rendering driver; screenshots need one | Screenshots are taken in a separate, non-headless run |

@@ -32,6 +32,7 @@
 
 - Engine: Godot **4.7**, GDScript only, renderer `gl_compatibility`, and the base viewport is portrait **720×1280** with stretch `canvas_items` and aspect `expand` (D-072).
 - Web export: **single-threaded** (`variant/thread_support=false`), custom shell `export/web_shell.html` (D-014, D-077).
+- Hosting (D-135): every push deploys to GitHub Pages (`main` at the root, other branches at `preview/<slug>/` (slug = the branch name with every character outside `[A-Za-z0-9._-]` replaced by `-`)). Phone tests and the gate use those URLs. Plain-http LAN doesn't work (D-120).
 - Layout (D-032, D-098):
   - game code only in `autoload/ core/ components/ actors/ world/ ui/ balance/`;
   - tests in `tests/unit/` and `tests/sim/`;
@@ -95,8 +96,8 @@ Stop at each checkpoint and wait for the author:
 | # | Where | What the author reviews |
 |---|---|---|
 | CP1 | end of Task 20 | Quality review only: headless night loop and night sims green, the sim output plus the `docs/screenshots/s1/cp1_night1.png` render |
-| CP2 | end of Task 32 | Input, camera, HUD and web shell on the author's phone (LAN or itch draft per D-120) |
-| CP3 | Task 37, Step 2 | Before the itch.io draft upload |
+| CP2 | end of Task 32 | Input, camera, HUD and web shell on the author's phone (the branch's GitHub Pages preview URL, D-135) |
+| CP3 | Task 37, Step 2 | Before the gate playtest from the Pages URL (D-135) |
 
 Estimates in working days, **for information only** (D-131: no deadline; nothing is stopped or cut because of them):
 
@@ -123,6 +124,7 @@ Estimates in working days, **for information only** (D-131: no deadline; nothing
 
 | Path | Responsibility | Task |
 |---|---|---|
+| `.github/workflows/pages.yml`, `export/probe/build_probe.sh` | Pages deploy, safe-area probe (D-135) | 0 |
 | `project.godot`, `.gitignore`, `run_tests.sh`, `CLAUDE.md`, `.gutconfig.json` | project config, test runner, agent guide | 1 |
 | `addons/gut/` | GUT test framework (third-party) | 1 |
 | `balance/*.gd`, `balance/balance.tres`, `balance/ui_tuning.tres` | typed tuning data | 2 |
@@ -156,7 +158,7 @@ Estimates in working days, **for information only** (D-131: no deadline; nothing
 | `ui/hud/hud.gd`, `ui/hud/safe_area.gd` | HUD | 29 |
 | `world/fx/fly_fx.gd` | transfer arcs, pops, flashes | 30 |
 | `world/focus_pause.gd` | pause on focus loss | 31 |
-| `export/web_shell.html`, `export_presets.cfg`, `ui/debug/debug_overlay.gd`, `ui/perf_overlay.gd`, `export/README.md` | web build, presets, overlays (CP2) | 32 |
+| `export/web_shell.html`, `export_presets.cfg`, `ui/debug/debug_overlay.gd`, `ui/perf_overlay.gd`, `export/README.md`, `ui/build_label.gd` | web build, presets, overlays (CP2) | 32 |
 | `tests/sim/lane_screenshots.gd` | per-lane screenshots | 33 |
 | `.github/workflows/ci.yml` | CI | 34 |
 | `balance/*.gd` defaults, `docs/DECISIONS.md` | tuning | 35 |
@@ -166,9 +168,9 @@ Estimates in working days, **for information only** (D-131: no deadline; nothing
 
 ## Phase 0: Spike
 
-### Task 0: Spike on the Godot 4.7 toolchain (throwaway, D-104, D-131)
+### Task 0: Spike on the Godot 4.7 toolchain (D-104, D-131, D-135)
 
-**Goal:** answer spec Appendix B plus the tool facts this plan depends on. Nothing from the probe project is kept. Only the installed toolchain and DECISIONS entries remain.
+**Goal:** answer spec Appendix B plus the tool facts this plan depends on. The probe project itself is throwaway. What remains: the installed toolchain, the DECISIONS entries, and (D-135) the Pages workflow plus the safe-area probe script.
 
 **Branch (D-133):** `s1/p0-spike`, from `main` after PR #1 is merged. The PR body carries the spike results (D-116 to D-120).
 
@@ -176,7 +178,9 @@ Estimates in working days, **for information only** (D-131: no deadline; nothing
 
 **Files:**
 - Create (throwaway, outside the repo): `$SPIKE=/tmp/lst-spike/`
-- Modify: `docs/DECISIONS.md` (append D-116 to D-120)
+- Create (D-135): `.github/workflows/pages.yml`, `export/probe/build_probe.sh` (their own commit, before the results commit)
+- Modify: `docs/DECISIONS.md` (append D-116 to D-120, and D-135)
+- One-time repo setting (D-135): GitHub Pages source = "Deploy from a branch", `gh-pages`, `/ (root)`, enabled after the first `pages` run creates `gh-pages`. D-119 is read from the probe on the Pages URL in the iOS Simulator, and confirmed on the author's phone at CP2.
 
 - [ ] **Step 1: Install Godot 4.7 and its export templates (outside the repo), checksum-verified (D-129)**
 
@@ -327,7 +331,7 @@ For example: `SPIKE phone=iPhone 13 browser=Safari 18 loaded=yes safe=[P: (0, 14
 While the author does this, the implementer opens the same URL in desktop Chrome and notes the console errors.
 
 Apply the fallbacks:
-- The page fails over http on the phone → use the itch.io draft for phone tests (D-083).
+- The page fails over http on the phone → phone tests use the HTTPS GitHub Pages URL (D-135, amends D-083).
 - `safe=` equals the full window while CSS `env()` shows a nonzero top on a notched phone → the web safe area uses the CSS path (D-077).
 
 - [ ] **Step 4: Log the results and clean up**
@@ -340,9 +344,9 @@ Append to `docs/DECISIONS.md` under a new heading `## <date>: S1 Task 0 spike re
 | **D-117** | The GUT tag, or the fallback used. The import command that works. |
 | **D-118** | The sim stepping method (`--fixed-fps` or the `time_scale` fallback) and the measured ms per 3600 ticks. |
 | **D-119** | The web safe-area source (DisplayServer or CSS env). |
-| **D-120** | Whether LAN over http works (yes, or itch-only). |
+| **D-120** | Whether LAN over http works (yes, or Pages-only per D-135). |
 
-Then:
+Then (the D-135 hosting commit, `ci: deploy web builds to GitHub Pages ...`, already holds `pages.yml`, `export/probe/build_probe.sh` and D-135):
 
 ```bash
 rm -rf /tmp/lst-spike /tmp/lst-templates
@@ -543,7 +547,7 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - Infra only (never game code): `addons/` (GUT), `export/` (web shell), `.github/` (CI), `docs/`
 
 ## Toolchain (pinned, D-129)
-- Godot: **GODOT_TAG=<exact tag from D-116>**. The same string is in `.github/workflows/ci.yml`, and CI fails if they differ.
+- Godot: **GODOT_TAG=<exact tag from D-116>**. The same string is in `.github/workflows/ci.yml` and `.github/workflows/pages.yml`, and CI fails if they differ.
 - Official binaries only (`godotengine/godot-builds` releases), verified against the release's `SHA512-SUMS.txt`.
 - GUT: the tag from D-117.
 
@@ -568,6 +572,7 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - One branch and one PR per plan phase: `s1/p<N>-<slug>` (the table is in the plan), from an up-to-date `main`. One commit per task inside it.
 - The `reviewer` subagent reviews every task; the author reviews each phase PR.
 - Before CI exists, the PR body carries the local test output. After CI exists, `unit` and `sim` must be green.
+- Every push deploys a web build to GitHub Pages: `main` at https://khanhnguyendev.github.io/last-stand-tycoon/, other branches at `preview/<slug>/` (slug = the branch name with every character outside `[A-Za-z0-9._-]` replaced by `-`) (D-135). Phone tests use those URLs; plain-http LAN doesn't work (D-120).
 - **Only the author merges.** Never push to `main`, never merge, never change branch protection. After CI lands, give the author the exact `gh api ... /branches/main/protection` command (plan Task 34, Step 6) instead of running it.
 
 ## Scope and time (D-131)
@@ -8218,7 +8223,7 @@ git commit -m "feat: pause the game on focus loss and hidden tab"
 **Files:**
 - Create:
   - `export/web_shell.html`, `export/README.md`, `export_presets.cfg`
-  - `ui/debug/debug_overlay.gd`, `ui/perf_overlay.gd`
+  - `ui/debug/debug_overlay.gd`, `ui/perf_overlay.gd`, `ui/build_label.gd`
 - Modify: `world/main.gd`
 - Test: `tests/unit/test_overlays.gd`
 
@@ -8227,6 +8232,7 @@ git commit -m "feat: pause the game on focus loss and hidden tab"
   - **Export presets:** `web_debug`, `web_profile` and `web_release`. The profile preset has the custom feature `profile_overlay`. Release and profile exclude `ui/debug/*`.
   - **`PerfOverlay`** (CanvasLayer): `record(frame_seconds: float)`, `avg_fps() -> float`, `worst_ms() -> float`, `WINDOW_S := 60.0`.
   - **The debug overlay** (no `class_name`): `setup(main: Main)`, `handle_key(keycode: Key)`.
+  - **`BuildLabel`** (CanvasLayer, layer 100): a Label in the bottom-left corner inside the safe area, font 14, 50% alpha, text `build_id()`. `static func build_id() -> String` returns `window.LST_BUILD` through `JavaScriptBridge` on web (`"dev"` when empty) and `"dev"` elsewhere. `main.gd` adds it in every preset, release included (D-135).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -8261,6 +8267,12 @@ func test_debug_overlay_present_in_debug_build_and_hotkey_gold() -> void:
 func test_main_does_not_preload_debug() -> void:
 	var src := FileAccess.get_file_as_string("res://world/main.gd")
 	assert_false(src.contains("preload(\"res://ui/debug"), "debug overlay must be load()ed, never preloaded (D-099)")
+
+func test_build_label_off_web_is_dev_and_added_by_main() -> void:
+	assert_eq(BuildLabel.build_id(), "dev")
+	var main := Main.create()
+	add_child_autofree(main)
+	assert_eq(main.get_children().filter(func(c): return c is BuildLabel).size(), 1)
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -8365,6 +8377,40 @@ Modify `world/main.gd`, at the end of `_ready()` before the `auto_start` block:
 		overlay.setup(self)
 	if OS.has_feature("profile_overlay"):
 		add_child(PerfOverlay.new())
+	add_child(BuildLabel.new())
+```
+
+`ui/build_label.gd` (D-135: every Pages build shows its git hash):
+```gdscript
+class_name BuildLabel
+extends CanvasLayer
+## Bottom-left build id. The pages workflow sets window.LST_BUILD = "<short hash> <branch>".
+
+var _label: Label
+
+func _ready() -> void:
+	layer = 100
+	_label = Label.new()
+	_label.text = build_id()
+	_label.add_theme_font_size_override("font_size", 14)
+	_label.modulate.a = 0.5
+	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_label)
+	_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	get_viewport().size_changed.connect(_place)
+	_place()
+
+func _place() -> void:
+	var ins := SafeArea.insets(get_viewport().get_visible_rect().size)
+	_label.offset_left = 8.0 + ins.left
+	_label.offset_bottom = -(8.0 + ins.bottom)
+
+static func build_id() -> String:
+	if OS.has_feature("web"):
+		var v := str(JavaScriptBridge.eval("window.LST_BUILD||''", true))
+		return v if v != "" else "dev"
+	return "dev"
 ```
 
 - [ ] **Step 4: Run the tests and see them pass**
@@ -8532,38 +8578,40 @@ Expected:
 # Web export
 
 Presets (export_presets.cfg): `web_debug` (debug template, debug overlay + hotkeys G/J/N/K/F),
-`web_profile` (release template, fps/frame-time overlay only), `web_release` (itch.io/LAN builds).
+`web_profile` (release template, fps/frame-time overlay only), `web_release` (GitHub Pages builds, D-135).
 All single-threaded (no COOP/COEP headers needed) with the custom shell `export/web_shell.html`.
 
 ```bash
 "$GODOT" --headless --path . --export-release "web_release" build/web_release/index.html
-cd build/web_release && python3 -m http.server 8000 --bind 0.0.0.0   # phone: http://<mac-ip>:8000/
+cd build/web_release && python3 -m http.server 8000 --bind 127.0.0.1   # desktop check only: http://localhost:8000/ (localhost is a secure context)
 ```
 
-Release check: `grep -a -c "ui/debug" build/web_release/index.pck` must print 0.
+Release check: `grep -a -c "ui/debug" build/web_release/index.pck` must print 0. The `pages` workflow runs the same check on the release and profile packs and fails the deploy on a hit; if `main.gd`'s `load("res://ui/debug/...")` string alone makes it non-zero, narrow the check to the overlay's script entry and log the change (D-135).
 
-itch.io draft (the author uploads): zip the *contents* of build/web_release, Kind = HTML, "This file will be
-played in the browser", viewport 720×1280, Mobile friendly ON (orientation portrait), Fullscreen button ON,
-visibility Draft/Restricted.
+Phones: push the branch; the `pages` workflow deploys it to https://khanhnguyendev.github.io/last-stand-tycoon/preview/<slug>/ (slug: branch name, every character outside [A-Za-z0-9._-] → "-")
+(main: the site root). The bottom-left label shows the build's git hash. Plain-http LAN does not work
+(secure context, D-120). The itch.io draft is S6.
 ````
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add export export_presets.cfg ui/perf_overlay.gd ui/debug world/main.gd tests/unit/test_overlays.gd
+git add export export_presets.cfg ui/perf_overlay.gd ui/build_label.gd ui/debug world/main.gd tests/unit/test_overlays.gd
 git commit -m "feat: add mobile web shell, three export presets and debug/perf overlays"
 ```
 
 - [ ] **Step 10: CHECKPOINT 2. Stop and wait for the author.**
 
-Serve `build/web_release` on the LAN (or upload to the itch draft if D-120 says LAN fails). Give the author the URL and this checklist to try on the phone:
+Push the branch and wait for the `pages` workflow run to go green. Give the author https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p10-web/ and this checklist to try on the phone:
 
+- [ ] The bottom-left label shows the branch head's short hash (`git rev-parse --short=7 HEAD`).
 - [ ] The joystick appears under the thumb; up = north. A touch starting at the very left or right edge does nothing.
 - [ ] Nothing zooms, scrolls, selects or opens a context menu (long press, double tap, pinch, pull-down).
 - [ ] The HUD (gold, moons, bar, banners) sits clear of the notch and home indicator.
 - [ ] The edge arrow points at the incoming lane. The camera follows smoothly and shakes a little on diner hits.
 - [ ] Switching tabs or apps mid-night and returning costs no diner HP.
 - [ ] The day loop works: haul, sell, build, upgrade, close up.
+- [ ] D-119 phone confirmation: open https://khanhnguyendev.github.io/last-stand-tycoon/probe/ (the probe is built on `main` only) and reply with one line: `SPIKE phone=<model> browser=<name version> loaded=<yes|no> build=… safe=… win=… screen=… scale=… css=… inner=… dpr=… secure=… iframe=… notes=<none or error>` (each value copied from the probe's lines).
 
 Do not start Task 33 until the author says continue.
 
@@ -8622,7 +8670,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check the pinned Godot tag matches CLAUDE.md
-        run: grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+        run: |
+          grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+          grep -qF "GODOT_TAG: \"${GODOT_TAG}\"" .github/workflows/pages.yml || { echo "pages.yml pins a different GODOT_TAG"; exit 1; }
       - name: Download Godot headless (official, SHA-512 verified)
         run: |
           set -euo pipefail
@@ -8643,7 +8693,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check the pinned Godot tag matches CLAUDE.md
-        run: grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+        run: |
+          grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+          grep -qF "GODOT_TAG: \"${GODOT_TAG}\"" .github/workflows/pages.yml || { echo "pages.yml pins a different GODOT_TAG"; exit 1; }
       - name: Download Godot headless (official, SHA-512 verified)
         run: |
           set -euo pipefail
@@ -8776,7 +8828,7 @@ for f in index.wasm index.pck index.js; do printf "%s gz bytes: " $f; gzip -9 -c
 
 Record the gzip sum (wasm + pck) as "release build size, compressed" (D-086).
 
-- [ ] **Step 2: HUMAN, on the author's phone (profile build).** Serve `build/web_profile` (LAN or itch draft per D-120). The author:
+- [ ] **Step 2: HUMAN, on the author's phone (profile build).** Push the branch; the author opens the profile build at https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p13-perf/profile/ (D-135). The author:
   - notes the time from page open until playable, and until first combat (D-085);
   - plays to night 3 and, during 60 s of combat, reads the overlay's `avg` and `worst` values;
   - reports the phone model.
@@ -8796,18 +8848,17 @@ git commit -m "docs: record S1 web baseline and perf results"
 
 ## Phase 14: Gate
 
-### Task 37: **CHECKPOINT 3**, then the itch.io draft and the gate playtest
+### Task 37: **CHECKPOINT 3**, then the gate playtest from the Pages URL
 
 - [ ] **Step 1: The pre-upload check.**
   - `./run_tests.sh all` is green.
   - `grep -a -c "ui/debug" build/web_release/index.pck` prints 0.
-  - Zip the release: `cd build/web_release && zip -r ../lst-s1-web.zip . && cd -`.
+  - The `pages` workflow run for the branch head is green, and https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p14-gate/ shows the head's short hash.
 
-- [ ] **Step 2: CHECKPOINT 3. Stop and wait for the author.** Hand over `build/lst-s1-web.zip` and the itch settings from `export/README.md`. Do nothing further until the author confirms the upload and has played.
+- [ ] **Step 2: CHECKPOINT 3. Stop and wait for the author.** Hand over the preview URL above. Do nothing further until the author has played.
 
 - [ ] **Step 3: HUMAN.**
-  - The author uploads the draft: HTML, 720×1280, mobile-friendly, portrait, fullscreen on, draft or restricted.
-  - They confirm it loads and plays on their phone (DoD 6).
+  - The author opens the preview URL on their phone and confirms it loads and plays (DoD 6).
   - They play 3 full cycles and answer the 6 playtest questions (spec §15). Each answer is tagged **loop** or **presentation** (D-107).
   - They give the gate verdict: "want a 4th?"
 

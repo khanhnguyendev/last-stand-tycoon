@@ -486,6 +486,7 @@ it. An itch.io draft upload is optional and the author's call; S6 owns the real 
 ## 2026-09-30: S1 brainstorm, section 6 review
 
 **D-083 The gate is played from an itch.io draft (author; amends D-082).**
+- [AMENDED by D-135: S1 phone testing and the gate use the GitHub Pages URL; the itch.io draft moves to S6.]
 - LAN serving stays for quick iteration.
 - The criterion-5 gate session is played from an itch.io draft or restricted page, because the real
   iframe embed changes touch handling, the safe area, sizing and fullscreen.
@@ -631,7 +632,7 @@ versions.
   | GUT broken on 4.7 | gdUnit4, or a minimal custom headless runner |
   | `--fixed-fps` not stepping as expected | `Engine.time_scale` |
   | Safe area not reported on web | CSS `env()` through `JavaScriptBridge` |
-  | Plain-http LAN breaks something | Phone tests only through the itch.io draft |
+  | Plain-http LAN breaks something | Phone tests only through the itch.io draft [AMENDED by D-135: through the HTTPS GitHub Pages URL] |
 
 - Each result is logged as a decision before Task 1 starts.
 
@@ -788,6 +789,7 @@ wording).**
 - Each archive is verified against that release's `SHA512-SUMS.txt`. The script stops on a missing
   line or a mismatch.
 - The exact tag from D-116 is pinned as `GODOT_TAG` in CLAUDE.md and in `.github/workflows/ci.yml`.
+  [AMENDED by D-135: also in `.github/workflows/pages.yml`, and CI checks all three.]
   A CI step fails when the two differ, so local and CI always match.
 
 **D-128 PhaseController's narrow interface is explicit and wired in the scene (author; amends D-110).**
@@ -866,3 +868,36 @@ wording).**
   After that, any mismatch is escalated and never silently regenerated.
 - The repo `khanhnguyendev/last-stand-tycoon` is now public, so branch protection works without
   GitHub Pro. The Task 34 note is updated.
+
+## 2026-09-30: Dev hosting moves to GitHub Pages
+
+**D-135 Dev and phone testing are served from GitHub Pages (author; amends D-083, D-104 and D-129; pre-decides the D-120 fallback).**
+- Why: Godot 4.7 web builds need a secure context, so plain-http LAN fails on the phone. The Task 0
+  spike got "Secure Context - Check web server configuration (use HTTPS)" on iPhone Safari. The repo
+  is public, so GitHub Pages serves HTTPS for free.
+- `.github/workflows/pages.yml` exports the `web_release` build with the pinned `GODOT_TAG` and
+  publishes it on every push: `main` at the site root, every other branch at `preview/<slug>/`
+  (slug = the branch name with every character outside `[A-Za-z0-9._-]` replaced by `-`). When the
+  `web_profile` preset exists, it also goes to `<path>/profile/`. A release pck containing
+  `ui/debug` fails the deploy.
+- Previews of deleted or merged branches are pruned, and a deploy over 900 MB fails (the Pages
+  limit is 1 GB). Branch-built Pages has a soft limit of 10 builds per hour.
+- Each branch has its own concurrency lock; the publish step retries with `--force-with-lease`, so
+  parallel branch deploys never overwrite each other. Branch names that slugify alike (`a/b`,
+  `a-b`) share one preview.
+- The `gh-pages` branch is rewritten as one orphan commit per deploy, so the ~40 MB wasm never piles
+  up in history.
+- Before Task 32 there is no `web_release` preset, so the path holds a placeholder page.
+- Every page carries the git hash (`window.LST_BUILD = "<short hash> <branch>"`). The game shows it
+  in a small corner label (plan Task 32), so a phone tester always knows which build they are on.
+- The safe-area probe (`export/probe/build_probe.sh`) is kept. It is published at `/probe/` from
+  `main`, and at `<path>/probe/` when a branch changes `export/probe/` or the workflow is run by
+  hand with `probe=true` (it adds ~40 MB). Its page sets `viewport-fit=cover`, as the game shell does, because iOS reports the CSS
+  insets as 0 without it. It is reused for D-119 (the iOS Simulator now, the author's phone at CP2)
+  and for the S6 iframe checks. This amends the Task 0 rule that nothing from the probe is kept.
+- The single-threaded export (D-014) needs no COOP/COEP headers, which Pages can't set anyway.
+- Phone tests at CP2, the criterion-4 profile run and the criterion-5 gate (CP3) all use the Pages
+  URL.
+- Moved to S6: the itch.io draft, the itch iframe checks (safe area and fullscreen inside the embed)
+  and butler uploads.
+- Localhost stays fine for desktop checks, because localhost is a secure context.
