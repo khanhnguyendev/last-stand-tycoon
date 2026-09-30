@@ -7674,8 +7674,109 @@ func test_mouse_drag_works() -> void:
 	js.handle(down)
 	var mv := InputEventMouseMotion.new()
 	mv.position = Vector2(360, 964)
+	mv.button_mask = MOUSE_BUTTON_MASK_LEFT
 	js.handle(mv)
 	assert_almost_eq(input.get_move().y, 1.0, 0.001)
+
+func test_move_reapplied_every_physics_tick() -> void:
+	# Hero.teleport clears the stored move; a still thumb must not leave the hero stopped.
+	_touch(0, Vector2(360, 900), true)
+	_drag(0, Vector2(360 + 64, 900))
+	input.set_move(Vector2.ZERO)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert_almost_eq(input.get_move().x, 1.0, 0.001, "restored without a drag event")
+
+func test_idle_stick_leaves_input_alone() -> void:
+	input.set_move(Vector2(0.5, 0.0))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert_eq(input.get_move(), Vector2(0.5, 0.0))
+
+func test_pause_notification_ends_stick() -> void:
+	# D-147
+	_touch(0, Vector2(360, 900), true)
+	_drag(0, Vector2(424, 900))
+	js.notification(Node.NOTIFICATION_PAUSED)
+	assert_false(js.is_active())
+	assert_eq(input.get_move(), Vector2.ZERO)
+
+func test_buttonless_mouse_motion_ends_stick() -> void:
+	var down := InputEventMouseButton.new()
+	down.button_index = MOUSE_BUTTON_LEFT
+	down.pressed = true
+	down.position = Vector2(360, 900)
+	js.handle(down)
+	var mv := InputEventMouseMotion.new()
+	mv.position = Vector2(424, 900)
+	mv.button_mask = MOUSE_BUTTON_MASK_LEFT
+	js.handle(mv)
+	assert_almost_eq(input.get_move().x, 1.0, 0.001)
+	var up := InputEventMouseMotion.new()
+	up.position = Vector2(430, 900)
+	up.button_mask = 0
+	js.handle(up)
+	assert_false(js.is_active())
+	assert_eq(input.get_move(), Vector2.ZERO)
+
+func test_mouse_release_ends_stick() -> void:
+	var down := InputEventMouseButton.new()
+	down.button_index = MOUSE_BUTTON_LEFT
+	down.pressed = true
+	down.position = Vector2(360, 900)
+	js.handle(down)
+	var mv := InputEventMouseMotion.new()
+	mv.position = Vector2(424, 900)
+	mv.button_mask = MOUSE_BUTTON_MASK_LEFT
+	js.handle(mv)
+	var rel := InputEventMouseButton.new()
+	rel.button_index = MOUSE_BUTTON_LEFT
+	rel.pressed = false
+	rel.position = Vector2(424, 900)
+	js.handle(rel)
+	assert_false(js.is_active())
+	assert_eq(input.get_move(), Vector2.ZERO)
+
+func test_repress_with_active_index_restarts_at_new_base() -> void:
+	_touch(0, Vector2(360, 900), true)
+	_drag(0, Vector2(424, 900))
+	_touch(0, Vector2(200, 700), true)
+	assert_true(js.is_active())
+	assert_eq(input.get_move(), Vector2.ZERO, "new base, knob at centre")
+	_drag(0, Vector2(200, 700 - 64))
+	assert_almost_eq(input.get_move().y, -1.0, 0.001)
+
+func test_first_finger_lift_ends_while_second_held() -> void:
+	_touch(0, Vector2(360, 900), true)
+	_drag(0, Vector2(424, 900))
+	_touch(1, Vector2(200, 400), true)
+	_touch(0, Vector2(424, 900), false)
+	assert_false(js.is_active())
+	assert_eq(input.get_move(), Vector2.ZERO)
+	_drag(1, Vector2(100, 400))
+	assert_false(js.is_active())
+	assert_eq(input.get_move(), Vector2.ZERO)
+
+func test_real_tree_pause_ends_stick() -> void:
+	# D-147: gut keeps running while paused; the stick's own branch is pausable.
+	var old_mode := gut.process_mode
+	gut.process_mode = Node.PROCESS_MODE_ALWAYS
+	js.get_parent().process_mode = Node.PROCESS_MODE_PAUSABLE
+	_touch(0, Vector2(360, 900), true)
+	_drag(0, Vector2(424, 900))
+	get_tree().paused = true
+	var ended := not js.is_active()
+	get_tree().paused = false
+	gut.process_mode = old_mode
+	assert_true(ended)
+	assert_eq(input.get_move(), Vector2.ZERO)
+
+func test_main_wires_joystick_in_input_layer() -> void:
+	var m := Main.create()
+	add_child_autofree(m)
+	var layer := m.joystick.get_parent() as CanvasLayer
+	assert_eq(layer.name, &"InputLayer")
+	assert_eq(layer.layer, 5)
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -7696,6 +7797,7 @@ var active_index := -2
 var _input_api: HeroInput
 var _base := Vector2.ZERO
 var _knob := Vector2.ZERO
+var _vec := Vector2.ZERO
 
 func setup(input: HeroInput) -> void:
 	_input_api = input
@@ -7707,13 +7809,19 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	handle(event)
 
+## While a touch is held, re-send the vector every tick: Hero.teleport clears the stored move
+## and a still thumb produces no drag events (Task 15 review).
+func _physics_process(_delta: float) -> void:
+	if is_active() and _input_api != null:
+		_input_api.set_move(_vec)
+
 func is_active() -> bool:
 	return active_index != -2
 
 func handle(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
-			if not is_active() and _allowed(event.position):
+			if (not is_active() or event.index == active_index) and _allowed(event.position):
 				_begin(event.index, event.position)
 		elif event.index == active_index:
 			_end()
@@ -7722,12 +7830,15 @@ func handle(event: InputEvent) -> void:
 			_drag(event.position)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
-			if not is_active() and _allowed(event.position):
+			if (not is_active() or active_index == -1) and _allowed(event.position):
 				_begin(-1, event.position)
 		elif active_index == -1:
 			_end()
 	elif event is InputEventMouseMotion and active_index == -1:
-		_drag(event.position)
+		if event.button_mask & MOUSE_BUTTON_MASK_LEFT == 0:
+			_end()  # the release happened outside the window
+		else:
+			_drag(event.position)
 
 func _allowed(p: Vector2) -> bool:
 	var w := get_viewport_rect().size.x
@@ -7738,6 +7849,7 @@ func _begin(i: int, p: Vector2) -> void:
 	active_index = i
 	_base = p
 	_knob = Vector2.ZERO
+	_vec = Vector2.ZERO
 	_input_api.set_move(Vector2.ZERO)
 	queue_redraw()
 
@@ -7745,12 +7857,14 @@ func _drag(p: Vector2) -> void:
 	var r := Balance.ui.joystick_radius_px
 	_knob = (p - _base).limit_length(r)
 	var v := _knob / r
-	_input_api.set_move(Vector2.ZERO if v.length() < Balance.ui.joystick_deadzone else v)
+	_vec = Vector2.ZERO if v.length() < Balance.ui.joystick_deadzone else v
+	_input_api.set_move(_vec)
 	queue_redraw()
 
 func _end() -> void:
 	active_index = -2
 	_knob = Vector2.ZERO
+	_vec = Vector2.ZERO
 	_input_api.set_move(Vector2.ZERO)
 	queue_redraw()
 
