@@ -13,6 +13,7 @@ extends Node
 @export var enemy_pool: NodePool
 @export var steak_pool: NodePool
 @export var projectile_pool: NodePool
+@export var fx_pool: NodePool
 @export var traveler_spawner: TravelerSpawner
 
 var phase := Phase.NIGHT
@@ -121,6 +122,7 @@ func _recall_all() -> void:
 	enemy_pool.recall_all()
 	steak_pool.recall_all()
 	projectile_pool.recall_all()
+	fx_pool.recall_all()
 	traveler_spawner.clear_queue()
 
 ## Debug helpers (ui/debug hotkeys, tests). Same narrow interface.

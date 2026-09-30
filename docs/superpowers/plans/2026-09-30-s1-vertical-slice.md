@@ -6332,6 +6332,7 @@ extends SceneTree
 ## Renders the real game and saves a 720x1280 PNG. Run WITH rendering (no --headless):
 ## "$GODOT" --path . --resolution 720x1280 -s res://tests/sim/capture.gd -- --out=docs/screenshots/s1/x.png --seconds=12
 ## --lane=<west|north|east>: hero parked at that lane's zone, one Boar 2 s before it reaches hero range.
+## --hero-at=zone_center (with --lane): hero at the centre of that lane's attack zone instead of the lane end.
 ## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
 ## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
 
@@ -6369,7 +6370,10 @@ func _run() -> void:
 			return
 		main.phase_controller.phase = load("res://core/phase.gd").DAY  # freeze waves for a staged shot
 		main.world.wave_director.stop()
-		main.hero.teleport(map_layout.lane_end(lane))
+		var hero_at: Vector2 = map_layout.lane_end(lane)
+		if _args.get("hero-at", "") == "zone_center":
+			hero_at = (map_layout.ZONE_RECTS[lane] as Rect2).get_center()
+		main.hero.teleport(hero_at)
 		bot.queue_free()
 		var eb = _bal.data.enemy
 		var b = main.world.wave_director.debug_spawn(lane)
@@ -6384,7 +6388,8 @@ func _run() -> void:
 		for i in int(float(_args.get("seconds", "12")) * 60.0):
 			await physics_frame
 	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(main.hero.xz()), _bal.ui)
-	for i in 3:
+	var t0 := Time.get_ticks_msec()  # let the diner's occlusion fade (D-151) settle: 3x its fade time
+	while Time.get_ticks_msec() - t0 < int(_bal.ui.occluder_fade_s * 1000.0) * 3:
 		await process_frame
 	var img := root.get_texture().get_image()
 	if img.get_size() != Vector2i(720, 1280):
@@ -8365,8 +8370,10 @@ extends GutTest
 
 var main: Main
 var pc: PhaseController
+var _boars: Array = []  # the boars the mutation left alive and dying, to check their flash after the restore
 
 func before_each() -> void:
+	_boars = []
 	Balance.reset()
 	main = Main.create()
 	add_child_autofree(main)
@@ -8468,6 +8475,27 @@ func _mutate_everything(snap: Dictionary) -> void:
 	dying.take_hit(1e9)  # mid-death tween, and drops steaks
 	assert_eq(main.world.wave_director.alive_count(), 1, "precondition: a boar is alive")
 	assert_eq(main.world.enemy_pool.active().size(), 2, "precondition: a boar is mid-death")
+	# a build finishing right before the restore leaves its pop tween running. tower_ne is level 1 here and level 0
+	# in the snapshot, so a surviving pop would end at the level-2 scale, not the restored scale 1.
+	assert_eq(GameState.buildings.tower_ne.level, 1, "precondition: tower_ne is level 1")
+	GameState.add_gold(5000)
+	GameState.pay_into_spot("tower_ne", GameState.next_level_cost("tower_ne"))  # level 2, pop starts
+	GameState.gold = 0
+	EventBus.stocks_changed.emit()
+	assert_eq(GameState.buildings.tower_ne.level, 2, "precondition: tower_ne is level 2")
+	assert_gt(main.world.build_spots.tower_ne.visual.scale.x, 1.001, "precondition: the build pop is running")
+	# visual-only leftovers: a transfer in flight, arrows on screen, hit flashes, a camera shake
+	main.world.fly_fx.fly("coin", Vector3.ZERO, Vector3(2, 0, 2))
+	assert_eq(main.world.fly_fx.in_flight(), 1, "precondition: a transfer is in flight")
+	EventBus.wave_incoming.emit(0, &"west", &"north")
+	assert_true(main.hud.arrows.main.visible, "precondition: an arrow is shown")
+	boar.take_hit(1.0)
+	assert_true(boar.flash_active(), "precondition: the boar flashes")
+	_boars = [boar, dying]
+	assert_true(dying.flash_active(), "precondition: the dying boar flashes")
+	EventBus.diner_damaged.emit(1.0, GameState.diner_hp)
+	assert_gt(main.camera_rig._shake_left, 0.0, "precondition: the camera shakes")
+	_displace_camera()
 	# hidden attacker state
 	var target := {"ref": boar, "spawn_index": boar.spawn_index}
 	for a in [main.hero.attacker, main.world.build_spots.tower_nw.attacker, main.world.build_spots.tower_ne.attacker]:
@@ -8484,6 +8512,15 @@ func _mutate_everything(snap: Dictionary) -> void:
 			differs = true
 	assert_true(differs, "precondition: some telegraph scale differs from the restored one")
 
+## The camera is somewhere else when the restore hits (the hero is placed by the restore, the camera must follow).
+func _displace_camera() -> void:
+	main.camera_rig.snap_to(Vector2(12, -12))
+	var far := main.camera_rig.camera.global_position
+	var home := CameraMath.camera_transform(CameraMath.focus_for(MapLayout.HOME), Balance.ui).origin
+	assert_gt(far.distance_to(home), 1.0, "precondition: the camera is away from HOME")
+	var start := CameraMath.camera_transform(CameraMath.focus_for(MapLayout.NIGHT1_START), Balance.ui).origin
+	assert_gt(far.distance_to(start), 1.0, "precondition: the camera is away from NIGHT1_START")
+
 ## Everything the world shows must match `snap` (the state that was restored), DAY resumed.
 func _assert_world_matches(snap: Dictionary) -> void:
 	var w := main.world
@@ -8498,10 +8535,60 @@ func _assert_world_matches(snap: Dictionary) -> void:
 	assert_eq(pc.phase, Phase.DAY)
 	assert_false(pc.failing)
 	_assert_views_match(snap)
+	_assert_hud_camera_fx(snap, true, MapLayout.HOME)
+
+func _assert_hud_values(snap: Dictionary) -> void:
+	var hud := main.hud
+	assert_eq(hud.gold_label.text, str(snap.gold), "hud gold")
+	# ProgressBar rounds its value to its step (0.01), so the exact HP lives in GameState, not in the bar
+	assert_almost_eq(hud.diner_bar.value, float(snap.diner_hp), hud.diner_bar.step, "hud diner bar")
+	assert_eq(hud.day_label.text, tr("Day %d") % int(snap.day), "hud day label")
+
+## HUD, camera and visual-only FX after a restore. `day`: the restore resumed DAY (else the night-1 restart).
+func _assert_hud_camera_fx(snap: Dictionary, day: bool, hero_pos: Vector2) -> void:
+	var hud := main.hud
+	_assert_hud_values(snap)
+	if day:
+		assert_false(hud.arrows.main.visible, "hud main arrow")
+		assert_false(hud.arrows.side.visible, "hud side arrow")
+		assert_true(hud.day_label.visible, "hud day label visible in DAY")
+		for m in hud.moons:
+			assert_false(m.visible, "moons are night-only")
+	else:
+		assert_eq(hud.moons.size(), GameState.lane_plan.size(), "one moon per planned wave")
+		assert_eq(hud.filled_moons(), 0, "no moon filled at night 1 start")
+		for m in hud.moons:
+			assert_true(m.visible, "moons are shown at night")
+		# night 1 restarts with its first wave announced (start_night -> wave_incoming)
+		var first: Dictionary = GameState.lane_plan[0]
+		assert_eq(hud._arrow_lane.main, String(first.main), "main arrow lane")
+		assert_eq(hud.arrows.main.visible, String(first.main) != "")
+		assert_eq(hud.arrows.side.visible, String(first.side) != "", "side arrow only when the wave has a side lane")
+	var expect := CameraMath.camera_transform(CameraMath.focus_for(hero_pos), Balance.ui)
+	var got := main.camera_rig.camera.global_transform
+	assert_almost_eq(got.origin, expect.origin, Vector3.ONE * 0.001, "camera position (before any _process)")
+	assert_true(got.basis.is_equal_approx(expect.basis), "camera basis")
+	assert_lte(main.camera_rig._shake_left, 0.0, "camera shake cleared")
+	assert_eq(main.world.fly_fx.in_flight(), 0, "no transfer in flight")
+	for b in _boars:
+		assert_false(b.flash_active(), "recalled boar does not flash")
+
+## Visual tweens that outlive the restore would show up a little later: wait them out.
+func _assert_no_late_visuals(snap: Dictionary) -> void:
+	await _ticks(int(ceil(maxf(Balance.ui.transfer_arc_time, Balance.ui.build_pop_time) * Engine.physics_ticks_per_second)) + 2)
+	# Only checks the recall: an abandoned transfer is gone. Killing the FlyFx tween on release is test_fx.gd's job.
+	assert_eq(main.world.fly_fx.in_flight(), 0, "still no transfer in flight")
+	for id in MapLayout.SPOT_IDS:
+		var lvl := int(snap.buildings[id].level)
+		var expect_scale := Vector3.ONE * pow(Balance.ui.build_level_scale, maxi(lvl - 1, 0))
+		assert_almost_eq(main.world.build_spots[id].visual.scale, expect_scale, Vector3.ONE * 0.0001, "%s scale after the pop time" % id)
+	for b in _boars:
+		assert_false(b.flash_active())
 
 ## The nodes that must rebuild from GameState on state_restored alone (no phase change, no recall).
 func _assert_views_match(snap: Dictionary) -> void:
 	var w := main.world
+	_assert_hud_values(snap)
 	var spots: Dictionary = w.build_spots
 	for id in MapLayout.SPOT_IDS:
 		var lvl := int(snap.buildings[id].level)
@@ -8518,6 +8605,7 @@ func _assert_views_match(snap: Dictionary) -> void:
 	assert_false(spots.tower_ne.attacker.enabled)
 	assert_eq(spots.tower_ne.label.text, str(GameState.next_level_cost("tower_ne")))
 	assert_eq(spots.fence_n.label.text, "5")
+	assert_true(spots.fence_n.label.visible, "cost labels are shown in DAY")
 	assert_true(spots.fence_n.zone.ring.visible)
 	assert_almost_eq(_ring_progress(spots.fence_n), 15.0 / GameState.next_level_cost("fence_n"), 0.0001)
 	assert_false(spots.tower_ne.zone.ring.visible)
@@ -8569,6 +8657,7 @@ func test_restore_rebuilds_world_from_snapshot() -> void:
 	assert_eq(main.world.enemy_pool.active().size(), 0, "enemy pool after the death tween")
 	assert_eq(main.world.steak_pool.active().size(), 0, "no steaks dropped after the restore")
 	await _assert_no_pending_transactions(snap)
+	await _assert_no_late_visuals(snap)
 
 func test_from_dict_alone_rebuilds_every_view() -> void:
 	# state_restored is the only trigger here: no recall, no phase change
@@ -8592,6 +8681,7 @@ func test_restore_from_json_round_trip_at_full_precision() -> void:
 	assert_eq(JSON.parse_string(JSON.stringify(GameState.to_dict(), "", true, true)), parsed)
 	_assert_world_matches(snap)
 	await _assert_no_pending_transactions(snap)
+	await _assert_no_late_visuals(snap)
 
 func test_fail_flow_restore_rebuilds_world() -> void:
 	var snap := _make_snapshot()  # NIGHT now, resume DAY
@@ -8624,8 +8714,13 @@ func test_night_restart_restore_rebuilds_world() -> void:
 	main.world.wave_director.debug_spawn("north")
 	main.world.steak_pool.acquire().place(Vector3(15, 0, 0))
 	await _ticks(60 * 5)
+	main.world.fly_fx.fly("coin", Vector3.ZERO, Vector3(2, 0, 2))
+	EventBus.wave_cleared.emit(0)
+	assert_eq(main.hud.filled_moons(), 1, "precondition: a moon is filled")
+	_displace_camera()
 	pc.snapshot = snap.duplicate(true)
 	pc._restore_snapshot()
+	_assert_hud_camera_fx(snap, false, MapLayout.NIGHT1_START)
 	var wd := main.world.wave_director
 	assert_eq(GameState.to_dict(), snap)
 	assert_eq(pc.phase, Phase.NIGHT)
@@ -8636,6 +8731,7 @@ func test_night_restart_restore_rebuilds_world() -> void:
 	assert_false(main.world.traveler_spawner.active)
 	assert_eq(main.world.build_spots.fence_n.level, 0)
 	assert_false(main.world.build_spots.fence_n.visual.visible)
+	assert_false(main.world.build_spots.fence_n.label.visible, "cost labels are hidden at night")
 	assert_eq(main.world.freezer.label.text, "0")
 	assert_eq(main.hero.carry_stack.visible_count(), int(snap.carried_steaks))
 	assert_eq(main.world.gold_pile.coin_count(), int(snap.gold_pile))
@@ -8644,6 +8740,39 @@ func test_night_restart_restore_rebuilds_world() -> void:
 		assert_eq(pool.active().size(), 0, "pool %s not empty" % pool.name)
 	for lane in main.world.telegraph_markers:
 		assert_false(main.world.telegraph_markers[lane].visible, "telegraphs are day-only")
+
+func test_restore_cancels_a_camera_shake_in_progress() -> void:
+	var snap := _make_snapshot()
+	EventBus.diner_damaged.emit(1.0, GameState.diner_hp)
+	assert_gt(main.camera_rig._shake_left, 0.0, "precondition: shaking")
+	pc.snapshot = snap.duplicate(true)
+	pc._restore_snapshot()
+	assert_lte(main.camera_rig._shake_left, 0.0)
+	var n: int = main.camera_rig.shake_count
+	EventBus.diner_damaged.emit(1.0, GameState.diner_hp)
+	assert_eq(main.camera_rig.shake_count, n + 1, "first hit after a restore shakes")
+
+func test_restore_unfades_the_diner() -> void:
+	var snap := _make_snapshot()  # NIGHT now, resume DAY
+	var fade: OccluderFade = main.world.occluder_fade
+	main.hero.teleport(MapLayout.HOME)
+	main.camera_rig.snap()
+	var b := main.world.wave_director.debug_spawn("north")
+	b.set_physics_process(false)
+	var d := 0.0
+	while EnemyPath.position_at("north", d, 0.0, Balance.data.enemy.offset_fade_distance).y < -9.0:
+		d += 0.05
+	b.dist = d
+	b._update_position()
+	var frames := int(ceil(Balance.ui.occluder_fade_s * 60.0)) + 2
+	for i in frames + 30:
+		await get_tree().process_frame
+	assert_true(fade.is_faded(), "precondition: the boar behind the diner fades it")
+	pc.snapshot = snap.duplicate(true)
+	pc._restore_snapshot()
+	for i in frames + 30:
+		await get_tree().process_frame
+	assert_false(fade.is_faded(), "opaque again after the restore recalled the boar")
 ```
 
 - [ ] **Step 2: Run it**
@@ -9113,6 +9242,7 @@ func _ready() -> void:
 	camera.current = true
 	EventBus.diner_damaged.connect(_on_diner_damaged)
 	EventBus.hero_place_requested.connect(snap_to)
+	EventBus.state_restored.connect(_on_state_restored)
 
 func _apply_lens() -> void:
 	if not is_inside_tree():
@@ -9120,7 +9250,7 @@ func _apply_lens() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	if vp.y <= 0.0:
 		return
-	CameraMath.apply_lens(camera, Balance.ui, vp.x / vp.y)  # D-145/D-153: KEEP_HEIGHT from 9:16 to 21:9, clamped outside 9:21..21:9
+	CameraMath.apply_lens(camera, Balance.ui, vp.x / vp.y)  # D-145: KEEP_HEIGHT on windows wider than 9:16
 
 func setup(hero: Hero) -> void:
 	_hero = hero
@@ -9148,6 +9278,11 @@ func _process(delta: float) -> void:
 		var k := maxf(_shake_left, 0.0) / Balance.ui.shake_time
 		xf.origin += Vector3(sin(_t * 97.0), cos(_t * 89.0), 0.0) * Balance.ui.shake_amp * k
 	camera.global_transform = xf
+
+## A restore ends any shake in progress (the hit that started it never happened, D-045).
+func _on_state_restored() -> void:
+	_shake_left = 0.0
+	_cooldown = 0.0
 
 func _on_diner_damaged(_amount: float, _hp_left: float) -> void:
 	if _cooldown > 0.0:
@@ -9240,6 +9375,21 @@ func test_day_label_and_moons_visibility() -> void:
 	assert_true(hud.day_label.visible)
 	assert_eq(hud.day_label.text, "Day 2")
 	assert_false(hud.moons[0].visible)
+	assert_false(hud.arrows.main.visible)
+	assert_false(hud.arrows.side.visible)
+
+func test_arrows_hidden_when_night_ends_mid_wave() -> void:
+	EventBus.wave_incoming.emit(1, &"west", &"east")
+	assert_true(hud.arrows.main.visible)
+	EventBus.phase_changed.emit(Phase.DAY, 2)
+	assert_false(hud.arrows.main.visible)
+	assert_false(hud.arrows.side.visible)
+	await get_tree().process_frame
+	assert_false(hud.arrows.main.visible)
+
+func test_moons_match_lane_plan() -> void:
+	EventBus.phase_changed.emit(Phase.NIGHT, 1)
+	assert_eq(hud.moons.size(), GameState.lane_plan.size())
 
 func test_diner_bar() -> void:
 	var max_hp := Balance.data.build.diner_max_hp
@@ -9272,6 +9422,113 @@ func test_safe_area_insets_non_negative_and_applied() -> void:
 	for k in ["top", "bottom", "left", "right"]:
 		assert_true(float(ins[k]) >= 0.0, k)
 	assert_eq(hud.root.offset_top, float(ins.top))
+
+func test_safe_area_reapplied_on_resize() -> void:
+	hud.root.offset_top = 999.0
+	hud.root.offset_left = 999.0
+	hud.get_viewport().size_changed.emit()
+	var ins := SafeArea.insets(hud.root.get_viewport_rect().size)
+	assert_eq(hud.root.offset_top, float(ins.top))
+	assert_eq(hud.root.offset_left, float(ins.left))
+
+func test_offscreen_arrow_is_pinned_inside_root_space() -> void:
+	var cam := main.camera_rig.camera
+	var grown := hud._arrow_rect()
+	var far := ""
+	for k in main.world.lanes:
+		var pos: Vector3 = main.world.lanes[k].entrance_position()
+		if cam.is_position_behind(pos) or not grown.has_point(cam.unproject_position(pos)):
+			far = String(k)
+	assert_ne(far, "", "a lane entrance is off-screen")
+	EventBus.wave_incoming.emit(1, &"west", StringName(far))
+	await get_tree().process_frame
+	var arrow: Polygon2D = hud.arrows.side
+	var g := arrow.position + hud.root.position
+	assert_true(hud.root.get_global_rect().has_point(g))
+	var d := minf(minf(absf(g.x - grown.position.x), absf(g.x - grown.end.x)), minf(absf(g.y - grown.position.y), absf(g.y - grown.end.y)))
+	assert_lt(d, 1.0)
+
+func test_banner_is_horizontally_centred_and_wraps() -> void:
+	# The backing panel owns the layout; the label fills it.
+	var p := hud.banner_panel
+	assert_eq(p.anchor_left, 0.0)
+	assert_eq(p.anchor_right, 1.0)
+	assert_almost_eq(p.anchor_top, 0.4, 0.0001)
+	assert_almost_eq(p.anchor_bottom, 0.4, 0.0001)
+	assert_eq(p.offset_left, -p.offset_right, "symmetric side margins")
+	assert_eq(hud.banner.get_parent(), p)
+	assert_eq(hud.banner.autowrap_mode, TextServer.AUTOWRAP_WORD_SMART)
+
+func test_top_column_is_centred_at_any_width() -> void:
+	var col := hud.diner_bar.get_parent().get_parent() as Control
+	assert_eq(col.anchor_left, 0.5)
+	assert_eq(col.anchor_right, 0.5)
+	assert_eq(col.anchor_top, 0.0)
+	assert_eq(col.grow_horizontal, Control.GROW_DIRECTION_BOTH)
+
+func test_diner_bar_shake_returns_to_rest() -> void:
+	GameState.damage_diner(5.0)
+	GameState.damage_diner(5.0)
+	for i in int(Balance.ui.diner_bar_shake_time * 60 * 2) + 10:
+		await get_tree().process_frame
+	assert_eq(hud.diner_bar.position.x, 0.0)
+
+func test_diner_bar_is_visible_with_real_size_and_styles() -> void:
+	await get_tree().process_frame
+	assert_true(hud.diner_bar.is_visible_in_tree(), "always visible (day and night)")
+	var r := hud.diner_bar.get_global_rect()
+	assert_gte(r.size.x, Hud.BAR_SIZE.x, "fills its slot, not the 4px default")
+	assert_gte(r.size.y, Hud.BAR_SIZE.y)
+	assert_not_null(hud.diner_bar.get_theme_stylebox("fill"))
+	assert_true(hud.diner_bar.has_theme_stylebox_override("fill"))
+	assert_true(hud.diner_bar.has_theme_stylebox_override("background"))
+	var fill := hud.diner_bar.get_theme_stylebox("fill") as StyleBoxFlat
+	assert_eq(fill.bg_color, Visuals.COLORS.diner_hp)
+	main.phase_controller.debug_skip_to_night()
+	await get_tree().process_frame
+	assert_true(hud.diner_bar.is_visible_in_tree(), "still visible at night")
+	var before := hud.diner_bar.value
+	GameState.damage_diner(10.0)
+	assert_lt(hud.diner_bar.value, before)
+
+func test_banner_has_readable_backing() -> void:
+	EventBus.banner_requested.emit("Night 1")
+	var panel: PanelContainer = hud.banner_panel
+	assert_true(panel.visible)
+	assert_eq(panel.mouse_filter, Control.MOUSE_FILTER_IGNORE)
+	var sb := panel.get_theme_stylebox("panel") as StyleBoxFlat
+	assert_not_null(sb)
+	assert_almost_eq(sb.bg_color.a, Balance.ui.banner_panel_alpha, 0.001)
+	for i in int(Balance.ui.banner_time * 60) + 30:
+		await get_tree().process_frame
+	assert_false(panel.visible)
+	assert_false(hud.banner.visible)
+
+func test_arrows_stay_below_the_top_hud() -> void:
+	EventBus.wave_incoming.emit(0, &"north", &"")
+	await get_tree().process_frame
+	var col := hud._top_column
+	var arrow_top: float = hud.arrows.main.position.y + hud.root.position.y - Hud.ARROW_EXTENT
+	assert_gte(arrow_top, col.get_global_rect().end.y)
+	assert_gte(arrow_top, hud.gold_label.get_global_rect().end.y)
+
+func test_second_banner_resets_the_fade() -> void:
+	EventBus.banner_requested.emit("One")
+	for i in int(Balance.ui.banner_time * 60 * 0.9):
+		await get_tree().process_frame
+	EventBus.banner_requested.emit("Two")
+	assert_true(hud.banner_panel.visible)
+	assert_eq(hud.banner_panel.modulate.a, 1.0)
+
+func test_arrow_rect_top_clears_the_hud() -> void:
+	var need := maxf(hud._top_column.get_global_rect().end.y, hud.gold_label.get_global_rect().end.y) \
+		+ Balance.ui.arrow_hud_gap + Hud.ARROW_EXTENT
+	assert_gte(hud._arrow_rect().position.y, need)
+
+func test_hover_point_is_clamped_below_the_hud() -> void:
+	var rect := Rect2(0, 200, 600, 800)
+	assert_eq(hud._hover_point(Vector2(100, 210), rect), Vector2(100, 200), "clamped to the rect top")
+	assert_eq(hud._hover_point(Vector2(100, 700), rect), Vector2(100, 700 - Balance.ui.arrow_hover_px))
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -9299,6 +9556,8 @@ static func insets(viewport_size: Vector2) -> Dictionary:
 			var sy := viewport_size.y / float(raw[5])
 			out = {"top": float(raw[0]) * sy, "right": float(raw[1]) * sx, "bottom": float(raw[2]) * sy, "left": float(raw[3]) * sx}
 		return _clamped(out)
+	if not OS.has_feature("mobile"):
+		return out
 	var win := Vector2(DisplayServer.window_get_size())
 	var safe := DisplayServer.get_display_safe_area()
 	if win.x <= 0.0 or win.y <= 0.0 or safe.size.x <= 0:
@@ -9325,6 +9584,8 @@ If D-119 recorded that DisplayServer works on web, delete the `if OS.has_feature
 class_name Hud
 extends CanvasLayer
 ## Listener-only HUD (spec 9.4). Gold, moons/day, diner bar, banners, edge arrows, safe-area inset.
+## Reads GameState / EventBus only, never writes. Every Control ignores the mouse so the joystick
+## (which listens in _input on InputLayer) is never blocked.
 
 var root: Control
 var gold_label: Label
@@ -9332,6 +9593,7 @@ var day_label: Label
 var moons: Array = []
 var diner_bar: ProgressBar
 var banner: Label
+var banner_panel: PanelContainer
 var arrows := {}
 var _camera: Camera3D
 var _lanes := {}
@@ -9339,6 +9601,15 @@ var _arrow_lane := {"main": "", "side": ""}
 var _filled := 0
 var _banner_tween: Tween
 var _gold_tween: Tween
+var _bar_tween: Tween
+var _moon_row: HBoxContainer
+var _top_column: VBoxContainer
+
+## Layout constants in 720-base units (spec 9.4: slim diner bar under the moons).
+const BAR_SIZE := Vector2(220, 12)
+const BANNER_SIDE_MARGIN := 40.0
+## Half the arrow's height (its polygon spans -16..20 at scale 1, rounded up for the big one).
+const ARROW_EXTENT := 26.0
 
 func setup(main: Main) -> void:
 	_camera = main.camera_rig.camera
@@ -9350,40 +9621,83 @@ func _ready() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
-	var ins := SafeArea.insets(root.get_viewport_rect().size)
-	root.offset_top = ins.top
-	root.offset_bottom = -ins.bottom
-	root.offset_left = ins.left
-	root.offset_right = -ins.right
+	_apply_safe_area()
+	get_viewport().size_changed.connect(_apply_safe_area)
 	gold_label = _label(48, Vector2(24, 16))
 	gold_label.pivot_offset = Vector2(0, 30)
-	day_label = _label(40, Vector2(300, 16))
-	for i in 3:
-		var m := ColorRect.new()
-		m.size = Vector2(28, 28)
-		m.position = Vector2(300 + i * 40, 24)
-		m.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		root.add_child(m)
-		moons.append(m)
+	# Day label / moons / diner bar sit in one column anchored to the top centre.
+	var column := VBoxContainer.new()
+	_top_column = column
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_theme_constant_override("separation", 6)
+	root.add_child(column)
+	column.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_KEEP_SIZE)
+	column.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	column.offset_top = 16.0
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.custom_minimum_size = Vector2(0, 54)
+	column.add_child(row)
+	day_label = _label(40, Vector2.ZERO, row)
+	_moon_row = HBoxContainer.new()
+	_moon_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_moon_row.add_theme_constant_override("separation", 12)
+	_moon_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(_moon_row)
+	var bar_slot := Control.new()
+	bar_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar_slot.custom_minimum_size = BAR_SIZE
+	column.add_child(bar_slot)
 	diner_bar = ProgressBar.new()
 	diner_bar.show_percentage = false
-	diner_bar.position = Vector2(220, 70)
-	diner_bar.size = Vector2(280, 14)
 	diner_bar.max_value = Balance.data.build.diner_max_hp
 	diner_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(diner_bar)
-	banner = _label(64, Vector2(0, 520))
-	banner.size = Vector2(720, 90)
+	bar_slot.add_child(diner_bar)
+	diner_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# Explicit styles: the bar must read over the ground by day and night.
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Visuals.COLORS.diner_hp
+	fill.set_corner_radius_all(6)
+	fill.set_border_width_all(2)
+	fill.border_color = Color(0, 0, 0, 0.8)
+	var back := StyleBoxFlat.new()
+	back.bg_color = Color(0, 0, 0, Balance.ui.banner_panel_alpha)
+	back.set_corner_radius_all(6)
+	back.set_border_width_all(2)
+	back.border_color = Color(0, 0, 0, 0.8)
+	diner_bar.add_theme_stylebox_override("fill", fill)
+	diner_bar.add_theme_stylebox_override("background", back)
+	# Dark backing so the banner reads over the world (mouse-transparent, hides with the banner).
+	banner_panel = PanelContainer.new()
+	banner_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0, 0, 0, Balance.ui.banner_panel_alpha)
+	panel_style.set_corner_radius_all(24)
+	panel_style.set_content_margin_all(20)
+	banner_panel.add_theme_stylebox_override("panel", panel_style)
+	banner_panel.set_anchors_preset(Control.PRESET_HCENTER_WIDE)
+	banner_panel.anchor_top = 0.4
+	banner_panel.anchor_bottom = 0.4
+	banner_panel.offset_left = BANNER_SIDE_MARGIN
+	banner_panel.offset_right = -BANNER_SIDE_MARGIN
+	banner_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	banner_panel.visible = false
+	root.add_child(banner_panel)
+	banner = _label(64, Vector2.ZERO, banner_panel)
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	banner.visible = false
 	for key in ["main", "side"]:
 		var p := Polygon2D.new()
 		p.polygon = PackedVector2Array([Vector2(-20, -16), Vector2(20, -16), Vector2(0, 20)])
 		p.color = Color("e03030")
-		p.scale = Vector2.ONE if key == "main" else Vector2.ONE * 0.6
+		p.scale = Vector2.ONE if key == "main" else Vector2.ONE * Balance.ui.arrow_side_scale
 		p.visible = false
 		root.add_child(p)
 		arrows[key] = p
+	_set_moon_count(GameState.lane_plan.size())
 	EventBus.gold_changed.connect(_on_gold_changed)
 	EventBus.phase_changed.connect(_on_phase_changed)
 	EventBus.wave_incoming.connect(_on_wave_incoming)
@@ -9393,15 +9707,36 @@ func _ready() -> void:
 	EventBus.state_restored.connect(_refresh_all)
 	EventBus.banner_requested.connect(_on_banner)
 	_refresh_all()
+	_paint_moons()
 
-func _label(size: int, pos: Vector2) -> Label:
+## Re-read the insets; called on start and whenever the viewport size changes (rotation, resize).
+func _apply_safe_area() -> void:
+	var ins := SafeArea.insets(root.get_viewport_rect().size)
+	root.offset_top = ins.top
+	root.offset_bottom = -ins.bottom
+	root.offset_left = ins.left
+	root.offset_right = -ins.right
+
+## One moon per planned wave (spec 7.9); created hidden, shown only at night.
+func _set_moon_count(n: int) -> void:
+	while moons.size() > n:
+		moons.pop_back().queue_free()
+	while moons.size() < n:
+		var m := ColorRect.new()
+		m.custom_minimum_size = Vector2(28, 28)
+		m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		m.visible = false
+		_moon_row.add_child(m)
+		moons.append(m)
+
+func _label(size: int, pos: Vector2, parent: Control = null) -> Label:
 	var l := Label.new()
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_constant_override("outline_size", 8)
 	l.add_theme_color_override("font_outline_color", Color.BLACK)
 	l.position = pos
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(l)
+	(parent if parent != null else root).add_child(l)
 	return l
 
 func filled_moons() -> int:
@@ -9422,6 +9757,13 @@ func _on_gold_changed(gold: int, _delta: int) -> void:
 
 func _on_phase_changed(phase: int, day: int) -> void:
 	var night := phase == Phase.NIGHT
+	if night:
+		_set_moon_count(GameState.lane_plan.size())
+	else:
+		_arrow_lane.main = ""
+		_arrow_lane.side = ""
+		arrows.main.visible = false
+		arrows.side.visible = false
 	for m in moons:
 		m.visible = night
 	day_label.visible = not night
@@ -9432,7 +9774,7 @@ func _on_phase_changed(phase: int, day: int) -> void:
 		_paint_moons()
 
 func _on_wave_cleared(w: int) -> void:
-	_filled = clampi(w + 1, 0, 3)
+	_filled = clampi(w + 1, 0, moons.size())
 	_paint_moons()
 
 func _paint_moons() -> void:
@@ -9452,29 +9794,49 @@ func _on_wave_spawned_out(_w: int) -> void:
 
 func _on_diner_damaged(_amount: float, hp_left: float) -> void:
 	diner_bar.value = hp_left
-	var t := create_tween()
-	var base := Vector2(220, 70)
-	t.tween_property(diner_bar, "position", base + Vector2(6, 0), 0.04)
-	t.tween_property(diner_bar, "position", base, 0.04)
+	if _bar_tween != null and _bar_tween.is_valid():
+		_bar_tween.kill()
+	# The bar sits in a layout slot; shake its x inside the slot so the layout never matters.
+	diner_bar.position.x = 0.0
+	_bar_tween = create_tween()
+	_bar_tween.tween_property(diner_bar, "position:x", Balance.ui.diner_bar_shake_px, Balance.ui.diner_bar_shake_time)
+	_bar_tween.tween_property(diner_bar, "position:x", 0.0, Balance.ui.diner_bar_shake_time)
 
 func _on_banner(text: String) -> void:
 	banner.text = text
 	banner.visible = true
-	banner.modulate.a = 1.0
+	banner_panel.visible = true
+	banner_panel.modulate.a = 1.0
 	if _banner_tween != null and _banner_tween.is_valid():
 		_banner_tween.kill()
 	_banner_tween = create_tween()
 	_banner_tween.tween_interval(Balance.ui.banner_time * 0.75)
-	_banner_tween.tween_property(banner, "modulate:a", 0.0, Balance.ui.banner_time * 0.25)
-	_banner_tween.tween_callback(func(): banner.visible = false)
+	_banner_tween.tween_property(banner_panel, "modulate:a", 0.0, Balance.ui.banner_time * 0.25)
+	_banner_tween.tween_callback(func():
+		banner.visible = false
+		banner_panel.visible = false)
 
 func _process(_delta: float) -> void:
 	_place_arrows()
 
+## Where arrow tips may sit: the safe root rect, inset by the edge margin, below the top HUD.
+func _arrow_rect() -> Rect2:
+	var rect := root.get_global_rect().grow(-Balance.ui.arrow_edge_margin)
+	var hud_bottom := maxf(_top_column.get_global_rect().end.y, gold_label.get_global_rect().end.y)
+	var top := hud_bottom + Balance.ui.arrow_hud_gap + ARROW_EXTENT
+	if top > rect.position.y:
+		rect.size.y -= top - rect.position.y
+		rect.position.y = top
+	return rect
+
+## Tip position for an on-screen entrance: hover above it, but never above the arrow rect.
+func _hover_point(entrance: Vector2, rect: Rect2) -> Vector2:
+	return Vector2(entrance.x, maxf(entrance.y - Balance.ui.arrow_hover_px, rect.position.y))
+
 func _place_arrows() -> void:
 	if _camera == null:
 		return
-	var rect := root.get_viewport_rect().grow(-48.0)
+	var rect := _arrow_rect()
 	for key in ["main", "side"]:
 		var arrow: Polygon2D = arrows[key]
 		var lane: String = _arrow_lane[key]
@@ -9485,14 +9847,14 @@ func _place_arrows() -> void:
 		if _camera.is_position_behind(world_pos):
 			p = rect.get_center() - (p - rect.get_center())
 		if rect.has_point(p):
-			arrow.position = p + Vector2(0, -40)
+			arrow.position = _hover_point(p, rect) - root.position
 			arrow.rotation = 0.0
 		else:
 			var c := rect.get_center()
 			var dir := (p - c).normalized()
 			var tx := INF if is_zero_approx(dir.x) else ((rect.end.x if dir.x > 0 else rect.position.x) - c.x) / dir.x
 			var ty := INF if is_zero_approx(dir.y) else ((rect.end.y if dir.y > 0 else rect.position.y) - c.y) / dir.y
-			arrow.position = c + dir * minf(tx, ty)
+			arrow.position = c + dir * minf(tx, ty) - root.position
 			arrow.rotation = dir.angle() - PI / 2.0
 ```
 
@@ -9569,6 +9931,7 @@ git commit -m "feat: add HUD with gold punch, moons, diner bar, banners, edge ar
 `tests/unit/test_fx.gd`:
 ```gdscript
 extends GutTest
+## Task 30 feel budget. World.fly_fx / fx_pool come from the D-139 wiring (applied).
 
 var main: Main
 
@@ -9579,22 +9942,88 @@ func before_each() -> void:
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(91)
 
+func _local_fx() -> FlyFx:
+	var pool := NodePool.new()
+	add_child_autofree(pool)
+	pool.setup(func(): return FlyFx.make_item(), 4)
+	var fx := FlyFx.new()
+	add_child_autofree(fx)
+	fx.setup(pool)
+	return fx
+
+func _wired_fx() -> FlyFx:
+	return main.world.fly_fx
+
 func test_fly_is_visual_only_and_releases() -> void:
+	var fx := _local_fx()
 	var before := GameState.to_dict()
-	main.world.fly_fx.fly("coin", Vector3(0, 1, 0), Vector3(3, 1, 0))
-	assert_eq(main.world.fly_fx.in_flight(), 1)
+	fx.fly("coin", Vector3(0, 1, 0), Vector3(3, 1, 0))
+	assert_eq(fx.in_flight(), 1)
+	for i in ceili(Balance.ui.transfer_arc_time * 60.0) + 10:
+		await get_tree().process_frame
+	assert_eq(fx.in_flight(), 0)
+	assert_eq(GameState.to_dict(), before)
+
+func test_fly_arc_peaks_at_apex() -> void:
+	var fx := _local_fx()
+	fx.fly("steak", Vector3(0, 1, 0), Vector3(4, 1, 0))
+	var item: Node3D = fx._pool.active()[0]
+	var top := 0.0
+	for i in ceili(Balance.ui.transfer_arc_time * 60.0) + 2:
+		await get_tree().process_frame
+		if fx.in_flight() > 0:
+			top = maxf(top, item.position.y - 1.0)
+	assert_gt(top, Balance.ui.transfer_arc_apex * 0.5)
+	assert_lte(top, Balance.ui.transfer_arc_apex + 1e-3)
+
+func test_recall_mid_flight_kills_tween() -> void:
+	var fx := _local_fx()
+	fx.fly("coin", Vector3.ZERO, Vector3(5, 0, 0))
+	var item: Node3D = fx._pool.active()[0]
+	fx._pool.recall_all()
+	assert_eq(fx.in_flight(), 0)
+	item.position = Vector3(9, 9, 9)
+	await get_tree().process_frame
+	assert_eq(item.position, Vector3(9, 9, 9), "a recalled item is not moved by a stale tween")
+
+func test_wired_world_has_fly_fx() -> void:
+	assert_not_null(_wired_fx(), "wired: World creates FlyFx over fx_pool")
+	assert_not_null(main.world.fx_pool)
+	assert_not_null(main.world.find_child("FxPool", false, false), "wired: FxPool node")
+
+func test_wired_fly_is_visual_only_and_releases() -> void:
+	var fx := _wired_fx()
+	var before := GameState.to_dict()
+	fx.fly("coin", Vector3(0, 1, 0), Vector3(3, 1, 0))
+	assert_eq(fx.in_flight(), 1)
 	for i in 30:
 		await get_tree().process_frame
-	assert_eq(main.world.fly_fx.in_flight(), 0)
+	assert_eq(fx.in_flight(), 0)
 	assert_eq(GameState.to_dict(), before)
 
 func test_freezer_transfer_spawns_fly() -> void:
 	main.phase_controller.debug_skip_to_day()
 	GameState.add_freezer(3)
 	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
+	var peak := 0
+	var fx := _wired_fx()
 	for i in 25:
 		await get_tree().physics_frame
+		peak = maxi(peak, fx.in_flight())
 	assert_gt(GameState.carried_steaks, 0, "FX hooks never break the transfer")
+	assert_gt(peak, 0, "a steak arc flew")
+
+func test_counter_transfer_spawns_fly() -> void:
+	main.phase_controller.debug_skip_to_day()
+	GameState.carried_steaks = 2
+	await TestHelpers.walk_in(main.hero, MapLayout.COUNTER_DROP)
+	var peak := 0
+	var fx := _wired_fx()
+	for i in 25:
+		await get_tree().physics_frame
+		peak = maxi(peak, fx.in_flight())
+	assert_gt(GameState.counter_steaks, 0, "FX hooks never break the transfer")
+	assert_gt(peak, 0, "a steak arc flew")
 
 func test_build_pop_overshoots() -> void:
 	var s: BuildSpot = main.world.build_spots.fence_w
@@ -9602,17 +10031,61 @@ func test_build_pop_overshoots() -> void:
 	GameState.pay_into_spot("fence_w", GameState.next_level_cost("fence_w"))
 	await get_tree().process_frame
 	assert_gt(s.visual.scale.x, 1.0)
-	for i in 30:
+	assert_lte(s.visual.scale.x, Balance.ui.build_pop_scale + 1e-3)
+	for i in ceili(Balance.ui.build_pop_time * 60.0) + 12:
 		await get_tree().process_frame
 	assert_almost_eq(s.visual.scale.x, 1.0, 0.01)
 
 func test_hit_flash() -> void:
+	main.phase_controller.debug_skip_to_day()
 	var b := main.world.wave_director.debug_spawn("north", 0.0, 10.0)
 	b.take_hit(1.0)
-	assert_eq(b.flash_active(), true)
-	for i in 12:
+	assert_true(b.flash_active())
+	for i in ceili(Balance.ui.hit_flash_time * 60.0) + 4:
 		await get_tree().physics_frame
-	assert_eq(b.flash_active(), false)
+	assert_false(b.flash_active())
+	assert_eq(b._mesh.material_override, Visuals.material(Visuals.COLORS.boar), "boar colour restored")
+
+func test_flash_reset_on_release_and_spawn() -> void:
+	var b := main.world.wave_director.debug_spawn("north", 0.0, 10.0)
+	b.take_hit(1.0)
+	main.world.enemy_pool.release(b)
+	assert_false(b.flash_active())
+	assert_eq(b._mesh.material_override, Visuals.material(Visuals.COLORS.boar))
+
+func test_night_hides_partial_payment_ring() -> void:
+	var s: BuildSpot = main.world.build_spots.fence_n
+	main.phase_controller.debug_skip_to_day()
+	assert_eq(main.phase_controller.phase, Phase.DAY)
+	GameState.add_gold(5)
+	GameState.pay_into_spot("fence_n", 2)
+	assert_true(s.zone.ring.visible, "day: partial payment shows the ring")
+	main.phase_controller.debug_skip_to_night()
+	assert_eq(main.phase_controller.phase, Phase.NIGHT)
+	assert_false(s.zone.ring.visible, "night: ring hidden")
+	main.phase_controller.debug_skip_to_day()
+	assert_true(s.zone.ring.visible, "day again: ring back")
+
+func test_night_hides_build_cost_labels() -> void:
+	var s: BuildSpot = main.world.build_spots.fence_n
+	main.phase_controller.debug_skip_to_day()
+	assert_true(s.label.visible, "day: cost label shown")
+	main.phase_controller.debug_skip_to_night()
+	assert_false(s.label.visible, "night: cost label hidden")
+	main.phase_controller.debug_skip_to_day()
+	assert_true(s.label.visible, "day again: label back")
+
+func test_build_pop_tween_killed_on_refresh() -> void:
+	var s: BuildSpot = main.world.build_spots.fence_w
+	GameState.add_gold(GameState.next_level_cost("fence_w"))
+	GameState.pay_into_spot("fence_w", GameState.next_level_cost("fence_w"))
+	assert_true(s._pop != null and s._pop.is_valid())
+	s.refresh()
+	assert_false(s._pop != null and s._pop.is_valid(), "refresh kills a running pop")
+	assert_almost_eq(s.visual.scale.x, 1.0, 1e-4)
+	for i in 20:
+		await get_tree().process_frame
+	assert_almost_eq(s.visual.scale.x, 1.0, 1e-4, "no stale pop tween fights the refreshed scale")
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -9628,6 +10101,7 @@ Expected: FAIL (`fly_fx` is null).
 class_name FlyFx
 extends Node
 ## Visual-only transfer arcs (D-078). Never reads or writes GameState.
+## Owners get it injected (World.fly_fx) and call fly() if they hold one.
 
 class FxItem:
 	extends Node3D
@@ -9800,6 +10274,340 @@ Expected: exit 0, and the sims still pass (the FX never change state).
 git add world actors components tests/unit/test_fx.gd
 git commit -m "feat: add visual-only transfer arcs, build pop and hit flash"
 ```
+
+**Final code for the D-151 occlusion fade (after review):**
+
+`components/occluder_fade.gd`:
+```gdscript
+class_name OccluderFade
+extends Node
+## D-151: fades the MeshInstance3Ds under its parent (the occluder's "Visual") while the occluder hides an
+## actor from the camera. Generic: knows only a world AABB, a camera source and a list of aim points.
+## Visual only: runs in _process and never touches GameState.
+## A mesh with a material_override gets a transparent duplicate of it as its override; a mesh without one gets
+## transparent duplicates of its surface materials as surface overrides. At full opacity the originals are
+## put back (the override, or null surface overrides), so nothing transparent is left behind.
+
+var _box := AABB()
+var _camera_source: Callable
+var _targets: Callable
+var _alpha := 1.0
+var _warned := false
+## MeshInstance3D -> {"override": Material or null, "fade": BaseMaterial3D or null, "surfaces": {i: {"prior", "fade"}}}
+var _meshes := {}
+
+## box: the occluder's world AABB. camera_source() -> Camera3D.
+## targets() -> Array of world-space AIM points (each actor adds its own AIM_HEIGHT, e.g. Hero.AIM_HEIGHT).
+func setup(box: AABB, camera_source: Callable, targets: Callable) -> void:
+	_box = box
+	_camera_source = camera_source
+	_targets = targets
+
+func is_faded() -> bool:
+	return _alpha < 1.0
+
+func current_alpha() -> float:
+	return _alpha
+
+func _process(delta: float) -> void:
+	var ui := Balance.ui
+	var target := ui.occluder_alpha if _any_occluded(ui.occluder_grow) else 1.0
+	if is_equal_approx(_alpha, target):
+		return
+	var step := (1.0 - ui.occluder_alpha) / maxf(ui.occluder_fade_s, 1e-4) * delta
+	_alpha = move_toward(_alpha, target, step)
+	_apply()
+
+func _any_occluded(grow: float) -> bool:
+	if not _camera_source.is_valid() or not _targets.is_valid():
+		return false
+	var cam := _camera_source.call() as Camera3D
+	if cam == null or not cam.is_inside_tree():
+		return false
+	var from := cam.global_position
+	var grown := _box.grow(grow)
+	for p in _targets.call():
+		if grown.intersects_segment(from, p as Vector3) != null:
+			return true
+	return false
+
+func _apply() -> void:
+	if _alpha >= 1.0:
+		_alpha = 1.0
+		_restore()
+		return
+	var parent := get_parent()
+	if parent == null:
+		return
+	for m in parent.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if not _meshes.has(mi):
+			_meshes[mi] = _make_entry(mi)
+		var e: Dictionary = _meshes[mi]
+		if e.fade != null:
+			(e.fade as BaseMaterial3D).albedo_color.a = _alpha
+		for i in e.surfaces:
+			(e.surfaces[i].fade as BaseMaterial3D).albedo_color.a = _alpha
+
+func _fade_copy(src: BaseMaterial3D) -> BaseMaterial3D:
+	var f := src.duplicate() as BaseMaterial3D
+	f.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	return f
+
+func _make_entry(mi: MeshInstance3D) -> Dictionary:
+	var e := {"override": null, "fade": null, "surfaces": {}}
+	if mi.material_override != null:
+		if mi.material_override is BaseMaterial3D:
+			e.override = mi.material_override
+			e.fade = _fade_copy(e.override)
+			mi.material_override = e.fade
+	elif mi.mesh != null:
+		for i in mi.mesh.get_surface_count():
+			var prior := mi.get_surface_override_material(i)
+			var base := (prior if prior != null else mi.mesh.surface_get_material(i)) as BaseMaterial3D
+			if base == null:
+				continue
+			var f := _fade_copy(base)
+			e.surfaces[i] = {"prior": prior, "fade": f}
+			mi.set_surface_override_material(i, f)
+	if e.fade == null and e.surfaces.is_empty() and not _warned:
+		_warned = true
+		push_warning("OccluderFade: %s has no BaseMaterial3D to fade; it stays opaque" % mi.get_path())
+	return e
+
+func _restore() -> void:
+	for mi in _meshes:
+		if not is_instance_valid(mi):
+			continue
+		var e: Dictionary = _meshes[mi]
+		if e.fade != null:
+			(mi as MeshInstance3D).material_override = e.override
+		for i in e.surfaces:
+			(mi as MeshInstance3D).set_surface_override_material(i, e.surfaces[i].prior)
+	_meshes.clear()
+```
+
+`tests/unit/test_occluder_fade.gd`:
+```gdscript
+extends GutTest
+## D-151: the diner fades when it hides the hero or a Boar. Geometry is checked through CameraMath, so no
+## renderer is needed. The "wired" test uses the World's own OccluderFade (D-139 wiring, applied).
+
+const DT := 1.0 / 60.0
+var _visual: Node3D
+var _fade: OccluderFade
+var _cam: Camera3D
+var _targets: Array = []
+var _diner := AABB(
+	Vector3(-MapLayout.DINER_HALF, 0.0, -MapLayout.DINER_HALF),
+	Vector3(MapLayout.DINER_HALF * 2.0, MapLayout.DINER_HEIGHT, MapLayout.DINER_HALF * 2.0))
+
+func before_each() -> void:
+	Balance.reset()
+	_targets = []
+	_visual = Visuals.visual_root()
+	add_child_autofree(_visual)
+	for part in [Vector3(0, 1.5, 0), Vector3(0, 3.1, 0)]:  # walls + roof: separate meshes (S4 note)
+		var m := Visuals.box(Vector3(8, 3, 8) if part.y < 3.0 else Vector3(8.4, 0.2, 8.4), Visuals.COLORS.diner)
+		m.position = part
+		_visual.add_child(m)
+	_cam = Camera3D.new()
+	add_child_autofree(_cam)
+	_fade = OccluderFade.new()
+	_visual.add_child(_fade)
+	_fade.setup(_diner, func(): return _cam, func(): return _targets)
+
+func _aim_camera_at(hero_xz: Vector2) -> void:
+	_cam.global_transform = CameraMath.camera_transform(CameraMath.focus_for(hero_xz), Balance.ui)
+
+func _run(seconds: float) -> void:
+	for i in ceili(seconds / DT):
+		_fade._process(DT)
+
+func _meshes() -> Array:
+	return _visual.find_children("*", "MeshInstance3D", true, false)
+
+func _hero_aim(feet: Vector3) -> Vector3:
+	return feet + Vector3(0, Hero.AIM_HEIGHT, 0)
+
+func _boar_aim(feet: Vector3) -> Vector3:
+	return feet + Vector3(0, Boar.AIM_HEIGHT, 0)
+
+func _hero_at_north_center() -> Vector3:
+	return MapLayout.to3((MapLayout.ZONE_RECTS["north"] as Rect2).get_center())
+
+func test_hero_at_north_zone_center_fades() -> void:
+	var hero := _hero_at_north_center()
+	_aim_camera_at(Vector2(hero.x, hero.z))
+	_targets = [_hero_aim(hero)]
+	# The hero is on screen, and the camera->hero segment (at the hero's aim height) crosses the grown AABB:
+	# an opaque diner face would cover the hero's screen point.
+	var proj := CameraMath.projection(Balance.ui, CameraMath.ASPECT)
+	assert_true(CameraMath.on_screen(hero, _cam.global_transform, proj))
+	var aim := _hero_aim(hero)
+	assert_not_null(_diner.grow(Balance.ui.occluder_grow).intersects_segment(_cam.global_position, aim))
+	assert_not_null(_diner.intersects_segment(_cam.global_position, aim), "even the un-grown diner hides the hero")
+	_run(Balance.ui.occluder_fade_s)
+	assert_true(_fade.is_faded())
+	assert_almost_eq(_fade.current_alpha(), Balance.ui.occluder_alpha, 1e-3)
+	for m in _meshes():
+		var mat := (m as MeshInstance3D).material_override as StandardMaterial3D
+		assert_eq(mat.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
+		assert_almost_eq(mat.albedo_color.a, Balance.ui.occluder_alpha, 1e-3)
+
+func test_fade_takes_fade_time_not_instant() -> void:
+	var hero := _hero_at_north_center()
+	_aim_camera_at(Vector2(hero.x, hero.z))
+	_targets = [_hero_aim(hero)]
+	_run(Balance.ui.occluder_fade_s * 0.5)
+	assert_gt(_fade.current_alpha(), Balance.ui.occluder_alpha + 0.05)
+	assert_lt(_fade.current_alpha(), 1.0)
+
+func test_boar_in_north_zone_with_hero_at_home_fades() -> void:
+	_aim_camera_at(MapLayout.HOME)
+	var boar_pos := (MapLayout.ZONE_RECTS["north"] as Rect2).get_center()
+	var aim := _boar_aim(MapLayout.to3(boar_pos))
+	_targets = [_hero_aim(MapLayout.to3(MapLayout.HOME)), aim]
+	assert_not_null(_diner.grow(Balance.ui.occluder_grow).intersects_segment(_cam.global_position, aim))
+	assert_not_null(_diner.intersects_segment(_cam.global_position, aim), "even the un-grown diner hides the Boar")
+	_run(Balance.ui.occluder_fade_s)
+	assert_true(_fade.is_faded())
+	assert_almost_eq(_fade.current_alpha(), Balance.ui.occluder_alpha, 1e-3)
+
+func test_nothing_occluded_stays_opaque_without_override_change() -> void:
+	var originals := {}
+	for m in _meshes():
+		originals[m] = (m as MeshInstance3D).material_override
+	_aim_camera_at(MapLayout.HOME)
+	_targets = [_hero_aim(MapLayout.to3(MapLayout.HOME))]  # south of the diner, camera further south
+	_run(1.0)
+	assert_false(_fade.is_faded())
+	assert_eq(_fade.current_alpha(), 1.0)
+	for m in _meshes():
+		assert_same((m as MeshInstance3D).material_override, originals[m], "opaque material untouched")
+
+func test_no_targets_stays_opaque() -> void:
+	_aim_camera_at(MapLayout.HOME)
+	_run(0.5)
+	assert_eq(_fade.current_alpha(), 1.0)
+	assert_false(_fade.is_faded())
+
+func test_fades_back_and_restores_opaque_material() -> void:
+	var originals := {}
+	for m in _meshes():
+		originals[m] = (m as MeshInstance3D).material_override
+	var hero := _hero_at_north_center()
+	_aim_camera_at(Vector2(hero.x, hero.z))
+	_targets = [_hero_aim(hero)]
+	_run(1.0)
+	assert_true(_fade.is_faded())
+	_targets = []
+	_run(Balance.ui.occluder_fade_s * 0.5)
+	assert_true(_fade.is_faded(), "still mid-fade back")
+	_run(1.0)
+	assert_eq(_fade.current_alpha(), 1.0)
+	assert_false(_fade.is_faded())
+	for m in _meshes():
+		var mat := (m as MeshInstance3D).material_override as BaseMaterial3D
+		assert_same(mat, originals[m], "the original opaque material is back")
+		assert_eq(mat.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)
+
+func test_faded_material_does_not_leak_into_shared_cache() -> void:
+	var shared := Visuals.material(Visuals.COLORS.diner)
+	var hero := _hero_at_north_center()
+	_aim_camera_at(Vector2(hero.x, hero.z))
+	_targets = [_hero_aim(hero)]
+	_run(1.0)
+	assert_eq(shared.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)
+	assert_eq(shared.albedo_color.a, 1.0)
+
+func test_far_boar_hidden_only_at_its_own_aim_height() -> void:
+	# Regression: a Boar at z = -9 with the hero at HOME. Aimed at 0.5 m the segment grazes the diner
+	# (fades); a hero-height 1.0 m aim would clear the roof line and miss it.
+	_aim_camera_at(MapLayout.HOME)
+	var feet := MapLayout.to3(Vector2(0, -9.0))
+	var grown := _diner.grow(Balance.ui.occluder_grow)
+	assert_not_null(grown.intersects_segment(_cam.global_position, _boar_aim(feet)))
+	_targets = [_hero_aim(MapLayout.to3(MapLayout.HOME)), _boar_aim(feet)]
+	_run(Balance.ui.occluder_fade_s)
+	assert_true(_fade.is_faded())
+
+func test_surface_material_meshes_fade_and_restore_to_null() -> void:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	var surface := StandardMaterial3D.new()
+	surface.albedo_color = Color.RED
+	bm.material = surface
+	mi.mesh = bm
+	_visual.add_child(mi)
+	var hero := _hero_at_north_center()
+	_aim_camera_at(Vector2(hero.x, hero.z))
+	_targets = [_hero_aim(hero)]
+	_run(Balance.ui.occluder_fade_s)
+	var faded := mi.get_surface_override_material(0) as StandardMaterial3D
+	assert_not_null(faded)
+	assert_eq(faded.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
+	assert_almost_eq(faded.albedo_color.a, Balance.ui.occluder_alpha, 1e-3)
+	assert_eq(faded.albedo_color.r, 1.0, "colour kept")
+	assert_eq(surface.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED, "the mesh's own material is untouched")
+	_targets = []
+	_run(1.0)
+	assert_null(mi.get_surface_override_material(0), "restored to no override")
+
+func test_mesh_without_any_material_is_skipped_safely() -> void:
+	var mi := MeshInstance3D.new()
+	mi.mesh = BoxMesh.new()
+	_visual.add_child(mi)
+	var hero := _hero_at_north_center()
+	_aim_camera_at(Vector2(hero.x, hero.z))
+	_targets = [_hero_aim(hero)]
+	_run(Balance.ui.occluder_fade_s)
+	assert_true(_fade.is_faded())
+	assert_null(mi.material_override)
+	_targets = []
+	_run(1.0)
+	assert_null(mi.material_override)
+
+func test_missing_camera_is_safe() -> void:
+	_fade.setup(_diner, func(): return null, func(): return [Vector3(0, 1, 0)])
+	_run(0.2)
+	assert_eq(_fade.current_alpha(), 1.0)
+
+func test_wired_hero_at_north_zone_center_fades_world_diner() -> void:
+	var main := Main.create()
+	add_child_autofree(main)
+	main.hero.input.player_control = false
+	main.phase_controller.start_new_game(72)
+	var found := main.world.diner_body.find_children("*", "OccluderFade", true, false)
+	assert_eq(found.size(), 1, "wired: World creates an OccluderFade under the diner's Visual")
+	if found.is_empty():
+		return
+	var fade: OccluderFade = found[0]
+	assert_eq(fade.get_parent(), main.world.diner_body.get_node("Visual"))
+	main.hero.teleport((MapLayout.ZONE_RECTS["north"] as Rect2).get_center())
+	main.camera_rig.snap()
+	for i in 30:
+		await get_tree().process_frame
+	assert_true(fade.is_faded())
+	main.hero.teleport(MapLayout.HOME)
+	main.camera_rig.snap()
+	for i in 30:
+		await get_tree().process_frame
+	assert_false(fade.is_faded(), "hero south of the diner, no Boars: opaque again")
+	var b := main.world.wave_director.debug_spawn("north")
+	b.set_physics_process(false)
+	var d := 0.0
+	while EnemyPath.position_at("north", d, 0.0, Balance.data.enemy.offset_fade_distance).y < -9.0:
+		d += 0.05
+	b.dist = d
+	b._update_position()
+	assert_almost_eq(b.global_position.z, -9.0, 0.6, "staged near z = -9")
+	for i in 30:
+		await get_tree().process_frame
+	assert_true(fade.is_faded(), "wired: a Boar behind the diner (hero at HOME) fades it, with per-actor aim heights")
+```
+
+The FlyFx hooks are injected, not found through a group: `Freezer`, `Counter` and `BuildSpot` store `_fx = world.fly_fx` in `setup()`, `TravelerSpawner.setup(pool, fly_fx)` takes it, and `Magnet.setup(steak_pool, fly_fx)` too. `Hero.AIM_HEIGHT` is 1.0 and `Boar.AIM_HEIGHT` is 0.5. World's `_occluder_targets()` returns those aim points. See the Task 30 commit for the exact hook lines.
 
 ### Task 31: `FocusPause`
 

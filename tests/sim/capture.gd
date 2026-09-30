@@ -2,6 +2,7 @@ extends SceneTree
 ## Renders the real game and saves a 720x1280 PNG. Run WITH rendering (no --headless):
 ## "$GODOT" --path . --resolution 720x1280 -s res://tests/sim/capture.gd -- --out=docs/screenshots/s1/x.png --seconds=12
 ## --lane=<west|north|east>: hero parked at that lane's zone, one Boar 2 s before it reaches hero range.
+## --hero-at=zone_center (with --lane): hero at the centre of that lane's attack zone instead of the lane end.
 ## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
 ## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
 
@@ -39,7 +40,10 @@ func _run() -> void:
 			return
 		main.phase_controller.phase = load("res://core/phase.gd").DAY  # freeze waves for a staged shot
 		main.world.wave_director.stop()
-		main.hero.teleport(map_layout.lane_end(lane))
+		var hero_at: Vector2 = map_layout.lane_end(lane)
+		if _args.get("hero-at", "") == "zone_center":
+			hero_at = (map_layout.ZONE_RECTS[lane] as Rect2).get_center()
+		main.hero.teleport(hero_at)
 		bot.queue_free()
 		var eb = _bal.data.enemy
 		var b = main.world.wave_director.debug_spawn(lane)
@@ -54,7 +58,8 @@ func _run() -> void:
 		for i in int(float(_args.get("seconds", "12")) * 60.0):
 			await physics_frame
 	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(main.hero.xz()), _bal.ui)
-	for i in 3:
+	var t0 := Time.get_ticks_msec()  # let the diner's occlusion fade (D-151) settle: 3x its fade time
+	while Time.get_ticks_msec() - t0 < int(_bal.ui.occluder_fade_s * 1000.0) * 3:
 		await process_frame
 	var img := root.get_texture().get_image()
 	if img.get_size() != Vector2i(720, 1280):

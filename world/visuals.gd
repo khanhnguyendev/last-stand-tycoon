@@ -7,7 +7,7 @@ const COLORS := {
 	"diner": Color("e8d8b0"), "counter": Color("8b5a2b"), "freezer": Color("5fd3e0"), "steak": Color("7a3b1e"),
 	"coin": Color("f2c230"), "tower": Color("8c8c8c"), "fence": Color("9b6b3a"), "telegraph": Color("e03030"),
 	"ground": Color("6fa35a"), "lane": Color("b59a6a"), "road": Color("7d7d7d"), "sign": Color("ffffff"),
-	"pip": Color("ffd24a"), "flash": Color("ffffff"),
+	"pip": Color("ffd24a"), "flash": Color("ffffff"), "diner_hp": Color("5ecf5e"),
 }
 
 static var _materials := {}

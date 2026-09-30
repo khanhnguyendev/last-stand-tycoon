@@ -2,6 +2,9 @@ class_name Boar
 extends Node3D
 ## The one S1 monster (spec 7.2). Moved in code along its lane; never uses physics.
 
+## Height above the feet the camera aims at when checking occlusion (D-151); the capsule centre.
+const AIM_HEIGHT := 0.5
+
 var lane := ""
 var spawn_index := -1
 ## Increments on every spawn; projectiles/attackers compare it to detect pool reuse across nights (Review Focus 2).
@@ -18,6 +21,7 @@ var _length := 0.0
 var _attack_timer := 0.0
 var _director: Object
 var _death_tween: Tween
+var _flash_left := 0.0
 
 func _init() -> void:
 	name = "Boar"
@@ -46,6 +50,7 @@ func spawn(p_lane: String, p_index: int, p_offset: float, hp_mult: float, direct
 	_length = MapLayout.path_length(lane)
 	health.reset(Balance.data.enemy.hp * hp_mult)
 	visual.scale = Vector3.ONE
+	_reset_flash()
 	alive = true
 	_update_position()
 
@@ -56,6 +61,10 @@ func at_path_end() -> bool:
 	return dist >= _length - 1e-4
 
 func _physics_process(delta: float) -> void:
+	if _flash_left > 0.0:
+		_flash_left -= delta
+		if _flash_left <= 0.0:
+			_mesh.material_override = Visuals.material(Visuals.COLORS.boar)
 	if not alive:
 		return
 	var eb := Balance.data.enemy
@@ -81,7 +90,16 @@ func _physics_process(delta: float) -> void:
 
 func take_hit(amount: float) -> void:
 	if alive:
+		_mesh.material_override = Visuals.material(Visuals.COLORS.flash)
+		_flash_left = Balance.ui.hit_flash_time
 		health.damage(amount)
+
+func flash_active() -> bool:
+	return _flash_left > 0.0
+
+func _reset_flash() -> void:
+	_flash_left = 0.0
+	_mesh.material_override = Visuals.material(Visuals.COLORS.boar)
 
 func candidate() -> Dictionary:
 	return {"position": global_position, "spawn_index": spawn_index, "ref": self}
@@ -94,6 +112,7 @@ func play_death(pool: NodePool) -> void:
 
 func on_release() -> void:
 	alive = false
+	_reset_flash()
 	if _death_tween != null and _death_tween.is_valid():
 		_death_tween.kill()
 	_death_tween = null

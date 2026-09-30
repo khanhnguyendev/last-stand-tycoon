@@ -30,3 +30,13 @@ extends Resource
 @export var occluder_alpha := 0.3
 @export var occluder_fade_s := 0.15
 @export var occluder_grow := 0.2
+## HUD (spec 7.9, 9.4): diner bar shake, edge-arrow margin, hover lift, side-arrow scale.
+@export var diner_bar_shake_px := 6.0
+@export var diner_bar_shake_time := 0.04
+@export var arrow_edge_margin := 48.0
+@export var arrow_hover_px := 40.0
+@export var arrow_side_scale := 0.6
+## Banner backing panel alpha (CP1 review: banners must stay readable over world labels).
+@export var banner_panel_alpha := 0.55
+## Gap between the top HUD block and an edge arrow (CP1 review).
+@export var arrow_hud_gap := 8.0
