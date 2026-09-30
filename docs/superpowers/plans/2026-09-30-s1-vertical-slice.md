@@ -1419,7 +1419,7 @@ func before_each() -> void:
 func test_day1_single_lane_and_wave0_north() -> void:
 	for seed in [1, 2, 3, 99, 12345]:
 		var p := LanePlanner.plan(seed, 1, wb)
-		assert_eq(p.size(), 3)
+		assert_eq(p.size(), wb.base_counts.size())
 		assert_eq(p[0].main, "north", "D-095")
 		for w in p:
 			assert_eq(w.side, "")
@@ -1436,9 +1436,32 @@ func test_day2_plus_main_differs_from_side() -> void:
 
 func test_counts_match_wave_math() -> void:
 	var p := LanePlanner.plan(7, 2, wb)
-	assert_eq([p[0].main_count, p[0].side_count], [4, 1])
-	assert_eq([p[2].main_count, p[2].side_count], [9, 2])
-	assert_almost_eq(float(p[1].hp_mult), 1.15, 0.0001)
+	for w in p.size():
+		var s := WaveMath.split(2, w, wb)
+		assert_eq([p[w].main_count, p[w].side_count], [int(s.main), int(s.side)])
+		assert_almost_eq(float(p[w].hp_mult), WaveMath.hp_mult(2, w, wb), 0.0001)
+
+func test_all_lanes_and_pairs_reachable() -> void:
+	var mains := {}
+	var pairs := {}
+	var d1 := {}
+	for seed in range(1, 200):
+		for w in LanePlanner.plan(seed, 2, wb):
+			mains[w.main] = true
+			pairs[str(w.main, ">", w.side)] = true
+		var p1 := LanePlanner.plan(seed, 1, wb)
+		for i in range(1, p1.size()):
+			d1[p1[i].main] = true
+	assert_eq(mains.size(), LanePlanner.LANES.size())
+	assert_eq(pairs.size(), 6)
+	assert_eq(d1.size(), LanePlanner.LANES.size())
+
+## Golden draw order (captured from GODOT_TAG 4.7.2-stable). A change means the Rng draw order changed: escalate.
+func test_plan_golden() -> void:
+	var got := []
+	for w in LanePlanner.plan(555, 4, wb):
+		got.append([w.main, w.side])
+	assert_eq(got, [["north", "east"], ["west", "north"], ["east", "west"]])
 
 func test_same_seed_same_plan() -> void:
 	assert_eq(LanePlanner.plan(555, 4, wb), LanePlanner.plan(555, 4, wb))
@@ -1462,6 +1485,8 @@ func test_threat_and_marker_scale() -> void:
 	assert_eq(LanePlanner.marker_scale(0.0, 240.0, 0.5, 2.0), 0.0)
 	assert_almost_eq(LanePlanner.marker_scale(240.0, 240.0, 0.5, 2.0), 2.0, 0.0001)
 	assert_almost_eq(LanePlanner.marker_scale(120.0, 240.0, 0.5, 2.0), 1.25, 0.0001)
+	assert_eq(LanePlanner.marker_scale(50.0, 0.0, 0.5, 2.0), 0.0)
+	assert_almost_eq(LanePlanner.marker_scale(480.0, 240.0, 0.5, 2.0), 2.0, 0.0001)
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -1513,7 +1538,7 @@ static func threat_by_lane(plan_waves: Array, base_hp: float) -> Dictionary:
 static func marker_scale(threat: float, max_threat: float, min_s: float, max_s: float) -> float:
 	if threat <= 0.0 or max_threat <= 0.0:
 		return 0.0
-	return lerpf(min_s, max_s, threat / max_threat)
+	return lerpf(min_s, max_s, clampf(threat / max_threat, 0.0, 1.0))
 ```
 
 - [ ] **Step 4: Run the tests and see them pass**
@@ -6972,7 +6997,10 @@ func next_purchase() -> String:
 		if String(w.side) != "":
 			side[w.side] += int(w.side_count) * float(w.hp_mult)
 	var lanes := LanePlanner.LANES.duplicate()
-	lanes.sort_custom(func(a, b): return threat[a] > threat[b] or (threat[a] == threat[b] and LanePlanner.LANES.find(a) < LanePlanner.LANES.find(b)))
+	lanes.sort_custom(func(a, b):
+		if not is_equal_approx(threat[a], threat[b]):
+			return threat[a] > threat[b]
+		return LanePlanner.LANES.find(a) < LanePlanner.LANES.find(b))  # float ties -> lane order (Task 5 review)
 	var builds: Array = []
 	var side_lane := ""
 	for l in LanePlanner.LANES:
