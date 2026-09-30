@@ -146,9 +146,16 @@ jobs:
             # template hides script errors, so a broken pack would otherwise ship silently.
             boot_check() {
               local log="$RUNNER_TEMP/boot_$1.log"
-              "$GODOT" --headless --main-pack "$2" --quit-after 120 > "$log" 2>&1 || true
-              if grep -E "SCRIPT ERROR|Invalid access|Parse Error" "$log"; then
-                echo "::error::$1 pack logs script errors at boot (see above)"
+              local rc=0
+              # --fixed-fps 60: 120 iterations = 2 s of game time on any runner
+              "$GODOT" --headless --fixed-fps 60 --main-pack "$2" --quit-after 120 > "$log" 2>&1 || rc=$?
+              if [ "$rc" != "0" ]; then
+                tail -40 "$log"
+                echo "::error::$1 pack exited with $rc at boot"
+                exit 1
+              fi
+              if grep -E "SCRIPT ERROR|Invalid access|Parse Error|Failed loading resource|Cannot open file" "$log"; then
+                echo "::error::$1 pack logs script or resource errors at boot (see above)"
                 exit 1
               fi
             }

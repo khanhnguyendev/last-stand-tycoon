@@ -1260,9 +1260,11 @@ falls and the night restarts identically.
   same trap would remain for any future initializer-built resource.
 - Guards:
   - A unit test asserts the setting stays `false`.
-  - `pages.yml` boots every exported pack (release, profile, debug) with `--headless --main-pack <pck> --quit-after 120`
-    and fails on `SCRIPT ERROR`, `Invalid access` or `Parse Error`. Checked locally: a pack exported with the fix logs
-    0 errors, and a pre-fix binary-converted pack logs 248.
+  - `pages.yml` boots every exported pack (release, profile, debug) with
+    `--headless --fixed-fps 60 --main-pack <pck> --quit-after 120`, which is 2 s of game time on any runner.
+  - It fails on a non-zero exit, or on `SCRIPT ERROR`, `Invalid access`, `Parse Error`, `Failed loading resource` or
+    `Cannot open file` in the log.
+  - Checked locally: a pack exported with the fix logs 0 errors, and a pre-fix binary-converted pack logs 374.
 
 **D-158 Export presets drop VRAM texture compression for S1 (Task 32).**
 - The plan's `vram_texture_compression/for_mobile` lines make Godot reject the preset unless
