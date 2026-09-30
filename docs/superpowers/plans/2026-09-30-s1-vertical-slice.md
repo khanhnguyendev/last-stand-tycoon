@@ -149,26 +149,42 @@ At CP1, re-forecast the remaining phases against this 18.5-day baseline from eac
 - Create (throwaway, outside the repo): `$SPIKE=/tmp/lst-spike/`
 - Modify: `docs/DECISIONS.md` (append D-116 to D-120)
 
-- [ ] **Step 1: Install Godot 4.7 and its export templates (outside the repo)**
+- [ ] **Step 1: Install Godot 4.7 and its export templates (outside the repo), checksum-verified (D-129)**
+
+Official sources only: the `godotengine/godot-builds` GitHub releases, which godotengine.org links to. Every archive is checked against the release's published `SHA512-SUMS.txt`, and the script stops on any mismatch.
 
 ```bash
+set -euo pipefail
 # Find the newest 4.7.x stable tag
-curl -s "https://api.github.com/repos/godotengine/godot-builds/releases?per_page=50" \
+curl -fsS "https://api.github.com/repos/godotengine/godot-builds/releases?per_page=50" \
   | grep '"tag_name"' | grep -E '"4\.7(\.[0-9]+)?-stable"' | head -1
-# Suppose it prints 4.7-stable. Use that exact tag below as $TAG.
+# Suppose it prints 4.7-stable. Use that EXACT tag below; it becomes the pinned GODOT_TAG (D-129).
 TAG=4.7-stable
-mkdir -p ~/Applications/Godot-$TAG && cd ~/Applications/Godot-$TAG
-curl -fL -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/$TAG/Godot_v${TAG}_macos.universal.zip"
-unzip -q godot.zip
-curl -fL -o templates.tpz "https://github.com/godotengine/godot-builds/releases/download/$TAG/Godot_v${TAG}_export_templates.tpz"
-mkdir -p "$HOME/Library/Application Support/Godot/export_templates/${TAG/-/.}"
-unzip -q templates.tpz -d /tmp/lst-templates
-cp -R /tmp/lst-templates/templates/* "$HOME/Library/Application Support/Godot/export_templates/${TAG/-/.}/"
-export GODOT="$HOME/Applications/Godot-$TAG/Godot.app/Contents/MacOS/Godot"
+BASE="https://github.com/godotengine/godot-builds/releases/download/$TAG"
+EDITOR_ZIP="Godot_v${TAG}_macos.universal.zip"
+TEMPLATES="Godot_v${TAG}_export_templates.tpz"
+DEST="$HOME/Applications/Godot-$TAG"
+mkdir -p "$DEST" && cd "$DEST"
+curl -fL -o SHA512-SUMS.txt "$BASE/SHA512-SUMS.txt"
+curl -fL -o "$EDITOR_ZIP" "$BASE/$EDITOR_ZIP"
+curl -fL -o "$TEMPLATES" "$BASE/$TEMPLATES"
+grep -E "[[:space:]]\*?(${EDITOR_ZIP}|${TEMPLATES})\$" SHA512-SUMS.txt > wanted.sha512
+[ "$(wc -l < wanted.sha512 | tr -d ' ')" = "2" ] || { echo "FAIL: checksum lines missing for $TAG"; exit 1; }
+shasum -a 512 -c wanted.sha512 || { echo "FAIL: SHA-512 mismatch, do not use these files"; exit 1; }
+unzip -q -o "$EDITOR_ZIP"
+TPL_DIR="$HOME/Library/Application Support/Godot/export_templates/${TAG/-/.}"
+mkdir -p "$TPL_DIR"
+rm -rf /tmp/lst-templates && unzip -q "$TEMPLATES" -d /tmp/lst-templates
+cp -R /tmp/lst-templates/templates/* "$TPL_DIR/"
+export GODOT="$DEST/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --version
 ```
 
-Expected: a line starting `4.7.` and ending `.stable.official...`. If there is no 4.7 stable, **stop and escalate**. Don't pick another version.
+Expected:
+- `shasum` prints `…: OK` for both files;
+- the version line starts `4.7.` and ends `.stable.official...`.
+
+If there is no 4.7 stable, or a checksum fails, **stop and escalate**. Don't pick another version or source.
 
 - [ ] **Step 2: Build a probe project with GUT**
 
@@ -273,7 +289,7 @@ Append to `docs/DECISIONS.md` under a new heading `## <date>: S1 Task 0 spike re
 
 | Id | Records |
 |---|---|
-| **D-116** | The exact Godot version and `$GODOT` path. The export templates are installed. |
+| **D-116** | The exact Godot tag (for example `4.7-stable`), now the pinned `GODOT_TAG`; the `$GODOT` path; SHA-512 verified; export templates installed. |
 | **D-117** | The GUT tag, or the fallback used. The import command that works. |
 | **D-118** | The sim stepping method (`--fixed-fps` or the `time_scale` fallback) and the measured ms per 3600 ticks. |
 | **D-119** | The web safe-area source (DisplayServer or CSS env). |
@@ -475,6 +491,11 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - `balance/` typed Resource scripts + `balance.tres`, `ui_tuning.tres`
 - `tests/unit/`, `tests/sim/` (GUT); `tests/sim/out/` is gitignored
 - Infra only (never game code): `addons/` (GUT), `export/` (web shell), `.github/` (CI), `docs/`
+
+## Toolchain (pinned, D-129)
+- Godot: **GODOT_TAG=<exact tag from D-116>**. The same string is in `.github/workflows/ci.yml`, and CI fails if they differ.
+- Official binaries only (`godotengine/godot-builds` releases), verified against the release's `SHA512-SUMS.txt`.
+- GUT: the tag from D-117.
 
 ## Commands
 - `export GODOT=<path from D-116>`
@@ -8214,13 +8235,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      GODOT_TAG: "4.7-stable"   # must match docs/DECISIONS.md D-116
+      GODOT_TAG: "4.7-stable"   # EXACT tag from D-116; must equal CLAUDE.md "GODOT_TAG=" (D-129)
     steps:
       - uses: actions/checkout@v4
-      - name: Download Godot headless
+      - name: Check the pinned Godot tag matches CLAUDE.md
+        run: grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+      - name: Download Godot headless (official, SHA-512 verified)
         run: |
-          curl -fsSL -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_linux.x86_64.zip"
-          unzip -q godot.zip
+          set -euo pipefail
+          BASE="https://github.com/godotengine/godot-builds/releases/download/${GODOT_TAG}"
+          ZIP="Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          curl -fsSL -o SHA512-SUMS.txt "$BASE/SHA512-SUMS.txt"
+          curl -fsSL -o "$ZIP" "$BASE/$ZIP"
+          grep -E "[[:space:]]\*?${ZIP}\$" SHA512-SUMS.txt > wanted.sha512
+          sha512sum -c wanted.sha512
+          unzip -q "$ZIP"
           mv "Godot_v${GODOT_TAG}_linux.x86_64" godot-bin && chmod +x godot-bin
           echo "GODOT=$PWD/godot-bin" >> "$GITHUB_ENV"
       - name: Unit tests + grep ban

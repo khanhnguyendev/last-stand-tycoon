@@ -781,3 +781,11 @@ wording).**
   `docs/CUT_CANDIDATES.md` in rank order.
 - Note: the 18.5-day baseline is itself over 3 weeks, so the rule applies unless Phases 0–5 run at
   least 19% faster than planned.
+
+**D-129 Official, checksum-verified Godot, one pinned version (author).**
+- The editor, the export templates and the CI binary come only from the official
+  `godotengine/godot-builds` GitHub releases, which godotengine.org links to.
+- Each archive is verified against that release's `SHA512-SUMS.txt`. The script stops on a missing
+  line or a mismatch.
+- The exact tag from D-116 is pinned as `GODOT_TAG` in CLAUDE.md and in `.github/workflows/ci.yml`.
+  A CI step fails when the two differ, so local and CI always match.
