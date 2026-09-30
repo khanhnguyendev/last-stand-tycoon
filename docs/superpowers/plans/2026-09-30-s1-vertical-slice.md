@@ -1233,7 +1233,7 @@ git commit -m "feat: add seeded lane planner and lane threat"
     - `SPOT_IDS`, `TOWER_SPOTS`, `TOWER_LANES`, `FENCE_LANE`, `LANE_FENCE`, `FENCE_OFFSET_FROM_END=4.0`, `TELEGRAPH_OFFSET_FROM_END=5.5`
     - `COUNTER`, `COUNTER_SIZE`, `COUNTER_DROP`, `SERVICE_POINT`, `QUEUE_SLOTS`, `GOLD_PILE`
     - `FREEZER`, `FREEZER_SIZE`, `FREEZER_ZONE`, `SIGN`, `TRAVELER_ENTER`, `TRAVELER_EXIT`
-    - `STATION_RADIUS=1.0`, `BUILD_RADIUS=1.2`, `TOWER_BODY_RADIUS=0.5`, `HERO_RADIUS=0.4`
+    - `STATION_RADIUS=1.0`, `BUILD_RADIUS=1.2`, `TOWER_VISUAL_RADIUS=0.5` (mesh only; towers don't collide, D-125), `HERO_RADIUS=0.4`
   - **`MapLayout` functions:**
     - `to3(v: Vector2, y := 0.0) -> Vector3`
     - `fence_spot(lane: String) -> Vector2`, `telegraph_spot(lane: String) -> Vector2`
@@ -1493,7 +1493,7 @@ const BOUNDS_MIN := Vector2(-24, -24)
 const BOUNDS_MAX := Vector2(24, 14)
 const HOME := Vector2(0, 9.5)  ## outside every zone (D-122); the sign is SIGN
 const HERO_RADIUS := 0.4
-const TOWER_BODY_RADIUS := 0.5
+const TOWER_VISUAL_RADIUS := 0.5  ## mesh only: towers never collide with the hero (D-125)
 
 const LANE_PATHS := {
 	"north": [Vector2(0, -24), Vector2(0, -5.2)],
@@ -1833,7 +1833,8 @@ func test_all_nodes_connected() -> void:
 	for n in g.nodes:
 		assert_gt(g.shortest("home", n).size(), 0, "unreachable: " + n)
 
-func test_edges_clear_diner_and_towers() -> void:
+## D-125: every edge is traversable with hero-radius clearance against the hero's only colliders.
+func test_edges_traversable_against_colliders() -> void:
 	var diner := Rect2(-MapLayout.DINER_HALF, -MapLayout.DINER_HALF, MapLayout.DINER_HALF * 2, MapLayout.DINER_HALF * 2)
 	var freezer := Rect2(MapLayout.FREEZER - MapLayout.FREEZER_SIZE / 2, MapLayout.FREEZER_SIZE)
 	var counter := Rect2(MapLayout.COUNTER - MapLayout.COUNTER_SIZE / 2, MapLayout.COUNTER_SIZE)
@@ -1845,8 +1846,6 @@ func test_edges_clear_diner_and_towers() -> void:
 				var p := pa.lerp(pb, i / 50.0)
 				for r in [diner, freezer, counter]:
 					assert_true(Geometry.dist_point_rect(p, r) >= MapLayout.HERO_RADIUS - 0.01, "%s-%s hits box at %s" % [a, b, p])
-				for t in MapLayout.TOWER_SPOTS.values():
-					assert_true(p.distance_to(t) >= MapLayout.HERO_RADIUS + MapLayout.TOWER_BODY_RADIUS - 0.01, "%s-%s hits tower" % [a, b])
 
 func test_route_home_to_zone_north_goes_around() -> void:
 	var names := g.shortest("home", "zone_north")
@@ -1858,11 +1857,11 @@ func test_route_from_position_ends_at_goal() -> void:
 	var pts := g.route_from(MapLayout.HOME, "freezer")
 	assert_eq(pts[pts.size() - 1], g.position_of("freezer"))
 
-func test_tower_stand_points_inside_build_radius_outside_body() -> void:
+func test_tower_stand_points_inside_build_radius() -> void:
 	for id in ["tower_nw", "tower_ne"]:
 		var d := g.position_of(id).distance_to(MapLayout.TOWER_SPOTS[id])
 		assert_true(d <= MapLayout.BUILD_RADIUS)
-		assert_true(d >= MapLayout.HERO_RADIUS + MapLayout.TOWER_BODY_RADIUS)
+		assert_true(d >= MapLayout.TOWER_VISUAL_RADIUS, "stand beside the mesh, not inside it")
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -2916,7 +2915,7 @@ git commit -m "feat: add placeholder visuals, Nunito world labels, pool and heal
   - **`Main`:** `auto_start: bool`, `world: World`. Later tasks add `hero`, `phase_controller`, `camera_rig`, `hud` and `focus_pause`.
   - **`World`:** `lanes: Dictionary` (String → `Lane`), `diner_body: StaticBody3D`. Later tasks add the pools, `wave_director`, `build_spots`, the stations, `traveler_spawner`, `telegraph_markers` and `fly_fx`.
   - **`Lane`:** `lane_id: String`, `path3d: Path3D`, `entrance_position() -> Vector3`.
-  - **Collision layers:** layer 1 = static world (diner, counter, freezer, towers); layer 2 = hero.
+  - **Collision layers:** layer 1 = static world (diner, counter, freezer only; towers and fences never collide, D-094, D-125); layer 2 = hero.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -4549,7 +4548,7 @@ git commit -m "feat: add PhaseController with snapshot, fail restore, dawn and c
     - `setup(id: String, world: World)`
     - `refresh()`, which rebuilds entirely from GameState
     - virtual `_apply_level(level: int, b: Dictionary)`
-  - **`TowerSpot`:** `attacker: Attacker`, `body: StaticBody3D`.
+  - **`TowerSpot`:** `attacker: Attacker`. There is no physics body: the hero walks through towers (D-125).
   - **`FenceSpot`:** `is_rubble() -> bool`.
   - **`World`:** `build_spots: Dictionary` (spot_id → BuildSpot).
   - The Task 23 paying is added onto `BuildSpot` later.
@@ -4584,11 +4583,10 @@ func test_five_spots_at_layout_positions() -> void:
 func test_tower_inactive_until_built() -> void:
 	var t: TowerSpot = main.world.build_spots.tower_nw
 	assert_false(t.attacker.enabled)
-	assert_true(t.body.get_child(0).disabled)
+	assert_eq(t.find_children("*", "CollisionObject3D", true, false).size(), 0, "towers never collide (D-125)")
 	GameState.add_gold(40)
 	GameState.pay_into_spot("tower_nw", 40)
 	assert_true(t.attacker.enabled)
-	assert_false(t.body.get_child(0).disabled)
 	assert_eq(t.attacker.attack_range, 7.0)
 
 func test_built_tower_kills_boar() -> void:
@@ -4691,23 +4689,12 @@ extends BuildSpot
 ## Tower: never targeted, auto-attacks when level >= 1 (spec 7.5).
 
 var attacker: Attacker
-var body: StaticBody3D
 
 func _build_visual() -> void:
-	var m := Visuals.cylinder(0.5, 2.0, Visuals.COLORS.tower)
+	# No physics body: the hero walks through towers (D-125).
+	var m := Visuals.cylinder(MapLayout.TOWER_VISUAL_RADIUS, 2.0, Visuals.COLORS.tower)
 	m.position.y = 1.0
 	visual.add_child(m)
-	body = StaticBody3D.new()
-	body.collision_layer = 1
-	body.collision_mask = 0
-	var shape := CollisionShape3D.new()
-	var cyl := CylinderShape3D.new()
-	cyl.radius = MapLayout.TOWER_BODY_RADIUS
-	cyl.height = 2.0
-	shape.shape = cyl
-	shape.position.y = 1.0
-	body.add_child(shape)
-	add_child(body)
 	attacker = Attacker.new()
 	attacker.position.y = 1.5
 	attacker.candidates = _world.wave_director.enemy_candidates
@@ -4717,7 +4704,6 @@ func _build_visual() -> void:
 func _apply_level(p_level: int, _b: Dictionary) -> void:
 	var built := p_level >= 1
 	visual.visible = built
-	(body.get_child(0) as CollisionShape3D).disabled = not built
 	attacker.enabled = built
 	if built:
 		var bb := Balance.data.build

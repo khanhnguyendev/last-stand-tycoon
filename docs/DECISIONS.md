@@ -568,7 +568,7 @@ This is what S4 and S6 measure against.
 - Checked on paper: A 5.41 > 5.0; B worst case 6.5 ≤ 7; C NW tower to the west fence 2.5, to the
   north fence 6.53 ≤ 7; the west path passes 2.5 m from the NW tower.
 
-**D-094 Collisions.**
+**D-094 [AMENDED by D-125] Collisions.**
 - The hero (CharacterBody3D) collides with the diner, counter, freezer and towers. It does not
   collide with fences, enemies, travelers or pickups.
 - Enemies and travelers are moved in code, with no physics bodies.
@@ -677,7 +677,7 @@ reaches into another's nodes".
 - The stop point is therefore always inside the zone rectangle (test D), and the path keeps
   ≥ 1.5 m from the towers and ≥ reach from the diner (test E).
 
-**D-112 Collider and bot geometry.**
+**D-112 [AMENDED by D-125] Collider and bot geometry.**
 - The tower collider radius is 0.5 m and the hero radius 0.4 m.
 - The bots' stand points for the tower spots are 1.06 m out from the tower center, away from the
   diner.
@@ -732,3 +732,14 @@ wording).**
 - On paper: 28,148 reachable positions and a maximum of 2 lanes. West+north is reachable from 16
   points and north+east from 16, all at the NW and NE diner corners. West+east is impossible,
   because the west and east stop lines are 10.4 m apart, more than 2 × range.
+
+**D-124 is reserved** for the spec sync below (the capped steak pool).
+
+**D-125 Towers don't collide with the hero (author; amends D-094 and D-112).**
+- The hero collides only with the diner, counter and freezer.
+- Why: between a tower at (±5, −5) and the diner corner at (±4, −4) there is only about 0.9 m
+  before radii, so joystick players and bots would snag.
+- `TOWER_BODY_RADIUS` becomes `TOWER_VISUAL_RADIUS` (mesh only). Towers keep the same rule as
+  fences.
+- The waypoint test checks that every edge is traversable with hero-radius clearance against the
+  remaining colliders.

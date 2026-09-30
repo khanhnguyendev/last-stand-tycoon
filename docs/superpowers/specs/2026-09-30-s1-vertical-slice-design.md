@@ -352,8 +352,8 @@ Then:
 | Road | East–west at z = 11. Travelers enter at (24, 11) and exit at (−24, 11). |
 
 - Station zones have a radius of 1.0 m; build-spot zones 1.2 m.
-- The hero collides with the diner, counter, freezer and towers only. Fences, enemies, travelers
-  and pickups don't collide with it (D-094).
+- The hero collides with the diner, counter and freezer only. Towers, fences, enemies, travelers
+  and pickups don't collide with it (D-094, D-125).
 
 ### 6.2 Lane plan (owner: `LanePlanner`, D-026 to D-028, D-095, D-100)
 
