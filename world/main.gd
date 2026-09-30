@@ -43,5 +43,14 @@ func _ready() -> void:
 	joystick = Joystick.new()
 	input_layer.add_child(joystick)
 	joystick.setup(hero.input)
+	if OS.is_debug_build() and ResourceLoader.exists("res://ui/debug/debug_overlay.gd"):
+		# D-099: load(), never preload, so release/profile can exclude ui/debug/*. Added after InputLayer
+		# so its _input (the fade button) runs before the joystick's.
+		var overlay: CanvasLayer = load("res://ui/debug/debug_overlay.gd").new()
+		add_child(overlay)
+		overlay.setup(self)
+	if OS.has_feature("profile_overlay"):
+		add_child(PerfOverlay.new())
+	add_child(BuildLabel.new())
 	if auto_start:
 		phase_controller.start_new_game.call_deferred()
