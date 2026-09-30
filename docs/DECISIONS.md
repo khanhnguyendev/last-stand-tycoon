@@ -1222,3 +1222,17 @@ falls and the night restarts identically.
   - step 4 is towers first, then fences; within a kind it takes the cheapest affordable. If nothing
     next to the top lane is affordable, it moves to the next lane by threat rather than saving.
 - The break day (DoD 4) is logged only after the sweep re-runs with this order.
+
+**D-155 Sweep break day: 8 (Task 25; DoD 4).**
+- PlannerBot, seed 20260930, default balance, D-154 purchase order (towers before fences on
+  upgrades). The run breaks at day 8: the diner falls three times in a row, and the retries replay
+  identically.
+- Diner HP left at dawn, days 1–7: 0.667, 1.000, 0.833, 0.750, 0.483, 0.883, 0.467, then the
+  break.
+- Economy: gold earned 108 / 144 / 186 / 216 / 258 / 300 / 336. Unspent at close-up
+  8 / 32 / 38 / 34 / 12 / 32 / 28. Steaks equal kills × `steaks_per_kill` every night (freezer plus
+  carried), and every steak was sold.
+- History: with the plan's original order (`tower_ne` never built) the run broke at day 3; with
+  fence-first upgrades, at day 6.
+- (Correction: an earlier draft of this entry said only about 83% of steaks were picked up. That
+  was a measurement error: the 6 carried steaks weren't counted. Nothing is lost.)
