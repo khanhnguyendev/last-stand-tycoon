@@ -6,7 +6,7 @@
 > - Every task is executed by the `implementer` subagent, and every task result gets a `reviewer` pass.
 > - Human checkpoints (**CP1, CP2, CP3**) stop all work until the author says continue.
 > - Merges (D-137): the main session merges a phase PR itself when CI is green (before CI: the full local suite output is in the PR body), every task passed its reviewer pass, no escalation is open, and the phase doesn't end at a checkpoint. Phases 5 (CP1), 10 (CP2) and 14 (CP3) are merged by the author.
-> - Parallel tasks follow D-136 (worktrees, hot files, at most 3 implementers).
+> - Parallel tasks follow D-136 and D-139 (worktrees, hot files, wiring notes, at most 3 implementers). Look-ahead across CP1 and CP2 follows D-140.
 > - Device testing (D-138): the iOS Simulator and, when installed, the Android Emulator are primary. The author's phone is used only at CP2 and CP3.
 > - An implementer escalation (a failing threshold, a spec contradiction, a missing fact) goes back to
 >   the main session. It is never decided inside the task.
@@ -105,7 +105,31 @@ These are the input classes the spec implies but no feature test naturally cover
   - Integration: after a task passes review, merge its task branch into the phase branch with `--no-ff` (one task commit preserved), then run the FULL suite on the phase branch before merging the next task. If it fails, stop merging and debug on the phase branch first (systematic-debugging).
   - Merge conflicts are resolved by the main session, never by an implementer; a conflict in a hot file or in design intent is escalated to the author.
   - A task that runs alone commits directly on the phase branch (no worktree).
-- **Device testing (D-138).** The iOS Simulator (Safari on a notch iPhone) and, when installed, the Android Emulator (Chrome) are the primary devices, on `http://localhost` (a secure context) or the Pages preview URL. They are scripted with `export/device_check.sh` (Task 32), and results are read from screenshots. Never install system components; when a runtime is missing, give the author the one-time install step. The author's phone is used only at CP2 and CP3.
+- **Wiring notes (D-139, amends D-136).** Implementers never edit `world/main.gd`, `world/world.gd` or `world/main.tscn`, and never edit `autoload/EventBus.gd`, `autoload/GameState.gd`, `balance/*.gd`/`*.tres` or `project.godot`, unless that file is the task's main purpose (T10: EventBus/GameState; T12: main/world; T2 and T35: balance). Each task delivers its system as its own script/scene plus a **wiring note** in its report: the exact lines to add to those files. The main session applies wiring notes, serialized, on the task branch right after the task's review, folds them into the task commit, and runs the task's tests that need the wiring (for example the `Main.create()` tests). If they fail, the task goes back to its implementer.
+- **Look-ahead across checkpoints (D-140).** Tasks that don't depend on night-loop behavior or balance numbers may start before CP1 is approved: T21, T22, T23, T24 (Phase 6) and T27, T28, T30, T31 (Phase 9). They live on stacked branches (`s1/p6-day`, `s1/p9-input-hud`, cut from the newest phase branch) and are **not merged into `main` before the author approves CP1**. If CP1 changes the design, they are reworked. T25, T26, T29 and everything that depends on the night loop, sims or balance waits for CP1. Before CP2 the same rule lets T33 and T34 run alongside T32.
+- **When the author says "merged" (D-142).** First check the PR with `gh pr view`. If it is still open and the main session may self-merge it (D-137), merge it and say so. If it is a checkpoint PR (Phases 5, 10, 14), stop and ask; never merge a checkpoint PR on the author's behalf.
+- **Waves (D-139, D-140).** At most 3 implementers at once; `∥` = parallel, `→` = after. Cross-phase starts are marked; a task that starts early lives on its task branch until its phase branch exists.
+  | Wave | Tasks | Notes |
+  |---|---|---|
+  | 2a | T3 ∥ T4 | |
+  | 2b | T5 ∥ T11 | T5 needs T3, T4; T11 (Phase 3) has no dependencies, starts early |
+  | 2c | T6 | needs T5 (`LanePlanner.LANES`) |
+  | 2d | T7 ∥ T8 ∥ T9 | need T6 (T7 also T4; T9 also T5) |
+  | 3a | T10 | needs T3, T5, T6, T7 |
+  | 3b | T12 | needs T5, T6, T10, T11; its purpose is `main`/`world`, so it edits them itself |
+  | 4a | T13 ∥ T31 | T31 (Phase 9, look-ahead) needs only `Main` |
+  | 4b | T14 ∥ T15 | both need T13 (T15's tests use `Steak` and `steak_pool`, so T13 ∥ T15 is not possible) |
+  | 4c | T16 ∥ T17 ∥ T27 | T16 and T17 need T14 + T15; T27 (Phase 9, look-ahead) needs T15 |
+  | 4d | T18 ∥ T19 ∥ T28 | T18 needs T16; T19 (Phase 5) needs T8, T14, T15, T17; T28 (Phase 9, look-ahead) needs T9, T17 |
+  | 5a | T20 ∥ T21 | T20 needs T18, T19 → **CP1**; T21 (Phase 6, look-ahead) needs T16 (`hero.gd` edited in turn), T17 |
+  | 6a | T22 ∥ T23 ∥ T24 | look-ahead while CP1 is open; each needs T21 (T22 and T24 also T17, T23 also T18) |
+  | 6b | T30 | look-ahead; needs T13, T18, T21, T22 (edits their files) |
+  | 7 | T25 | after CP1 is approved; needs T19–T24 |
+  | 8 | T26 | needs T17–T24 |
+  | 9 | T29 | after CP1; needs T28 (HUD reacts to night-loop events) |
+  | 10 | T32 ∥ T33 ∥ T34 | T32 → **CP2**; T33 (needs T13, T20) and T34 are CP2 look-ahead |
+  | 12–14 | T35 → T36 → T37 | T37 → **CP3** |
+- **Device testing (D-138, D-141).** The iOS Simulator (Safari on a notch iPhone) and, when installed, the Android Emulator (Chrome) are the primary devices; without the emulator, Android checks use Playwright Chromium with the Pixel 7 profile (`export/pw_check.mjs`) and are labelled **emulated**, not device. They run on `http://localhost` (a secure context) or the Pages preview URL. They are scripted with `export/device_check.sh` (Task 32), and results are read from screenshots. Never install system components; when a runtime is missing, give the author the one-time install step. The author's phone is used only at CP2 and CP3.
 
 ## Checkpoints and Estimates
 
@@ -608,12 +632,16 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - Every push deploys a web build to GitHub Pages: `main` at https://khanhnguyendev.github.io/last-stand-tycoon/, other branches at `preview/<slug>/` (slug = the branch name with every character outside `[A-Za-z0-9._-]` replaced by `-`) (D-135). Phone tests use those URLs; plain-http LAN doesn't work (D-120).
 - **Merges (D-137).** Merge a phase PR yourself (merge commit, never squash) only when CI is green (before CI: the full local suite output is in the PR body), every task passed its reviewer pass, no escalation is open, and the phase doesn't end at a checkpoint. Phases 5 (CP1), 10 (CP2) and 14 (CP3) are merged by the author. After a self-merge, post a PR comment of at most 5 lines (what shipped, tests, decisions).
 - Never push to `main` directly, never change branch protection. After CI lands, give the author the exact `gh api ... /branches/main/protection` command (plan Task 34, Step 6) instead of running it.
+- **Wiring notes (D-139):** implementers never edit `world/main.gd`, `world/world.gd`, `world/main.tscn`, `autoload/EventBus.gd`, `autoload/GameState.gd`, `balance/*` or `project.godot` unless that file is the task's main purpose; they report the exact lines as a wiring note, and the main session applies it after review.
+- **Look-ahead (D-140):** T21–T24, T27, T28, T30, T31 may run before CP1 is approved, on stacked branches that are not merged into `main` until the author approves CP1; T33, T34 may run alongside T32 before CP2.
+- **"merged" (D-142):** check the PR with `gh pr view` first. Open and self-mergeable (D-137): merge it and say so. Checkpoint PR: stop and ask.
 - **Parallel tasks (D-136):** only with disjoint file sets; hot files (`project.godot`, `CLAUDE.md`, `autoload/EventBus.gd`, `autoload/GameState.gd`, `balance/*`, `world/main.gd`, `world/main.tscn`, `world/world.gd`, `run_tests.sh`, `.github/workflows/*`) are serialized and edited by the main session; at most 3 implementers, each in its own worktree on `s1/p<N>-t<NN>-<slug>`; merge `--no-ff` into the phase branch and run the full suite before the next merge; conflicts are resolved by the main session.
 
 ## Device testing (D-138)
 - Primary: the iOS Simulator (Safari, a notch iPhone) and, when installed, the Android Emulator (Chrome), on `http://localhost` or the Pages preview URL. Run `export/device_check.sh <url> <out_dir>` and read the screenshots.
 - Never install system components. If a runtime is missing, give the author the one-time install step the script prints.
 - The author's phone is used only at CP2 and CP3.
+- Without an Android Emulator, Android checks use Playwright Chromium with the Pixel 7 profile (`export/pw_check.mjs`, from Task 32); label them **emulated**, not device (D-141). Real Android is covered by the S6 friend playtests.
 - Desktop Chrome: headless with software WebGL (flags in D-138).
 
 ## Scope and time (D-131)
@@ -1069,6 +1097,7 @@ extends GutTest
 const SCAN_DIRS := ["res://autoload", "res://core", "res://components", "res://actors",
 	"res://world", "res://ui", "res://balance"]
 const ALLOWED := ["res://core/rng.gd"]
+const BAN_RE := "(?<![\\.\\w])(randi|randf|randi_range|randf_range|randomize)\\s*\\(|RandomNumberGenerator\\s*\\.\\s*new\\s*\\(|@GlobalScope\\s*\\.\\s*(randi|randf|randi_range|randf_range|randomize|randfn|seed|rand_from_seed)\\s*\\("
 
 func _collect(dir_path: String, out: Array) -> void:
 	var dir := DirAccess.open(dir_path)
@@ -1085,7 +1114,8 @@ func test_no_global_randomness() -> void:
 	for d in SCAN_DIRS:
 		_collect(d, files)
 	var re := RegEx.new()
-	re.compile("(?<![\\.\\w])(randi|randf|randi_range|randf_range|randomize)\\s*\\(|RandomNumberGenerator\\s*\\.\\s*new\\s*\\(")
+	re.compile(BAN_RE)
+	assert_true(files.has("res://core/rng.gd"), "scan reached core/")
 	var offenders: Array = []
 	for path in files:
 		if path in ALLOWED:
@@ -1097,11 +1127,14 @@ func test_no_global_randomness() -> void:
 
 func test_ban_regex_catches_and_allows() -> void:
 	var re := RegEx.new()
-	re.compile("(?<![\\.\\w])(randi|randf|randi_range|randf_range|randomize)\\s*\\(")
+	re.compile(BAN_RE)
 	assert_not_null(re.search("var x = randi()"))
 	assert_not_null(re.search("randf_range(0, 1)"))
 	assert_null(re.search("rng.randi_range(0, 2)"))
 	assert_null(re.search("my_randi(3)"))
+	assert_not_null(re.search("var r := RandomNumberGenerator.new()"))
+	assert_not_null(re.search("@GlobalScope.randi()"))
+	assert_null(re.search("rng.randi_range(0, 3)"))
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -1209,6 +1242,10 @@ func test_day1_totals() -> void:
 func test_day2_reference_values() -> void:
 	assert_eq([WaveMath.total_count(2, 0, wb), WaveMath.total_count(2, 1, wb), WaveMath.total_count(2, 2, wb)], [5, 8, 11])
 	assert_almost_eq(WaveMath.hp_mult(2, 0, wb), 1.15, 0.0001)
+	assert_almost_eq(WaveMath.hp_mult(1, 0, wb), 1.0, 0.0001)
+	assert_almost_eq(Balance.data.enemy.hp * WaveMath.hp_mult(2, 0, wb), 34.5, 0.0001)
+	assert_eq(WaveMath.total_count(6, 1, wb), 17)
+	assert_eq(WaveMath.split(3, 1, wb), {"main": 7, "side": 3})
 	assert_eq(WaveMath.split(2, 0, wb), {"main": 4, "side": 1})
 	assert_eq(WaveMath.split(2, 1, wb), {"main": 6, "side": 2})
 	assert_eq(WaveMath.split(2, 2, wb), {"main": 9, "side": 2})
@@ -1249,8 +1286,8 @@ func test_main_only_schedule() -> void:
 	var s := WaveSchedule.build({"main": "north", "side": "", "main_count": 3, "side_count": 0, "hp_mult": 1.0}, wb)
 	assert_eq(s.size(), 3)
 	assert_almost_eq(float(s[0].t), 0.0, 0.0001)
-	assert_almost_eq(float(s[1].t), 0.8, 0.0001)
-	assert_almost_eq(float(s[2].t), 1.6, 0.0001)
+	assert_almost_eq(float(s[1].t), wb.spawn_interval, 0.0001)
+	assert_almost_eq(float(s[2].t), 2.0 * wb.spawn_interval, 0.0001)
 	for e in s:
 		assert_eq(e.lane, "north")
 		assert_false(e.side)
@@ -1258,8 +1295,8 @@ func test_main_only_schedule() -> void:
 func test_side_group_starts_after_delay() -> void:
 	var s := WaveSchedule.build({"main": "west", "side": "east", "main_count": 2, "side_count": 2, "hp_mult": 1.0}, wb)
 	var side_times: Array = s.filter(func(e): return e.side).map(func(e): return e.t)
-	assert_almost_eq(float(side_times[0]), 4.0, 0.0001)
-	assert_almost_eq(float(side_times[1]), 4.8, 0.0001)
+	assert_almost_eq(float(side_times[0]), wb.side_group_delay, 0.0001)
+	assert_almost_eq(float(side_times[1]), wb.side_group_delay + wb.spawn_interval, 0.0001)
 	for i in range(1, s.size()):
 		assert_true(s[i - 1].t <= s[i].t, "sorted by time")
 
@@ -1268,6 +1305,14 @@ func test_clear_rule_requires_all_spawned() -> void:
 	assert_false(WaveSchedule.is_cleared(6, 4, 0))
 	assert_false(WaveSchedule.is_cleared(6, 6, 1))
 	assert_true(WaveSchedule.is_cleared(6, 6, 0))
+
+func test_main_first_on_ties() -> void:
+	var n := int(ceil(wb.side_group_delay / wb.spawn_interval)) + 4
+	var s := WaveSchedule.build({"main": "west", "side": "east", "main_count": n, "side_count": 3, "hp_mult": 1.0}, wb)
+	for i in range(1, s.size()):
+		assert_true(float(s[i - 1].t) <= float(s[i].t) + 1e-6, "sorted")
+		if is_equal_approx(float(s[i - 1].t), float(s[i].t)):
+			assert_false(s[i - 1].side and not s[i].side, "main first on tie at %s" % s[i].t)
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -1322,7 +1367,10 @@ static func build(wave: Dictionary, wb: WaveBalance) -> Array:
 		out.append({"t": i * wb.spawn_interval, "lane": String(wave.main), "side": false})
 	for i in int(wave.side_count):
 		out.append({"t": wb.side_group_delay + i * wb.spawn_interval, "lane": String(wave.side), "side": true})
-	out.sort_custom(func(a, b): return a.t < b.t or (is_equal_approx(a.t, b.t) and not a.side and b.side))
+	out.sort_custom(func(a, b):
+		if not is_equal_approx(a.t, b.t):
+			return a.t < b.t
+		return not a.side and b.side)
 	return out
 
 static func is_cleared(planned: int, spawned: int, alive: int) -> bool:
@@ -8276,7 +8324,7 @@ git commit -m "feat: pause the game on focus loss and hidden tab"
 
 **Files:**
 - Create:
-  - `export/web_shell.html`, `export/README.md`, `export_presets.cfg`, `export/device_check.sh`
+  - `export/web_shell.html`, `export/README.md`, `export_presets.cfg`, `export/device_check.sh`, `export/pw_check.mjs`
   - `ui/debug/debug_overlay.gd`, `ui/perf_overlay.gd`, `ui/build_label.gd`
 - Modify: `world/main.gd`
 - Test: `tests/unit/test_overlays.gd`
@@ -8692,8 +8740,11 @@ if [ -x "$SDK/emulator/emulator" ]; then
   AVD=$("$SDK/emulator/emulator" -list-avds 2>/dev/null | awk '!/^INFO/ && NF {print; exit}' || true)
 fi
 if [ -z "$AVD" ]; then
-  echo "MISSING Android Emulator. One-time step (author): install Android Studio, then Device Manager > add a Pixel with a Google Play system image (it ships Chrome)."
-  exit 0
+  # D-141: no emulator -> Playwright Chromium, Pixel 7 profile. Labelled "emulated", not device.
+  PW="${LST_PW_DIR:-$HOME/.cache/lst-playwright}"
+  [ -d "$PW/node_modules/playwright" ] || npm i --prefix "$PW" --no-audit --no-fund playwright@1.63.0 >/dev/null
+  LST_PW_DIR="$PW" node "$(dirname "$0")/pw_check.mjs" "$URL" "$OUT/android_emulated.png" android
+  exit $?
 fi
 ADB="$SDK/platform-tools/adb"
 SERIAL=emulator-5554
@@ -8719,7 +8770,42 @@ echo "android: $OUT/android.png"
 "$ADB" -s "$SERIAL" emu kill >/dev/null 2>&1 || true
 ```
 
-Push the branch, wait for the `pages` run, then run `export/device_check.sh https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p10-web/ /tmp/lst-cp2` and the desktop Chrome check with the Playwright method and flags logged in D-138 (screenshot plus console and page errors). The Chrome check must pass by CP2. Read the screenshots: the game renders, the bottom-left label shows the head's short hash, and the HUD is clear of the Dynamic Island and the home indicator. Fix anything that fails before CP2, and attach the screenshots' findings to the CP2 message. If the script prints a MISSING line, pass that one-time install step to the author.
+Also write `export/pw_check.mjs` (fold it into the same commit):
+
+```js
+// Usage: node export/pw_check.mjs <url> <out.png> [profile]   (D-138, D-141)
+// profile: "android" (Playwright "Pixel 7" device: touch, mobile UA, portrait) or "desktop" (720x1280).
+// Chromium with software WebGL (SwiftShader). Prints console messages and page errors; exits 1 on a
+// page error or when the page never sets window.LST_BUILD. Playwright comes from $LST_PW_DIR.
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import os from 'node:os';
+const [url, out, profile = 'android'] = process.argv.slice(2);
+if (!url || !out) { console.error('usage: node pw_check.mjs <url> <out.png> [android|desktop]'); process.exit(2); }
+const pwDir = process.env.LST_PW_DIR || path.join(os.homedir(), '.cache', 'lst-playwright');
+const { chromium, devices } = createRequire(path.join(pwDir, 'package.json'))('playwright');
+const ctxOpts = profile === 'android'
+  ? { ...devices['Pixel 7'] }
+  : { viewport: { width: 720, height: 1280 } };
+const browser = await chromium.launch({ headless: true,
+  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+let failed = false;
+try {
+  const page = await (await browser.newContext(ctxOpts)).newPage();
+  page.on('console', m => console.log(`[console.${m.type()}] ${m.text()}`));
+  page.on('pageerror', e => { failed = true; console.log(`[pageerror] ${e.message}`); });
+  await page.goto(url, { waitUntil: 'load', timeout: 60000 });
+  const build = await page.waitForFunction(() => window.LST_BUILD, null, { timeout: 30000 })
+    .then(h => h.jsonValue()).catch(() => null);
+  if (!build) { failed = true; console.log('no window.LST_BUILD'); }
+  await page.waitForTimeout(Number(process.env.WAIT_S || 15) * 1000);
+  await page.screenshot({ path: out });
+  console.log(`${profile} (emulated): build=${build} screenshot=${out}`);
+} finally { await browser.close(); }
+process.exit(failed ? 1 : 0);
+```
+
+Push the branch, wait for the `pages` run, then run `export/device_check.sh https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p10-web/ /tmp/lst-cp2` and the desktop Chrome check: `node export/pw_check.mjs <url> /tmp/lst-cp2/desktop.png desktop` (D-138 flags; console and page errors printed). The Chrome check must pass by CP2. Read the screenshots: the game renders, the bottom-left label shows the head's short hash, and the HUD is clear of the Dynamic Island and the home indicator. Fix anything that fails before CP2, and attach the screenshots' findings to the CP2 message. If the script prints a MISSING line, pass that one-time install step to the author.
 
 - [ ] **Step 10: CHECKPOINT 2. Stop and wait for the author.**
 

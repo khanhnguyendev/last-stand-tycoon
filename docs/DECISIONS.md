@@ -999,6 +999,7 @@ wording).**
   still open.
 
 **D-138 Device testing without the author's phone (author).**
+- [AMENDED by D-141: without an Android Emulator, Android checks are Playwright-emulated.]
 - Primary devices: the iOS Simulator (Safari on a notch iPhone) and, when Android Studio is
   installed, the Android Emulator (Chrome). They load `http://localhost` (a secure context) or the
   Pages preview URL. `export/device_check.sh` (plan Task 32) scripts them, and results are read from
@@ -1021,3 +1022,55 @@ wording).**
   errors, no failed requests. The console only had Godot's banner and "GPU stall due to ReadPixels"
   performance warnings. The probe read `safe=[P: (0, 0), S: (720, 1280)]` and `css=0,0,0,0`. Plain
   `chrome --headless=new --virtual-time-budget` hangs on Godot's main loop, so it isn't used.
+
+## 2026-09-30: More parallelism, look-ahead, emulated Android
+
+**D-139 Wiring notes: implementers don't edit the shared scene files (author; amends D-136).**
+- Implementers never edit `world/main.gd`, `world/world.gd` or `world/main.tscn`. The same goes for
+  `autoload/EventBus.gd`, `autoload/GameState.gd`, `balance/*.gd`/`*.tres` and `project.godot`,
+  unless that file is the task's main purpose (T10 for EventBus/GameState, T12 for main/world, T2
+  and T35 for balance).
+- Each task delivers its system as its own script or scene, plus a **wiring note** in its report
+  with the exact lines to add. The main session applies wiring notes, serialized, on the task branch
+  right after the task's review, and folds them into the task commit.
+- The main session then runs the task's tests that need the wiring (for example the `Main.create()`
+  tests). If they fail, the task goes back to its implementer. (Main session's reading: this is how
+  TDD stays intact when a test needs wiring the implementer may not write.)
+- Waves are recomputed with this rule, limited by real dependencies (each task's Interfaces and the
+  scenes its tests use) and at most 3 implementers at once. The wave table is in the plan's Git
+  Workflow section. The dependency check found:
+  - T13 ∥ T15 is not possible: the hero's tests use `Steak` and `world.steak_pool` from T13. T14 ∥ T15 is.
+  - T11 has no dependencies, so it starts alongside Phase 2.
+  - T16 and T21 both edit `actors/hero/hero.gd`, so they run in turn.
+
+**D-140 Look-ahead across checkpoints (author; amends the "stop at each checkpoint" rule).**
+- Tasks whose outputs don't depend on night-loop behavior or balance numbers may start before CP1
+  is approved. Checked against the dependency graph, that means:
+  - T21 (day stations);
+  - T22 (travelers) and T23 (build pay); both are day systems on top of T17, T18 and T21;
+  - T24 (close-up sign, telegraph), added to the author's list: it needs only T17, T21 and the lane
+    plan data;
+  - T27 (joystick), T28 (camera), T30 (FX) and T31 (focus pause).
+- They live on stacked branches (`s1/p6-day`, `s1/p9-input-hud`) and are not merged into `main`
+  before the author approves CP1. If CP1 changes the design, they are reworked.
+- Everything that depends on the night loop, the sims or balance still waits for CP1: T25 (PlannerBot
+  and night-2 sims), T26 (restore contract), and T29 (the HUD, which reacts to wave and diner
+  events).
+- Before CP2, T33 (lane screenshots: needs T13 and T20) and T34 (CI) run alongside T32.
+
+**D-141 Android checks are emulated until an emulator exists (author; amends D-138).**
+- Don't wait for Android Studio. Until the author installs it (maybe never in S1), Android checks use
+  Playwright Chromium with the Pixel 7 device profile (touch on, mobile user agent, portrait
+  viewport) and software WebGL. `export/pw_check.mjs` (plan Task 32) runs them, and
+  `export/device_check.sh` falls back to it.
+- Results are labelled **emulated**, never "device".
+- Playwright lives in a user-level cache (`~/.cache/lst-playwright`, pinned 1.63.0), never in the
+  repo. Checked 2026-09-30 on `/probe/` (build `b905977`): it loads with no page errors and renders.
+- Real Android is covered by the S6 friend playtests.
+
+**D-142 Acting on "merged" (author; amends D-137).**
+- When the author says "merged", the main session first checks the PR state with `gh pr view`.
+- If the PR is still open and the main session may self-merge it (D-137), it merges it and tells the
+  author.
+- If it is a checkpoint PR (Phases 5, 10, 14), it stops and asks. It never merges a checkpoint PR on
+  the author's behalf.
