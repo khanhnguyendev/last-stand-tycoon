@@ -5,6 +5,7 @@ extends CharacterBody3D
 var input: HeroInput
 var magnet: Magnet
 var carry_stack: CarryStack
+var attacker: Attacker
 var still_time := 0.0
 ## Incremented by teleport(); StationZone disarms when it changes (D-121).
 var teleport_serial := 0
@@ -36,12 +37,20 @@ func _init() -> void:
 	add_child(magnet)
 	carry_stack = CarryStack.new()
 	add_child(carry_stack)
+	attacker = Attacker.new()
+	add_child(attacker)
 
 func _ready() -> void:
 	EventBus.hero_place_requested.connect(teleport)
 
 func setup(world: World) -> void:
 	magnet.setup(world.steak_pool)
+	var hb := Balance.data.hero
+	attacker.configure(hb.attack_damage, hb.attack_range, hb.attack_interval, hb.retarget_interval,
+		hb.moving_attack_speed_mult, hb.projectile_speed)
+	attacker.candidates = world.wave_director.enemy_candidates
+	attacker.projectile_pool = world.projectile_pool
+	attacker.is_moving = is_moving
 
 func _physics_process(delta: float) -> void:
 	var mv := input.get_move()
@@ -54,8 +63,9 @@ func _physics_process(delta: float) -> void:
 	else:
 		still_time = 0.0
 
+## True only while actually moving: still_time is reset by teleport(), but velocity is zero then.
 func is_moving() -> bool:
-	return still_time <= 0.0
+	return still_time <= 0.0 and velocity.length_squared() > 0.0
 
 func xz() -> Vector2:
 	return Vector2(global_position.x, global_position.z)
