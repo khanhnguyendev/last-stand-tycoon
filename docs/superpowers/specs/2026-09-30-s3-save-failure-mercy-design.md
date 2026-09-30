@@ -91,15 +91,25 @@ envelope := {
 - a card level is outside `0..max_level`;
 - `resume_phase` is not one of `NIGHT`, `DAY`, `CARD_PICK`.
 
+It also rejects:
+- a missing `to_dict` key;
+- building ids that are not in `MapLayout.SPOT_IDS`;
+- a `lane_plan` whose size is not the wave count;
+- a `CARD_PICK` state whose `card_offer` is empty or contains a maxed card. Resuming that would sit in DAWN with input
+  blocked and no overlay.
+
 Release builds strip the asserts in `CardCatalog` and `pick_card`, so this check is the real guard (S2 Task 2 review).
+It keeps §1 goal 5 true ("never crashes").
 
 ## 5. Save store and triggers
 
 ### 5.1 `SaveStore` (`world/save/save_store.gd`)
 
 **Keys:** `lst:<path>:save` (primary), `lst:<path>:save_bak` (backup), `lst:<path>:save_corrupt`.
-- `<path>` is `location.pathname`, read once at `_ready` on web.
-- The file backend uses `desktop` as the path.
+- `<path>` is `location.pathname` with a trailing `index.html` stripped, so `/…/debug/` and `/…/debug/index.html`
+  share one save. It is read once at `_ready` on web.
+- The file backend uses the file names `save.json`, `save_bak.json` and `save_corrupt.json` under `user://save/`
+  (no `:` in file names).
 
 **Backends,** chosen by `OS.has_feature("web")`:
 - **`WebBackend`:**
@@ -115,7 +125,8 @@ Release builds strip the asserts in `CardCatalog` and `pick_card`, so this check
 **API:**
 - `read() -> {ok, state, source, newer}`
 - `write(text) -> bool`: copies `_last_good_text` to the backup key, then writes the primary.
-- `wipe()`
+- `wipe()` clears all three keys, clears `_last_good_text` and resets `writable = true`, so a wiped run is never
+  copied into the backup.
 - `writable: bool`, which is false after a newer save was found, so it is never overwritten.
 - A storage error is logged once with `push_warning`. The game keeps running.
 
@@ -136,7 +147,14 @@ temp-directory store enable it.
 | DAY and the page is hidden (`visibilitychange`) or `pagehide` | the live state, DAY (flush if dirty) |
 
 - **Dirty** means any `stocks_changed`, `gold_changed` or `building_changed` since the last write.
-- **Suppressed:** writes during NIGHT and during a fail flow, and writes when `store.writable` is false.
+- **Autosave's state machine** (it tracks only EventBus):
+  - `phase_changed(p)`: set `phase = p` and clear `failing`, **then** evaluate the row above (so the DAY write after
+    a fail restore happens).
+  - `night_failed`: set `failing = true`.
+  - `snapshot_taken` **always writes** (whatever the phase or the fail flag). That covers new game at boot, `R`
+    during a fail banner, and night-1 retries inside the fail flow. Only `store.writable == false` stops it.
+  - Every other row writes only when `phase == DAY` (CARD_PICK: `phase == DAWN`) and `not failing`.
+  - `store.writable == false` stops every write.
 - `autosave_interval_s` lives in `UiTuning` (non-gameplay tuning).
 
 ### 5.3 Boot and resume
@@ -153,12 +171,16 @@ temp-directory store enable it.
 - **`resume_phase` DAY or NIGHT:** `_restore_snapshot()`. The S1 restore contract already handles stop, recall,
   `from_dict`, hero placement, `failing = false`, `dawn_substate = ""` and the phase entry.
 - **`resume_phase` CARD_PICK:**
-  1. `_recall_all()`, then `GameState.from_dict(state)`;
+  1. `wave_director.stop()`, `traveler_spawner.stop()` (both D-128), `failing = false`, `_recall_all()`, then
+     `GameState.from_dict(state)`;
   2. set `phase = DAWN` and `dawn_substate = "CARD_PICK"`;
   3. emit `hero_place_requested(HOME)` and `phase_changed(DAWN, day)`;
   4. `GameState.set_card_offer(GameState.card_offer)`, which re-emits the saved offer so the overlay shows.
 
   `snapshot` is left as the loaded state. The next close-up replaces it before any night can fail.
+
+A resume never shows the flavor line, even with `night_fails ≥ 1` (a quit during a retry). The enemies are weaker,
+and the line only appears after an actual failure. Tests must not expect the banner on resume.
 
 ## 6. Failure and mercy
 
@@ -185,13 +207,23 @@ EventBus.banner_requested.emit(tr("The monsters look tired tonight."))
 - **Boar:** every attack arm (`fence_on_lane`, `guard`, `diner`) uses `enemy.damage × GameState.mercy_factor()`.
 - **Balance:** `WaveBalance.mercy_step = 0.15` and `WaveBalance.mercy_floor = 0.40`.
 
-**HUD:** `_on_banner` appends to a FIFO queue. Each banner shows for `banner_time`, then the next one starts. A
-`state_restored` does **not** clear the queue, so a fail's banners survive the restore.
+**HUD banner queue:**
+- `_on_banner` queues the new text.
+- If a banner is showing, it is shortened to `min(remaining, banner_min_s)` (`UiTuning.banner_min_s` = 0.6); then the
+  next one plays for the full `banner_time`.
+- So "The monsters return" is still readable before the flavor line, and a quick card pick's banner doesn't wait
+  behind "Dawn" for the full time.
+- A `state_restored` does **not** clear the queue, so a fail's banners survive the restore.
 
 **Tests that change** (an update, not a weakening: every other field must still match exactly):
 - `tests/sim/test_night_sims.gd` `test_night1_fail_restarts_night` and `tests/unit/test_phase_controller.gd`
   `test_fail_night1_restarts_night`: compare against the snapshot with `night_fails = 1`.
 - `tests/unit/test_restore_world.gd` `test_fail_flow_restore_rebuilds_world`: the same change.
+- `tests/unit/test_hud.gd` `test_second_banner_resets_the_fade`:
+  - The second banner now appears after the first has been shortened to `banner_min_s`.
+  - At `banner_min_s + 0.9 × banner_time` after the second emit, the second banner is visible at alpha 1.0 with its
+    text.
+- `tests/sim/sweep_runner.gd:28-29`: replace the stale "retries replay identically" comment (not true with mercy).
 
 ## 7. Testing
 
@@ -200,16 +232,20 @@ EventBus.banner_requested.emit(tr("The monsters look tired tonight."))
   - a tampered `state_json` is rejected (`check`);
   - bad JSON, and `format` 2 (newer);
   - `v` greater than current (newer) and `v` lower than current with a synthetic migration step;
-  - content: an unknown card id, a level of 6, a bad `resume_phase`.
+  - content: an unknown card id, a level of 6, a bad `resume_phase`, a missing key, a bad building id, a CARD_PICK
+    state with an empty offer.
 - **`test_save_store`** (FileBackend in a temp directory):
   - primary and backup rotation from `_last_good_text`;
   - a corrupt primary falls back to the backup and is kept as `corrupt`;
   - both corrupt returns none;
   - a newer save makes `writable` false, and the file is untouched after a `write` attempt;
-  - `wipe`;
+  - `wipe` (clears `_last_good_text`, resets `writable`);
   - `js_call` escaping cases (pure, so no browser is needed).
 - **`test_autosave`** (injected store):
   - each §5.2 trigger writes the right `resume_phase`;
+  - the new-game save is written at boot;
+  - a night-1 retry save is written during the fail flow;
+  - the first DAY write after a DAY fail restore happens;
   - nothing is written at NIGHT or during a fail;
   - throttling: 10 changes within 3 s give 1 write;
   - the hidden flush;
@@ -238,7 +274,8 @@ EventBus.banner_requested.emit(tr("The monsters look tired tonight."))
   1. Load `…/debug/?cards=tank:1&scene=cardpick`.
   2. Load `…/debug/` again with no query.
   3. Expect the pick overlay with the same offer and the strip reading "TK1".
-  4. Then pick a card, wait 4 s, reload, and expect DAY at HOME with that card.
+  4. **Playwright only** (`xcrun simctl` can't tap): press `1`, wait 4 s, reload, and expect DAY at HOME with that
+     card.
 
 ## 8. Build order (a hint for writing-plans)
 
