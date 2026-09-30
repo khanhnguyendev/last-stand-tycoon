@@ -1,20 +1,25 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://world/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://world/world.gd" id="2_world"]
 [ext_resource type="Script" path="res://components/node_pool.gd" id="3_pool"]
+[ext_resource type="Script" path="res://world/wave_director.gd" id="4_wave"]
 
 [node name="Main" type="Node3D" node_paths=PackedStringArray("world")]
 script = ExtResource("1_main")
 world = NodePath("World")
 
-[node name="World" type="Node3D" parent="." node_paths=PackedStringArray("enemy_pool", "steak_pool")]
+[node name="World" type="Node3D" parent="." node_paths=PackedStringArray("enemy_pool", "steak_pool", "wave_director")]
 script = ExtResource("2_world")
 enemy_pool = NodePath("EnemyPool")
 steak_pool = NodePath("SteakPool")
+wave_director = NodePath("WaveDirector")
 
 [node name="EnemyPool" type="Node" parent="World"]
 script = ExtResource("3_pool")
 
 [node name="SteakPool" type="Node" parent="World"]
 script = ExtResource("3_pool")
+
+[node name="WaveDirector" type="Node" parent="World"]
+script = ExtResource("4_wave")
