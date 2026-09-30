@@ -7593,7 +7593,7 @@ git commit -m "feat: add close-up sign with pulse and day lane telegraph"
 ### Task 25: `PlannerBot`, day and night-2 sims, and the sweep
 
 **Files:**
-- Create: `actors/bots/planner_bot.gd`, `tests/sim/test_day_sims.gd`, `tests/sim/sweep.gd`
+- Create: `actors/bots/planner_bot.gd`, `tests/sim/test_day_sims.gd`, `tests/sim/sweep.gd`, `tests/sim/sweep_runner.gd`
 - Test: `tests/unit/test_planner_choice.gd`
 
 **Interfaces:**
@@ -7791,10 +7791,22 @@ func test_night2_planner_is_comfortable() -> void:
 `tests/sim/sweep.gd`:
 ```gdscript
 extends SceneTree
-## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1–10 → tests/sim/out/sweep.csv.
+## Manual difficulty sweep launcher (D-059, D-066, D-067).
 ## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/sweep.gd [-- --seed=N --days=10]
+## D-150: a `-s` script compiles before the autoloads exist, so it must not name them (or classes that
+## use them). It only loads the typed runner at run time.
 
 func _initialize() -> void:
+	root.add_child.call_deferred(load("res://tests/sim/sweep_runner.gd").new())
+```
+
+`tests/sim/sweep_runner.gd`:
+```gdscript
+extends Node
+## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1–10 → tests/sim/out/sweep.csv.
+## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
+
+func _ready() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
@@ -7805,7 +7817,7 @@ func _run() -> void:
 			args[kv[0]] = kv[1]
 	Balance.reset()
 	var holder := Node.new()
-	root.add_child(holder)
+	get_tree().root.add_child(holder)
 	var h := SimHarness.new(holder)
 	h.start(int(args.seed), PlannerBot)
 	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup"]
@@ -7840,7 +7852,7 @@ func _run() -> void:
 	print("\n".join(rows))
 	print("SWEEP broke_at_day=%d" % broke_at)
 	h.finish()
-	quit(0)
+	get_tree().quit(0)
 
 func _builds() -> String:
 	var parts: Array = []
@@ -7864,7 +7876,7 @@ Expected: the CSV rows print, then `SWEEP broke_at_day=<n>`, and `tests/sim/out/
 - [ ] **Step 8: Commit**
 
 ```bash
-git add actors/bots/planner_bot.gd tests/sim/test_day_sims.gd tests/sim/sweep.gd tests/unit/test_planner_choice.gd
+git add actors/bots/planner_bot.gd tests/sim/test_day_sims.gd tests/sim/sweep.gd tests/sim/sweep_runner.gd tests/unit/test_planner_choice.gd
 git commit -m "feat: add PlannerBot, night-2 sims and the difficulty sweep"
 ```
 

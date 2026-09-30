@@ -1146,3 +1146,12 @@ wording).**
   dropped, because the rig's `_process` shake could land in a screenshot.
 - The ×1.1 visual scale per built level (spec 8.6) is `UiTuning.build_level_scale` ("every number in
   `balance/`"). Level pips are centred for any `max_level`.
+
+**D-150 `-s` scripts don't name autoloads (Task 20 review).**
+- A script run with `godot -s` compiles before the autoloads are registered. So `Balance`,
+  `EventBus` and `GameState`, and any class that uses them, fail to parse there.
+- Tools launched with `-s` (`tests/sim/capture.gd`, `tests/sim/sweep.gd`) only load their typed logic
+  at run time: `capture.gd` loads the classes it needs with `load()`, and `sweep.gd` adds
+  `sweep_runner.gd` (a typed `Node`) to the tree.
+- `docs/.gdignore` keeps Godot from importing `docs/` (screenshots got `.import` files). No test reads
+  `docs/` through `res://`.
