@@ -52,6 +52,22 @@ const TRAVELER_EXIT := Vector2(-24, 11)
 const STATION_RADIUS := 1.0
 const BUILD_RADIUS := 1.2
 
+## S2 guard posts (D-163): the Archer on the diner roof; the Tank on the west lane's center line,
+## TANK_POST_BACK m before the lane end. A knocked-out guard respawns at DINER_DOOR (D-165).
+const GUARD_POST_ARCHER := Vector2(2.5, -2.5)
+const DINER_DOOR := Vector2(-3.0, 4.6)
+const TANK_POST_BACK := 3.0
+
+static func guard_post(id: StringName) -> Vector2:
+	if id == &"archer":
+		return GUARD_POST_ARCHER
+	assert(id == &"tank", "no guard post for %s" % id)
+	return Geometry.point_back_from_end(LANE_PATHS["west"], TANK_POST_BACK)
+
+## Door -> south-west corner (outside the diner) -> Tank post; test_geometry proves it clears the diner and towers.
+static func tank_return_path() -> Array:
+	return [DINER_DOOR, Vector2(-5.0, 4.6), guard_post(&"tank")]
+
 static func to3(v: Vector2, y := 0.0) -> Vector3:
 	return Vector3(v.x, y, v.y)
 

@@ -58,7 +58,7 @@ func test_s2_guard_balance_defaults() -> void:
 	var t := Balance.data.guards.tank
 	assert_eq([a.targetable, a.on_roof, t.targetable, t.on_roof], [false, true, true, false])
 	assert_eq([a.damage, a.damage_growth, a.interval, a.attack_range, a.projectile_speed, a.body_radius],
-		[6.0, 0.30, 0.6, 9.0, 16.0, 0.4])
+		[4.0, 0.30, 0.6, 9.0, 16.0, 0.4])
 	assert_eq([t.max_hp, t.hp_growth, t.damage, t.damage_growth, t.interval, t.attack_range, t.projectile_speed,
 		t.body_radius, t.walk_speed, t.respawn_s], [160.0, 0.35, 5.0, 0.25, 0.8, 2.5, 60.0, 0.45, 3.0, 3.0])
 	assert_eq(Balance.data.guards.stats(&"archer"), a)

@@ -407,3 +407,46 @@ func test_restore_unfades_the_diner() -> void:
 	for i in frames + 30:
 		await get_tree().process_frame
 	assert_false(fade.is_faded(), "opaque again after the restore recalled the boar")
+
+func test_restore_brings_back_cards_and_guards() -> void:
+	var step: float = Balance.data.cards.damage_step
+	var base: float = Balance.data.hero.attack_damage
+	EventBus.wave_cleared.emit(2)
+	EventBus.card_chosen.emit(&"tank")
+	GameState.debug_grant_card(&"hero_damage")
+	pc.close_up()  # snapshot: tank 1, hero_damage 1
+	await get_tree().physics_frame
+	GameState.debug_grant_card(&"hero_damage")  # level 2 after the snapshot
+	assert_almost_eq(main.hero.attacker.damage, base * (1.0 + step * 2.0), 1e-5)
+	var t: Guard = main.world.guard_roster.guards[&"tank"]
+	GameState.damage_guard(&"tank", 1e6)  # knocked out at night
+	assert_eq(t.state, Guard.State.DOWN)
+	assert_gt(Balance.data.guards.tank.respawn_s, Balance.ui.banner_time + 0.1, "restore must beat the respawn")
+	GameState.damage_diner(1e6)
+	await _ticks(_fail_ticks())
+	assert_eq(pc.phase, Phase.DAY)
+	assert_eq(t.state, Guard.State.POSTED)
+	assert_eq(t.xz(), MapLayout.guard_post(&"tank"))
+	assert_true(t.visual.visible)
+	assert_almost_eq(t.visual.scale.x, 1.0, 1e-3)
+	assert_eq(float(GameState.guards[&"tank"].hp), GameState.guard_max_hp(&"tank"))
+	assert_eq(GameState.card_level(&"hero_damage"), 1)
+	assert_almost_eq(main.hero.attacker.damage, base * (1.0 + step), 1e-5)
+	assert_false(main.hero.input.blocked)
+	assert_false(main.card_overlay.visible)
+
+func test_new_game_from_the_open_card_pick() -> void:
+	EventBus.wave_cleared.emit(2)
+	assert_true(main.card_overlay.visible)
+	assert_true(main.hero.input.blocked)
+	pc.start_new_game(5)
+	assert_false(main.card_overlay.visible)
+	assert_false(main.hero.input.blocked)
+
+func test_new_game_removes_guards() -> void:
+	GameState.debug_grant_card(&"archer")
+	GameState.debug_grant_card(&"tank")
+	pc.start_new_game(5)
+	await get_tree().process_frame
+	assert_eq(main.world.guard_roster.guards.size(), 0)
+	assert_eq(main.hud.card_strip.text, "")

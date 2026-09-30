@@ -173,3 +173,72 @@ func test_offset_blend_never_crosses_centerline() -> void:
 				var side := (EnemyPath.position_at(lane, d, offset, eb.offset_fade_distance) - base).dot(end_perp)
 				assert_gt(side * want, 1e-3, "%s offset %.2f crosses centerline at d=%.2f (side %.4f)" % [lane, offset, d, side])
 				d += 0.05
+
+func _offsets() -> Array:
+	var s := Balance.data.enemy.lateral_spread
+	return [-s, -s * 0.5, 0.0, s * 0.5, s]
+
+func test_tank_post_on_west_lane() -> void:
+	var p := MapLayout.guard_post(&"tank")
+	assert_almost_eq(p.x, -6.599, 0.01)
+	assert_almost_eq(p.y, -2.654, 0.01)
+
+func test_every_west_boar_comes_within_reach_of_the_tank() -> void:
+	var post := MapLayout.guard_post(&"tank")
+	var r := Balance.data.enemy.reach + Balance.data.guards.tank.body_radius
+	var fade := Balance.data.enemy.offset_fade_distance
+	var length := MapLayout.path_length("west")
+	for off in _offsets():
+		var best := INF
+		var d := 0.0
+		while d <= length:
+			best = minf(best, EnemyPath.position_at("west", d, off, fade).distance_to(post))
+			d += 0.05
+		assert_lte(best, r, "offset %.2f closest %.3f" % [off, best])
+
+func test_tank_is_behind_the_fence_stop_and_hits_fence_held_boars() -> void:
+	var post := MapLayout.guard_post(&"tank")
+	var t := Balance.data.guards.tank
+	var reach := Balance.data.enemy.reach
+	var stop := MapLayout.path_length("west") - MapLayout.FENCE_OFFSET_FROM_END - reach
+	var s := float(Balance.data.enemy.lateral_spread)
+	var fade := Balance.data.enemy.offset_fade_distance
+	assert_gt(Geometry.dist_point_segment(post, EnemyPath.position_at("west", stop, -s, fade), EnemyPath.position_at("west", stop, s, fade)), reach + t.body_radius)
+	for off in _offsets():
+		var q := EnemyPath.position_at("west", stop, off, Balance.data.enemy.offset_fade_distance)
+		var dd := q.distance_to(post)
+		assert_gt(dd, reach + t.body_radius, "a boar at the fence does not target the tank (offset %.2f)" % off)
+		assert_lte(dd, t.attack_range, "the tank reaches a fence-held boar (offset %.2f, %.3f m)" % [off, dd])
+
+func test_tank_range_covers_its_attackers() -> void:
+	var t := Balance.data.guards.tank
+	assert_gte(t.attack_range, Balance.data.enemy.reach + t.body_radius)
+
+func test_archer_covers_lane_ends_and_north_east_fence_stops() -> void:
+	var a := MapLayout.guard_post(&"archer")
+	var rng := Balance.data.guards.archer.attack_range
+	var fade := Balance.data.enemy.offset_fade_distance
+	for lane in ["west", "north", "east"]:
+		for off in _offsets():
+			var e := EnemyPath.position_at(lane, MapLayout.path_length(lane), off, fade)
+			assert_lte(e.distance_to(a), rng, "%s end offset %.2f" % [lane, off])
+	for lane in ["north", "east"]:
+		var stop := MapLayout.path_length(lane) - MapLayout.FENCE_OFFSET_FROM_END - Balance.data.enemy.reach
+		for off in _offsets():
+			assert_lte(EnemyPath.position_at(lane, stop, off, fade).distance_to(a), rng, "%s fence stop" % lane)
+
+func test_tank_return_path_is_clear() -> void:
+	var path := MapLayout.tank_return_path()
+	assert_eq(path[0], MapLayout.DINER_DOOR)
+	assert_eq(path[path.size() - 1], MapLayout.guard_post(&"tank"))
+	var r := Balance.data.guards.tank.body_radius
+	var box := Rect2(-MapLayout.DINER_HALF, -MapLayout.DINER_HALF, MapLayout.DINER_HALF * 2.0, MapLayout.DINER_HALF * 2.0)
+	for i in path.size() - 1:
+		var a: Vector2 = path[i]
+		var b: Vector2 = path[i + 1]
+		var n := int(ceil(a.distance_to(b) / 0.05))
+		for k in n + 1:
+			var p := a.lerp(b, float(k) / float(n))
+			assert_gte(Geometry.dist_point_rect(p, box), r + 0.025, "segment %d clears the diner" % i)
+		for t in MapLayout.TOWER_SPOTS.values():
+			assert_gte(Geometry.dist_point_segment(t, a, b), MapLayout.TOWER_VISUAL_RADIUS + r, "segment %d clears a tower" % i)

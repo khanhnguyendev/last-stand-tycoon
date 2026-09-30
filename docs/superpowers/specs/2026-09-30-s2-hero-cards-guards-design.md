@@ -235,7 +235,7 @@ Pick banners (`tr()`):
 
 ### 6.2 Guard actor (`actors/guards/guard.gd`, plus data per id)
 
-**Components:** `Attacker`, and `Targetable(kind=&"guard")` for ground guards only. HP lives in `GameState.guards`.
+**Components:** `Attacker`. HP lives in `GameState.guards`. Targeting goes through `GuardRoster.guard_target`, so guards carry no `Targetable` component.
 Guards have no collision with the hero (as towers, D-125). The Tank's post is 1.0 m from `fence_w`, inside its 1.2 m
 build zone. The visual overlap is accepted, and building there still works because build zones track the hero only.
 

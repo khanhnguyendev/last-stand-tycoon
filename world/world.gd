@@ -16,6 +16,7 @@ var closeup_sign: CloseUpSign
 var telegraph_markers := {}
 var fly_fx: FlyFx
 var occluder_fade: OccluderFade
+var guard_roster: GuardRoster
 
 @export var enemy_pool: NodePool
 @export var steak_pool: NodePool
@@ -34,6 +35,10 @@ func _ready() -> void:
 	wave_director.setup(enemy_pool, steak_pool)
 	_build_spots()
 	_build_stations()
+	guard_roster = GuardRoster.new()
+	guard_roster.name = "GuardRoster"
+	add_child(guard_roster)
+	guard_roster.setup(self)
 
 func _build_environment() -> void:
 	var sun := DirectionalLight3D.new()
@@ -85,6 +90,8 @@ func _occluder_targets() -> Array:
 	if wave_director != null:
 		for b in wave_director.alive_enemies():
 			out.append((b as Node3D).global_position + Vector3(0, Boar.AIM_HEIGHT, 0))
+	if guard_roster != null:
+		out.append_array(guard_roster.occluder_points())
 	return out
 
 func _build_lanes() -> void:

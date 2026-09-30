@@ -11,7 +11,7 @@ func stats(id: StringName) -> GuardStats:
 
 static func _archer() -> GuardStats:
 	var s := GuardStats.new()
-	s.damage = 6.0
+	s.damage = 4.0
 	s.damage_growth = 0.30
 	s.interval = 0.6
 	s.attack_range = 9.0
