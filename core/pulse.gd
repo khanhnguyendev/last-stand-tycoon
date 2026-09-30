@@ -1,0 +1,17 @@
+class_name Pulse
+extends RefCounted
+## Close-up sign pulse predicate (spec 8.8, D-068). `state` is a GameState.to_dict() dictionary.
+
+static func should_pulse(state: Dictionary, bd: BalanceData) -> bool:
+	for key in ["freezer_steaks", "carried_steaks", "counter_steaks", "gold_pile"]:
+		if int(state[key]) != 0:
+			return false
+	var gold := int(state.gold)
+	for spot_id in state.buildings:
+		var b: Dictionary = state.buildings[spot_id]
+		var cost := Economy.level_cost(spot_id, int(b.level), bd.build)
+		if cost < 0:
+			continue
+		if gold >= cost - int(b.paid):
+			return false
+	return true
