@@ -54,7 +54,7 @@ func read() -> Dictionary:
 		if r.newer:
 			writable = false
 			_warn("a newer build's save was found; autosave is off for this session")
-			return {"ok": false, "state": {}, "source": name, "newer": true}
+			return {"ok": false, "state": {}, "source": "primary" if name == "save" else "backup", "newer": true}
 		if name == "save":
 			_write_key("save_corrupt", text)
 	return {"ok": false, "state": {}, "source": "none", "newer": false}
@@ -63,7 +63,8 @@ func write(text: String) -> bool:
 	if not writable:
 		return false
 	if _last_good_text != "":
-		_write_key("save_bak", _last_good_text)
+		if not _write_key("save_bak", _last_good_text):
+			_warn("backup write failed")
 	var ok := _write_key("save", text)
 	if ok:
 		_last_good_text = text
@@ -85,14 +86,17 @@ func _warn(msg: String) -> void:
 ## Named _read_key/_write_key/_remove_key: _get/_set would override Object's property virtuals.
 func _read_key(name: String) -> String:
 	if _web:
-		var res = JSON.parse_string(str(JavaScriptBridge.eval(js_call("get", key_prefix + name), true)))
+		var raw = JavaScriptBridge.eval(js_call("get", key_prefix + name), true)
+		var j := JSON.new()
+		var res = j.data if j.parse(str(raw)) == OK else null
 		return String(res.value) if typeof(res) == TYPE_DICTIONARY and int(res.ok) == 1 else ""
 	var path := _dir.path_join(name + ".json")
 	return FileAccess.get_file_as_string(path) if FileAccess.file_exists(path) else ""
 
 func _write_key(name: String, text: String) -> bool:
 	if _web:
-		return int(JavaScriptBridge.eval(js_call("set", key_prefix + name, text), true)) == 1
+		var raw = JavaScriptBridge.eval(js_call("set", key_prefix + name, text), true)
+		return typeof(raw) in [TYPE_INT, TYPE_FLOAT] and int(raw) == 1
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_dir))
 	var tmp := _dir.path_join(name + ".json.tmp")
 	var f := FileAccess.open(tmp, FileAccess.WRITE)

@@ -38,6 +38,35 @@ func test_backup_rotation_and_corrupt_primary() -> void:
 	var r := st2.read()
 	assert_eq([r.ok, r.source, int(r.state.gold)], [true, "backup", 1])
 	assert_true(FileAccess.file_exists(dir.path_join("save_corrupt.json")), "the corrupt primary is kept aside")
+	assert_eq(FileAccess.get_file_as_string(dir.path_join("save_corrupt.json")), "{broken")
+
+func test_read_seeds_rotation() -> void:
+	SaveStore.with_dir(dir).write(_text(1))
+	var st := SaveStore.with_dir(dir)
+	assert_true(st.read().ok)
+	st.write(_text(2))
+	var bak := SaveCodec.decode(FileAccess.get_file_as_string(dir.path_join("save_bak.json")), GameState.SCHEMA_VERSION, Balance.data)
+	assert_eq(int(bak.state.gold), 1)
+
+func test_wipe_after_newer_read_restores_writes_and_removes_corrupt() -> void:
+	var s := GameState.to_dict()
+	s.resume_phase = "DAY"
+	s.v = GameState.SCHEMA_VERSION + 1
+	SaveStore.with_dir(dir).write(SaveCodec.encode(s, "future", 1))
+	var st := SaveStore.with_dir(dir)
+	assert_true(st.read().newer)
+	st.wipe()
+	assert_true(st.writable)
+	assert_true(st.write(_text(3)))
+	# a corrupt primary is set aside, then a wipe removes the aside copy
+	var f := FileAccess.open(dir.path_join("save.json"), FileAccess.WRITE)
+	f.store_string("{broken")
+	f.close()
+	var st2 := SaveStore.with_dir(dir)
+	st2.read()
+	assert_true(FileAccess.file_exists(dir.path_join("save_corrupt.json")))
+	st2.wipe()
+	assert_false(FileAccess.file_exists(dir.path_join("save_corrupt.json")))
 
 func test_both_corrupt_is_none() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
@@ -82,6 +111,9 @@ func test_js_call_escapes_keys_and_values() -> void:
 	assert_false(js.contains("\n"), "no raw newline in the JS source")
 	assert_true(js.contains(JSON.stringify("lst:/a/:save")))
 	assert_true(js.contains(JSON.stringify("line1\n\"q\" \\ đêm")))
+	var v := "line1\n\"q\" \\ đêm"
+	assert_true(SaveStore.js_call("set", "k", v).contains(JSON.stringify("k") + "," + JSON.stringify(v)))
+	assert_eq(JSON.parse_string(JSON.stringify(v)), v)
 	assert_true(js.begins_with("(function(){try{"))
 	assert_true(SaveStore.js_call("get", "k").contains("localStorage.getItem("))
 	assert_true(SaveStore.js_call("remove", "k").contains("localStorage.removeItem("))

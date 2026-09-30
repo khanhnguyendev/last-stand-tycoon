@@ -80,6 +80,40 @@ func test_content_rejects_bad_ids_levels_and_phase() -> void:
 	assert_eq(_content(func(s): s.buildings.erase("fence_n")), "content")
 	assert_eq(_content(func(s): s.lane_plan[0].erase("hp_mult")), "content")
 	assert_eq(_content(func(s): s.cards = []), "content")
+	assert_eq(_content(func(s): s.cards["tank"] = -1), "content")
+	assert_eq(_content(func(s): s.cards["tank"] = "x"), "content")
+	assert_eq(_content(func(s): s.buildings["fence_n"] = {"level": 0}), "content")
+	assert_eq(_content(func(s): s.buildings["fence_n"].hp = "x"), "content")
+	assert_eq(_content(func(s): s.buildings["tower_nw"].level = bd.build.max_level + 1), "content")
+	assert_eq(_content(func(s): s.guards["tank"] = {}), "content")
+	assert_eq(_content(func(s): s.card_offer = {}), "content")
+	assert_eq(_content(func(s): s.card_offer = [1]), "content")
+	assert_eq(_content(func(s): s.lane_plan[0] = 1), "content")
+	assert_eq(_content(func(s): s.lane_plan[0].main = "south"), "content")
+	assert_eq(_content(func(s): s.gold = {}), "content")
+	assert_eq(_content(func(s): s.night_fails = -1), "content")
+
+func test_envelope_edge_cases() -> void:
+	var env = JSON.parse_string(SaveCodec.encode(_state(), "abc", 1))
+	env.state_json = 5
+	assert_eq(SaveCodec.decode(JSON.stringify(env), GameState.SCHEMA_VERSION, bd).reason, "check")
+	var x := JSON.stringify({"format": 1, "saved_at_unix": 1, "build": "b", "state_json": "x", "check": Rng.fnv1a32("x")})
+	assert_eq(SaveCodec.decode(x, GameState.SCHEMA_VERSION, bd).reason, "json")
+	var s := _state()
+	s.erase("v")
+	assert_eq(SaveCodec.decode(SaveCodec.encode(s, "abc", 1), GameState.SCHEMA_VERSION, bd).reason, "json")
+	env = JSON.parse_string(SaveCodec.encode(_state(), "abc", 1))
+	env.format = 0
+	var r := SaveCodec.decode(JSON.stringify(env), GameState.SCHEMA_VERSION, bd)
+	assert_eq([r.ok, r.reason, r.newer], [false, "format", false])
+
+func test_migration_that_does_not_raise_v_is_rejected() -> void:
+	var s := _state()
+	s.v = GameState.SCHEMA_VERSION - 1
+	SaveCodec.MIGRATIONS[GameState.SCHEMA_VERSION - 1] = func(st: Dictionary) -> Dictionary: return st
+	var r := SaveCodec.decode(SaveCodec.encode(s, "abc", 1), GameState.SCHEMA_VERSION, bd)
+	SaveCodec.MIGRATIONS.clear()
+	assert_eq([r.ok, r.reason], [false, "version"])
 
 func test_content_rejects_card_pick_with_empty_or_maxed_offer() -> void:
 	assert_eq(_content(func(s): s.card_offer = [], "CARD_PICK"), "content")

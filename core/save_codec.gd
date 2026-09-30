@@ -30,7 +30,7 @@ static func decode(text: String, current_v: int, bd: BalanceData) -> Dictionary:
 		out.reason = "check"
 		return out
 	var state = _parse(env.state_json)
-	if typeof(state) != TYPE_DICTIONARY or not state.has("v"):
+	if typeof(state) != TYPE_DICTIONARY or not state.has("v") or not typeof(state.v) in [TYPE_INT, TYPE_FLOAT]:
 		out.reason = "json"
 		return out
 	var v := int(state.v)
@@ -43,7 +43,13 @@ static func decode(text: String, current_v: int, bd: BalanceData) -> Dictionary:
 			out.reason = "version"
 			return out
 		state = MIGRATIONS[v].call(state)
+		if typeof(state) != TYPE_DICTIONARY or int(state.get("v", v)) <= v:
+			out.reason = "version"
+			return out
 		v = int(state.v)
+	if v != current_v:
+		out.reason = "version"
+		return out
 	if validate(state, bd) != "":
 		out.reason = "content"
 		return out
@@ -64,6 +70,12 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 	for k in STATE_KEYS:
 		if not s.has(k):
 			return "missing %s" % k
+	for k in ["v", "run_seed", "day", "gold", "gold_pile", "freezer_steaks", "counter_steaks", "carried_steaks",
+			"diner_hp", "night_fails"]:
+		if not typeof(s[k]) in [TYPE_INT, TYPE_FLOAT]:
+			return "type %s" % k
+	if int(s.night_fails) < 0 or int(s.day) < 1 or int(s.gold) < 0 or int(s.gold_pile) < 0:
+		return "range"
 	if not String(s.resume_phase) in RESUME_PHASES:
 		return "resume_phase"
 	for k in ["buildings", "cards", "guards"]:
@@ -80,6 +92,9 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 		for f in ["level", "paid", "hp"]:
 			if not typeof(s.buildings[id][f]) in [TYPE_INT, TYPE_FLOAT]:
 				return "building field type %s" % id
+		var bl := int(s.buildings[id].level)
+		if bl < 0 or bl > bd.build.max_level:
+			return "building level %s" % id
 	for id in MapLayout.SPOT_IDS:
 		if not s.buildings.has(id):
 			return "missing building %s" % id
@@ -88,9 +103,15 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 	for w in s.lane_plan:
 		if typeof(w) != TYPE_DICTIONARY or not w.has_all(["main", "side", "main_count", "side_count", "hp_mult"]):
 			return "lane_plan fields"
+		if typeof(w.main) != TYPE_STRING or not String(w.main) in LanePlanner.LANES \
+				or typeof(w.side) != TYPE_STRING or not (String(w.side) == "" or String(w.side) in LanePlanner.LANES):
+			return "lane"
+		for f in ["main_count", "side_count", "hp_mult"]:
+			if not typeof(w[f]) in [TYPE_INT, TYPE_FLOAT]:
+				return "lane fields"
 	var max_level := bd.cards.max_level
 	for id in s.cards:
-		if not StringName(id) in CardCatalog.IDS:
+		if typeof(id) != TYPE_STRING or not StringName(id) in CardCatalog.IDS:
 			return "card %s" % id
 		if not typeof(s.cards[id]) in [TYPE_INT, TYPE_FLOAT]:
 			return "level type %s" % id
@@ -98,10 +119,10 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 		if l < 0 or l > max_level:
 			return "level %s" % id
 	for id in s.card_offer:
-		if not StringName(id) in CardCatalog.IDS:
+		if typeof(id) != TYPE_STRING or not StringName(id) in CardCatalog.IDS:
 			return "offer %s" % id
 	for id in s.guards:
-		if not StringName(id) in CardCatalog.ADVENTURERS:
+		if typeof(id) != TYPE_STRING or not StringName(id) in CardCatalog.ADVENTURERS:
 			return "guard %s" % id
 		if typeof(s.guards[id]) != TYPE_DICTIONARY or not s.guards[id].has("hp") \
 				or not typeof(s.guards[id].hp) in [TYPE_INT, TYPE_FLOAT]:
