@@ -37,6 +37,7 @@ func start_new_game(seed: int = 0) -> void:
 	GameState.new_game(seed)
 	snapshot = GameState.to_dict()
 	snapshot.resume_phase = "NIGHT"
+	EventBus.snapshot_taken.emit(snapshot)
 	EventBus.hero_place_requested.emit(MapLayout.NIGHT1_START)  # D-126: combat comes to a new player
 	EventBus.banner_requested.emit(tr("The monsters return"))
 	_enter_night()
@@ -49,6 +50,7 @@ func close_up() -> void:
 	traveler_spawner.stop()
 	snapshot = GameState.to_dict()
 	snapshot.resume_phase = "DAY"
+	EventBus.snapshot_taken.emit(snapshot)
 	_enter_night()
 
 func _enter_night() -> void:
@@ -77,6 +79,7 @@ func _run_dawn() -> void:
 	_recall_all()                        # projectiles (and later fx) in flight
 	GameState.heal_for_dawn()            # 2
 	GameState.reset_destroyed_fences()   # 3
+	GameState.clear_night_fails()        # a cleared night resets mercy (S3 spec 6)
 	GameState.advance_day()              # 4
 	_card_pick()
 
@@ -114,7 +117,17 @@ func _on_diner_fell() -> void:
 func _on_fail_timer(fail_id: int) -> void:
 	if fail_id != _fail_id:
 		return  # start_new_game() ran meanwhile
+	_fail_restore()
+
+## The one failure path (S3 spec 6, D-175): the restore point carries the new mercy count, a night-1 retry
+## re-emits it (the save gets it), then the S1 restore contract, then the flavor line.
+func _fail_restore() -> void:
+	var fails := int(snapshot.get("night_fails", 0)) + 1
+	snapshot.night_fails = fails
+	if String(snapshot.resume_phase) == "NIGHT":
+		EventBus.snapshot_taken.emit(snapshot)
 	_restore_snapshot()
+	EventBus.banner_requested.emit(tr("The monsters look tired tonight."))
 
 func _restore_snapshot() -> void:
 	wave_director.stop()  # a DAY restore never calls start_night(), which would drop the live boar list
