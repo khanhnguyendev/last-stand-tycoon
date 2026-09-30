@@ -221,8 +221,10 @@ EventBus.banner_requested.emit(tr("The monsters look tired tonight."))
 - `tests/unit/test_restore_world.gd` `test_fail_flow_restore_rebuilds_world`: the same change.
 - `tests/unit/test_hud.gd` `test_second_banner_resets_the_fade`:
   - The second banner now appears after the first has been shortened to `banner_min_s`.
-  - At `banner_min_s + 0.9 × banner_time` after the second emit, the second banner is visible at alpha 1.0 with its
-    text.
+  - Let `r = min(remaining, banner_min_s)`. At `r` plus one frame after the second emit, assert
+    `banner.text == "Two"` at alpha 1.0.
+  - At `r + 0.7 × banner_time`, it is still visible at alpha 1.0.
+  - Worked example: `banner_time` is 2.0 and the test emits "Two" 1.8 s after "One", so `r` is 0.2.
 - `tests/sim/sweep_runner.gd:28-29`: replace the stale "retries replay identically" comment (not true with mercy).
 
 ## 7. Testing
