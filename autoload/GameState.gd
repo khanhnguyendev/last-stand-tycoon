@@ -67,7 +67,7 @@ func from_dict(d: Dictionary) -> void:
 # --- gold and stocks ------------------------------------------------------
 
 func add_gold(n: int) -> void:
-	if n == 0:
+	if n <= 0:
 		return
 	gold += n
 	EventBus.gold_changed.emit(gold, n)
@@ -135,6 +135,7 @@ func remaining_cost(spot_id: String) -> int:
 	return -1 if cost < 0 else cost - int(buildings[spot_id].paid)
 
 func fence_max_hp(level: int) -> float:
+	assert(level >= 1 and level <= Balance.data.build.fence_hp.size(), "fence_max_hp level out of range")
 	return Balance.data.build.fence_hp[level - 1]
 
 func pay_into_spot(spot_id: String, amount: int) -> int:

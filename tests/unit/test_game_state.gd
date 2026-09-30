@@ -29,14 +29,17 @@ func test_round_trip_identity() -> void:
 
 func test_round_trip_through_json_keeps_ints() -> void:
 	# Review Focus 1: S3 will serialize; JSON turns ints into floats.
+	# Full precision (4th arg of stringify) is required: the default drops float digits.
 	GameState.add_gold(1000)
 	GameState.pay_into_spot("fence_w", GameState.next_level_cost("fence_w"))
 	GameState.advance_day()
+	GameState.damage_diner(1.0 / 3.0)
 	var d := GameState.to_dict()
-	var parsed: Dictionary = JSON.parse_string(JSON.stringify(d))
+	var parsed: Dictionary = JSON.parse_string(JSON.stringify(d, "", true, true))
 	GameState.new_game(1)
 	GameState.from_dict(parsed)
 	assert_eq(GameState.to_dict(), d)
+	assert_eq(GameState.diner_hp, d.diner_hp, "float survives JSON exactly")
 	assert_eq(typeof(GameState.gold), TYPE_INT)
 	assert_eq(typeof(GameState.buildings.fence_w.level), TYPE_INT)
 	assert_eq(typeof(GameState.lane_plan[0].main_count), TYPE_INT)
@@ -44,6 +47,11 @@ func test_round_trip_through_json_keeps_ints() -> void:
 func test_from_dict_emits_state_restored() -> void:
 	watch_signals(EventBus)
 	GameState.from_dict(GameState.to_dict())
+	assert_signal_emitted(EventBus, "state_restored")
+
+func test_new_game_emits_state_restored() -> void:
+	watch_signals(EventBus)
+	GameState.new_game(7)
 	assert_signal_emitted(EventBus, "state_restored")
 
 func test_carry_capacity_and_transfers() -> void:
