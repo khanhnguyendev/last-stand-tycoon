@@ -1,0 +1,125 @@
+extends GutTest
+
+var main: Main
+var hud: Hud
+
+func before_each() -> void:
+	Balance.reset()
+	main = Main.create()
+	add_child_autofree(main)
+	main.hero.input.player_control = false
+	main.phase_controller.start_new_game(81)
+	hud = main.hud
+
+func test_gold_label_follows_gold() -> void:
+	GameState.add_gold(42)
+	assert_eq(hud.gold_label.text, "42")
+
+func test_moons_fill_and_reset() -> void:
+	EventBus.wave_cleared.emit(0)
+	EventBus.wave_cleared.emit(1)
+	assert_eq(hud.filled_moons(), 2)
+	EventBus.phase_changed.emit(Phase.NIGHT, 2)
+	assert_eq(hud.filled_moons(), 0)
+
+func test_day_label_and_moons_visibility() -> void:
+	main.phase_controller.debug_skip_to_day()
+	assert_true(hud.day_label.visible)
+	assert_eq(hud.day_label.text, "Day 2")
+	assert_false(hud.moons[0].visible)
+	assert_false(hud.arrows.main.visible)
+	assert_false(hud.arrows.side.visible)
+
+func test_arrows_hidden_when_night_ends_mid_wave() -> void:
+	EventBus.wave_incoming.emit(1, &"west", &"east")
+	assert_true(hud.arrows.main.visible)
+	EventBus.phase_changed.emit(Phase.DAY, 2)
+	assert_false(hud.arrows.main.visible)
+	assert_false(hud.arrows.side.visible)
+	await get_tree().process_frame
+	assert_false(hud.arrows.main.visible)
+
+func test_moons_match_lane_plan() -> void:
+	EventBus.phase_changed.emit(Phase.NIGHT, 1)
+	assert_eq(hud.moons.size(), GameState.lane_plan.size())
+
+func test_diner_bar() -> void:
+	var max_hp := Balance.data.build.diner_max_hp
+	GameState.damage_diner(30.0)
+	assert_almost_eq(hud.diner_bar.value, max_hp - 30.0, 0.001)
+	GameState.from_dict(main.phase_controller.snapshot)
+	assert_almost_eq(hud.diner_bar.value, max_hp, 0.001)
+
+func test_banner_shows_then_hides() -> void:
+	EventBus.banner_requested.emit("Dawn")
+	assert_true(hud.banner.visible)
+	assert_eq(hud.banner.text, "Dawn")
+	for i in int(Balance.ui.banner_time * 60) + 30:
+		await get_tree().process_frame
+	assert_false(hud.banner.visible)
+
+func test_arrows_follow_wave_events_and_stay_on_screen() -> void:
+	EventBus.wave_incoming.emit(1, &"west", &"east")
+	await get_tree().process_frame
+	assert_true(hud.arrows.main.visible)
+	assert_true(hud.arrows.side.visible)
+	var rect := hud.root.get_viewport_rect()
+	assert_true(rect.has_point(hud.arrows.main.position))
+	assert_lt(hud.arrows.side.scale.x, hud.arrows.main.scale.x)
+	EventBus.wave_spawned_out.emit(1)
+	assert_false(hud.arrows.main.visible)
+
+func test_safe_area_insets_non_negative_and_applied() -> void:
+	var ins := SafeArea.insets(Vector2(720, 1280))
+	for k in ["top", "bottom", "left", "right"]:
+		assert_true(float(ins[k]) >= 0.0, k)
+	assert_eq(hud.root.offset_top, float(ins.top))
+
+func test_safe_area_reapplied_on_resize() -> void:
+	hud.root.offset_top = 999.0
+	hud.root.offset_left = 999.0
+	hud.get_viewport().size_changed.emit()
+	var ins := SafeArea.insets(hud.root.get_viewport_rect().size)
+	assert_eq(hud.root.offset_top, float(ins.top))
+	assert_eq(hud.root.offset_left, float(ins.left))
+
+func test_offscreen_arrow_is_pinned_inside_root_space() -> void:
+	var cam := main.camera_rig.camera
+	var margin := Balance.ui.arrow_edge_margin
+	var grown := hud.root.get_global_rect().grow(-margin)
+	var far := ""
+	for k in main.world.lanes:
+		var pos: Vector3 = main.world.lanes[k].entrance_position()
+		if cam.is_position_behind(pos) or not grown.has_point(cam.unproject_position(pos)):
+			far = String(k)
+	assert_ne(far, "", "a lane entrance is off-screen")
+	EventBus.wave_incoming.emit(1, &"west", StringName(far))
+	await get_tree().process_frame
+	var arrow: Polygon2D = hud.arrows.side
+	var g := arrow.position + hud.root.position
+	assert_true(hud.root.get_global_rect().has_point(g))
+	var d := minf(minf(absf(g.x - grown.position.x), absf(g.x - grown.end.x)), minf(absf(g.y - grown.position.y), absf(g.y - grown.end.y)))
+	assert_lt(d, 1.0)
+
+func test_banner_is_horizontally_centred_and_wraps() -> void:
+	assert_eq(hud.banner.anchor_left, 0.0)
+	assert_eq(hud.banner.anchor_right, 1.0)
+	assert_almost_eq(hud.banner.anchor_top, 0.4, 0.0001)
+	assert_almost_eq(hud.banner.anchor_bottom, 0.4, 0.0001)
+	assert_eq(hud.banner.offset_left, 0.0)
+	assert_eq(hud.banner.offset_right, 0.0)
+	assert_eq(hud.banner.autowrap_mode, TextServer.AUTOWRAP_WORD_SMART)
+
+func test_top_column_is_centred_at_any_width() -> void:
+	var col := hud.diner_bar.get_parent().get_parent() as Control
+	assert_eq(col.anchor_left, 0.5)
+	assert_eq(col.anchor_right, 0.5)
+	assert_eq(col.anchor_top, 0.0)
+	assert_eq(col.grow_horizontal, Control.GROW_DIRECTION_BOTH)
+
+func test_diner_bar_shake_returns_to_rest() -> void:
+	GameState.damage_diner(5.0)
+	GameState.damage_diner(5.0)
+	for i in int(Balance.ui.diner_bar_shake_time * 60 * 2) + 10:
+		await get_tree().process_frame
+	assert_eq(hud.diner_bar.position.x, 0.0)

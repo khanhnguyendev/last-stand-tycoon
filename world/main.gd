@@ -18,6 +18,7 @@ var hero: Hero
 var camera_rig: CameraRig
 var joystick: Joystick
 var focus_pause: FocusPause
+var hud: Hud
 
 func _ready() -> void:
 	focus_pause = FocusPause.new()
@@ -31,6 +32,10 @@ func _ready() -> void:
 	camera_rig.name = "CameraRig"
 	add_child(camera_rig)
 	camera_rig.setup(hero)
+	hud = Hud.new()
+	hud.name = "Hud"
+	hud.setup(self)
+	add_child(hud)
 	var input_layer := CanvasLayer.new()
 	input_layer.name = "InputLayer"
 	input_layer.layer = 5
