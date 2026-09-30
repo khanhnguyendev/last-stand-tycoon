@@ -1,27 +1,22 @@
 extends GutTest
-## Task 32: overlays, build label and the CP2 occluder-alpha picker (D-151). Tests that need main.gd's
-## D-139 wiring report pending until the main session applies /tmp/lst-t32-wiring.patch.
-
-const OVERLAY := "res://ui/debug/debug_overlay.gd"
+## Task 32: overlays, build label and the CP2 occluder-alpha picker (D-151). Picker tests go through the
+## overlay Main itself adds (debug builds), so they also prove it is added after InputLayer.
 
 func before_each() -> void:
 	Balance.reset()
-
-func _main_wired() -> bool:
-	return FileAccess.get_file_as_string("res://world/main.gd").contains("BuildLabel")
-
-func _overlay_on(main: Main) -> CanvasLayer:
-	var o: CanvasLayer = load(OVERLAY).new()
-	main.add_child(o)  # after InputLayer, like the wiring: it sees _input before the joystick
-	o.setup(main)
-	return o
 
 func _touch(vp: Viewport, pos: Vector2, pressed: bool, index := 0) -> void:
 	var e := InputEventScreenTouch.new()
 	e.index = index
 	e.position = pos
 	e.pressed = pressed
-	vp.push_input(e, true)  # local coords: headless window scaling would move the point
+	vp.push_input(e, true)  # local coords: the headless window would rescale the point
+
+func _main_with_overlay() -> Array:
+	var main := Main.create()
+	add_child_autofree(main)
+	main.hero.input.player_control = false
+	return [main, main.get_node_or_null("DebugOverlay")]
 
 func test_perf_overlay_stats() -> void:
 	var p := PerfOverlay.new()
@@ -47,7 +42,8 @@ func test_debug_overlay_hotkey_gold() -> void:
 	var main := Main.create()
 	add_child_autofree(main)
 	main.phase_controller.start_new_game(101)
-	var o := _overlay_on(main)
+	var o := main.get_node_or_null("DebugOverlay")
+	assert_not_null(o)
 	o.handle_key(KEY_G)
 	assert_eq(GameState.gold, 100)
 
@@ -66,27 +62,27 @@ func test_build_label_off_web_is_dev() -> void:
 	assert_eq(l.get_theme_font_size("font_size"), 14)
 
 func test_main_adds_build_label_once() -> void:
-	if not _main_wired():
-		pending("awaiting D-139 wiring of main.gd")
-		return
 	var main := Main.create()
 	add_child_autofree(main)
 	assert_eq(main.get_children().filter(func(c): return c is BuildLabel).size(), 1)
 
-func test_main_wiring_gates_overlays() -> void:
+func test_main_gates_overlays_by_build_and_feature() -> void:
 	var src := FileAccess.get_file_as_string("res://world/main.gd")
-	if not _main_wired():
-		pending("awaiting D-139 wiring of main.gd")
-		return
 	assert_true(src.contains("profile_overlay"))
 	assert_true(src.contains("OS.is_debug_build()"))
 
-# --- occluder-alpha picker (D-151) ---
+func test_d157_export_keeps_tres_as_text() -> void:
+	assert_false(ProjectSettings.get_setting("editor/export/convert_text_resources_to_binary", true),
+		"D-157: export must keep .tres as text")
+
+# --- occluder-alpha picker (D-151); debug builds only ---
 
 func test_fade_alpha_cycles_three_values_and_writes_balance() -> void:
-	var main := Main.create()
-	add_child_autofree(main)
-	var o := _overlay_on(main)
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var o: Node = _main_with_overlay()[1]
+	assert_not_null(o)
 	assert_almost_eq(Balance.ui.occluder_alpha, 0.30, 1e-4)
 	o.cycle_occluder_alpha()
 	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4)
@@ -95,33 +91,48 @@ func test_fade_alpha_cycles_three_values_and_writes_balance() -> void:
 	o.cycle_occluder_alpha()
 	assert_almost_eq(Balance.ui.occluder_alpha, 0.30, 1e-4)
 
-func test_o_key_cycles_and_button_shows_value() -> void:
-	var main := Main.create()
-	add_child_autofree(main)
-	var o := _overlay_on(main)
+func test_real_o_key_event_cycles_exactly_once_and_button_shows_value() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	var o: Node = pair[1]
 	assert_eq(o.fade_button.text, "Fade alpha 0.30")
-	o.handle_key(KEY_O)
+	var e := InputEventKey.new()
+	e.physical_keycode = KEY_O
+	e.keycode = KEY_O
+	e.pressed = true
+	main.get_viewport().push_input(e, true)
 	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4)
 	assert_eq(o.fade_button.text, "Fade alpha 0.45")
 
-func test_active_occluder_fade_uses_new_alpha() -> void:
-	var main := Main.create()
-	add_child_autofree(main)
-	main.hero.input.player_control = false
+func test_active_occluder_fade_follows_live_alpha_change() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	var o: Node = pair[1]
 	main.phase_controller.start_new_game(72)
-	var o := _overlay_on(main)
-	o.handle_key(KEY_O)  # 0.45
 	main.hero.teleport((MapLayout.ZONE_RECTS["north"] as Rect2).get_center())
 	main.camera_rig.snap()
 	for i in 40:
 		await get_tree().process_frame
 	assert_true(main.world.occluder_fade.is_faded())
+	assert_almost_eq(main.world.occluder_fade.current_alpha(), 0.30, 1e-3)
+	o.cycle_occluder_alpha()
+	for i in 40:
+		await get_tree().process_frame
 	assert_almost_eq(main.world.occluder_fade.current_alpha(), 0.45, 1e-3)
 
 func test_button_rect_is_bottom_right_inside_safe_area_clear_of_edge_strips() -> void:
-	var main := Main.create()
-	add_child_autofree(main)
-	var o := _overlay_on(main)
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	var o: Node = pair[1]
 	var vp := main.get_viewport().get_visible_rect().size
 	var r: Rect2 = o.button_rect()
 	var ins := SafeArea.insets(vp)
@@ -131,35 +142,48 @@ func test_button_rect_is_bottom_right_inside_safe_area_clear_of_edge_strips() ->
 	assert_gt(r.position.y, vp.y * 0.75, "bottom quarter")
 
 func test_touch_on_button_cycles_and_does_not_start_the_stick() -> void:
-	var main := Main.create()
-	add_child_autofree(main)
-	main.hero.input.player_control = false
-	var o := _overlay_on(main)
-	var vp := main.get_viewport()
-	var c: Vector2 = o.button_rect().get_center()
-	_touch(vp, c, true)
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	var c: Vector2 = pair[1].button_rect().get_center()
+	_touch(main.get_viewport(), c, true)
 	assert_false(main.joystick.is_active(), "a press on the button must not start the stick")
 	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4, "press cycles once")
-	_touch(vp, c, false)
+	_touch(main.get_viewport(), c, false)
 	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4, "release does not cycle")
 
+func test_stick_released_over_button_still_ends() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	_touch(main.get_viewport(), Vector2(200, 700), true)
+	assert_true(main.joystick.is_active())
+	_touch(main.get_viewport(), pair[1].button_rect().get_center(), false)
+	assert_false(main.joystick.is_active(), "the stick's release must not be swallowed by the button")
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.30, 1e-4, "no cycle")
+
 func test_touch_elsewhere_still_starts_the_stick() -> void:
-	var main := Main.create()
-	add_child_autofree(main)
-	main.hero.input.player_control = false
-	_overlay_on(main)
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var main: Main = _main_with_overlay()[0]
 	_touch(main.get_viewport(), Vector2(200, 700), true)
 	assert_true(main.joystick.is_active())
 	_touch(main.get_viewport(), Vector2(200, 700), false)
 
 func test_mouse_click_on_button_cycles_once_and_skips_stick() -> void:
-	var main := Main.create()
-	add_child_autofree(main)
-	main.hero.input.player_control = false
-	var o := _overlay_on(main)
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
 	var e := InputEventMouseButton.new()
 	e.button_index = MOUSE_BUTTON_LEFT
-	e.position = o.button_rect().get_center()
+	e.position = pair[1].button_rect().get_center()
 	e.pressed = true
 	main.get_viewport().push_input(e, true)
 	assert_false(main.joystick.is_active())

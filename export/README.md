@@ -5,6 +5,7 @@ Presets (export_presets.cfg): `web_debug` (debug template, debug overlay + hotke
 All single-threaded (no COOP/COEP headers needed) with the custom shell `export/web_shell.html`.
 
 ```bash
+mkdir -p build && touch build/.gdignore   # keeps old exports out of the project scan and the pack
 "$GODOT" --headless --path . --export-release "web_release" build/web_release/index.html
 cd build/web_release && python3 -m http.server 8000 --bind 127.0.0.1   # desktop check only: http://localhost:8000/ (localhost is a secure context)
 ```

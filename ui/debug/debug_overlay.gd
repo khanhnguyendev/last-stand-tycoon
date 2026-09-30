@@ -10,8 +10,13 @@ const BUTTON_MARGIN := 24.0
 
 var fade_button: Button
 var _main: Main
+var _rect := Rect2()
+var _owned := {}
 var _label: Label
 var _warnings: Array = []
+
+func _init() -> void:
+	name = "DebugOverlay"
 
 func setup(main: Main) -> void:
 	_main = main
@@ -51,7 +56,8 @@ func button_rect() -> Rect2:
 	return Rect2(Vector2(right - BUTTON_SIZE.x, bottom - BUTTON_SIZE.y), BUTTON_SIZE)
 
 func _place_button() -> void:
-	var r := button_rect()
+	_rect = button_rect()
+	var r := _rect
 	fade_button.position = r.position
 	fade_button.size = r.size
 
@@ -68,23 +74,28 @@ func cycle_occluder_alpha() -> void:
 	_refresh_button()
 
 ## Runs before the joystick's _input (this node is added after InputLayer; _input goes last-added first),
-## so a press on the button is consumed here and never starts the stick. Release is consumed too.
+## so a press on the button is consumed here and never starts the stick. A release is consumed only when
+## this button owns that finger, so the release of a stick touch that ends over the button still reaches
+## the joystick.
 func _input(event: InputEvent) -> void:
-	var pos := Vector2.ZERO
+	var idx := -1
 	var pressed := false
 	if event is InputEventScreenTouch:
-		pos = event.position
+		idx = event.index
 		pressed = event.pressed
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		pos = event.position
 		pressed = event.pressed
 	else:
 		return
-	if not button_rect().has_point(pos):
+	if event.device == InputEvent.DEVICE_ID_EMULATION:
 		return
 	if pressed:
-		cycle_occluder_alpha()
-	get_viewport().set_input_as_handled()
+		if _rect.has_point(event.position):
+			_owned[idx] = true
+			cycle_occluder_alpha()
+			get_viewport().set_input_as_handled()
+	elif _owned.erase(idx):
+		get_viewport().set_input_as_handled()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
