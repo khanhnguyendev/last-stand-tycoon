@@ -1,7 +1,7 @@
 class_name TargetProviders
 extends RefCounted
 ## Target kinds by name (D-004, D-049). Enemies ask kinds in Balance.wave.target_priority order.
-## S2 registers &"guard" here without touching Boar.
+## S2 registers &"guard" here (GuardRoster); Boar gained one match arm for it (S2 spec 7).
 
 var _providers := {}
 

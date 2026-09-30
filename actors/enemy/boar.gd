@@ -85,6 +85,8 @@ func _physics_process(delta: float) -> void:
 		match current_target.kind:
 			&"fence_on_lane":
 				GameState.damage_fence(current_target.spot_id, eb.damage)
+			&"guard":
+				GameState.damage_guard(current_target.guard_id, eb.damage)
 			&"diner":
 				GameState.damage_diner(eb.damage)
 
