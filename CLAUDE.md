@@ -71,5 +71,6 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - EventBus = cross-system events only; local signals inside a system.
 - Every number in `balance/`; every user string through `tr()`.
 - Ties broken by `spawn_index`, never node order.
+- Edit `world/main.tscn` by hand only; never save it from the Godot editor (the editor rewrites the header and uids, and later plan tasks give its full text).
 - `./run_tests.sh` fails on GUT errors as well as failed asserts, including any `SCRIPT ERROR`. Don't write tests that expect engine errors.
 - Sims and tests read state at matching points after `await get_tree().physics_frame`; `physics_frame` fires before the nodes' `_physics_process` (D-118).

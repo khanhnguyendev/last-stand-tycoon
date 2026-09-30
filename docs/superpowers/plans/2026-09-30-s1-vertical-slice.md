@@ -660,6 +660,7 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - EventBus = cross-system events only; local signals inside a system.
 - Every number in `balance/`; every user string through `tr()`.
 - Ties broken by `spawn_index`, never node order.
+- Edit `world/main.tscn` by hand only; never save it from the Godot editor (the editor rewrites the header and uids, and later plan tasks give its full text).
 - `./run_tests.sh` fails on GUT errors as well as failed asserts, including any `SCRIPT ERROR`. Don't write tests that expect engine errors.
 - Sims and tests read state at matching points after `await get_tree().physics_frame`; `physics_frame` fires before the nodes' `_physics_process` (D-118).
 ```
@@ -3435,10 +3436,13 @@ func before_each() -> void:
 func test_main_builds_world_without_starting() -> void:
 	var main := Main.create()
 	add_child_autofree(main)
+	assert_false(main.auto_start)
 	assert_not_null(main.world)
 	assert_eq(main.world.lanes.size(), 3)
 	assert_not_null(main.world.diner_body)
-	var shape: BoxShape3D = main.world.diner_body.get_child(0).shape
+	assert_eq(main.world.diner_body.collision_layer, 1)
+	assert_eq(main.world.diner_body.collision_mask, 0)
+	var shape: BoxShape3D = main.world.diner_body.find_children("*", "CollisionShape3D", false, false)[0].shape
 	assert_eq(shape.size, Vector3(8, 3, 8))
 
 func test_lane_curve_matches_layout() -> void:
@@ -3521,9 +3525,11 @@ func _build_environment() -> void:
 func _build_ground() -> void:
 	var size := MapLayout.BOUNDS_MAX - MapLayout.BOUNDS_MIN
 	var ground := Visuals.plane(size, Visuals.COLORS.ground)
+	ground.name = "Ground"
 	ground.position = MapLayout.to3((MapLayout.BOUNDS_MIN + MapLayout.BOUNDS_MAX) * 0.5)
 	add_child(ground)
 	var road := Visuals.box(Vector3(size.x, 0.02, 2.0), Visuals.COLORS.road)
+	road.name = "Road"
 	road.position = Vector3(0, 0.01, MapLayout.ROAD_Z)
 	add_child(road)
 
