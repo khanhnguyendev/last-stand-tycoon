@@ -1331,5 +1331,9 @@ falls and the night restarts identically.
     4–6 min criterion in the human playtest.
   - S2 (cards, adventurer guards) and S5 (onboarding) change cycle length anyway, so the criterion is re-measured at
     the final review.
+- `count_growth` was also considered, since it is the only knob that adds combat without touching night 1. It fails
+  too: day 2 is already paced by traveler arrivals (about 2.6 s per steak against the 2.5 s interval), and closing the
+  41 s needs g ≈ 0.8. That breaks the unspent-gold condition and pulls the break day earlier; D-156 hands wave scaling
+  to S2 anyway.
 - Reversible: in REVIEW_QUEUE. The knob is `traveler_interval`, and 4.4 to 4.6 is the usable band (5.0 stalls the sweep).
 - The only S1 default change in Task 35 is `UiTuning.occluder_alpha` 0.3 → 0.45 (D-159).
