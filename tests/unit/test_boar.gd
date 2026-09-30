@@ -126,3 +126,16 @@ func test_pool_sizes_from_balance() -> void:
 	# PINNED REFERENCE: spec 11 at the default Balance (D-124: steaks from the CAPPED day-10 counts
 	# 17 + 25 + 30). If Task 35 changes a wave or economy value, update this row and spec 11 together.
 	assert_eq(World.pool_sizes(Balance.data), {"enemy": 40, "steak": 173, "projectile": 24, "fx": 32})
+
+func test_guard_arm_damages_the_guard_and_stops_the_boar() -> void:
+	GameState.debug_grant_card(&"tank")
+	var stop := 10.0
+	dir.providers.register(&"guard", func(e): return {"kind": &"guard", "guard_id": &"tank"} if e.dist >= stop else {})
+	Balance.data.wave.target_priority.kinds.assign([&"fence_on_lane", &"guard", &"diner"])
+	var b := _boar("north")
+	_step(b, stop / Balance.data.enemy.speed + 0.1)
+	var held := b.dist
+	assert_gte(held, stop)
+	_step(b, Balance.data.enemy.attack_interval)
+	assert_almost_eq(b.dist, held, 1e-4, "a boar with a guard target stops advancing")
+	assert_eq(float(GameState.guards[&"tank"].hp), GameState.guard_max_hp(&"tank") - Balance.data.enemy.damage)
