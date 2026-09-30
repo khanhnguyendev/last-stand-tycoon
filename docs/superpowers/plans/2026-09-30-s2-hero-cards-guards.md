@@ -292,7 +292,7 @@ func test_every_card_has_text_and_glyph() -> void:
 
 func test_level_and_banner_text() -> void:
 	assert_eq(CardCatalog.level_text(0), "NEW")
-	assert_eq(CardCatalog.level_text(2), "Lv 2 → 3")
+	assert_eq(CardCatalog.level_text(2), "Lv 2 » 3")
 	assert_eq(CardCatalog.pick_banner(&"archer", 1), "The Archer joins!")
 	assert_eq(CardCatalog.pick_banner(&"tank", 3), "Tank Lv 3")
 	assert_eq(CardCatalog.pick_banner(&"move_speed", 2), "Running Shoes Lv 2")
@@ -393,7 +393,7 @@ static func effect_text(id: StringName, cb: CardBalance) -> String:
 static func level_text(current_level: int) -> String:
 	if current_level <= 0:
 		return TranslationServer.translate("NEW")
-	return TranslationServer.translate("Lv %d → %d") % [current_level, current_level + 1]
+	return TranslationServer.translate("Lv %d » %d") % [current_level, current_level + 1]
 
 static func pick_banner(id: StringName, new_level: int) -> String:
 	if kind(id) == &"adventurer" and new_level == 1:
@@ -1412,7 +1412,7 @@ func test_layout_fits_landscape_and_two_cards() -> void:
 In `tests/unit/test_glyphs.gd`, change the sample to `const SAMPLE := "Quán ăn mở cửa — Đêm thứ 3 → 4"`.
 
 - [ ] **Step 2: Run them and see them fail.** Run `./run_tests.sh unit`. Expected: FAIL; `CardPickOverlay` is not declared.
-  - If `test_glyphs` fails on "→" once the rest passes, Nunito lacks U+2192. In that case, change `CardCatalog.level_text` to `"Lv %d > %d"`, revert the sample, update the Task 2 test pin, and report it.
+  - If `test_glyphs` fails on "→" once the rest passes, Nunito lacks U+2192. In that case, change `CardCatalog.level_text` to `"Lv %d » %d"` (Nunito has U+00BB; the shipped choice), revert the sample, update the Task 2 test pin, and report it.
 
 - [ ] **Step 3: Implement.** `ui/card_pick/card_pick_overlay.gd`:
 ```gdscript
