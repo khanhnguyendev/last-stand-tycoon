@@ -2469,7 +2469,7 @@ func test_boar_visible_two_seconds_before_range() -> void:
 	var eb := Balance.data.enemy
 	var hero_range := Balance.data.hero.attack_range
 	var dt := 1.0 / 60.0
-	for aspect in [CameraMath.ASPECT, 16.0 / 9.0]:
+	for aspect in [0.30, CameraMath.ASPECT_MIN, CameraMath.ASPECT, 16.0 / 9.0, CameraMath.ASPECT_MAX, 32.0 / 9.0]:
 		var proj := CameraMath.projection(ui, aspect)
 		for lane in LanePlanner.LANES:
 			var length := MapLayout.path_length(lane)
@@ -2500,7 +2500,8 @@ func test_projection_matches_godot_camera() -> void:
 	var ui := Balance.ui
 	# Round trip: the portrait vertical FOV reproduces the horizontal FOV at 9:16.
 	assert_almost_eq(tan(deg_to_rad(CameraMath.portrait_fov_v(ui)) / 2.0) * CameraMath.ASPECT, tan(deg_to_rad(ui.camera_fov_h) / 2.0), 1e-6)
-	for size in [Vector2i(720, 1280), Vector2i(1280, 720)]:
+	# 384x1280 (0.30) and 4096x1152 (32:9) exercise the clamped branches.
+	for size in [Vector2i(720, 1280), Vector2i(1280, 720), Vector2i(384, 1280), Vector2i(4096, 1152)]:
 		var vp := SubViewport.new()
 		vp.size = size
 		add_child_autofree(vp)
@@ -2513,6 +2514,18 @@ func test_projection_matches_godot_camera() -> void:
 		for c in 4:
 			for r in 4:
 				assert_almost_eq(got[c][r], want[c][r], 1e-4, "%s [%d][%d]" % [size, c, r])
+
+func test_lens_clamp_and_continuity() -> void:
+	var ui := Balance.ui
+	# Below ASPECT_MIN and above ASPECT_MAX the lens is clamped.
+	assert_almost_eq(CameraMath.projection(ui, 0.30)[1][1], CameraMath.projection(ui, CameraMath.ASPECT_MIN)[1][1], 1e-4)
+	assert_almost_eq(CameraMath.projection(ui, 32.0 / 9.0)[0][0], CameraMath.projection(ui, CameraMath.ASPECT_MAX)[0][0], 1e-4)
+	# The lens is continuous across the 9:16 and 21:9 branch switches.
+	for edge in [CameraMath.ASPECT, CameraMath.ASPECT_MAX]:
+		var lo := CameraMath.projection(ui, edge - 1e-4)
+		var hi := CameraMath.projection(ui, edge + 1e-4)
+		assert_almost_eq(lo[0][0], hi[0][0], 1e-3, "[0][0] at %.4f" % edge)
+		assert_almost_eq(lo[1][1], hi[1][1], 1e-3, "[1][1] at %.4f" % edge)
 ```
 
 - [ ] **Step 2: Run it and see it fail**
@@ -2530,6 +2543,8 @@ extends RefCounted
 ## Camera placement and projection shared by CameraRig and tests (D-071, D-090, D-112).
 
 const ASPECT := 720.0 / 1280.0
+const ASPECT_MIN := 9.0 / 21.0
+const ASPECT_MAX := 21.0 / 9.0
 const FOCUS_MIN := Vector2(-17, -20)
 const FOCUS_MAX := Vector2(17, 8)
 const Z_NEAR := 0.1
@@ -2544,29 +2559,48 @@ static func camera_transform(focus: Vector2, ui: UiTuning) -> Transform3D:
 	var pos := target + Vector3(0.0, sin(pitch), cos(pitch)) * ui.camera_distance
 	return Transform3D(Basis(), pos).looking_at(target, Vector3.UP)
 
+## D-153 (extends D-145): the supported window aspect range is [ASPECT_MIN, ASPECT_MAX] = 9:21 .. 21:9.
+## Outside it the view is clamped, never stretched: narrower than 9:21 keeps the vertical FOV of 9:21
+## (KEEP_HEIGHT, so the view never gets taller); wider than 21:9 keeps the horizontal FOV of 21:9
+## (KEEP_WIDTH, so the view never gets wider). The ground therefore only has to cover that range.
+## True when the lens keeps the horizontal FOV (Camera3D.KEEP_WIDTH): from 9:21 up to 9:16 (D-145)
+## and beyond 21:9 (D-153). False (KEEP_HEIGHT) between 9:16 and 21:9 and below 9:21.
 static func keeps_width(aspect: float) -> bool:
-	return aspect <= ASPECT + 1e-6
+	if aspect < ASPECT_MIN:
+		return false
+	return aspect <= ASPECT + 1e-6 or aspect > ASPECT_MAX
 
-## Vertical FOV (degrees) of the portrait view; wider windows keep it with KEEP_HEIGHT (D-145).
+## Vertical FOV (degrees) of the portrait view; kept with KEEP_HEIGHT from 9:16 to 21:9 (D-153).
 static func portrait_fov_v(ui: UiTuning) -> float:
 	return rad_to_deg(2.0 * atan(tan(deg_to_rad(ui.camera_fov_h) / 2.0) / ASPECT))
 
-## D-145: KEEP_WIDTH up to 9:16; wider windows keep the portrait vertical FOV (KEEP_HEIGHT).
-## CameraRig (Task 28) must use keeps_width() for Camera3D.keep_aspect and the matching fov.
-static func projection(ui: UiTuning, aspect: float = ASPECT) -> Projection:
-	if keeps_width(aspect):
-		# flip_fov = true: camera_fov_h is horizontal, matching Camera3D.KEEP_WIDTH.
-		return Projection.create_perspective(ui.camera_fov_h, aspect, Z_NEAR, Z_FAR, true)
-	return Projection.create_perspective(portrait_fov_v(ui), aspect, Z_NEAR, Z_FAR, false)
+## Vertical FOV (degrees) used below ASPECT_MIN: the one 9:21 shows with KEEP_WIDTH (D-153).
+static func tallest_fov_v(ui: UiTuning) -> float:
+	return rad_to_deg(2.0 * atan(tan(deg_to_rad(ui.camera_fov_h) / 2.0) / ASPECT_MIN))
 
-## D-145: sets keep_aspect, fov, near and far on a real Camera3D for the given viewport aspect.
+## Horizontal FOV (degrees) used above ASPECT_MAX: the one 21:9 shows with KEEP_HEIGHT (D-153).
+static func widest_fov_h(ui: UiTuning) -> float:
+	return rad_to_deg(2.0 * atan(tan(deg_to_rad(portrait_fov_v(ui)) / 2.0) * ASPECT_MAX))
+
+## Field of view (degrees) matching keeps_width(aspect): horizontal when true, vertical when false.
+static func lens_fov(ui: UiTuning, aspect: float) -> float:
+	if aspect < ASPECT_MIN:
+		return tallest_fov_v(ui)
+	if aspect > ASPECT_MAX:
+		return widest_fov_h(ui)
+	return ui.camera_fov_h if keeps_width(aspect) else portrait_fov_v(ui)
+
+## D-145/D-153: KEEP_WIDTH from 9:21 to 9:16, KEEP_HEIGHT (portrait vertical FOV) from 9:16 to 21:9,
+## clamped outside 9:21..21:9. CameraRig (Task 28) must use keeps_width() and lens_fov() (or apply_lens).
+static func projection(ui: UiTuning, aspect: float = ASPECT) -> Projection:
+	var keep_w := keeps_width(aspect)
+	# flip_fov = true: the fov is horizontal, matching Camera3D.KEEP_WIDTH.
+	return Projection.create_perspective(lens_fov(ui, aspect), aspect, Z_NEAR, Z_FAR, keep_w)
+
+## D-145/D-153: sets keep_aspect, fov, near and far on a real Camera3D for the given viewport aspect.
 static func apply_lens(cam: Camera3D, ui: UiTuning, aspect: float) -> void:
-	if keeps_width(aspect):
-		cam.keep_aspect = Camera3D.KEEP_WIDTH
-		cam.fov = ui.camera_fov_h
-	else:
-		cam.keep_aspect = Camera3D.KEEP_HEIGHT
-		cam.fov = portrait_fov_v(ui)
+	cam.keep_aspect = Camera3D.KEEP_WIDTH if keeps_width(aspect) else Camera3D.KEEP_HEIGHT
+	cam.fov = lens_fov(ui, aspect)
 	cam.near = Z_NEAR
 	cam.far = Z_FAR
 
@@ -3523,7 +3557,7 @@ func _build_environment() -> void:
 	var env := WorldEnvironment.new()
 	env.environment = Environment.new()
 	env.environment.background_mode = Environment.BG_COLOR
-	env.environment.background_color = Color("9fd3e8")
+	env.environment.background_color = Visuals.COLORS.ground  # D-153 fallback (Task 24b)
 	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.environment.ambient_light_color = Color(0.7, 0.7, 0.7)
 	add_child(env)
@@ -7738,9 +7772,104 @@ The sky-coloured band at the top of `cp1_night1.png` is the edge of the ground (
 - Modify: `world/world.gd` (`_build_ground`); this is its main purpose, so the implementer edits it (D-139)
 - Test: `tests/unit/test_ground_coverage.gd`
 
-- [ ] **Step 1: Write the failing test.** For each of the four `CameraMath.FOCUS_MIN/FOCUS_MAX` corners, at both 9:16 and 16:9 (D-145), build the camera with `CameraMath.camera_transform` and `CameraMath.projection`. Cast the rays through the four viewport corners and the top-edge midpoint onto the y = 0 plane. Each ray must hit the plane (it points downward), and every hit point must lie inside the ground rectangle `World.ground_rect()`. It fails today.
-- [ ] **Step 2: Implement.** Keep the map ground (bounds) as is, and add a far "skirt" plane underneath it (y = −0.01, same ground colour, no collider), sized from `World.ground_rect()`. `ground_rect()` is a static function that returns the bounds grown by a margin derived from the camera (compute the worst-case hit distance, or use a constant, e.g. 60 m, that the test proves is enough).
+- [ ] **Step 1 (superseded by D-153; see Final code): Write the failing test.** For each of the four `CameraMath.FOCUS_MIN/FOCUS_MAX` corners, at both 9:16 and 16:9 (D-145), build the camera with `CameraMath.camera_transform` and `CameraMath.projection`. Cast the rays through the four viewport corners and the top-edge midpoint onto the y = 0 plane. Each ray must hit the plane (it points downward), and every hit point must lie inside the ground rectangle `World.ground_rect()`. It fails today.
+- [ ] **Step 2 (superseded by D-153; see Final code): Implement.** Keep the map ground (bounds) as is, and add a far "skirt" plane underneath it (y = −0.01, same ground colour, no collider), sized from `World.ground_rect()`. `ground_rect()` is a static function that returns the bounds grown by a margin derived from the camera (compute the worst-case hit distance, or use a constant, e.g. 60 m, that the test proves is enough).
 - [ ] **Step 3: Run the tests and commit** `feat: extend the ground so no camera view shows past it`.
+
+**Final code (after the D-153 review fix):**
+
+`world/world.gd` (ground parts; the environment background is `Visuals.COLORS.ground`):
+```gdscript
+## Ground margin past MapLayout bounds. The projection test proves it covers every camera view for
+## window aspects 9:21..21:9 (CameraMath clamps beyond that) at every focus corner (D-152, D-153).
+const GROUND_MARGIN := 80.0
+
+## The area the single ground plane covers, in xz.
+static func ground_rect() -> Rect2:
+	var lo := MapLayout.BOUNDS_MIN - Vector2(GROUND_MARGIN, GROUND_MARGIN)
+	var hi := MapLayout.BOUNDS_MAX + Vector2(GROUND_MARGIN, GROUND_MARGIN)
+	return Rect2(lo, hi - lo)
+
+func _build_ground() -> void:
+	var rect := ground_rect()
+	var ground := Visuals.plane(rect.size, Visuals.COLORS.ground)
+	ground.name = "Ground"
+	ground.position = MapLayout.to3(rect.get_center())
+	add_child(ground)
+	var road := Visuals.box(Vector3(MapLayout.BOUNDS_MAX.x - MapLayout.BOUNDS_MIN.x, 0.02, 2.0), Visuals.COLORS.road)
+	road.name = "Road"
+	road.position = Vector3(0, 0.01, MapLayout.ROAD_Z)
+	add_child(road)
+```
+
+`tests/unit/test_ground_coverage.gd`:
+```gdscript
+extends GutTest
+## D-152/D-153: no camera view (any focus corner, any window aspect) shows past the ground.
+## 0.30 and 32:9 are outside [ASPECT_MIN, ASPECT_MAX] and must be clamped by CameraMath.
+
+const ASPECTS := [0.30, 9.0 / 21.0, 9.0 / 19.5, CameraMath.ASPECT, 16.0 / 9.0, 21.0 / 9.0, 32.0 / 9.0]
+
+func before_each() -> void:
+	Balance.reset()
+
+func _corners() -> Array:
+	var lo := CameraMath.FOCUS_MIN
+	var hi := CameraMath.FOCUS_MAX
+	return [lo, hi, Vector2(lo.x, hi.y), Vector2(hi.x, lo.y)]
+
+## Viewport corners only, in pixels; the farthest ground point of a perspective view is always a corner,
+## so a top-mid sample adds nothing.
+func _sample_points(size: Vector2) -> Array:
+	return [Vector2(0, 0), Vector2(size.x, 0), Vector2(0, size.y), size]
+
+func test_ground_rect_contains_bounds() -> void:
+	var r := World.ground_rect()
+	assert_true(r.encloses(Rect2(MapLayout.BOUNDS_MIN, MapLayout.BOUNDS_MAX - MapLayout.BOUNDS_MIN)))
+
+func test_every_camera_view_hits_ground_inside_rect() -> void:
+	var ui := Balance.ui
+	var rect := World.ground_rect()
+	var max_dist := 0.0
+	for aspect in ASPECTS:
+		var size := Vector2(maxf(roundf(1280.0 * aspect), 1.0), 1280.0)
+		var vp := SubViewport.new()
+		vp.size = Vector2i(size)
+		add_child_autofree(vp)
+		var cam := Camera3D.new()
+		CameraMath.apply_lens(cam, ui, size.x / size.y)
+		vp.add_child(cam)
+		for focus in _corners():
+			cam.global_transform = CameraMath.camera_transform(focus, ui)
+			var far_hit := Vector2.ZERO
+			var far_d := -1.0
+			for p in _sample_points(size):
+				var o := cam.project_ray_origin(p)
+				var d := cam.project_ray_normal(p)
+				var label := "aspect %.3f focus %s px %s" % [aspect, focus, p]
+				assert_lt(d.y, 0.0, "ray points downward: " + label)
+				if d.y >= 0.0:
+					continue
+				var hit := o + d * (-o.y / d.y)
+				var hit_xz := Vector2(hit.x, hit.z)
+				assert_true(rect.has_point(hit_xz), "hit %s inside %s: %s" % [hit_xz, rect, label])
+				var dist := _outside_bounds(hit_xz)
+				if dist > far_d:
+					far_d = dist
+					far_hit = hit_xz
+			max_dist = maxf(max_dist, far_d)
+			gut.p("aspect %.3f focus %s: farthest hit %s, %.2f m past bounds" % [aspect, focus, far_hit, far_d])
+	gut.p("max distance past bounds over all corners/aspects: %.2f m" % max_dist)
+	assert_lt(max_dist, World.GROUND_MARGIN - 5.0, "headroom inside the ground margin")
+
+## Distance from the bounds rectangle (0 when inside).
+func _outside_bounds(p: Vector2) -> float:
+	var lo := MapLayout.BOUNDS_MIN
+	var hi := MapLayout.BOUNDS_MAX
+	var dx := maxf(maxf(lo.x - p.x, p.x - hi.x), 0.0)
+	var dy := maxf(maxf(lo.y - p.y, p.y - hi.y), 0.0)
+	return Vector2(dx, dy).length()
+```
 
 ### Task 25: `PlannerBot`, day and night-2 sims, and the sweep
 
@@ -8583,7 +8712,7 @@ func _apply_lens() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	if vp.y <= 0.0:
 		return
-	CameraMath.apply_lens(camera, Balance.ui, vp.x / vp.y)  # D-145: KEEP_HEIGHT on windows wider than 9:16
+	CameraMath.apply_lens(camera, Balance.ui, vp.x / vp.y)  # D-145/D-153: KEEP_HEIGHT from 9:16 to 21:9, clamped outside 9:21..21:9
 
 func setup(hero: Hero) -> void:
 	_hero = hero

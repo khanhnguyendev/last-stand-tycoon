@@ -1184,3 +1184,21 @@ wording).**
 **CP1 outcome (author).** CP1 approved. Night-1 sims at the default balance: first combat at 12.45 s
 (idle player 12.27 s; limit 30 s); NaiveBot keeps 67% of diner HP (target ≥ 50%); ParkedBot's diner
 falls and the night restarts identically.
+
+**D-153 The camera supports window aspects 9:21 to 21:9 (Task 24b review; extends D-145 and D-152).**
+- With stretch aspect `expand` and no clamp, very tall windows (below about 9:22.5; the top rays
+  point above the horizon below about 9:33) and very wide ones (above about 2.85:1) would show past
+  the 60 m ground (D-152).
+- `CameraMath` clamps the view to `[ASPECT_MIN, ASPECT_MAX]` = 9:21 .. 21:9:
+  - narrower than 9:21: `KEEP_HEIGHT` with the vertical FOV 9:21 shows;
+  - wider than 21:9: `KEEP_WIDTH` with the horizontal FOV 21:9 shows;
+  - in between: the D-145 rule.
+  `apply_lens` and `projection` both use `lens_fov`.
+- One ground plane covers `World.ground_rect()` (bounds + `GROUND_MARGIN` 80 m; the worst view
+  reaches 53.9 m past the bounds). No skirt, so no z-fighting or overdraw. The environment background
+  is the ground colour as a fallback.
+- The ≥ 2.0 s lane warning is tested at 0.30, 9:21, 9:16, 16:9, 21:9 and 32:9 (worst 3.10 s at 0.30).
+  It is only guaranteed inside 9:21..21:9.
+- Tests: ground coverage at 0.30, 9:21, 9:19.5, 9:16, 16:9, 21:9 and 32:9 (all rays point down, all
+  hits land inside, with 5 m of headroom); lane visibility ≥ 2.0 s at 9:21, 9:16, 16:9 and 21:9; the
+  projection matches a real `Camera3D` in the clamped branches.

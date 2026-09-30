@@ -2,6 +2,10 @@ class_name World
 extends Node3D
 ## Builds the map in code from MapLayout (spec 3.3, 6.1). Extended by later tasks.
 
+## Ground margin past MapLayout bounds. The projection test proves it covers every camera view for
+## window aspects 9:21..21:9 (CameraMath clamps beyond that) at every focus corner (D-152, D-153).
+const GROUND_MARGIN := 80.0
+
 var lanes := {}
 var diner_body: StaticBody3D
 var build_spots := {}
@@ -36,18 +40,24 @@ func _build_environment() -> void:
 	var env := WorldEnvironment.new()
 	env.environment = Environment.new()
 	env.environment.background_mode = Environment.BG_COLOR
-	env.environment.background_color = Color("9fd3e8")
+	env.environment.background_color = Visuals.COLORS.ground  # fallback: anything past the ground reads as ground (D-153)
 	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.environment.ambient_light_color = Color(0.7, 0.7, 0.7)
 	add_child(env)
 
+## The area the single ground plane covers, in xz.
+static func ground_rect() -> Rect2:
+	var lo := MapLayout.BOUNDS_MIN - Vector2(GROUND_MARGIN, GROUND_MARGIN)
+	var hi := MapLayout.BOUNDS_MAX + Vector2(GROUND_MARGIN, GROUND_MARGIN)
+	return Rect2(lo, hi - lo)
+
 func _build_ground() -> void:
-	var size := MapLayout.BOUNDS_MAX - MapLayout.BOUNDS_MIN
-	var ground := Visuals.plane(size, Visuals.COLORS.ground)
+	var rect := ground_rect()
+	var ground := Visuals.plane(rect.size, Visuals.COLORS.ground)
 	ground.name = "Ground"
-	ground.position = MapLayout.to3((MapLayout.BOUNDS_MIN + MapLayout.BOUNDS_MAX) * 0.5)
+	ground.position = MapLayout.to3(rect.get_center())
 	add_child(ground)
-	var road := Visuals.box(Vector3(size.x, 0.02, 2.0), Visuals.COLORS.road)
+	var road := Visuals.box(Vector3(MapLayout.BOUNDS_MAX.x - MapLayout.BOUNDS_MIN.x, 0.02, 2.0), Visuals.COLORS.road)
 	road.name = "Road"
 	road.position = Vector3(0, 0.01, MapLayout.ROAD_Z)
 	add_child(road)
