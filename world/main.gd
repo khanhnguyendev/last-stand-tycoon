@@ -19,12 +19,16 @@ var camera_rig: CameraRig
 var joystick: Joystick
 var focus_pause: FocusPause
 var hud: Hud
+var autosave: Autosave
 var card_overlay: CardPickOverlay
 
 func _ready() -> void:
 	focus_pause = FocusPause.new()
 	focus_pause.name = "FocusPause"
 	add_child(focus_pause)
+	autosave = Autosave.new()
+	autosave.name = "Autosave"
+	add_child(autosave)
 	hero = Hero.new()
 	add_child(hero)
 	hero.setup(world)
