@@ -81,6 +81,7 @@ func test_clear_queue_recalls_everyone() -> void:
 ## Spawns of the first day: (tick, want) for the first queue_max travelers.
 func _record_spawns() -> Array:
 	var e := Balance.data.economy
+	await get_tree().physics_frame  # D-118: start both runs at the same kind of point
 	main.phase_controller.start_new_game(21)
 	main.phase_controller.debug_skip_to_day()
 	var seen := {}
