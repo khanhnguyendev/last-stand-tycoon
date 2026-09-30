@@ -679,6 +679,7 @@ reaches into another's nodes".
   ≥ 1.5 m from the towers and ≥ reach from the diner (test E).
 
 **D-112 [AMENDED by D-125] Collider and bot geometry.**
+- [AMENDED by D-125, D-144: edges must clear the hero colliders; `e_mid` (7.0, 3.0) added.]
 - The tower collider radius is 0.5 m and the hero radius 0.4 m.
 - The bots' stand points for the tower spots are 1.06 m out from the tower center, away from the
   diner.
@@ -1088,3 +1089,27 @@ wording).**
   points are symmetric in the offset.
 - Also from the Phase 2 reviews: `WaveSchedule` breaks float time ties main-first with a consistent
   comparator, and the bot lane sort (plan Task 25) treats float threat ties with `is_equal_approx`.
+
+**D-144 Waypoint `e_mid` routes the southeast corner to the east zone (Task 8 review; amends D-112).**
+- The planned edge `se` (6.8, 6.8) → `zone_east` (5.2, 0) ran straight through the freezer box,
+  and the D-125 clearance test caught it (minimum clearance 0.0, 0.39 needed).
+- Fix: a new node `e_mid` at (7.0, 3.0); the edge becomes `se` → `e_mid` → `zone_east`, with
+  minimum clearances of 0.60 m and 1.20 m. Moving `se` instead would have needed x ≥ 7.6, which
+  changes other routes. Stations and map coordinates are unchanged.
+- The Dijkstra priority stays the plan's exact comparison. It is a consistent strict order, and
+  near-equal routes don't occur in this graph.
+- Process note: parallel implementers must write logs to unique temp paths (a shared `/tmp/g.txt`
+  mixed two tasks' output once).
+
+**D-145 Wide windows keep the portrait vertical view (Task 9 review).**
+- `CameraMath` used `KEEP_WIDTH` at a fixed 9:16 aspect. With stretch aspect `expand` (D-072), a
+  landscape desktop window widens the viewport, which under `KEEP_WIDTH` shrinks the vertical FOV.
+  The north lane's warning time would drop below 2.0 s once width/height exceeded about 1.25
+  (about 0.55 s at 16:9).
+- Rule: up to 9:16, `KEEP_WIDTH` with the horizontal FOV `camera_fov_h` (unchanged). On wider
+  windows, `KEEP_HEIGHT` with the portrait vertical FOV, so the view only gains width.
+  `CameraMath.keeps_width(aspect)` decides, and `CameraRig` (Task 28) uses it for
+  `Camera3D.keep_aspect` and the matching FOV.
+- The lane-visibility test now runs at 9:16 and 16:9, with the hero at the zone centre and at the
+  lane end, and with lateral offsets of −1, 0 and +1. A test checks the projection against a real
+  `Camera3D`.

@@ -2020,6 +2020,10 @@ func test_tie_breaks_by_lower_spawn_index_regardless_of_order() -> void:
 func test_height_is_ignored() -> void:
 	var c := {"position": Vector3(0, 10, 3), "spawn_index": 1, "ref": null}
 	assert_eq(Targeting.select(Vector3.ZERO, 4.0, [c]).spawn_index, 1)
+
+func test_candidate_exactly_at_range_is_selected() -> void:
+	assert_eq(Targeting.select(Vector3.ZERO, 4.0, [_c(0, 4.0, 7)]).spawn_index, 7)
+	assert_eq(Targeting.select(Vector3.ZERO, 4.0, [_c(-4.0, 0, 2)]).spawn_index, 2)
 ```
 
 `tests/unit/test_economy.gd`:
@@ -2084,23 +2088,40 @@ func test_each_stock_blocks_pulse() -> void:
 		assert_false(Pulse.should_pulse(s, Balance.data), key)
 
 func test_affordable_build_blocks_pulse() -> void:
+	var bb: BuildBalance = Balance.data.build
+	var cheapest := mini(bb.tower_cost, bb.fence_cost)
 	var s := _state()
-	s.gold = 20  # fence costs 20
+	s.gold = cheapest
 	assert_false(Pulse.should_pulse(s, Balance.data))
-	s.gold = 19
+	s.gold = cheapest - 1
 	assert_true(Pulse.should_pulse(s, Balance.data))
 
 func test_partial_paid_counts() -> void:
+	var bb: BuildBalance = Balance.data.build
 	var s := _state()
-	s.gold = 5
-	s.buildings.fence_w.paid = 15  # 20 - 15 = 5 remaining
+	s.gold = 1
+	assert_true(Pulse.should_pulse(s, Balance.data), "precondition")
+	s.buildings.fence_w.paid = Economy.level_cost("fence_w", 0, bb) - 1  # 1 gold remaining
 	assert_false(Pulse.should_pulse(s, Balance.data))
 
 func test_max_level_spots_ignored() -> void:
+	var bb: BuildBalance = Balance.data.build
 	var s := _state()
 	s.gold = 10000
 	for id in MapLayout.SPOT_IDS:
-		s.buildings[id].level = 3
+		s.buildings[id].level = bb.max_level
+	assert_true(Pulse.should_pulse(s, Balance.data))
+
+func test_one_upgradable_spot_among_maxed_decides_pulse() -> void:
+	var bb: BuildBalance = Balance.data.build
+	var s := _state()
+	for id in MapLayout.SPOT_IDS:
+		s.buildings[id].level = bb.max_level
+	s.buildings.tower_ne.level = 1
+	var cost := Economy.level_cost("tower_ne", 1, bb)
+	s.gold = cost
+	assert_false(Pulse.should_pulse(s, Balance.data))
+	s.gold = cost - 1
 	assert_true(Pulse.should_pulse(s, Balance.data))
 ```
 
@@ -2116,9 +2137,7 @@ Expected: FAIL (`Targeting` not declared).
 ```gdscript
 class_name Targeting
 extends RefCounted
-## Nearest-in-range selection; ties by lower spawn_index (D-034).
-
-const EPS := 1e-6
+## Nearest-in-range selection; strict (distance, spawn_index) order (D-034).
 
 static func select(origin: Vector3, attack_range: float, candidates: Array) -> Dictionary:
 	var best := {}
@@ -2128,7 +2147,7 @@ static func select(origin: Vector3, attack_range: float, candidates: Array) -> D
 		var d := Vector2(pos.x - origin.x, pos.z - origin.z).length()
 		if d > attack_range:
 			continue
-		if d < best_d - EPS or (absf(d - best_d) <= EPS and int(c.spawn_index) < int(best.spawn_index)):
+		if best.is_empty() or d < best_d or (d == best_d and int(c.spawn_index) < int(best.spawn_index)):
 			best = c
 			best_d = d
 	return best
@@ -5759,8 +5778,8 @@ func _run() -> void:
 	bot.setup(main)
 	main.phase_controller.start_new_game(int(_args.get("seed", "20260930")))
 	var cam := Camera3D.new()
-	cam.keep_aspect = Camera3D.KEEP_WIDTH
-	cam.fov = Balance.ui.camera_fov_h
+	var vp := root.get_visible_rect().size
+	CameraMath.apply_lens(cam, Balance.ui, vp.x / vp.y)  # D-145
 	cam.current = true
 	root.add_child(cam)
 	if _args.has("lane"):
@@ -7576,11 +7595,15 @@ func before_each() -> void:
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(71)
 
-func test_camera_uses_keep_width_and_fov() -> void:
+func test_camera_lens_follows_d145() -> void:
 	var cam := main.camera_rig.camera
-	assert_eq(cam.keep_aspect, Camera3D.KEEP_WIDTH)
-	assert_eq(cam.fov, Balance.ui.camera_fov_h)
+	var vp := main.get_viewport().get_visible_rect().size
+	var probe := Camera3D.new()
+	CameraMath.apply_lens(probe, Balance.ui, vp.x / vp.y)
+	assert_eq(cam.keep_aspect, probe.keep_aspect)
+	assert_almost_eq(cam.fov, probe.fov, 0.0001)
 	assert_true(cam.current)
+	probe.free()
 
 func test_snap_matches_camera_math() -> void:
 	main.hero.teleport(Vector2(3, -2))
@@ -7622,13 +7645,15 @@ var _t := 0.0
 
 func _ready() -> void:
 	camera = Camera3D.new()
-	camera.keep_aspect = Camera3D.KEEP_WIDTH
-	camera.fov = Balance.ui.camera_fov_h
-	camera.near = CameraMath.Z_NEAR
-	camera.far = CameraMath.Z_FAR
 	add_child(camera)
+	_apply_lens()
+	get_viewport().size_changed.connect(_apply_lens)
 	camera.current = true
 	EventBus.diner_damaged.connect(_on_diner_damaged)
+
+func _apply_lens() -> void:
+	var vp := get_viewport().get_visible_rect().size
+	CameraMath.apply_lens(camera, Balance.ui, vp.x / vp.y)  # D-145: KEEP_HEIGHT on windows wider than 9:16
 
 func setup(hero: Hero) -> void:
 	_hero = hero
