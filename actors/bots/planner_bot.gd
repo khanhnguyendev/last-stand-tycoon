@@ -1,0 +1,103 @@
+class_name PlannerBot
+extends NaiveBot
+## NaiveBot at night; by day: haul and sell everything, collect gold, then build/upgrade by tonight's
+## telegraph (spec 13.3, D-067), then close up. Drives only through HeroInput (BotBase.go_to).
+
+func day_think(_delta: float) -> void:
+	var cap := Balance.data.hero.carry_capacity
+	var counter_cap := Balance.data.economy.counter_capacity
+	# keep loading / unloading until the stack or the station is done
+	if goal == "freezer" and GameState.freezer_steaks > 0 and GameState.carried_steaks < cap:
+		return
+	if goal == "counter_drop" and GameState.carried_steaks > 0 and GameState.counter_steaks < counter_cap:
+		return
+	# keep standing on a spot that is mid-payment (each tick drains gold, so the affordability check below
+	# would flip before the level completes); only once arrived, so a walk is never held by it
+	if goal in MapLayout.SPOT_IDS and arrived() and int(GameState.buildings[goal].paid) > 0 \
+			and GameState.gold > 0 and GameState.remaining_cost(goal) > 0:
+		return
+	if GameState.carried_steaks > 0 and GameState.counter_steaks < counter_cap:
+		go_to("counter_drop")
+	elif GameState.freezer_steaks > 0 and GameState.carried_steaks < cap:
+		go_to("freezer")
+	elif GameState.gold_pile > 0:
+		go_to("gold_pile")
+	elif GameState.counter_steaks > 0 or GameState.carried_steaks > 0:
+		go_to("counter_drop")  # wait for travelers
+	else:
+		var spot := next_purchase()
+		go_to(spot if spot != "" else "sign")
+
+## The spot id to build or upgrade next with the gold in hand, or "" (spec 13.3, D-067, D-154).
+## 1 fence on the top side lane; 2 the tower next to it; 3 more fences and any unbuilt tower, by the
+## threat on their lanes (a tower scores the max of its two lanes); 4 upgrades next to the top-threat lane.
+## Ties by lane order / SPOT_IDS order, never by float equality.
+func next_purchase() -> String:
+	var threat := LanePlanner.threat_by_lane(GameState.lane_plan, Balance.data.enemy.hp)
+	var side := {"west": 0.0, "north": 0.0, "east": 0.0}
+	for w in GameState.lane_plan:
+		if String(w.side) != "":
+			side[w.side] += int(w.side_count) * float(w.hp_mult)
+	var side_lane := ""
+	for l in LanePlanner.LANES:
+		if side[l] > 0.0 and (side_lane == "" or side[l] > side[side_lane]):
+			side_lane = l
+	# steps 1-2
+	var builds: Array = []
+	if side_lane != "":
+		builds.append(MapLayout.LANE_FENCE[side_lane])
+		for t in ["tower_nw", "tower_ne"]:
+			if side_lane in MapLayout.TOWER_LANES[t]:
+				builds.append(t)
+				break
+	# step 3
+	var rest: Array = []
+	for id in MapLayout.SPOT_IDS:
+		if not id in builds and _spot_threat(id, threat) > 0.0:
+			rest.append(id)
+	rest.sort_custom(func(a: String, b: String) -> bool:
+		var ta := _spot_threat(a, threat)
+		var tb := _spot_threat(b, threat)
+		if not is_equal_approx(ta, tb):
+			return ta > tb
+		return MapLayout.SPOT_IDS.find(a) < MapLayout.SPOT_IDS.find(b))
+	builds.append_array(rest)
+	for id in builds:
+		if int(GameState.buildings[id].level) == 0 and GameState.remaining_cost(id) <= GameState.gold:
+			return id
+	# step 4: upgrades, lanes by threat; next to a lane: towers before fences, cheapest affordable first
+	var lanes: Array = LanePlanner.LANES.duplicate()
+	lanes.sort_custom(func(a: String, b: String) -> bool:
+		if not is_equal_approx(threat[a], threat[b]):
+			return threat[a] > threat[b]
+		return LanePlanner.LANES.find(a) < LanePlanner.LANES.find(b))  # float ties -> lane order
+	for l in lanes:
+		if threat[l] <= 0.0:
+			continue
+		var near: Array = []
+		for id in MapLayout.SPOT_IDS:  # SPOT_IDS lists towers first
+			if MapLayout.spot_kind(id) == "tower":
+				if l in MapLayout.TOWER_LANES[id]:
+					near.append(id)
+			elif MapLayout.FENCE_LANE[id] == l:
+				near.append(id)
+		var best := ""
+		var best_rem := 0
+		for id in near:
+			if int(GameState.buildings[id].level) < 1:
+				continue
+			var rem := GameState.remaining_cost(id)
+			if rem >= 0 and rem <= GameState.gold and (best == "" or rem < best_rem):
+				best = id
+				best_rem = rem
+		if best != "":
+			return best
+	return ""
+
+func _spot_threat(id: String, threat: Dictionary) -> float:
+	if MapLayout.spot_kind(id) == "fence":
+		return threat[MapLayout.FENCE_LANE[id]]
+	var m := 0.0
+	for l in MapLayout.TOWER_LANES[id]:
+		m = maxf(m, threat[l])
+	return m
