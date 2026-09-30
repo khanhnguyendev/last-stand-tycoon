@@ -2469,7 +2469,7 @@ func test_boar_visible_two_seconds_before_range() -> void:
 	var eb := Balance.data.enemy
 	var hero_range := Balance.data.hero.attack_range
 	var dt := 1.0 / 60.0
-	for aspect in [CameraMath.ASPECT_MIN, CameraMath.ASPECT, 16.0 / 9.0, CameraMath.ASPECT_MAX]:
+	for aspect in [0.30, CameraMath.ASPECT_MIN, CameraMath.ASPECT, 16.0 / 9.0, CameraMath.ASPECT_MAX, 32.0 / 9.0]:
 		var proj := CameraMath.projection(ui, aspect)
 		for lane in LanePlanner.LANES:
 			var length := MapLayout.path_length(lane)
@@ -2514,6 +2514,18 @@ func test_projection_matches_godot_camera() -> void:
 		for c in 4:
 			for r in 4:
 				assert_almost_eq(got[c][r], want[c][r], 1e-4, "%s [%d][%d]" % [size, c, r])
+
+func test_lens_clamp_and_continuity() -> void:
+	var ui := Balance.ui
+	# Below ASPECT_MIN and above ASPECT_MAX the lens is clamped.
+	assert_almost_eq(CameraMath.projection(ui, 0.30)[1][1], CameraMath.projection(ui, CameraMath.ASPECT_MIN)[1][1], 1e-4)
+	assert_almost_eq(CameraMath.projection(ui, 32.0 / 9.0)[0][0], CameraMath.projection(ui, CameraMath.ASPECT_MAX)[0][0], 1e-4)
+	# The lens is continuous across the 9:16 and 21:9 branch switches.
+	for edge in [CameraMath.ASPECT, CameraMath.ASPECT_MAX]:
+		var lo := CameraMath.projection(ui, edge - 1e-4)
+		var hi := CameraMath.projection(ui, edge + 1e-4)
+		assert_almost_eq(lo[0][0], hi[0][0], 1e-3, "[0][0] at %.4f" % edge)
+		assert_almost_eq(lo[1][1], hi[1][1], 1e-3, "[1][1] at %.4f" % edge)
 ```
 
 - [ ] **Step 2: Run it and see it fail**
@@ -2558,7 +2570,7 @@ static func keeps_width(aspect: float) -> bool:
 		return false
 	return aspect <= ASPECT + 1e-6 or aspect > ASPECT_MAX
 
-## Vertical FOV (degrees) of the portrait view; wider windows keep it with KEEP_HEIGHT (D-145).
+## Vertical FOV (degrees) of the portrait view; kept with KEEP_HEIGHT from 9:16 to 21:9 (D-153).
 static func portrait_fov_v(ui: UiTuning) -> float:
 	return rad_to_deg(2.0 * atan(tan(deg_to_rad(ui.camera_fov_h) / 2.0) / ASPECT))
 
@@ -3545,7 +3557,7 @@ func _build_environment() -> void:
 	var env := WorldEnvironment.new()
 	env.environment = Environment.new()
 	env.environment.background_mode = Environment.BG_COLOR
-	env.environment.background_color = Color("9fd3e8")
+	env.environment.background_color = Visuals.COLORS.ground  # D-153 fallback (Task 24b)
 	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.environment.ambient_light_color = Color(0.7, 0.7, 0.7)
 	add_child(env)
@@ -7760,8 +7772,8 @@ The sky-coloured band at the top of `cp1_night1.png` is the edge of the ground (
 - Modify: `world/world.gd` (`_build_ground`); this is its main purpose, so the implementer edits it (D-139)
 - Test: `tests/unit/test_ground_coverage.gd`
 
-- [ ] **Step 1: Write the failing test.** For each of the four `CameraMath.FOCUS_MIN/FOCUS_MAX` corners, at both 9:16 and 16:9 (D-145), build the camera with `CameraMath.camera_transform` and `CameraMath.projection`. Cast the rays through the four viewport corners and the top-edge midpoint onto the y = 0 plane. Each ray must hit the plane (it points downward), and every hit point must lie inside the ground rectangle `World.ground_rect()`. It fails today.
-- [ ] **Step 2: Implement.** Keep the map ground (bounds) as is, and add a far "skirt" plane underneath it (y = −0.01, same ground colour, no collider), sized from `World.ground_rect()`. `ground_rect()` is a static function that returns the bounds grown by a margin derived from the camera (compute the worst-case hit distance, or use a constant, e.g. 60 m, that the test proves is enough).
+- [ ] **Step 1 (superseded by D-153; see Final code): Write the failing test.** For each of the four `CameraMath.FOCUS_MIN/FOCUS_MAX` corners, at both 9:16 and 16:9 (D-145), build the camera with `CameraMath.camera_transform` and `CameraMath.projection`. Cast the rays through the four viewport corners and the top-edge midpoint onto the y = 0 plane. Each ray must hit the plane (it points downward), and every hit point must lie inside the ground rectangle `World.ground_rect()`. It fails today.
+- [ ] **Step 2 (superseded by D-153; see Final code): Implement.** Keep the map ground (bounds) as is, and add a far "skirt" plane underneath it (y = −0.01, same ground colour, no collider), sized from `World.ground_rect()`. `ground_rect()` is a static function that returns the bounds grown by a margin derived from the camera (compute the worst-case hit distance, or use a constant, e.g. 60 m, that the test proves is enough).
 - [ ] **Step 3: Run the tests and commit** `feat: extend the ground so no camera view shows past it`.
 
 **Final code (after the D-153 review fix):**
@@ -7825,7 +7837,7 @@ func test_every_camera_view_hits_ground_inside_rect() -> void:
 		vp.size = Vector2i(size)
 		add_child_autofree(vp)
 		var cam := Camera3D.new()
-		CameraMath.apply_lens(cam, ui, aspect)
+		CameraMath.apply_lens(cam, ui, size.x / size.y)
 		vp.add_child(cam)
 		for focus in _corners():
 			cam.global_transform = CameraMath.camera_transform(focus, ui)
@@ -8700,7 +8712,7 @@ func _apply_lens() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	if vp.y <= 0.0:
 		return
-	CameraMath.apply_lens(camera, Balance.ui, vp.x / vp.y)  # D-145: KEEP_HEIGHT on windows wider than 9:16
+	CameraMath.apply_lens(camera, Balance.ui, vp.x / vp.y)  # D-145/D-153: KEEP_HEIGHT from 9:16 to 21:9, clamped outside 9:21..21:9
 
 func setup(hero: Hero) -> void:
 	_hero = hero
