@@ -10,6 +10,10 @@ func before_each() -> void:
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(81)
 	hud = main.hud
+	# start_new_game emits a banner; drain it so each test starts with no banner showing.
+	hud._banner_queue.clear()
+	hud._banner_left = 0.0
+	hud._show_next_banner()
 
 func test_gold_label_follows_gold() -> void:
 	GameState.add_gold(42)
@@ -164,13 +168,41 @@ func test_arrows_stay_below_the_top_hud() -> void:
 	assert_gte(arrow_top, col.get_global_rect().end.y)
 	assert_gte(arrow_top, hud.gold_label.get_global_rect().end.y)
 
-func test_second_banner_resets_the_fade() -> void:
+func test_second_banner_shortens_the_first_then_plays_in_full() -> void:
 	EventBus.banner_requested.emit("One")
-	for i in int(Balance.ui.banner_time * 60 * 0.9):
+	var shown := int(Balance.ui.banner_time * 60 * 0.9)
+	for i in shown:
 		await get_tree().process_frame
 	EventBus.banner_requested.emit("Two")
+	var r := minf(Balance.ui.banner_time - shown / 60.0, Balance.ui.banner_min_s)
+	for i in int(ceil(r * 60.0)) + 2:
+		await get_tree().process_frame
+	assert_eq(hud.banner.text, "Two")
+	assert_almost_eq(hud.banner_panel.modulate.a, 1.0, 1e-3)
+	for i in int(Balance.ui.banner_time * 60 * 0.7):
+		await get_tree().process_frame
 	assert_true(hud.banner_panel.visible)
-	assert_eq(hud.banner_panel.modulate.a, 1.0)
+	assert_almost_eq(hud.banner_panel.modulate.a, 1.0, 1e-3)
+
+func test_queued_banners_play_in_order() -> void:
+	EventBus.banner_requested.emit("A")
+	EventBus.banner_requested.emit("B")
+	EventBus.banner_requested.emit("C")
+	assert_eq(hud.banner.text, "A")
+	var seen := ["A"]
+	for i in int((Balance.ui.banner_min_s * 2.0 + Balance.ui.banner_time) * 60.0) + 30:
+		await get_tree().process_frame
+		if hud.banner.visible and seen[-1] != hud.banner.text:
+			seen.append(hud.banner.text)
+	assert_eq(seen, ["A", "B", "C"])
+
+func test_queue_survives_state_restored() -> void:
+	EventBus.banner_requested.emit("The monsters return")
+	EventBus.banner_requested.emit("The monsters look tired tonight.")
+	GameState.new_game(3)  # emits state_restored
+	for i in int(ceil(Balance.ui.banner_min_s * 60.0)) + 3:
+		await get_tree().process_frame
+	assert_eq(hud.banner.text, "The monsters look tired tonight.")
 
 func test_arrow_rect_top_clears_the_hud() -> void:
 	var need := maxf(hud._top_column.get_global_rect().end.y, hud.gold_label.get_global_rect().end.y) \

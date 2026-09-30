@@ -17,7 +17,9 @@ var _camera: Camera3D
 var _lanes := {}
 var _arrow_lane := {"main": "", "side": ""}
 var _filled := 0
-var _banner_tween: Tween
+var _banner_queue: Array[String] = []
+## Seconds left of the banner on screen; 0 when none is showing.
+var _banner_left := 0.0
 var _gold_tween: Tween
 var _bar_tween: Tween
 var _moon_row: HBoxContainer
@@ -228,21 +230,36 @@ func _on_diner_damaged(_amount: float, hp_left: float) -> void:
 	_bar_tween.tween_property(diner_bar, "position:x", Balance.ui.diner_bar_shake_px, Balance.ui.diner_bar_shake_time)
 	_bar_tween.tween_property(diner_bar, "position:x", 0.0, Balance.ui.diner_bar_shake_time)
 
+## S3 (D-175): a new banner shortens the current one to banner_min_s, then plays in full.
 func _on_banner(text: String) -> void:
-	banner.text = text
+	_banner_queue.append(text)
+	if _banner_left <= 0.0:
+		_show_next_banner()
+	else:
+		_banner_left = minf(_banner_left, Balance.ui.banner_min_s)
+
+func _show_next_banner() -> void:
+	if _banner_queue.is_empty():
+		_banner_left = 0.0
+		banner.visible = false
+		banner_panel.visible = false
+		return
+	banner.text = _banner_queue.pop_front()
 	banner.visible = true
 	banner_panel.visible = true
 	banner_panel.modulate.a = 1.0
-	if _banner_tween != null and _banner_tween.is_valid():
-		_banner_tween.kill()
-	_banner_tween = create_tween()
-	_banner_tween.tween_interval(Balance.ui.banner_time * 0.75)
-	_banner_tween.tween_property(banner_panel, "modulate:a", 0.0, Balance.ui.banner_time * 0.25)
-	_banner_tween.tween_callback(func():
-		banner.visible = false
-		banner_panel.visible = false)
+	_banner_left = Balance.ui.banner_time
 
-func _process(_delta: float) -> void:
+func _tick_banner(delta: float) -> void:
+	if _banner_left <= 0.0:
+		return
+	_banner_left -= delta
+	banner_panel.modulate.a = clampf(_banner_left / (Balance.ui.banner_time * 0.25), 0.0, 1.0)
+	if _banner_left <= 0.0:
+		_show_next_banner()
+
+func _process(delta: float) -> void:
+	_tick_banner(delta)
 	_place_arrows()
 
 ## Where arrow tips may sit: the safe root rect, inset by the edge margin, below the top HUD.
