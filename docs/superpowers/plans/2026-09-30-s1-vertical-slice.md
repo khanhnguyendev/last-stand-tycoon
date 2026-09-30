@@ -6,7 +6,7 @@
 > - Every task is executed by the `implementer` subagent, and every task result gets a `reviewer` pass.
 > - Human checkpoints (**CP1, CP2, CP3**) stop all work until the author says continue.
 > - Merges (D-137): the main session merges a phase PR itself when CI is green (before CI: the full local suite output is in the PR body), every task passed its reviewer pass, no escalation is open, and the phase doesn't end at a checkpoint. Phases 5 (CP1), 10 (CP2) and 14 (CP3) are merged by the author.
-> - Parallel tasks follow D-136 (worktrees, hot files, at most 3 implementers).
+> - Parallel tasks follow D-136 and D-139 (worktrees, hot files, wiring notes, at most 3 implementers). Look-ahead across CP1 and CP2 follows D-140.
 > - Device testing (D-138): the iOS Simulator and, when installed, the Android Emulator are primary. The author's phone is used only at CP2 and CP3.
 > - An implementer escalation (a failing threshold, a spec contradiction, a missing fact) goes back to
 >   the main session. It is never decided inside the task.
@@ -105,7 +105,31 @@ These are the input classes the spec implies but no feature test naturally cover
   - Integration: after a task passes review, merge its task branch into the phase branch with `--no-ff` (one task commit preserved), then run the FULL suite on the phase branch before merging the next task. If it fails, stop merging and debug on the phase branch first (systematic-debugging).
   - Merge conflicts are resolved by the main session, never by an implementer; a conflict in a hot file or in design intent is escalated to the author.
   - A task that runs alone commits directly on the phase branch (no worktree).
-- **Device testing (D-138).** The iOS Simulator (Safari on a notch iPhone) and, when installed, the Android Emulator (Chrome) are the primary devices, on `http://localhost` (a secure context) or the Pages preview URL. They are scripted with `export/device_check.sh` (Task 32), and results are read from screenshots. Never install system components; when a runtime is missing, give the author the one-time install step. The author's phone is used only at CP2 and CP3.
+- **Wiring notes (D-139, amends D-136).** Implementers never edit `world/main.gd`, `world/world.gd` or `world/main.tscn`, and never edit `autoload/EventBus.gd`, `autoload/GameState.gd`, `balance/*.gd`/`*.tres` or `project.godot`, unless that file is the task's main purpose (T10: EventBus/GameState; T12: main/world; T2 and T35: balance). Each task delivers its system as its own script/scene plus a **wiring note** in its report: the exact lines to add to those files. The main session applies wiring notes, serialized, on the task branch right after the task's review, folds them into the task commit, and runs the task's tests that need the wiring (for example the `Main.create()` tests). If they fail, the task goes back to its implementer.
+- **Look-ahead across checkpoints (D-140).** Tasks that don't depend on night-loop behavior or balance numbers may start before CP1 is approved: T21, T22, T23, T24 (Phase 6) and T27, T28, T30, T31 (Phase 9). They live on stacked branches (`s1/p6-day`, `s1/p9-input-hud`, cut from the newest phase branch) and are **not merged into `main` before the author approves CP1**. If CP1 changes the design, they are reworked. T25, T26, T29 and everything that depends on the night loop, sims or balance waits for CP1. Before CP2 the same rule lets T33 and T34 run alongside T32.
+- **When the author says "merged" (D-142).** First check the PR with `gh pr view`. If it is still open and the main session may self-merge it (D-137), merge it and say so. If it is a checkpoint PR (Phases 5, 10, 14), stop and ask; never merge a checkpoint PR on the author's behalf.
+- **Waves (D-139, D-140).** At most 3 implementers at once; `∥` = parallel, `→` = after. Cross-phase starts are marked; a task that starts early lives on its task branch until its phase branch exists.
+  | Wave | Tasks | Notes |
+  |---|---|---|
+  | 2a | T3 ∥ T4 | |
+  | 2b | T5 ∥ T11 | T5 needs T3, T4; T11 (Phase 3) has no dependencies, starts early |
+  | 2c | T6 | needs T5 (`LanePlanner.LANES`) |
+  | 2d | T7 ∥ T8 ∥ T9 | need T6 (T7 also T4; T9 also T5) |
+  | 3a | T10 | needs T3, T5, T6, T7 |
+  | 3b | T12 | needs T5, T6, T10, T11; its purpose is `main`/`world`, so it edits them itself |
+  | 4a | T13 ∥ T31 | T31 (Phase 9, look-ahead) needs only `Main` |
+  | 4b | T14 ∥ T15 | both need T13 (T15's tests use `Steak` and `steak_pool`, so T13 ∥ T15 is not possible) |
+  | 4c | T16 ∥ T17 ∥ T27 | T16 and T17 need T14 + T15; T27 (Phase 9, look-ahead) needs T15 |
+  | 4d | T18 ∥ T19 ∥ T28 | T18 needs T16; T19 (Phase 5) needs T8, T14, T15, T17; T28 (Phase 9, look-ahead) needs T9, T17 |
+  | 5a | T20 ∥ T21 | T20 needs T18, T19 → **CP1**; T21 (Phase 6, look-ahead) needs T16 (`hero.gd` edited in turn), T17 |
+  | 6a | T22 ∥ T23 ∥ T24 | look-ahead while CP1 is open; each needs T21 (T22 and T24 also T17, T23 also T18) |
+  | 6b | T30 | look-ahead; needs T13, T18, T21, T22 (edits their files) |
+  | 7 | T25 | after CP1 is approved; needs T19–T24 |
+  | 8 | T26 | needs T17–T24 |
+  | 9 | T29 | after CP1; needs T28 (HUD reacts to night-loop events) |
+  | 10 | T32 ∥ T33 ∥ T34 | T32 → **CP2**; T33 (needs T13, T20) and T34 are CP2 look-ahead |
+  | 12–14 | T35 → T36 → T37 | T37 → **CP3** |
+- **Device testing (D-138, D-141).** The iOS Simulator (Safari on a notch iPhone) and, when installed, the Android Emulator (Chrome) are the primary devices; without the emulator, Android checks use Playwright Chromium with the Pixel 7 profile (`export/pw_check.mjs`) and are labelled **emulated**, not device. They run on `http://localhost` (a secure context) or the Pages preview URL. They are scripted with `export/device_check.sh` (Task 32), and results are read from screenshots. Never install system components; when a runtime is missing, give the author the one-time install step. The author's phone is used only at CP2 and CP3.
 
 ## Checkpoints and Estimates
 
@@ -608,12 +632,16 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - Every push deploys a web build to GitHub Pages: `main` at https://khanhnguyendev.github.io/last-stand-tycoon/, other branches at `preview/<slug>/` (slug = the branch name with every character outside `[A-Za-z0-9._-]` replaced by `-`) (D-135). Phone tests use those URLs; plain-http LAN doesn't work (D-120).
 - **Merges (D-137).** Merge a phase PR yourself (merge commit, never squash) only when CI is green (before CI: the full local suite output is in the PR body), every task passed its reviewer pass, no escalation is open, and the phase doesn't end at a checkpoint. Phases 5 (CP1), 10 (CP2) and 14 (CP3) are merged by the author. After a self-merge, post a PR comment of at most 5 lines (what shipped, tests, decisions).
 - Never push to `main` directly, never change branch protection. After CI lands, give the author the exact `gh api ... /branches/main/protection` command (plan Task 34, Step 6) instead of running it.
+- **Wiring notes (D-139):** implementers never edit `world/main.gd`, `world/world.gd`, `world/main.tscn`, `autoload/EventBus.gd`, `autoload/GameState.gd`, `balance/*` or `project.godot` unless that file is the task's main purpose; they report the exact lines as a wiring note, and the main session applies it after review.
+- **Look-ahead (D-140):** T21–T24, T27, T28, T30, T31 may run before CP1 is approved, on stacked branches that are not merged into `main` until the author approves CP1; T33, T34 may run alongside T32 before CP2.
+- **"merged" (D-142):** check the PR with `gh pr view` first. Open and self-mergeable (D-137): merge it and say so. Checkpoint PR: stop and ask.
 - **Parallel tasks (D-136):** only with disjoint file sets; hot files (`project.godot`, `CLAUDE.md`, `autoload/EventBus.gd`, `autoload/GameState.gd`, `balance/*`, `world/main.gd`, `world/main.tscn`, `world/world.gd`, `run_tests.sh`, `.github/workflows/*`) are serialized and edited by the main session; at most 3 implementers, each in its own worktree on `s1/p<N>-t<NN>-<slug>`; merge `--no-ff` into the phase branch and run the full suite before the next merge; conflicts are resolved by the main session.
 
 ## Device testing (D-138)
 - Primary: the iOS Simulator (Safari, a notch iPhone) and, when installed, the Android Emulator (Chrome), on `http://localhost` or the Pages preview URL. Run `export/device_check.sh <url> <out_dir>` and read the screenshots.
 - Never install system components. If a runtime is missing, give the author the one-time install step the script prints.
 - The author's phone is used only at CP2 and CP3.
+- Without an Android Emulator, Android checks use Playwright Chromium with the Pixel 7 profile (`export/pw_check.mjs`, from Task 32); label them **emulated**, not device (D-141). Real Android is covered by the S6 friend playtests.
 - Desktop Chrome: headless with software WebGL (flags in D-138).
 
 ## Scope and time (D-131)
@@ -1069,6 +1097,7 @@ extends GutTest
 const SCAN_DIRS := ["res://autoload", "res://core", "res://components", "res://actors",
 	"res://world", "res://ui", "res://balance"]
 const ALLOWED := ["res://core/rng.gd"]
+const BAN_RE := "(?<![\\.\\w])(randi|randf|randi_range|randf_range|randomize)\\s*\\(|RandomNumberGenerator\\s*\\.\\s*new\\s*\\(|@GlobalScope\\s*\\.\\s*(randi|randf|randi_range|randf_range|randomize|randfn|seed|rand_from_seed)\\s*\\("
 
 func _collect(dir_path: String, out: Array) -> void:
 	var dir := DirAccess.open(dir_path)
@@ -1085,7 +1114,8 @@ func test_no_global_randomness() -> void:
 	for d in SCAN_DIRS:
 		_collect(d, files)
 	var re := RegEx.new()
-	re.compile("(?<![\\.\\w])(randi|randf|randi_range|randf_range|randomize)\\s*\\(|RandomNumberGenerator\\s*\\.\\s*new\\s*\\(")
+	re.compile(BAN_RE)
+	assert_true(files.has("res://core/rng.gd"), "scan reached core/")
 	var offenders: Array = []
 	for path in files:
 		if path in ALLOWED:
@@ -1097,11 +1127,14 @@ func test_no_global_randomness() -> void:
 
 func test_ban_regex_catches_and_allows() -> void:
 	var re := RegEx.new()
-	re.compile("(?<![\\.\\w])(randi|randf|randi_range|randf_range|randomize)\\s*\\(")
+	re.compile(BAN_RE)
 	assert_not_null(re.search("var x = randi()"))
 	assert_not_null(re.search("randf_range(0, 1)"))
 	assert_null(re.search("rng.randi_range(0, 2)"))
 	assert_null(re.search("my_randi(3)"))
+	assert_not_null(re.search("var r := RandomNumberGenerator.new()"))
+	assert_not_null(re.search("@GlobalScope.randi()"))
+	assert_null(re.search("rng.randi_range(0, 3)"))
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -1209,6 +1242,10 @@ func test_day1_totals() -> void:
 func test_day2_reference_values() -> void:
 	assert_eq([WaveMath.total_count(2, 0, wb), WaveMath.total_count(2, 1, wb), WaveMath.total_count(2, 2, wb)], [5, 8, 11])
 	assert_almost_eq(WaveMath.hp_mult(2, 0, wb), 1.15, 0.0001)
+	assert_almost_eq(WaveMath.hp_mult(1, 0, wb), 1.0, 0.0001)
+	assert_almost_eq(Balance.data.enemy.hp * WaveMath.hp_mult(2, 0, wb), 34.5, 0.0001)
+	assert_eq(WaveMath.total_count(6, 1, wb), 17)
+	assert_eq(WaveMath.split(3, 1, wb), {"main": 7, "side": 3})
 	assert_eq(WaveMath.split(2, 0, wb), {"main": 4, "side": 1})
 	assert_eq(WaveMath.split(2, 1, wb), {"main": 6, "side": 2})
 	assert_eq(WaveMath.split(2, 2, wb), {"main": 9, "side": 2})
@@ -1249,8 +1286,8 @@ func test_main_only_schedule() -> void:
 	var s := WaveSchedule.build({"main": "north", "side": "", "main_count": 3, "side_count": 0, "hp_mult": 1.0}, wb)
 	assert_eq(s.size(), 3)
 	assert_almost_eq(float(s[0].t), 0.0, 0.0001)
-	assert_almost_eq(float(s[1].t), 0.8, 0.0001)
-	assert_almost_eq(float(s[2].t), 1.6, 0.0001)
+	assert_almost_eq(float(s[1].t), wb.spawn_interval, 0.0001)
+	assert_almost_eq(float(s[2].t), 2.0 * wb.spawn_interval, 0.0001)
 	for e in s:
 		assert_eq(e.lane, "north")
 		assert_false(e.side)
@@ -1258,8 +1295,8 @@ func test_main_only_schedule() -> void:
 func test_side_group_starts_after_delay() -> void:
 	var s := WaveSchedule.build({"main": "west", "side": "east", "main_count": 2, "side_count": 2, "hp_mult": 1.0}, wb)
 	var side_times: Array = s.filter(func(e): return e.side).map(func(e): return e.t)
-	assert_almost_eq(float(side_times[0]), 4.0, 0.0001)
-	assert_almost_eq(float(side_times[1]), 4.8, 0.0001)
+	assert_almost_eq(float(side_times[0]), wb.side_group_delay, 0.0001)
+	assert_almost_eq(float(side_times[1]), wb.side_group_delay + wb.spawn_interval, 0.0001)
 	for i in range(1, s.size()):
 		assert_true(s[i - 1].t <= s[i].t, "sorted by time")
 
@@ -1268,6 +1305,14 @@ func test_clear_rule_requires_all_spawned() -> void:
 	assert_false(WaveSchedule.is_cleared(6, 4, 0))
 	assert_false(WaveSchedule.is_cleared(6, 6, 1))
 	assert_true(WaveSchedule.is_cleared(6, 6, 0))
+
+func test_main_first_on_ties() -> void:
+	var n := int(ceil(wb.side_group_delay / wb.spawn_interval)) + 4
+	var s := WaveSchedule.build({"main": "west", "side": "east", "main_count": n, "side_count": 3, "hp_mult": 1.0}, wb)
+	for i in range(1, s.size()):
+		assert_true(float(s[i - 1].t) <= float(s[i].t) + 1e-6, "sorted")
+		if is_equal_approx(float(s[i - 1].t), float(s[i].t)):
+			assert_false(s[i - 1].side and not s[i].side, "main first on tie at %s" % s[i].t)
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -1322,7 +1367,10 @@ static func build(wave: Dictionary, wb: WaveBalance) -> Array:
 		out.append({"t": i * wb.spawn_interval, "lane": String(wave.main), "side": false})
 	for i in int(wave.side_count):
 		out.append({"t": wb.side_group_delay + i * wb.spawn_interval, "lane": String(wave.side), "side": true})
-	out.sort_custom(func(a, b): return a.t < b.t or (is_equal_approx(a.t, b.t) and not a.side and b.side))
+	out.sort_custom(func(a, b):
+		if not is_equal_approx(a.t, b.t):
+			return a.t < b.t
+		return not a.side and b.side)
 	return out
 
 static func is_cleared(planned: int, spawned: int, alive: int) -> bool:
@@ -1371,7 +1419,7 @@ func before_each() -> void:
 func test_day1_single_lane_and_wave0_north() -> void:
 	for seed in [1, 2, 3, 99, 12345]:
 		var p := LanePlanner.plan(seed, 1, wb)
-		assert_eq(p.size(), 3)
+		assert_eq(p.size(), wb.base_counts.size())
 		assert_eq(p[0].main, "north", "D-095")
 		for w in p:
 			assert_eq(w.side, "")
@@ -1388,9 +1436,32 @@ func test_day2_plus_main_differs_from_side() -> void:
 
 func test_counts_match_wave_math() -> void:
 	var p := LanePlanner.plan(7, 2, wb)
-	assert_eq([p[0].main_count, p[0].side_count], [4, 1])
-	assert_eq([p[2].main_count, p[2].side_count], [9, 2])
-	assert_almost_eq(float(p[1].hp_mult), 1.15, 0.0001)
+	for w in p.size():
+		var s := WaveMath.split(2, w, wb)
+		assert_eq([p[w].main_count, p[w].side_count], [int(s.main), int(s.side)])
+		assert_almost_eq(float(p[w].hp_mult), WaveMath.hp_mult(2, w, wb), 0.0001)
+
+func test_all_lanes_and_pairs_reachable() -> void:
+	var mains := {}
+	var pairs := {}
+	var d1 := {}
+	for seed in range(1, 200):
+		for w in LanePlanner.plan(seed, 2, wb):
+			mains[w.main] = true
+			pairs[str(w.main, ">", w.side)] = true
+		var p1 := LanePlanner.plan(seed, 1, wb)
+		for i in range(1, p1.size()):
+			d1[p1[i].main] = true
+	assert_eq(mains.size(), LanePlanner.LANES.size())
+	assert_eq(pairs.size(), 6)
+	assert_eq(d1.size(), LanePlanner.LANES.size())
+
+## Golden draw order (captured from GODOT_TAG 4.7.2-stable). A change means the Rng draw order changed: escalate.
+func test_plan_golden() -> void:
+	var got := []
+	for w in LanePlanner.plan(555, 4, wb):
+		got.append([w.main, w.side])
+	assert_eq(got, [["north", "east"], ["west", "north"], ["east", "west"]])
 
 func test_same_seed_same_plan() -> void:
 	assert_eq(LanePlanner.plan(555, 4, wb), LanePlanner.plan(555, 4, wb))
@@ -1414,6 +1485,8 @@ func test_threat_and_marker_scale() -> void:
 	assert_eq(LanePlanner.marker_scale(0.0, 240.0, 0.5, 2.0), 0.0)
 	assert_almost_eq(LanePlanner.marker_scale(240.0, 240.0, 0.5, 2.0), 2.0, 0.0001)
 	assert_almost_eq(LanePlanner.marker_scale(120.0, 240.0, 0.5, 2.0), 1.25, 0.0001)
+	assert_eq(LanePlanner.marker_scale(50.0, 0.0, 0.5, 2.0), 0.0)
+	assert_almost_eq(LanePlanner.marker_scale(480.0, 240.0, 0.5, 2.0), 2.0, 0.0001)
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -1465,7 +1538,7 @@ static func threat_by_lane(plan_waves: Array, base_hp: float) -> Dictionary:
 static func marker_scale(threat: float, max_threat: float, min_s: float, max_s: float) -> float:
 	if threat <= 0.0 or max_threat <= 0.0:
 		return 0.0
-	return lerpf(min_s, max_s, threat / max_threat)
+	return lerpf(min_s, max_s, clampf(threat / max_threat, 0.0, 1.0))
 ```
 
 - [ ] **Step 4: Run the tests and see them pass**
@@ -1525,13 +1598,15 @@ func before_each() -> void:
 func test_helpers() -> void:
 	var path := [Vector2(0, 0), Vector2(0, 10), Vector2(10, 10)]
 	assert_almost_eq(Geometry.path_length(path), 20.0, 0.0001)
-	assert_eq(Geometry.point_at(path, 15.0), Vector2(5, 10))
-	assert_eq(Geometry.point_back_from_end(path, 4.0), Vector2(6, 10))
+	assert_true(Geometry.point_at(path, 15.0).is_equal_approx(Vector2(5, 10)))
+	assert_true(Geometry.point_back_from_end(path, 4.0).is_equal_approx(Vector2(6, 10)))
 	assert_almost_eq(Geometry.dist_point_segment(Vector2(5, 3), Vector2(0, 0), Vector2(10, 0)), 3.0, 0.0001)
 	assert_almost_eq(Geometry.dist_point_rect(Vector2(6, 0), Rect2(-4, -4, 8, 8)), 2.0, 0.0001)
 	assert_true(Geometry.rect_contains(Rect2(4, -1.5, 1.2, 3), Vector2(5.2, 0)))
 	var r := Geometry.enclosing_radius([Vector2(-1, 0), Vector2(1, 0), Vector2(0, 0.5)])
 	assert_almost_eq(r, 1.0, 0.0001)
+	assert_eq(Geometry.enclosing_radius([]), 0.0)
+	assert_eq(Geometry.enclosing_radius([Vector2(3, 3)]), 0.0)
 
 func _zone_points() -> Array:
 	var pts: Array = []
@@ -1631,7 +1706,7 @@ func test_E_paths_clear_towers_and_diner() -> void:
 			for offset in [-eb.lateral_spread, 0.0, eb.lateral_spread]:
 				var p := EnemyPath.position_at(lane, d, offset, eb.offset_fade_distance)
 				for spot_id in MapLayout.TOWER_SPOTS:
-					assert_true(p.distance_to(MapLayout.TOWER_SPOTS[spot_id]) >= 1.5 - 0.02, "%s near %s at %.1f" % [lane, spot_id, d])
+					assert_true(p.distance_to(MapLayout.TOWER_SPOTS[spot_id]) >= 1.5 - 1e-4, "%s near %s at %.1f" % [lane, spot_id, d])
 				assert_true(Geometry.dist_point_rect(p, diner) >= eb.reach - 0.001, "%s inside diner reach at %.1f" % [lane, d])
 			d += 0.1
 
@@ -1642,6 +1717,7 @@ func test_home_and_night1_start_are_clear() -> void:
 	for id in MapLayout.SPOT_IDS:
 		zones.append([MapLayout.spot_position(id), MapLayout.BUILD_RADIUS])
 	for p in [MapLayout.HOME, MapLayout.NIGHT1_START]:
+		assert_true(_reachable(p, _hero_colliders()), "%s not reachable" % [p])
 		for z in zones:
 			assert_gt(p.distance_to(z[0]), float(z[1]), "%s inside zone at %s" % [p, z[0]])
 		for lane in LanePlanner.LANES:
@@ -1658,6 +1734,36 @@ func test_fence_spots_match_spec() -> void:
 	assert_almost_eq(MapLayout.fence_spot("west").x, -7.07, 0.02)
 	assert_almost_eq(MapLayout.fence_spot("west").y, -3.54, 0.02)
 	assert_almost_eq(MapLayout.fence_spot("east").x, 7.07, 0.02)
+	assert_almost_eq(MapLayout.fence_spot("east").y, -3.54, 0.02)
+	# spec 6.1: telegraph markers sit 1.5 m up-path from each fence spot
+	for lane in LanePlanner.LANES:
+		assert_almost_eq(MapLayout.telegraph_spot(lane).distance_to(MapLayout.fence_spot(lane)), 1.5, 0.001, lane)
+
+## Perpendicular of the path's last segment, same convention as EnemyPath (D-111).
+func _end_perp(lane: String) -> Vector2:
+	var path: Array = MapLayout.LANE_PATHS[lane]
+	var t := (path[path.size() - 1] as Vector2 - path[path.size() - 2] as Vector2).normalized()
+	return Vector2(-t.y, t.x)
+
+func test_zone_axis_matches_end_perp() -> void:
+	for lane in LanePlanner.LANES:
+		assert_gt((MapLayout.ZONE_AXIS[lane] as Vector2).dot(_end_perp(lane)), 0.0, "%s axis opposes end perpendicular" % lane)
+
+func test_offset_blend_never_crosses_centerline() -> void:
+	# D-111: an enemy's lateral offset must stay on one side of the lane centerline while it blends onto the zone axis.
+	var eb := Balance.data.enemy
+	for lane in LanePlanner.LANES:
+		var length := MapLayout.path_length(lane)
+		var end_perp := _end_perp(lane)
+		for o in [-1.0, -0.5, 0.5, 1.0]:
+			var offset: float = o * eb.lateral_spread
+			var want := signf(offset)
+			var d := length - eb.offset_fade_distance - 1.0
+			while d <= length + 1e-6:
+				var base := EnemyPath.position_at(lane, d, 0.0, eb.offset_fade_distance)
+				var side := (EnemyPath.position_at(lane, d, offset, eb.offset_fade_distance) - base).dot(end_perp)
+				assert_gt(side * want, 1e-3, "%s offset %.2f crosses centerline at d=%.2f (side %.4f)" % [lane, offset, d, side])
+				d += 0.05
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -1685,6 +1791,7 @@ static func _segment_at(path: Array, dist: float) -> Array:
 	var d := clampf(dist, 0.0, path_length(path))
 	for i in range(1, path.size()):
 		var seg := (path[i] as Vector2).distance_to(path[i - 1])
+		assert(seg > 0.0, "zero-length path segment")
 		if d <= seg or i == path.size() - 1:
 			return [i, minf(d, seg)]
 		d -= seg
@@ -1729,6 +1836,8 @@ static func _contains_all(c: Vector2, radius: float, points: Array) -> bool:
 
 static func enclosing_radius(points: Array) -> float:
 	# Brute-force minimal enclosing circle: fine for a few dozen points.
+	if points.size() <= 1:
+		return 0.0
 	var best := INF
 	var n := points.size()
 	for i in n:
@@ -1783,7 +1892,8 @@ const LANE_PATHS := {
 	"east": [Vector2(16, -24), Vector2(11, -11), Vector2(5.2, 0)],
 }
 ## Width axis of each lane's attack zone (D-111).
-const ZONE_AXIS := {"north": Vector2(1, 0), "west": Vector2(0, 1), "east": Vector2(0, 1)}
+## Oriented so dot(axis, end-of-path perpendicular) > 0, keeping the blend on one side of the centerline.
+const ZONE_AXIS := {"north": Vector2(-1, 0), "west": Vector2(0, 1), "east": Vector2(0, -1)}
 ## Band between each wall and the reach line (D-101). Rect2(x, z, w, h).
 const ZONE_RECTS := {
 	"west": Rect2(-5.2, -1.5, 1.2, 3.0),
@@ -1851,9 +1961,9 @@ static func position_at(lane: String, dist: float, offset: float, fade: float) -
 	var length := Geometry.path_length(path)
 	var d := clampf(dist, 0.0, length)
 	var base := Geometry.point_at(path, d)
-	var tan := Geometry.tangent_at(path, d)
-	var perp := Vector2(-tan.y, tan.x)
-	var k := clampf((length - d) / fade, 0.0, 1.0) if fade > 0.0 else 0.0
+	var tangent := Geometry.tangent_at(path, d)
+	var perp := Vector2(-tangent.y, tangent.x)
+	var k := clampf((length - d) / fade, 0.0, 1.0) if fade > 0.0 else (1.0 if d < length else 0.0)
 	var axis: Vector2 = MapLayout.ZONE_AXIS[lane]
 	return base + perp * offset * k + axis * offset * (1.0 - k)
 ```
@@ -1910,6 +2020,10 @@ func test_tie_breaks_by_lower_spawn_index_regardless_of_order() -> void:
 func test_height_is_ignored() -> void:
 	var c := {"position": Vector3(0, 10, 3), "spawn_index": 1, "ref": null}
 	assert_eq(Targeting.select(Vector3.ZERO, 4.0, [c]).spawn_index, 1)
+
+func test_candidate_exactly_at_range_is_selected() -> void:
+	assert_eq(Targeting.select(Vector3.ZERO, 4.0, [_c(0, 4.0, 7)]).spawn_index, 7)
+	assert_eq(Targeting.select(Vector3.ZERO, 4.0, [_c(-4.0, 0, 2)]).spawn_index, 2)
 ```
 
 `tests/unit/test_economy.gd`:
@@ -1974,23 +2088,40 @@ func test_each_stock_blocks_pulse() -> void:
 		assert_false(Pulse.should_pulse(s, Balance.data), key)
 
 func test_affordable_build_blocks_pulse() -> void:
+	var bb: BuildBalance = Balance.data.build
+	var cheapest := mini(bb.tower_cost, bb.fence_cost)
 	var s := _state()
-	s.gold = 20  # fence costs 20
+	s.gold = cheapest
 	assert_false(Pulse.should_pulse(s, Balance.data))
-	s.gold = 19
+	s.gold = cheapest - 1
 	assert_true(Pulse.should_pulse(s, Balance.data))
 
 func test_partial_paid_counts() -> void:
+	var bb: BuildBalance = Balance.data.build
 	var s := _state()
-	s.gold = 5
-	s.buildings.fence_w.paid = 15  # 20 - 15 = 5 remaining
+	s.gold = 1
+	assert_true(Pulse.should_pulse(s, Balance.data), "precondition")
+	s.buildings.fence_w.paid = Economy.level_cost("fence_w", 0, bb) - 1  # 1 gold remaining
 	assert_false(Pulse.should_pulse(s, Balance.data))
 
 func test_max_level_spots_ignored() -> void:
+	var bb: BuildBalance = Balance.data.build
 	var s := _state()
 	s.gold = 10000
 	for id in MapLayout.SPOT_IDS:
-		s.buildings[id].level = 3
+		s.buildings[id].level = bb.max_level
+	assert_true(Pulse.should_pulse(s, Balance.data))
+
+func test_one_upgradable_spot_among_maxed_decides_pulse() -> void:
+	var bb: BuildBalance = Balance.data.build
+	var s := _state()
+	for id in MapLayout.SPOT_IDS:
+		s.buildings[id].level = bb.max_level
+	s.buildings.tower_ne.level = 1
+	var cost := Economy.level_cost("tower_ne", 1, bb)
+	s.gold = cost
+	assert_false(Pulse.should_pulse(s, Balance.data))
+	s.gold = cost - 1
 	assert_true(Pulse.should_pulse(s, Balance.data))
 ```
 
@@ -2006,9 +2137,7 @@ Expected: FAIL (`Targeting` not declared).
 ```gdscript
 class_name Targeting
 extends RefCounted
-## Nearest-in-range selection; ties by lower spawn_index (D-034).
-
-const EPS := 1e-6
+## Nearest-in-range selection; strict (distance, spawn_index) order (D-034).
 
 static func select(origin: Vector3, attack_range: float, candidates: Array) -> Dictionary:
 	var best := {}
@@ -2018,7 +2147,7 @@ static func select(origin: Vector3, attack_range: float, candidates: Array) -> D
 		var d := Vector2(pos.x - origin.x, pos.z - origin.z).length()
 		if d > attack_range:
 			continue
-		if d < best_d - EPS or (absf(d - best_d) <= EPS and int(c.spawn_index) < int(best.spawn_index)):
+		if best.is_empty() or d < best_d or (d == best_d and int(c.spawn_index) < int(best.spawn_index)):
 			best = c
 			best_d = d
 	return best
@@ -2100,7 +2229,7 @@ git commit -m "feat: add targeting, economy costs and close-up pulse predicate"
   - `shortest(from: String, to: String) -> Array` (node names, inclusive)
   - `route_from(p: Vector2, goal: String) -> Array` (Vector2 points to walk)
   - `position_of(name: String) -> Vector2`
-- **Node names:** `home`, `sign`, `gold_pile`, `front_e`, `counter_drop`, `freezer`, `sw`, `se`, `nw`, `ne`, `zone_west`, `zone_north`, `zone_east`, `fence_w`, `fence_n`, `fence_e`, `tower_nw`, `tower_ne`.
+- **Node names:** `home`, `sign`, `gold_pile`, `front_e`, `counter_drop`, `freezer`, `sw`, `se`, `nw`, `ne`, `zone_west`, `zone_north`, `zone_east`, `fence_w`, `fence_n`, `fence_e`, `tower_nw`, `tower_ne`, `e_mid` (D-144).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2126,8 +2255,9 @@ func test_edges_traversable_against_colliders() -> void:
 		for b in g.edges[a]:
 			var pa := g.position_of(a)
 			var pb := g.position_of(b)
-			for i in 51:
-				var p := pa.lerp(pb, i / 50.0)
+			var n := maxi(50, ceili(pa.distance_to(pb) / 0.05))
+			for i in n + 1:
+				var p := pa.lerp(pb, float(i) / n)
 				for r in [diner, freezer, counter]:
 					assert_true(Geometry.dist_point_rect(p, r) >= MapLayout.HERO_RADIUS - 0.01, "%s-%s hits box at %s" % [a, b, p])
 
@@ -2146,6 +2276,13 @@ func test_tower_stand_points_inside_build_radius() -> void:
 		var d := g.position_of(id).distance_to(MapLayout.TOWER_SPOTS[id])
 		assert_true(d <= MapLayout.BUILD_RADIUS)
 		assert_true(d >= MapLayout.TOWER_VISUAL_RADIUS, "stand beside the mesh, not inside it")
+
+func test_route_home_to_zone_east_uses_e_mid() -> void:
+	assert_eq(g.shortest("home", "zone_east"), ["home", "se", "e_mid", "zone_east"])
+
+func test_shortest_unknown_node_returns_empty() -> void:
+	assert_eq(g.shortest("home", "nope"), [])
+	assert_eq(g.shortest("nope", "home"), [])
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -2192,6 +2329,8 @@ func nearest(p: Vector2) -> String:
 	return best
 
 func shortest(from: String, to: String) -> Array:
+	if not nodes.has(from) or not nodes.has(to):
+		return []
 	var dist := {}
 	var prev := {}
 	var open: Array = nodes.keys()
@@ -2236,6 +2375,7 @@ static func create_default() -> WaypointGraph:
 	g.add_node("se", Vector2(6.8, 6.8))
 	g.add_node("nw", Vector2(-7, -7))
 	g.add_node("ne", Vector2(7, -7))
+	g.add_node("e_mid", Vector2(7.0, 3.0))  # D-144: a direct se–zone_east edge crosses the freezer
 	for lane in ["west", "north", "east"]:
 		g.add_node("zone_" + lane, MapLayout.lane_end(lane))
 	g.add_node("fence_w", MapLayout.fence_spot("west"))
@@ -2246,7 +2386,7 @@ static func create_default() -> WaypointGraph:
 	for e in [
 		["home", "sign"], ["home", "sw"], ["home", "se"], ["home", "front_e"], ["home", "gold_pile"], ["sw", "gold_pile"],
 		["front_e", "freezer"], ["front_e", "counter_drop"], ["se", "freezer"],
-		["sw", "nw"], ["se", "ne"], ["sw", "zone_west"], ["se", "zone_east"],
+		["sw", "nw"], ["se", "ne"], ["sw", "zone_west"], ["se", "e_mid"], ["e_mid", "zone_east"],
 		["nw", "zone_west"], ["nw", "zone_north"], ["nw", "fence_w"], ["nw", "fence_n"], ["nw", "tower_nw"],
 		["ne", "zone_east"], ["ne", "zone_north"], ["ne", "fence_e"], ["ne", "fence_n"], ["ne", "tower_ne"],
 		["zone_west", "fence_w"], ["zone_north", "fence_n"], ["zone_east", "fence_e"],
@@ -2316,31 +2456,53 @@ func test_visible_width_about_14m() -> void:
 
 func test_boar_visible_two_seconds_before_range() -> void:
 	var ui := Balance.ui
-	var proj := CameraMath.projection(ui, CameraMath.ASPECT)
 	var eb := Balance.data.enemy
 	var hero_range := Balance.data.hero.attack_range
 	var dt := 1.0 / 60.0
-	for lane in LanePlanner.LANES:
-		var hero := MapLayout.lane_end(lane)
-		var xf := CameraMath.camera_transform(CameraMath.focus_for(hero), ui)
-		var length := MapLayout.path_length(lane)
-		var samples: Array = []
-		var d := 0.0
-		while d <= length:
-			samples.append(EnemyPath.position_at(lane, d, 0.0, eb.offset_fade_distance))
-			d += eb.speed * dt
-		var range_idx := -1
-		for i in samples.size():
-			if (samples[i] as Vector2).distance_to(hero) <= hero_range:
-				range_idx = i
-				break
-		assert_gt(range_idx, 0, lane)
-		var first_visible := range_idx
-		while first_visible > 0 and CameraMath.on_screen(MapLayout.to3(samples[first_visible - 1], 0.5), xf, proj):
-			first_visible -= 1
-		var seconds := (range_idx - first_visible) * dt
-		gut.p("%s: on screen %.2f s before range" % [lane, seconds])
-		assert_true(seconds >= 2.0, "%s only %.2f s" % [lane, seconds])
+	for aspect in [CameraMath.ASPECT, 16.0 / 9.0]:
+		var proj := CameraMath.projection(ui, aspect)
+		for lane in LanePlanner.LANES:
+			var length := MapLayout.path_length(lane)
+			var worst := INF
+			for hero in [(MapLayout.ZONE_RECTS[lane] as Rect2).get_center(), MapLayout.lane_end(lane)]:
+				var xf := CameraMath.camera_transform(CameraMath.focus_for(hero), ui)
+				for offset in [-eb.lateral_spread, 0.0, eb.lateral_spread]:
+					var samples: Array = []
+					var d := 0.0
+					while d <= length:
+						samples.append(EnemyPath.position_at(lane, d, offset, eb.offset_fade_distance))
+						d += eb.speed * dt
+					var range_idx := -1
+					for i in samples.size():
+						if (samples[i] as Vector2).distance_to(hero) <= hero_range:
+							range_idx = i
+							break
+					assert_gt(range_idx, 0, "%s hero %s offset %.2f" % [lane, hero, offset])
+					var first_visible := range_idx
+					while first_visible > 0 and CameraMath.on_screen(MapLayout.to3(samples[first_visible - 1], 0.5), xf, proj):
+						first_visible -= 1
+					var seconds := (range_idx - first_visible) * dt
+					worst = minf(worst, seconds)
+					assert_true(seconds >= 2.0, "%s aspect %.3f hero %s offset %.2f only %.2f s" % [lane, aspect, hero, offset, seconds])
+			gut.p("%s @ aspect %.3f: min %.2f s on screen before range" % [lane, aspect, worst])
+
+func test_projection_matches_godot_camera() -> void:
+	var ui := Balance.ui
+	# Round trip: the portrait vertical FOV reproduces the horizontal FOV at 9:16.
+	assert_almost_eq(tan(deg_to_rad(CameraMath.portrait_fov_v(ui)) / 2.0) * CameraMath.ASPECT, tan(deg_to_rad(ui.camera_fov_h) / 2.0), 1e-6)
+	for size in [Vector2i(720, 1280), Vector2i(1280, 720)]:
+		var vp := SubViewport.new()
+		vp.size = size
+		add_child_autofree(vp)
+		var cam := Camera3D.new()
+		var aspect := float(size.x) / float(size.y)
+		CameraMath.apply_lens(cam, ui, aspect)
+		vp.add_child(cam)
+		var got := cam.get_camera_projection()
+		var want := CameraMath.projection(ui, aspect)
+		for c in 4:
+			for r in 4:
+				assert_almost_eq(got[c][r], want[c][r], 1e-4, "%s [%d][%d]" % [size, c, r])
 ```
 
 - [ ] **Step 2: Run it and see it fail**
@@ -2372,9 +2534,31 @@ static func camera_transform(focus: Vector2, ui: UiTuning) -> Transform3D:
 	var pos := target + Vector3(0.0, sin(pitch), cos(pitch)) * ui.camera_distance
 	return Transform3D(Basis(), pos).looking_at(target, Vector3.UP)
 
-static func projection(ui: UiTuning, aspect: float) -> Projection:
-	# flip_fov = true: camera_fov_h is horizontal, matching Camera3D.KEEP_WIDTH.
-	return Projection.create_perspective(ui.camera_fov_h, aspect, Z_NEAR, Z_FAR, true)
+static func keeps_width(aspect: float) -> bool:
+	return aspect <= ASPECT + 1e-6
+
+## Vertical FOV (degrees) of the portrait view; wider windows keep it with KEEP_HEIGHT (D-145).
+static func portrait_fov_v(ui: UiTuning) -> float:
+	return rad_to_deg(2.0 * atan(tan(deg_to_rad(ui.camera_fov_h) / 2.0) / ASPECT))
+
+## D-145: KEEP_WIDTH up to 9:16; wider windows keep the portrait vertical FOV (KEEP_HEIGHT).
+## CameraRig (Task 28) must use keeps_width() for Camera3D.keep_aspect and the matching fov.
+static func projection(ui: UiTuning, aspect: float = ASPECT) -> Projection:
+	if keeps_width(aspect):
+		# flip_fov = true: camera_fov_h is horizontal, matching Camera3D.KEEP_WIDTH.
+		return Projection.create_perspective(ui.camera_fov_h, aspect, Z_NEAR, Z_FAR, true)
+	return Projection.create_perspective(portrait_fov_v(ui), aspect, Z_NEAR, Z_FAR, false)
+
+## D-145: sets keep_aspect, fov, near and far on a real Camera3D for the given viewport aspect.
+static func apply_lens(cam: Camera3D, ui: UiTuning, aspect: float) -> void:
+	if keeps_width(aspect):
+		cam.keep_aspect = Camera3D.KEEP_WIDTH
+		cam.fov = ui.camera_fov_h
+	else:
+		cam.keep_aspect = Camera3D.KEEP_HEIGHT
+		cam.fov = portrait_fov_v(ui)
+	cam.near = Z_NEAR
+	cam.far = Z_FAR
 
 static func to_ndc(world: Vector3, xform: Transform3D, proj: Projection) -> Vector3:
 	var v := xform.affine_inverse() * world
@@ -2857,7 +3041,7 @@ git commit -m "feat: add EventBus signals and GameState with snapshot round trip
 
 **Files:**
 - Create:
-  - `world/visuals.gd`, `ui/world_label/world_label.gd`, `ui/fonts/Nunito.ttf`
+  - `world/visuals.gd`, `ui/world_label/world_label.gd`, `ui/fonts/Nunito.ttf`, `ui/fonts/OFL.txt` (upstream google/fonts `ofl/nunito/OFL.txt`)
   - `components/node_pool.gd`, `components/health.gd`, `components/targetable.gd`
   - `docs/ASSET_LICENSES.md`
 - Modify: `project.godot` (`[gui]` theme font)
@@ -2900,9 +3084,9 @@ If that URL 404s, download the Nunito family from `https://fonts.google.com/spec
 
 One line per asset, added when the asset is first used (IDEA.md, D-079). S4 appends here.
 
-| Asset | Path | Source | License | Added |
-|---|---|---|---|---|
-| Nunito (variable font) | ui/fonts/Nunito.ttf | https://github.com/google/fonts/tree/main/ofl/nunito | SIL OFL 1.1 | 2026-09-30 (S1) |
+| Asset | Path | Source | License | Added | Notes |
+|---|---|---|---|---|---|
+| Nunito (variable font) | ui/fonts/Nunito.ttf | https://github.com/google/fonts/tree/main/ofl/nunito | SIL OFL 1.1 (text: ui/fonts/OFL.txt) | 2026-09-30 (S1) | © The Nunito Project Authors. SHA-256 bb55a5ca5c2042335b3991af27c4d0705d0ef41cac6164ac737fd8f2a1e85207 |
 ```
 
 Append to `project.godot`:
@@ -2934,6 +3118,9 @@ func test_world_label_uses_nunito() -> void:
 	var l := WorldLabel.make("x")
 	assert_eq(l.font.resource_path, WorldLabel.FONT_PATH)
 	l.free()
+
+func test_theme_font_wired() -> void:
+	assert_eq(ProjectSettings.get_setting("gui/theme/custom_font", ""), WorldLabel.FONT_PATH)
 ```
 
 `tests/unit/test_components.gd`:
@@ -2952,6 +3139,16 @@ func test_health_dies_once() -> void:
 	assert_false(h.is_alive())
 	assert_signal_emit_count(h, "died", 1)
 
+func test_damage_ignores_non_positive() -> void:
+	var h := Health.new()
+	add_child_autofree(h)
+	h.reset(10.0)
+	watch_signals(h)
+	h.damage(0.0)
+	h.damage(-5.0)
+	assert_eq(h.hp, 10.0)
+	assert_signal_not_emitted(h, "damaged")
+
 func test_pool_prewarm_acquire_release() -> void:
 	var pool := NodePool.new()
 	add_child_autofree(pool)
@@ -2964,7 +3161,7 @@ func test_pool_prewarm_acquire_release() -> void:
 	pool.release(a)
 	assert_false(a.visible)
 	assert_eq(pool.active(), [b])
-	pool.recall_all()
+	assert_eq(pool.recall_all(), 1)
 	assert_eq(pool.active(), [])
 
 func test_pool_grows_and_warns() -> void:
@@ -3135,6 +3332,7 @@ func recall_all() -> int:
 		release(n)
 	return count
 
+## Returns the live array; duplicate() it before releasing while iterating.
 func active() -> Array:
 	return _active
 
@@ -3167,7 +3365,7 @@ func is_alive() -> bool:
 	return hp > 0.0
 
 func damage(amount: float) -> void:
-	if hp <= 0.0:
+	if hp <= 0.0 or amount <= 0.0:
 		return
 	hp = maxf(hp - amount, 0.0)
 	damaged.emit(amount)
@@ -5635,8 +5833,8 @@ func _run() -> void:
 	bot.setup(main)
 	main.phase_controller.start_new_game(int(_args.get("seed", "20260930")))
 	var cam := Camera3D.new()
-	cam.keep_aspect = Camera3D.KEEP_WIDTH
-	cam.fov = Balance.ui.camera_fov_h
+	var vp := root.get_visible_rect().size
+	CameraMath.apply_lens(cam, Balance.ui, vp.x / vp.y)  # D-145
 	cam.current = true
 	root.add_child(cam)
 	if _args.has("lane"):
@@ -6924,7 +7122,10 @@ func next_purchase() -> String:
 		if String(w.side) != "":
 			side[w.side] += int(w.side_count) * float(w.hp_mult)
 	var lanes := LanePlanner.LANES.duplicate()
-	lanes.sort_custom(func(a, b): return threat[a] > threat[b] or (threat[a] == threat[b] and LanePlanner.LANES.find(a) < LanePlanner.LANES.find(b)))
+	lanes.sort_custom(func(a, b):
+		if not is_equal_approx(threat[a], threat[b]):
+			return threat[a] > threat[b]
+		return LanePlanner.LANES.find(a) < LanePlanner.LANES.find(b))  # float ties -> lane order (Task 5 review)
 	var builds: Array = []
 	var side_lane := ""
 	for l in LanePlanner.LANES:
@@ -7449,11 +7650,15 @@ func before_each() -> void:
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(71)
 
-func test_camera_uses_keep_width_and_fov() -> void:
+func test_camera_lens_follows_d145() -> void:
 	var cam := main.camera_rig.camera
-	assert_eq(cam.keep_aspect, Camera3D.KEEP_WIDTH)
-	assert_eq(cam.fov, Balance.ui.camera_fov_h)
+	var vp := main.get_viewport().get_visible_rect().size
+	var probe := Camera3D.new()
+	CameraMath.apply_lens(probe, Balance.ui, vp.x / vp.y)
+	assert_eq(cam.keep_aspect, probe.keep_aspect)
+	assert_almost_eq(cam.fov, probe.fov, 0.0001)
 	assert_true(cam.current)
+	probe.free()
 
 func test_snap_matches_camera_math() -> void:
 	main.hero.teleport(Vector2(3, -2))
@@ -7495,13 +7700,15 @@ var _t := 0.0
 
 func _ready() -> void:
 	camera = Camera3D.new()
-	camera.keep_aspect = Camera3D.KEEP_WIDTH
-	camera.fov = Balance.ui.camera_fov_h
-	camera.near = CameraMath.Z_NEAR
-	camera.far = CameraMath.Z_FAR
 	add_child(camera)
+	_apply_lens()
+	get_viewport().size_changed.connect(_apply_lens)
 	camera.current = true
 	EventBus.diner_damaged.connect(_on_diner_damaged)
+
+func _apply_lens() -> void:
+	var vp := get_viewport().get_visible_rect().size
+	CameraMath.apply_lens(camera, Balance.ui, vp.x / vp.y)  # D-145: KEEP_HEIGHT on windows wider than 9:16
 
 func setup(hero: Hero) -> void:
 	_hero = hero
@@ -8276,7 +8483,7 @@ git commit -m "feat: pause the game on focus loss and hidden tab"
 
 **Files:**
 - Create:
-  - `export/web_shell.html`, `export/README.md`, `export_presets.cfg`, `export/device_check.sh`
+  - `export/web_shell.html`, `export/README.md`, `export_presets.cfg`, `export/device_check.sh`, `export/pw_check.mjs`
   - `ui/debug/debug_overlay.gd`, `ui/perf_overlay.gd`, `ui/build_label.gd`
 - Modify: `world/main.gd`
 - Test: `tests/unit/test_overlays.gd`
@@ -8692,8 +8899,11 @@ if [ -x "$SDK/emulator/emulator" ]; then
   AVD=$("$SDK/emulator/emulator" -list-avds 2>/dev/null | awk '!/^INFO/ && NF {print; exit}' || true)
 fi
 if [ -z "$AVD" ]; then
-  echo "MISSING Android Emulator. One-time step (author): install Android Studio, then Device Manager > add a Pixel with a Google Play system image (it ships Chrome)."
-  exit 0
+  # D-141: no emulator -> Playwright Chromium, Pixel 7 profile. Labelled "emulated", not device.
+  PW="${LST_PW_DIR:-$HOME/.cache/lst-playwright}"
+  [ -d "$PW/node_modules/playwright" ] || npm i --prefix "$PW" --no-audit --no-fund playwright@1.63.0 >/dev/null
+  LST_PW_DIR="$PW" node "$(dirname "$0")/pw_check.mjs" "$URL" "$OUT/android_emulated.png" android
+  exit $?
 fi
 ADB="$SDK/platform-tools/adb"
 SERIAL=emulator-5554
@@ -8719,7 +8929,42 @@ echo "android: $OUT/android.png"
 "$ADB" -s "$SERIAL" emu kill >/dev/null 2>&1 || true
 ```
 
-Push the branch, wait for the `pages` run, then run `export/device_check.sh https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p10-web/ /tmp/lst-cp2` and the desktop Chrome check with the Playwright method and flags logged in D-138 (screenshot plus console and page errors). The Chrome check must pass by CP2. Read the screenshots: the game renders, the bottom-left label shows the head's short hash, and the HUD is clear of the Dynamic Island and the home indicator. Fix anything that fails before CP2, and attach the screenshots' findings to the CP2 message. If the script prints a MISSING line, pass that one-time install step to the author.
+Also write `export/pw_check.mjs` (fold it into the same commit):
+
+```js
+// Usage: node export/pw_check.mjs <url> <out.png> [profile]   (D-138, D-141)
+// profile: "android" (Playwright "Pixel 7" device: touch, mobile UA, portrait) or "desktop" (720x1280).
+// Chromium with software WebGL (SwiftShader). Prints console messages and page errors; exits 1 on a
+// page error or when the page never sets window.LST_BUILD. Playwright comes from $LST_PW_DIR.
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import os from 'node:os';
+const [url, out, profile = 'android'] = process.argv.slice(2);
+if (!url || !out) { console.error('usage: node pw_check.mjs <url> <out.png> [android|desktop]'); process.exit(2); }
+const pwDir = process.env.LST_PW_DIR || path.join(os.homedir(), '.cache', 'lst-playwright');
+const { chromium, devices } = createRequire(path.join(pwDir, 'package.json'))('playwright');
+const ctxOpts = profile === 'android'
+  ? { ...devices['Pixel 7'] }
+  : { viewport: { width: 720, height: 1280 } };
+const browser = await chromium.launch({ headless: true,
+  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+let failed = false;
+try {
+  const page = await (await browser.newContext(ctxOpts)).newPage();
+  page.on('console', m => console.log(`[console.${m.type()}] ${m.text()}`));
+  page.on('pageerror', e => { failed = true; console.log(`[pageerror] ${e.message}`); });
+  await page.goto(url, { waitUntil: 'load', timeout: 60000 });
+  const build = await page.waitForFunction(() => window.LST_BUILD, null, { timeout: 30000 })
+    .then(h => h.jsonValue()).catch(() => null);
+  if (!build) { failed = true; console.log('no window.LST_BUILD'); }
+  await page.waitForTimeout(Number(process.env.WAIT_S || 15) * 1000);
+  await page.screenshot({ path: out });
+  console.log(`${profile} (emulated): build=${build} screenshot=${out}`);
+} finally { await browser.close(); }
+process.exit(failed ? 1 : 0);
+```
+
+Push the branch, wait for the `pages` run, then run `export/device_check.sh https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p10-web/ /tmp/lst-cp2` and the desktop Chrome check: `node export/pw_check.mjs <url> /tmp/lst-cp2/desktop.png desktop` (D-138 flags; console and page errors printed). The Chrome check must pass by CP2. Read the screenshots: the game renders, the bottom-left label shows the head's short hash, and the HUD is clear of the Dynamic Island and the home indicator. Fix anything that fails before CP2, and attach the screenshots' findings to the CP2 message. If the script prints a MISSING line, pass that one-time install step to the author.
 
 - [ ] **Step 10: CHECKPOINT 2. Stop and wait for the author.**
 

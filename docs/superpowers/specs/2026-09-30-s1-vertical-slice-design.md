@@ -406,7 +406,7 @@ Then:
 | Test | Assertion | Value on paper |
 |---|---|---|
 | A′ (D-123) | On a 0.25 m grid of hero-reachable positions (the map bounds minus the diner, counter and freezer, grown by the hero radius), no position has enemy stop points (the D-111 model, full lateral spread) from all 3 lanes within hero range. The positions reaching 2 lanes are printed as info. The zone-corner enclosing radius (5.41) is printed as info only. | max 2 lanes; west+north 16 points, north+east 16 points, west+east impossible |
-| B (D-055) | Each tower reaches every point of the zones of its two adjacent lanes (NW: west + north, NE: north + east) | worst 6.5 ≤ 7 |
+| B (D-055) | Each tower reaches every point of the zones of its two adjacent lanes (NW: west + north, NE: north + east) | worst 6.58 ≤ 7 (corner (−4, 1.5) from (−5, −5), after D-101) |
 | C (D-076) | Each tower reaches the fence spots of its two adjacent lanes | NW → west 2.5, north 6.53 |
 | D (D-093) | For 1,000 sampled lateral offsets in [−1, 1], every enemy stop point lies inside its lane's zone rectangle | none |
 | E | Every lane path keeps ≥ 1.5 m from every tower spot (including the ±1 m lateral offset) and ≥ reach (1.2 m) from the diner box | west path to NW tower 2.5 m |
