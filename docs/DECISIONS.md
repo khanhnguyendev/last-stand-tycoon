@@ -1215,4 +1215,10 @@ falls and the night restarts identically.
      higher-threat lane);
   4. upgrades: rank lanes by threat and take the spots next to the top lane, towers before fences.
   Ties go by `SPOT_IDS` order.
+- Details fixed during review:
+  - step 1 ranks side lanes by their side-group threat (count × `hp_mult`);
+  - step 2, when the side lane is north, takes the adjacent tower whose other lane has more threat;
+  - step 3 skips spots whose lanes carry no threat tonight;
+  - step 4 is towers first, then fences; within a kind it takes the cheapest affordable. If nothing
+    next to the top lane is affordable, it moves to the next lane by threat rather than saving.
 - The break day (DoD 4) is logged only after the sweep re-runs with this order.

@@ -978,7 +978,7 @@ Paths use shortest distance on this graph, with no navmesh.
      3. More fences and any unbuilt tower, by the threat on their lanes (a tower scores its
         higher-threat lane) (D-154).
      4. Upgrades: rank lanes by threat and take the spots next to the top lane, towers before
-        fences (D-067, D-154).
+        fences; if none is affordable, the next lane (D-067, D-154).
   4. Close up.
 
 ### 13.4 `tests/sim/` (pass/fail; suite < `sim_suite_budget_s` 60 s headless; thresholds are `SimThresholds`)
