@@ -351,6 +351,9 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 			return "building %s" % id
 		if typeof(s.buildings[id]) != TYPE_DICTIONARY or not s.buildings[id].has_all(["level", "paid", "hp"]):
 			return "building fields %s" % id
+		for f in ["level", "paid", "hp"]:
+			if not typeof(s.buildings[id][f]) in [TYPE_INT, TYPE_FLOAT]:
+				return "building field type %s" % id
 	for id in MapLayout.SPOT_IDS:
 		if not s.buildings.has(id):
 			return "missing building %s" % id
@@ -363,6 +366,8 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 	for id in s.cards:
 		if not StringName(id) in CardCatalog.IDS:
 			return "card %s" % id
+		if not typeof(s.cards[id]) in [TYPE_INT, TYPE_FLOAT]:
+			return "level type %s" % id
 		var l := int(s.cards[id])
 		if l < 0 or l > max_level:
 			return "level %s" % id
@@ -372,6 +377,9 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 	for id in s.guards:
 		if not StringName(id) in CardCatalog.ADVENTURERS:
 			return "guard %s" % id
+		if typeof(s.guards[id]) != TYPE_DICTIONARY or not s.guards[id].has("hp") \
+				or not typeof(s.guards[id].hp) in [TYPE_INT, TYPE_FLOAT]:
+			return "guard fields %s" % id
 	if String(s.resume_phase) == "CARD_PICK":
 		if s.card_offer.is_empty():
 			return "empty offer"
@@ -1081,11 +1089,11 @@ static func _build_id() -> String:
 - [ ] **Step 4: Run the full suite.** Run `./run_tests.sh all` with the wiring applied and expect exit 0.
 
 - [ ] **Step 5: Commit** without `world/main.gd`. Save the wiring as `/Users/ryan/ws/1.GAME/lst-wt/lst-s3t6-wiring.patch`.
-- [ ] **Step 6 (main session):** apply the patch on the task branch, run `./run_tests.sh all`, and amend it into the task commit before the reviewer pass and before the next task (otherwise the branch is red).
 ```bash
 git add world/save/autosave.gd tests/unit/test_autosave.gd
 git commit -m "feat(save): Autosave at night start, dawn, pick, build and throttled day changes (Task S3-6)"
 ```
+- [ ] **Step 6 (main session):** apply the patch on the task branch, run `./run_tests.sh all`, and amend it into the task commit before the reviewer pass and before the next task (otherwise the branch is red; D-181).
 
 ### Task 7: Boot resume and debug restart
 
@@ -1321,11 +1329,11 @@ func resume_from(state: Dictionary) -> void:
 - [ ] **Step 4: Run the full suite.** Run `./run_tests.sh all` with the wiring applied and expect exit 0.
 
 - [ ] **Step 5: Commit** without `world/main.gd`. Save the wiring as `/Users/ryan/ws/1.GAME/lst-wt/lst-s3t7-wiring.patch`.
-- [ ] **Step 6 (main session):** apply the patch, run `./run_tests.sh all`, and amend it into the task commit before the reviewer pass. `debug_overlay.gd` uses `main.debug_fresh_start` and `save_store`, so every Main-based test is red until the patch is applied. Then open the Phase 3 PR.
 ```bash
 git add world/phase_controller.gd ui/debug/debug_overlay.gd tests/unit/test_resume.gd
 git commit -m "feat(save): boot resume (DAY, CARD_PICK, NIGHT), debug R and URL fresh start (Task S3-7)"
 ```
+- [ ] **Step 6 (main session):** apply the patch, run `./run_tests.sh all`, and amend it into the task commit before the reviewer pass (D-181). `debug_overlay.gd` uses `main.debug_fresh_start` and `save_store`, so every Main-based test is red until the patch is applied. Then open the Phase 3 PR.
 
 ---
 
@@ -1361,7 +1369,7 @@ func test_parked_retry_has_mercy_hp() -> void:
 	await h.run_until(func(): return h.main.world.wave_director.alive_enemies().size() > 0, 15.0)
 	var b: Boar = h.main.world.wave_director.alive_enemies()[0]
 	assert_almost_eq(b.health.max_hp, Balance.data.enemy.hp * float(GameState.lane_plan[0].hp_mult) * GameState.mercy_factor(), 1e-4)
-	assert_lt(b.health.max_hp, Balance.data.enemy.hp * float(GameState.lane_plan[0].hp_mult), "fewer hits per kill on the retry")
+	assert_lt(b.health.max_hp, Balance.data.enemy.hp * float(GameState.lane_plan[0].hp_mult), "lower spawn HP on the retry")
 ```
 - [ ] **Step 3: Run the checks.** Run `./run_tests.sh all` and expect exit 0, with SIM SUITE under 60 s. Also run the sweep and paste the CSV and the SWEEP line.
 - [ ] **Step 4: Commit.**
@@ -1389,6 +1397,6 @@ git commit -m "chore(sweep): retries with mercy; first_fail_day and hard_break_d
   - Append the spec §10 playtest questions to `docs/REVIEW_QUEUE.md` under "Final review playtest questions (S3)".
 - [ ] **Step 4: Commit, then open the Phase 4 PR.**
 ```bash
-git add export/pw_resume.mjs docs
+git add export/pw_resume.mjs export/device_check.sh export/pw_check.mjs docs
 git commit -m "test(web): resume smoke across reloads; S3 results (Task S3-9)"
 ```
