@@ -1202,3 +1202,23 @@ falls and the night restarts identically.
 - Tests: ground coverage at 0.30, 9:21, 9:19.5, 9:16, 16:9, 21:9 and 32:9 (all rays point down, all
   hits land inside, with 5 m of headroom); lane visibility ≥ 2.0 s at 9:21, 9:16, 16:9 and 21:9; the
   projection matches a real `Camera3D` in the clamped branches.
+
+**D-154 PlannerBot buys unbuilt towers by lane threat (Task 25 review; refines spec 13.3).**
+- With the plan's order, a level-0 tower was only a candidate as "the tower next to the top side
+  lane", and upgrades skipped level 0. `tower_ne` was never built (every sweep row showed
+  `tower_ne:0`), and the east lane had no tower at all. The sweep broke at day 3, probably from the
+  bot's weakness rather than the balance.
+- New order:
+  1. a fence on the highest-threat side lane;
+  2. the tower next to it;
+  3. more fences and any unbuilt tower, by the threat on their lanes (a tower scores its
+     higher-threat lane);
+  4. upgrades: rank lanes by threat and take the spots next to the top lane, towers before fences.
+  Ties go by `SPOT_IDS` order.
+- Details fixed during review:
+  - step 1 ranks side lanes by their side-group threat (count × `hp_mult`);
+  - step 2, when the side lane is north, takes the adjacent tower whose other lane has more threat;
+  - step 3 skips spots whose lanes carry no threat tonight;
+  - step 4 is towers first, then fences; within a kind it takes the cheapest affordable. If nothing
+    next to the top lane is affordable, it moves to the next lane by threat rather than saving.
+- The break day (DoD 4) is logged only after the sweep re-runs with this order.
