@@ -7,6 +7,7 @@ var diner_body: StaticBody3D
 
 @export var enemy_pool: NodePool
 @export var steak_pool: NodePool
+@export var projectile_pool: NodePool
 @export var wave_director: WaveDirector
 
 func _ready() -> void:
@@ -87,3 +88,4 @@ func _setup_pools() -> void:
 	var sizes := World.pool_sizes(Balance.data)
 	enemy_pool.setup(func(): return Boar.new(), sizes.enemy)
 	steak_pool.setup(func(): return Steak.new(), sizes.steak)
+	projectile_pool.setup(func(): return Projectile.new(), sizes.projectile)

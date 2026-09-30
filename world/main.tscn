@@ -11,10 +11,11 @@ script = ExtResource("1_main")
 world = NodePath("World")
 phase_controller = NodePath("PhaseController")
 
-[node name="World" type="Node3D" parent="." node_paths=PackedStringArray("enemy_pool", "steak_pool", "wave_director")]
+[node name="World" type="Node3D" parent="." node_paths=PackedStringArray("enemy_pool", "steak_pool", "projectile_pool", "wave_director")]
 script = ExtResource("2_world")
 enemy_pool = NodePath("EnemyPool")
 steak_pool = NodePath("SteakPool")
+projectile_pool = NodePath("ProjectilePool")
 wave_director = NodePath("WaveDirector")
 
 [node name="EnemyPool" type="Node" parent="World"]
