@@ -4695,8 +4695,8 @@ class_name PhaseController
 extends Node
 ## Owns the phase, the snapshot and the dawn / close-up / fail steps (spec 5, D-043).
 ## The single architecture exception (D-110, D-128): it calls other systems directly, but ONLY through
-## this narrow interface, via typed @export references assigned in world/main.tscn (never get_node
-## paths, never groups):
+## this narrow interface, via typed @export references assigned in world/main.tscn (never node-path
+## lookups, never groups; test_phase_controller greps this file for them):
 ##   WaveDirector.start_night(plan), WaveDirector.stop()
 ##   NodePool.recall_all() -> int
 ##   TravelerSpawner.start(), stop(), clear_queue()      (added in Task 22)
