@@ -87,7 +87,9 @@ Estimates in working days, with agentic execution plus one review per task:
 | 12 Tuning (timebox) | 35 | 2.0 |
 | 13 Perf and results | 36 | 0.5 |
 | 14 Gate (→ CP3) | 37 | 0.5 |
-| **Total** | 38 tasks | **≈ 20.5 days (about 4 weeks)** |
+| **Total** | 38 tasks | **18.5 days (about 3.7 weeks)** |
+
+At CP1, re-forecast the remaining phases against this 18.5-day baseline, using the actual days spent on Phases 0–5 (planned: 8.0).
 
 ## File Map
 
