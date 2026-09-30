@@ -633,8 +633,9 @@ func test_damage_knockout_once_then_noop_and_revive() -> void:
 	var mx := Balance.data.guards.tank.max_hp
 	GameState.debug_grant_card(&"tank")
 	watch_signals(EventBus)
-	GameState.damage_guard(&"tank", mx * 0.25)
-	assert_signal_emitted_with_parameters(EventBus, "guard_damaged", [&"tank", mx * 0.75])
+	var hit := mx * 0.25
+	GameState.damage_guard(&"tank", hit)
+	assert_signal_emitted_with_parameters(EventBus, "guard_damaged", [&"tank", mx - hit])
 	GameState.damage_guard(&"tank", mx)
 	assert_eq(GameState.guards[&"tank"].hp, 0.0)
 	assert_signal_emit_count(EventBus, "guard_knocked_out", 1)
@@ -2022,6 +2023,8 @@ func test_knockout_respawn_at_door_then_return() -> void:
 	assert_lt(t.xz().distance_to(MapLayout.DINER_DOOR), 0.2, "respawns at the door")
 	await _ticks(60 * 8)
 	assert_eq(t.state, Guard.State.POSTED)
+	assert_true(t.visual.visible)
+	assert_almost_eq(t.visual.scale.x, 1.0, 1e-3, "the respawned tank is full size")
 
 func test_dawn_restores_a_downed_tank() -> void:
 	GameState.debug_grant_card(&"tank")
@@ -2171,7 +2174,7 @@ func arrive_from_door() -> void:
 	_path = MapLayout.tank_return_path()
 	position = MapLayout.to3(_path.pop_front())
 	state = State.RETURNING
-	visual.visible = true
+	poof(true)  # pops in at the door; also undoes a knockout's shrink (spec 6.2)
 	attacker.enabled = true
 	_refresh_bar()
 
