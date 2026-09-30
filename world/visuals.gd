@@ -8,6 +8,7 @@ const COLORS := {
 	"coin": Color("f2c230"), "tower": Color("8c8c8c"), "fence": Color("9b6b3a"), "telegraph": Color("e03030"),
 	"ground": Color("6fa35a"), "lane": Color("b59a6a"), "road": Color("7d7d7d"), "sign": Color("ffffff"),
 	"pip": Color("ffd24a"), "flash": Color("ffffff"), "diner_hp": Color("5ecf5e"),
+	"archer": Color("2f9e44"), "tank": Color("5c4b8a"),
 }
 
 static var _materials := {}
