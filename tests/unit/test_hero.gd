@@ -58,3 +58,41 @@ func test_starts_at_home() -> void:
 	var m := Main.create()
 	add_child_autofree(m)
 	assert_eq(m.hero.xz(), MapLayout.HOME)
+
+func test_move_speed_card_applies() -> void:
+	var base := Balance.data.hero.move_speed
+	var fast := base * (1.0 + Balance.data.cards.move_step)
+	assert_almost_eq(hero.move_speed(), base, 1e-5)
+	GameState.debug_grant_card(&"move_speed")
+	assert_almost_eq(hero.move_speed(), fast, 1e-5)
+	hero.teleport(Vector2(10, 8))
+	hero.input.set_move(Vector2(1, 0))
+	await _ticks(60)
+	hero.input.set_move(Vector2.ZERO)
+	assert_almost_eq(hero.xz().x, 10.0 + fast, 0.25)
+
+func test_attack_cards_reconfigure_attacker_and_restore_resets() -> void:
+	var hb := Balance.data.hero
+	var cb := Balance.data.cards
+	GameState.debug_grant_card(&"hero_damage")
+	GameState.debug_grant_card(&"attack_speed")
+	assert_almost_eq(hero.attacker.damage, hb.attack_damage * (1.0 + cb.damage_step), 1e-5)
+	assert_almost_eq(hero.attacker.interval, hb.attack_interval / (1.0 + cb.attack_speed_step), 1e-5)
+	GameState.new_game(4)  # cards cleared, state_restored
+	assert_almost_eq(hero.attacker.damage, hb.attack_damage, 1e-5)
+	assert_almost_eq(hero.attacker.interval, hb.attack_interval, 1e-5)
+
+func test_input_blocked_in_dawn_only() -> void:
+	main.phase_controller.start_new_game(1)
+	main.hero.input.player_control = true
+	EventBus.wave_cleared.emit(2)  # -> DAWN / CARD_PICK
+	assert_true(main.hero.input.blocked)
+	main.hero.input.set_move(Vector2.RIGHT)
+	assert_eq(main.hero.input.get_move(), Vector2.ZERO)
+	Input.action_press(&"move_right")
+	assert_eq(main.hero.input.get_move(), Vector2.ZERO, "WASD is blocked too")
+	Input.action_release(&"move_right")
+	EventBus.card_chosen.emit(GameState.card_offer[0])
+	assert_false(main.hero.input.blocked)
+	main.hero.input.set_move(Vector2.RIGHT)
+	assert_eq(main.hero.input.get_move(), Vector2.RIGHT)

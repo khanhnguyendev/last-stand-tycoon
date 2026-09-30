@@ -4,6 +4,8 @@ extends Node
 
 var player_control := true
 var _move := Vector2.ZERO
+## True during DAWN (S2 card pick): get_move() returns zero for WASD, joystick and bots.
+var blocked := false
 
 static func ensure_actions() -> void:
 	var map := {
@@ -26,6 +28,8 @@ func set_move(v: Vector2) -> void:
 	_move = v.limit_length(1.0)
 
 func get_move() -> Vector2:
+	if blocked:
+		return Vector2.ZERO
 	if player_control:
 		var k := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
 		if k != Vector2.ZERO:
