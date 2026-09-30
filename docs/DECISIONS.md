@@ -1501,3 +1501,9 @@ Spec: `docs/superpowers/specs/2026-09-30-s3-save-failure-mercy-design.md`.
   zero-margin Archer target.
 - Also seen: from about day 7, every tower and fence is at max level, so unspent gold piles up (260 → 748 by day 9).
   There is no other gold sink in v0.1 (IDEA: towers and fences are the only sink). Logged in REVIEW_QUEUE.
+
+**D-181 Wiring notes that keep a branch green are applied before the review (clarifies D-139).**
+- When a task's committed code needs its wiring note to compile or pass (for example, a test that uses a `Main` field
+  the note adds), the main session applies the patch and amends it into the task commit **before** the reviewer pass.
+  Otherwise the reviewer sees a red suite.
+- The reviewer then reviews the task and its wiring together. The main session still owns the hot-file edit.
