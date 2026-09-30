@@ -58,7 +58,10 @@ func test_banner_shows_then_hides() -> void:
 	EventBus.banner_requested.emit("Dawn")
 	assert_true(hud.banner.visible)
 	assert_eq(hud.banner.text, "Dawn")
-	for i in int(Balance.ui.banner_time * 60) + 30:
+	for i in int(Balance.ui.banner_time * 60 * 0.875):
+		await get_tree().process_frame
+	assert_between(hud.banner_panel.modulate.a, 0.05, 0.95)
+	for i in int(Balance.ui.banner_time * 60 * 0.125) + 30:
 		await get_tree().process_frame
 	assert_false(hud.banner.visible)
 
@@ -175,7 +178,7 @@ func test_second_banner_shortens_the_first_then_plays_in_full() -> void:
 		await get_tree().process_frame
 	EventBus.banner_requested.emit("Two")
 	var r := minf(Balance.ui.banner_time - shown / 60.0, Balance.ui.banner_min_s)
-	for i in int(ceil(r * 60.0)) + 2:
+	for i in int(ceil(r * 60.0)) + 3:
 		await get_tree().process_frame
 	assert_eq(hud.banner.text, "Two")
 	assert_almost_eq(hud.banner_panel.modulate.a, 1.0, 1e-3)
@@ -240,3 +243,18 @@ func test_card_strip_lists_owned_cards_in_catalog_order() -> void:
 func test_day_label_shows_new_day_on_offer() -> void:
 	EventBus.wave_cleared.emit(2)
 	assert_eq(main.hud.day_label.text, "Day 2")
+
+func test_queued_banner_shown_late_plays_min_time() -> void:
+	EventBus.banner_requested.emit("X")
+	var guard := int(Balance.ui.banner_time * 60) + 10
+	while hud._banner_left >= 2.0 / 60.0 and guard > 0:
+		await get_tree().process_frame
+		guard -= 1
+	assert_gt(guard, 0, "X nearly expired")
+	EventBus.banner_requested.emit("Y")
+	EventBus.banner_requested.emit("Z")
+	var n := int(ceil((Balance.ui.banner_min_s + 2.0 / 60.0) * 60.0)) + 3
+	while hud.banner.text != "Z" and n > 0:
+		await get_tree().process_frame
+		n -= 1
+	assert_eq(hud.banner.text, "Z")

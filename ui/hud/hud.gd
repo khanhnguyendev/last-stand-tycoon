@@ -248,7 +248,8 @@ func _show_next_banner() -> void:
 	banner.visible = true
 	banner_panel.visible = true
 	banner_panel.modulate.a = 1.0
-	_banner_left = Balance.ui.banner_time
+	# A banner shown while others wait plays banner_min_s (the fail path: "The diner fell" -> "The monsters return" -> flavor).
+	_banner_left = Balance.ui.banner_time if _banner_queue.is_empty() else minf(Balance.ui.banner_time, Balance.ui.banner_min_s)
 
 func _tick_banner(delta: float) -> void:
 	if _banner_left <= 0.0:

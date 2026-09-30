@@ -37,7 +37,7 @@ func start_new_game(seed: int = 0) -> void:
 	GameState.new_game(seed)
 	snapshot = GameState.to_dict()
 	snapshot.resume_phase = "NIGHT"
-	EventBus.snapshot_taken.emit(snapshot)
+	EventBus.snapshot_taken.emit(snapshot.duplicate(true))
 	EventBus.hero_place_requested.emit(MapLayout.NIGHT1_START)  # D-126: combat comes to a new player
 	EventBus.banner_requested.emit(tr("The monsters return"))
 	_enter_night()
@@ -50,7 +50,7 @@ func close_up() -> void:
 	traveler_spawner.stop()
 	snapshot = GameState.to_dict()
 	snapshot.resume_phase = "DAY"
-	EventBus.snapshot_taken.emit(snapshot)
+	EventBus.snapshot_taken.emit(snapshot.duplicate(true))
 	_enter_night()
 
 func _enter_night() -> void:
@@ -125,7 +125,7 @@ func _fail_restore() -> void:
 	var fails := int(snapshot.get("night_fails", 0)) + 1
 	snapshot.night_fails = fails
 	if String(snapshot.resume_phase) == "NIGHT":
-		EventBus.snapshot_taken.emit(snapshot)
+		EventBus.snapshot_taken.emit(snapshot.duplicate(true))
 	_restore_snapshot()
 	EventBus.banner_requested.emit(tr("The monsters look tired tonight."))
 

@@ -35,9 +35,11 @@ func test_night1_fail_adds_mercy_and_snapshots_it() -> void:
 func test_day_fail_carries_mercy_and_dawn_clears_it() -> void:
 	EventBus.wave_cleared.emit(2)
 	EventBus.card_chosen.emit(GameState.card_offer[0])
+	watch_signals(EventBus)
 	pc.close_up()
 	GameState.damage_diner(1e6)
 	await _ticks(_fail_ticks())
+	assert_signal_emit_count(EventBus, "snapshot_taken", 1, "close_up emits; a DAY fail does not")
 	assert_eq(pc.phase, Phase.DAY)
 	assert_eq(GameState.night_fails, 1)
 	pc.close_up()
@@ -58,3 +60,12 @@ func test_mercy_scales_boar_hp_and_damage() -> void:
 	var hp0 := GameState.diner_hp
 	await _ticks(int(ceil(Balance.data.enemy.attack_interval * 60.0)) + 2)
 	assert_almost_eq(hp0 - GameState.diner_hp, Balance.data.enemy.damage * f, 1e-4, "diner arm scaled")
+
+func test_snapshot_taken_emits_a_copy() -> void:
+	var got := []
+	EventBus.snapshot_taken.connect(func(s): s.x = 1; got.append(s))
+	EventBus.wave_cleared.emit(2)
+	EventBus.card_chosen.emit(GameState.card_offer[0])
+	pc.close_up()
+	assert_eq(got.size(), 1)
+	assert_false(pc.snapshot.has("x"))
