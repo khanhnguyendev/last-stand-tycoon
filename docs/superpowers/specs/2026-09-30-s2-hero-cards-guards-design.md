@@ -313,14 +313,14 @@ _tank()`. Both are built by static initializer functions (D-157 applies: export 
 | `damage` (L1) | 6 | 5 |
 | `damage_growth` per level | 0.30 | 0.25 |
 | `interval` | 0.6 | 0.8 |
-| `range` | 9.0 | 2.5 |
+| `attack_range` | 9.0 | 2.5 |
 | `projectile_speed` | 16 | 60 (melee) |
 | `body_radius` | 0.4 | 0.45 |
 | `walk_speed` | — | 3.0 |
 | `respawn_s` | — | 3.0 |
 
 - A stat at level L is `base × (1 + growth × (L − 1))`.
-- `UiTuning` adds `card_input_guard_s` 0.5 and `card_panel_min_size` (560, 220).
+- `UiTuning` adds `card_input_guard_s` 0.5, `card_panel_size` (560, 220), `card_panel_gap` 24.0 and `card_panel_min_h` 120.0.
 - `SimThresholds` adds `break_day_target` 10 and `break_day_tolerance` 1. These are reported by the sweep; the sweep
   stays a manual report, not an assertion.
 

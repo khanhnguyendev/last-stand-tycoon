@@ -8,3 +8,5 @@ extends Resource
 @export var economy: EconomyBalance = EconomyBalance.new()
 @export var build: BuildBalance = BuildBalance.new()
 @export var sim: SimThresholds = SimThresholds.new()
+@export var cards: CardBalance = CardBalance.new()
+@export var guards: GuardBalance = GuardBalance.new()
