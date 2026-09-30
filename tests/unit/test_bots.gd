@@ -90,6 +90,7 @@ func test_planner_fills_to_effective_carry_capacity() -> void:
 	h.start(11, PlannerBot)
 	for i in Balance.data.cards.max_level:
 		GameState.debug_grant_card(&"carry_capacity")
+	assert_gt(GameState.carry_capacity(), Balance.data.hero.carry_capacity)
 	h.main.phase_controller.debug_skip_to_day()
 	GameState.freezer_steaks = 40  # test-only setup write
 	var ok: bool = await h.run_until(func(): return GameState.carried_steaks >= GameState.carry_capacity(), 60.0)
@@ -99,6 +100,8 @@ func test_fast_hero_arrives_without_overshoot() -> void:
 	h.start(11, BotBase)
 	for i in Balance.data.cards.max_level:
 		GameState.debug_grant_card(&"move_speed")
+	var cb := Balance.data.cards
+	assert_almost_eq(h.main.hero.move_speed(), Balance.data.hero.move_speed * (1.0 + cb.move_step * cb.max_level), 0.001)
 	h.main.phase_controller.debug_skip_to_day()
 	h.bot.go_to("sign")
 	var goal: Vector2 = h.bot.graph.position_of("sign")
@@ -127,7 +130,9 @@ func test_bot_picks_one_tick_after_the_offer() -> void:
 
 func test_debug_skip_leaves_a_stale_bot_pick_ignored() -> void:
 	h.start(11, BotBase)
+	watch_signals(EventBus)
 	h.main.phase_controller.debug_skip_to_day()
 	await h.tick()
 	await h.tick()
+	assert_signal_emit_count(EventBus, "card_chosen", 1)
 	assert_eq(GameState.cards, {})

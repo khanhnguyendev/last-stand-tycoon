@@ -25,7 +25,7 @@ func test_every_card_has_text_and_glyph() -> void:
 
 func test_level_and_banner_text() -> void:
 	assert_eq(CardCatalog.level_text(0), "NEW")
-	assert_eq(CardCatalog.level_text(2), "Lv 2 > 3")
+	assert_eq(CardCatalog.level_text(2), "Lv 2 » 3")
 	assert_eq(CardCatalog.pick_banner(&"archer", 1), "The Archer joins!")
 	assert_eq(CardCatalog.pick_banner(&"tank", 3), "Tank Lv 3")
 	assert_eq(CardCatalog.pick_banner(&"move_speed", 2), "Running Shoes Lv 2")

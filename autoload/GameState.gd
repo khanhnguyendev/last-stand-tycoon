@@ -258,7 +258,7 @@ func debug_grant_card(id: StringName) -> int:
 	var prev := card_offer.duplicate()
 	card_offer = [id]
 	var lvl := pick_card(id)
-	card_offer = prev
+	card_offer = prev.filter(func(c): return card_level(c) < Balance.data.cards.max_level)
 	return lvl
 
 func damage_guard(id: StringName, amount: float) -> void:

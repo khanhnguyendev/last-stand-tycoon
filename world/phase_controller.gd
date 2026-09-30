@@ -73,7 +73,6 @@ func _run_dawn() -> void:
 	wave_director.stop()
 	phase = Phase.DAWN
 	EventBus.phase_changed.emit(phase, GameState.day)
-	EventBus.banner_requested.emit(tr("Dawn"))
 	_steaks_to_freezer()                 # 1
 	_recall_all()                        # projectiles (and later fx) in flight
 	GameState.heal_for_dawn()            # 2
@@ -86,6 +85,7 @@ func _card_pick() -> void:
 	var offer := CardOffer.make(GameState.run_seed, GameState.day, GameState.cards, Balance.data.cards)
 	if offer.is_empty():
 		dawn_substate = ""
+		EventBus.banner_requested.emit(tr("Dawn"))  # the pick overlay would hide it otherwise
 		_enter_day()
 		return
 	dawn_substate = "CARD_PICK"

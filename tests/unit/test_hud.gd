@@ -176,6 +176,10 @@ func test_arrow_rect_top_clears_the_hud() -> void:
 	var need := maxf(hud._top_column.get_global_rect().end.y, hud.gold_label.get_global_rect().end.y) \
 		+ Balance.ui.arrow_hud_gap + Hud.ARROW_EXTENT
 	assert_gte(hud._arrow_rect().position.y, need)
+	GameState.debug_grant_card(&"tank")
+	assert_ne(hud.card_strip.text, "")
+	need = maxf(need, hud.card_strip.get_global_rect().end.y + Balance.ui.arrow_hud_gap + Hud.ARROW_EXTENT)
+	assert_gte(hud._arrow_rect().position.y, need)
 
 func test_hover_point_is_clamped_below_the_hud() -> void:
 	var rect := Rect2(0, 200, 600, 800)
