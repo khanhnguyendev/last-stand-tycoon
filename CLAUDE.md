@@ -74,3 +74,10 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - Edit `world/main.tscn` by hand only; never save it from the Godot editor (the editor rewrites the header and uids, and later plan tasks give its full text).
 - `./run_tests.sh` fails on GUT errors as well as failed asserts, including any `SCRIPT ERROR`. Don't write tests that expect engine errors.
 - Sims and tests read state at matching points after `await get_tree().physics_frame`; `physics_frame` fires before the nodes' `_physics_process` (D-118).
+
+## CI
+`.github/workflows/ci.yml` runs two parallel jobs, `unit` (`./run_tests.sh unit`) and `sim` (`./run_tests.sh sim`),
+on Linux with the pinned, SHA-512-verified Godot (D-116, D-129), for every PR and push to main. Each job also checks
+that `GODOT_TAG` matches CLAUDE.md and pages.yml. The job names `unit` and `sim` are the required checks for branch
+protection (D-133); don't rename them. CI is canonical for sim thresholds (D-105). If the sim suite goes over 60 s:
+never drop tests; report timings and escalate (D-132). The sweep is manual.

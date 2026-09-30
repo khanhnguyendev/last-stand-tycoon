@@ -11602,59 +11602,133 @@ git commit -m "docs: add per-lane S1 visibility screenshots"
 
 `.github/workflows/ci.yml`:
 ```yaml
+# Unit and sim suites as two parallel jobs (D-087, D-132). The job names `unit` and `sim`
+# are the required status checks for branch protection (D-133); do not rename them.
+# CI (Linux) is canonical for sim thresholds (D-105).
 name: ci
+
 on:
   pull_request:
   push:
     branches: [main]
+
+permissions:
+  contents: read
+
+# A newer push to the same PR or branch supersedes the older run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
-  GODOT_TAG: "4.7-stable"   # EXACT tag from D-116; must equal CLAUDE.md "GODOT_TAG=" (D-129)
+  # EXACT tag from D-116 (D-129); must equal CLAUDE.md "GODOT_TAG=" and pages.yml (D-135)
+  GODOT_TAG: "4.7.2-stable"
+
 jobs:
-  # Two parallel jobs (D-132). Their names are the required checks for branch protection (D-133).
   unit:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - name: Check the pinned Godot tag matches CLAUDE.md
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check the pinned Godot tag matches CLAUDE.md and pages.yml
         run: |
           grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
           grep -qF "GODOT_TAG: \"${GODOT_TAG}\"" .github/workflows/pages.yml || { echo "pages.yml pins a different GODOT_TAG"; exit 1; }
-      - name: Download Godot headless (official, SHA-512 verified)
+
+      # Same paths and key as pages.yml, so the two workflows share one cache entry.
+      - name: Cache Godot editor and export templates
+        id: godot_cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_TAG }}-web-v1
+
+      - name: Download and verify Godot (cache miss only)
+        if: steps.godot_cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           BASE="https://github.com/godotengine/godot-builds/releases/download/${GODOT_TAG}"
           ZIP="Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          TPZ="Godot_v${GODOT_TAG}_export_templates.tpz"
+          TPL_DIR="$HOME/.local/share/godot/export_templates/${GODOT_TAG/-/.}"
+          DL="$RUNNER_TEMP/godot-dl"
+          rm -rf "$DL"; mkdir -p "$DL" "$HOME/godot" "$TPL_DIR"
+          cd "$DL"
           curl -fsSL -o SHA512-SUMS.txt "$BASE/SHA512-SUMS.txt"
           curl -fsSL -o "$ZIP" "$BASE/$ZIP"
-          grep -E "[[:space:]]\*?${ZIP}\$" SHA512-SUMS.txt > wanted.sha512
+          curl -fsSL -o "$TPZ" "$BASE/$TPZ"
+          awk -v a="$ZIP" -v b="$TPZ" '$2==a || $2==b' SHA512-SUMS.txt > wanted.sha512
+          [ "$(wc -l < wanted.sha512)" -eq 2 ] || { echo "expected exactly 2 checksum lines"; cat wanted.sha512; exit 1; }
           sha512sum -c wanted.sha512
-          unzip -q "$ZIP"
-          mv "Godot_v${GODOT_TAG}_linux.x86_64" godot-bin && chmod +x godot-bin
-          echo "GODOT=$PWD/godot-bin" >> "$GITHUB_ENV"
+          unzip -p "$ZIP" "Godot_v${GODOT_TAG}_linux.x86_64" > "$HOME/godot/godot"
+          chmod +x "$HOME/godot/godot"
+          unzip -o -j "$TPZ" templates/web_nothreads_release.zip templates/web_nothreads_debug.zip templates/version.txt -d "$TPL_DIR"
+          rm -f "$TPZ"
+          ls -l "$TPL_DIR"
+
+      - name: Locate Godot
+        run: |
+          set -euo pipefail
+          echo "GODOT=$HOME/godot/godot" >> "$GITHUB_ENV"
+          "$HOME/godot/godot" --version
+
       - name: Unit tests + grep ban
         run: ./run_tests.sh unit
+
   sim:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - name: Check the pinned Godot tag matches CLAUDE.md
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check the pinned Godot tag matches CLAUDE.md and pages.yml
         run: |
           grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
           grep -qF "GODOT_TAG: \"${GODOT_TAG}\"" .github/workflows/pages.yml || { echo "pages.yml pins a different GODOT_TAG"; exit 1; }
-      - name: Download Godot headless (official, SHA-512 verified)
+
+      - name: Cache Godot editor and export templates
+        id: godot_cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_TAG }}-web-v1
+
+      - name: Download and verify Godot (cache miss only)
+        if: steps.godot_cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           BASE="https://github.com/godotengine/godot-builds/releases/download/${GODOT_TAG}"
           ZIP="Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          TPZ="Godot_v${GODOT_TAG}_export_templates.tpz"
+          TPL_DIR="$HOME/.local/share/godot/export_templates/${GODOT_TAG/-/.}"
+          DL="$RUNNER_TEMP/godot-dl"
+          rm -rf "$DL"; mkdir -p "$DL" "$HOME/godot" "$TPL_DIR"
+          cd "$DL"
           curl -fsSL -o SHA512-SUMS.txt "$BASE/SHA512-SUMS.txt"
           curl -fsSL -o "$ZIP" "$BASE/$ZIP"
-          grep -E "[[:space:]]\*?${ZIP}\$" SHA512-SUMS.txt > wanted.sha512
+          curl -fsSL -o "$TPZ" "$BASE/$TPZ"
+          awk -v a="$ZIP" -v b="$TPZ" '$2==a || $2==b' SHA512-SUMS.txt > wanted.sha512
+          [ "$(wc -l < wanted.sha512)" -eq 2 ] || { echo "expected exactly 2 checksum lines"; cat wanted.sha512; exit 1; }
           sha512sum -c wanted.sha512
-          unzip -q "$ZIP"
-          mv "Godot_v${GODOT_TAG}_linux.x86_64" godot-bin && chmod +x godot-bin
-          echo "GODOT=$PWD/godot-bin" >> "$GITHUB_ENV"
+          unzip -p "$ZIP" "Godot_v${GODOT_TAG}_linux.x86_64" > "$HOME/godot/godot"
+          chmod +x "$HOME/godot/godot"
+          unzip -o -j "$TPZ" templates/web_nothreads_release.zip templates/web_nothreads_debug.zip templates/version.txt -d "$TPL_DIR"
+          rm -f "$TPZ"
+          ls -l "$TPL_DIR"
+
+      - name: Locate Godot
+        run: |
+          set -euo pipefail
+          echo "GODOT=$HOME/godot/godot" >> "$GITHUB_ENV"
+          "$HOME/godot/godot" --version
+
       - name: Sim tests (thresholds, < 60 s; never drop tests, D-132)
         run: ./run_tests.sh sim
 ```

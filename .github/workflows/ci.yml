@@ -14,7 +14,7 @@ permissions:
 # A newer push to the same PR or branch supersedes the older run.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # EXACT tag from D-116 (D-129); must equal CLAUDE.md "GODOT_TAG=" and pages.yml (D-135)
