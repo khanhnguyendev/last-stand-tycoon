@@ -102,12 +102,14 @@ func test_offscreen_arrow_is_pinned_inside_root_space() -> void:
 	assert_lt(d, 1.0)
 
 func test_banner_is_horizontally_centred_and_wraps() -> void:
-	assert_eq(hud.banner.anchor_left, 0.0)
-	assert_eq(hud.banner.anchor_right, 1.0)
-	assert_almost_eq(hud.banner.anchor_top, 0.4, 0.0001)
-	assert_almost_eq(hud.banner.anchor_bottom, 0.4, 0.0001)
-	assert_eq(hud.banner.offset_left, 0.0)
-	assert_eq(hud.banner.offset_right, 0.0)
+	# The backing panel owns the layout; the label fills it.
+	var p := hud.banner_panel
+	assert_eq(p.anchor_left, 0.0)
+	assert_eq(p.anchor_right, 1.0)
+	assert_almost_eq(p.anchor_top, 0.4, 0.0001)
+	assert_almost_eq(p.anchor_bottom, 0.4, 0.0001)
+	assert_eq(p.offset_left, -p.offset_right, "symmetric side margins")
+	assert_eq(hud.banner.get_parent(), p)
 	assert_eq(hud.banner.autowrap_mode, TextServer.AUTOWRAP_WORD_SMART)
 
 func test_top_column_is_centred_at_any_width() -> void:
@@ -123,3 +125,32 @@ func test_diner_bar_shake_returns_to_rest() -> void:
 	for i in int(Balance.ui.diner_bar_shake_time * 60 * 2) + 10:
 		await get_tree().process_frame
 	assert_eq(hud.diner_bar.position.x, 0.0)
+
+func test_diner_bar_is_visible_with_real_size_and_styles() -> void:
+	await get_tree().process_frame
+	assert_true(hud.diner_bar.is_visible_in_tree(), "always visible (day and night)")
+	var r := hud.diner_bar.get_global_rect()
+	assert_gte(r.size.x, Hud.BAR_SIZE.x, "fills its slot, not the 4px default")
+	assert_gte(r.size.y, Hud.BAR_SIZE.y)
+	assert_not_null(hud.diner_bar.get_theme_stylebox("fill"))
+	assert_true(hud.diner_bar.get_theme_stylebox("fill") is StyleBoxFlat)
+	assert_true(hud.diner_bar.get_theme_stylebox("background") is StyleBoxFlat)
+	main.phase_controller.debug_skip_to_night()
+	await get_tree().process_frame
+	assert_true(hud.diner_bar.is_visible_in_tree(), "still visible at night")
+	var before := hud.diner_bar.value
+	GameState.damage_diner(10.0)
+	assert_lt(hud.diner_bar.value, before)
+
+func test_banner_has_readable_backing() -> void:
+	EventBus.banner_requested.emit("Night 1")
+	var panel: PanelContainer = hud.banner_panel
+	assert_true(panel.visible)
+	assert_eq(panel.mouse_filter, Control.MOUSE_FILTER_IGNORE)
+	var sb := panel.get_theme_stylebox("panel") as StyleBoxFlat
+	assert_not_null(sb)
+	assert_almost_eq(sb.bg_color.a, Balance.ui.banner_panel_alpha, 0.001)
+	for i in int(Balance.ui.banner_time * 60) + 30:
+		await get_tree().process_frame
+	assert_false(panel.visible)
+	assert_false(hud.banner.visible)

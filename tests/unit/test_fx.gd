@@ -134,6 +134,15 @@ func test_night_hides_partial_payment_ring() -> void:
 	main.phase_controller.debug_skip_to_day()
 	assert_true(s.zone.ring.visible, "day again: ring back")
 
+func test_night_hides_build_cost_labels() -> void:
+	var s: BuildSpot = main.world.build_spots.fence_n
+	main.phase_controller.debug_skip_to_day()
+	assert_true(s.label.visible, "day: cost label shown")
+	main.phase_controller.debug_skip_to_night()
+	assert_false(s.label.visible, "night: cost label hidden")
+	main.phase_controller.debug_skip_to_day()
+	assert_true(s.label.visible, "day again: label back")
+
 func test_build_pop_tween_killed_on_refresh() -> void:
 	var s: BuildSpot = main.world.build_spots.fence_w
 	GameState.add_gold(GameState.next_level_cost("fence_w"))

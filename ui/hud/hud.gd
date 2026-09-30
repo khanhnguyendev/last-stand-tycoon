@@ -10,6 +10,7 @@ var day_label: Label
 var moons: Array = []
 var diner_bar: ProgressBar
 var banner: Label
+var banner_panel: PanelContainer
 var arrows := {}
 var _camera: Camera3D
 var _lanes := {}
@@ -19,6 +20,10 @@ var _banner_tween: Tween
 var _gold_tween: Tween
 var _bar_tween: Tween
 var _moon_row: HBoxContainer
+
+## Layout constants in 720-base units (spec 9.4: slim diner bar under the moons).
+const BAR_SIZE := Vector2(220, 12)
+const BANNER_SIDE_MARGIN := 40.0
 
 func setup(main: Main) -> void:
 	_camera = main.camera_rig.camera
@@ -55,22 +60,42 @@ func _ready() -> void:
 	row.add_child(_moon_row)
 	var bar_slot := Control.new()
 	bar_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar_slot.custom_minimum_size = Vector2(280, 14)
+	bar_slot.custom_minimum_size = BAR_SIZE
 	column.add_child(bar_slot)
 	diner_bar = ProgressBar.new()
 	diner_bar.show_percentage = false
 	diner_bar.max_value = Balance.data.build.diner_max_hp
 	diner_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar_slot.add_child(diner_bar)
-	diner_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
-	banner = _label(64, Vector2.ZERO)
-	banner.set_anchors_preset(Control.PRESET_HCENTER_WIDE)
-	banner.anchor_top = 0.4
-	banner.anchor_bottom = 0.4
-	banner.offset_left = 0.0
-	banner.offset_right = 0.0
-	banner.offset_top = -45.0
-	banner.offset_bottom = 45.0
+	diner_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# The default theme draws nothing readable here; the bar is always visible (day and night).
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Visuals.COLORS.boar
+	fill.set_corner_radius_all(6)
+	var back := StyleBoxFlat.new()
+	back.bg_color = Color(0, 0, 0, 0.55)
+	back.set_corner_radius_all(6)
+	back.set_border_width_all(2)
+	back.border_color = Color(0, 0, 0, 0.8)
+	diner_bar.add_theme_stylebox_override("fill", fill)
+	diner_bar.add_theme_stylebox_override("background", back)
+	# Dark backing so the banner reads over the world (mouse-transparent, hides with the banner).
+	banner_panel = PanelContainer.new()
+	banner_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0, 0, 0, Balance.ui.banner_panel_alpha)
+	panel_style.set_corner_radius_all(24)
+	panel_style.set_content_margin_all(20)
+	banner_panel.add_theme_stylebox_override("panel", panel_style)
+	banner_panel.set_anchors_preset(Control.PRESET_HCENTER_WIDE)
+	banner_panel.anchor_top = 0.4
+	banner_panel.anchor_bottom = 0.4
+	banner_panel.offset_left = BANNER_SIDE_MARGIN
+	banner_panel.offset_right = -BANNER_SIDE_MARGIN
+	banner_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	banner_panel.visible = false
+	root.add_child(banner_panel)
+	banner = _label(64, Vector2.ZERO, banner_panel)
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -191,13 +216,16 @@ func _on_diner_damaged(_amount: float, hp_left: float) -> void:
 func _on_banner(text: String) -> void:
 	banner.text = text
 	banner.visible = true
-	banner.modulate.a = 1.0
+	banner_panel.visible = true
+	banner_panel.modulate.a = 1.0
 	if _banner_tween != null and _banner_tween.is_valid():
 		_banner_tween.kill()
 	_banner_tween = create_tween()
 	_banner_tween.tween_interval(Balance.ui.banner_time * 0.75)
-	_banner_tween.tween_property(banner, "modulate:a", 0.0, Balance.ui.banner_time * 0.25)
-	_banner_tween.tween_callback(func(): banner.visible = false)
+	_banner_tween.tween_property(banner_panel, "modulate:a", 0.0, Balance.ui.banner_time * 0.25)
+	_banner_tween.tween_callback(func():
+		banner.visible = false
+		banner_panel.visible = false)
 
 func _process(_delta: float) -> void:
 	_place_arrows()

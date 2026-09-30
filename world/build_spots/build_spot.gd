@@ -87,6 +87,7 @@ func refresh() -> void:
 		label.text = tr("MAX") if remaining < 0 else str(remaining)
 	else:
 		label.text = ""
+	label.visible = zone == null or zone.is_active()  # cost text is a DAY thing; night is clutter
 	_apply_level(level, b)
 	if zone != null:
 		var cost := GameState.next_level_cost(spot_id) if GameState.buildings.has(spot_id) else -1
