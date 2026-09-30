@@ -1159,6 +1159,8 @@ wording).**
 ## 2026-09-30: CP1 approved
 
 **D-151 The diner fades when it hides an actor (author at CP1; implemented in Task 30).**
+- [AMENDED at the CP1 review: 0.3 looked too faint on grass. The value stays in `UiTuning`; at CP2 a debug
+  button cycles 0.30 / 0.45 / 0.60 on the phone, and the author picks one (plan Task 32).]
 - The spec camera (pitch 55°, distance 18) looks over a 3 m diner, which hides the north zone. In
   the CP1 render only a sliver of the hero showed.
 - Each frame, the camera→actor segment is tested against the diner's AABB (slightly grown), for the
