@@ -2930,7 +2930,7 @@ git commit -m "feat: add EventBus signals and GameState with snapshot round trip
 
 **Files:**
 - Create:
-  - `world/visuals.gd`, `ui/world_label/world_label.gd`, `ui/fonts/Nunito.ttf`
+  - `world/visuals.gd`, `ui/world_label/world_label.gd`, `ui/fonts/Nunito.ttf`, `ui/fonts/OFL.txt` (upstream google/fonts `ofl/nunito/OFL.txt`)
   - `components/node_pool.gd`, `components/health.gd`, `components/targetable.gd`
   - `docs/ASSET_LICENSES.md`
 - Modify: `project.godot` (`[gui]` theme font)
@@ -2973,9 +2973,9 @@ If that URL 404s, download the Nunito family from `https://fonts.google.com/spec
 
 One line per asset, added when the asset is first used (IDEA.md, D-079). S4 appends here.
 
-| Asset | Path | Source | License | Added |
-|---|---|---|---|---|
-| Nunito (variable font) | ui/fonts/Nunito.ttf | https://github.com/google/fonts/tree/main/ofl/nunito | SIL OFL 1.1 | 2026-09-30 (S1) |
+| Asset | Path | Source | License | Added | Notes |
+|---|---|---|---|---|---|
+| Nunito (variable font) | ui/fonts/Nunito.ttf | https://github.com/google/fonts/tree/main/ofl/nunito | SIL OFL 1.1 (text: ui/fonts/OFL.txt) | 2026-09-30 (S1) | © The Nunito Project Authors. SHA-256 bb55a5ca5c2042335b3991af27c4d0705d0ef41cac6164ac737fd8f2a1e85207 |
 ```
 
 Append to `project.godot`:
@@ -3007,6 +3007,9 @@ func test_world_label_uses_nunito() -> void:
 	var l := WorldLabel.make("x")
 	assert_eq(l.font.resource_path, WorldLabel.FONT_PATH)
 	l.free()
+
+func test_theme_font_wired() -> void:
+	assert_eq(ProjectSettings.get_setting("gui/theme/custom_font", ""), WorldLabel.FONT_PATH)
 ```
 
 `tests/unit/test_components.gd`:
@@ -3025,6 +3028,16 @@ func test_health_dies_once() -> void:
 	assert_false(h.is_alive())
 	assert_signal_emit_count(h, "died", 1)
 
+func test_damage_ignores_non_positive() -> void:
+	var h := Health.new()
+	add_child_autofree(h)
+	h.reset(10.0)
+	watch_signals(h)
+	h.damage(0.0)
+	h.damage(-5.0)
+	assert_eq(h.hp, 10.0)
+	assert_signal_not_emitted(h, "damaged")
+
 func test_pool_prewarm_acquire_release() -> void:
 	var pool := NodePool.new()
 	add_child_autofree(pool)
@@ -3037,7 +3050,7 @@ func test_pool_prewarm_acquire_release() -> void:
 	pool.release(a)
 	assert_false(a.visible)
 	assert_eq(pool.active(), [b])
-	pool.recall_all()
+	assert_eq(pool.recall_all(), 1)
 	assert_eq(pool.active(), [])
 
 func test_pool_grows_and_warns() -> void:
@@ -3208,6 +3221,7 @@ func recall_all() -> int:
 		release(n)
 	return count
 
+## Returns the live array; duplicate() it before releasing while iterating.
 func active() -> Array:
 	return _active
 
@@ -3240,7 +3254,7 @@ func is_alive() -> bool:
 	return hp > 0.0
 
 func damage(amount: float) -> void:
-	if hp <= 0.0:
+	if hp <= 0.0 or amount <= 0.0:
 		return
 	hp = maxf(hp - amount, 0.0)
 	damaged.emit(amount)
