@@ -5,6 +5,9 @@
 > **Routing (author's rule):**
 > - Every task is executed by the `implementer` subagent, and every task result gets a `reviewer` pass.
 > - Human checkpoints (**CP1, CP2, CP3**) stop all work until the author says continue.
+> - Merges (D-137): the main session merges a phase PR itself when CI is green (before CI: the full local suite output is in the PR body), every task passed its reviewer pass, no escalation is open, and the phase doesn't end at a checkpoint. Phases 5 (CP1), 10 (CP2) and 14 (CP3) are merged by the author.
+> - Parallel tasks follow D-136 (worktrees, hot files, at most 3 implementers).
+> - Device testing (D-138): the iOS Simulator and, when installed, the Android Emulator are primary. The author's phone is used only at CP2 and CP3.
 > - An implementer escalation (a failing threshold, a spec contradiction, a missing fact) goes back to
 >   the main session. It is never decided inside the task.
 > - **Time is not a constraint (D-131).** Scope follows quality and the v0.1 gate, never the calendar.
@@ -85,9 +88,24 @@ These are the input classes the spec implies but no feature test naturally cover
   | 13 | `s1/p13-perf` |
   | 14 | `s1/p14-gate` |
 
-- **Reviews:** the `reviewer` subagent reviews every task before its commit counts as done. The author reviews each phase PR.
+- **Reviews:** the `reviewer` subagent reviews every task before its commit counts as done. The author reviews the checkpoint phases' PRs (5, 10, 14) and may review any other.
 - **Before CI exists** (Phases 0–10), the PR body carries the local test output: `./run_tests.sh all`, or the spike results for Phase 0. **After CI lands** (Phase 11), `unit` and `sim` must be green before asking for review.
-- **Only the author merges.** Agents never merge, never push to `main`, and never change branch protection. After CI lands, Task 34 hands the author the exact `gh` command to protect `main`.
+- **Merge policy (D-137).** The main session may merge a phase PR into `main` itself, with a merge commit (never squash), when ALL of these hold:
+  - CI is green (before CI exists: the full local suite output is in the PR body);
+  - every task in the phase passed its reviewer pass;
+  - there are no open escalations;
+  - the phase doesn't end at a checkpoint.
+
+  Phases ending at CP1 (Phase 5, Task 20), CP2 (Phase 10, Task 32) and CP3 (Phase 14, Task 37) stay open for the author to review and merge. After each self-merge, post a PR comment of at most 5 lines: what shipped, tests, decisions. Agents never push to `main` directly and never change branch protection. After CI lands, Task 34 hands the author the exact `gh` command to protect `main`.
+- **Parallel tasks (D-136).**
+  - Tasks run in parallel only when their file sets are disjoint.
+  - Hot files are always serialized: `project.godot`, `CLAUDE.md`, `autoload/EventBus.gd`, `autoload/GameState.gd`, `balance/*.gd` and `*.tres`, `world/main.gd`, `world/main.tscn`, `world/world.gd`, `run_tests.sh`, `.github/workflows/*`. A parallel task that needs a small hot-file edit leaves it out; the main session applies those edits afterwards, one at a time.
+  - At most 3 `implementer` subagents at once, each in its own git worktree on a task branch `s1/p<N>-t<NN>-<slug>` cut from the phase branch. Each worktree runs its own Godot import (its own `.godot/`); shared gitignored inputs are symlinked, never copied.
+  - Every task keeps the full flow: TDD, verification with pasted output, a reviewer pass (reviewers may run in parallel).
+  - Integration: after a task passes review, merge its task branch into the phase branch with `--no-ff` (one task commit preserved), then run the FULL suite on the phase branch before merging the next task. If it fails, stop merging and debug on the phase branch first (systematic-debugging).
+  - Merge conflicts are resolved by the main session, never by an implementer; a conflict in a hot file or in design intent is escalated to the author.
+  - A task that runs alone commits directly on the phase branch (no worktree).
+- **Device testing (D-138).** The iOS Simulator (Safari on a notch iPhone) and, when installed, the Android Emulator (Chrome) are the primary devices, on `http://localhost` (a secure context) or the Pages preview URL. They are scripted with `export/device_check.sh` (Task 32), and results are read from screenshots. Never install system components; when a runtime is missing, give the author the one-time install step. The author's phone is used only at CP2 and CP3.
 
 ## Checkpoints and Estimates
 
@@ -97,7 +115,7 @@ Stop at each checkpoint and wait for the author:
 |---|---|---|
 | CP1 | end of Task 20 | Quality review only: headless night loop and night sims green, the sim output plus the `docs/screenshots/s1/cp1_night1.png` render |
 | CP2 | end of Task 32 | Input, camera, HUD and web shell on the author's phone (the branch's GitHub Pages preview URL, D-135) |
-| CP3 | Task 37, Step 2 | Before the gate playtest from the Pages URL (D-135) |
+| CP3 | Task 37, Step 2 | Before the gate playtest from the Pages URL (D-135); the phone numbers for criteria 4 and 6 are taken in the same session (D-138) |
 
 Estimates in working days, **for information only** (D-131: no deadline; nothing is stopped or cut because of them):
 
@@ -570,10 +588,18 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 
 ## Git workflow (D-133)
 - One branch and one PR per plan phase: `s1/p<N>-<slug>` (the table is in the plan), from an up-to-date `main`. One commit per task inside it.
-- The `reviewer` subagent reviews every task; the author reviews each phase PR.
+- The `reviewer` subagent reviews every task; the author reviews the checkpoint phases' PRs.
 - Before CI exists, the PR body carries the local test output. After CI exists, `unit` and `sim` must be green.
 - Every push deploys a web build to GitHub Pages: `main` at https://khanhnguyendev.github.io/last-stand-tycoon/, other branches at `preview/<slug>/` (slug = the branch name with every character outside `[A-Za-z0-9._-]` replaced by `-`) (D-135). Phone tests use those URLs; plain-http LAN doesn't work (D-120).
-- **Only the author merges.** Never push to `main`, never merge, never change branch protection. After CI lands, give the author the exact `gh api ... /branches/main/protection` command (plan Task 34, Step 6) instead of running it.
+- **Merges (D-137).** Merge a phase PR yourself (merge commit, never squash) only when CI is green (before CI: the full local suite output is in the PR body), every task passed its reviewer pass, no escalation is open, and the phase doesn't end at a checkpoint. Phases 5 (CP1), 10 (CP2) and 14 (CP3) are merged by the author. After a self-merge, post a PR comment of at most 5 lines (what shipped, tests, decisions).
+- Never push to `main` directly, never change branch protection. After CI lands, give the author the exact `gh api ... /branches/main/protection` command (plan Task 34, Step 6) instead of running it.
+- **Parallel tasks (D-136):** only with disjoint file sets; hot files (`project.godot`, `CLAUDE.md`, `autoload/EventBus.gd`, `autoload/GameState.gd`, `balance/*`, `world/main.gd`, `world/main.tscn`, `world/world.gd`, `run_tests.sh`, `.github/workflows/*`) are serialized and edited by the main session; at most 3 implementers, each in its own worktree on `s1/p<N>-t<NN>-<slug>`; merge `--no-ff` into the phase branch and run the full suite before the next merge; conflicts are resolved by the main session.
+
+## Device testing (D-138)
+- Primary: the iOS Simulator (Safari, a notch iPhone) and, when installed, the Android Emulator (Chrome), on `http://localhost` or the Pages preview URL. Run `export/device_check.sh <url> <out_dir>` and read the screenshots.
+- Never install system components. If a runtime is missing, give the author the one-time install step the script prints.
+- The author's phone is used only at CP2 and CP3.
+- Desktop Chrome: headless with software WebGL (flags in D-138).
 
 ## Scope and time (D-131)
 - v0.1 has no deadline. Scope is decided by quality and the v0.1 gate, never by the calendar. Plan estimates are information only.
@@ -8222,7 +8248,7 @@ git commit -m "feat: pause the game on focus loss and hidden tab"
 
 **Files:**
 - Create:
-  - `export/web_shell.html`, `export/README.md`, `export_presets.cfg`
+  - `export/web_shell.html`, `export/README.md`, `export_presets.cfg`, `export/device_check.sh`
   - `ui/debug/debug_overlay.gd`, `ui/perf_overlay.gd`, `ui/build_label.gd`
 - Modify: `world/main.gd`
 - Test: `tests/unit/test_overlays.gd`
@@ -8600,6 +8626,73 @@ git add export export_presets.cfg ui/perf_overlay.gd ui/build_label.gd ui/debug 
 git commit -m "feat: add mobile web shell, three export presets and debug/perf overlays"
 ```
 
+- [ ] **Step 9b: Device pass before CP2 (D-138).** Write `export/device_check.sh`, `chmod +x` it, and fold it into this task's commit (`git add export/device_check.sh && git commit --amend --no-edit`):
+
+```bash
+#!/usr/bin/env bash
+# Usage: export/device_check.sh <url> <out_dir>   (D-138)
+# Opens <url> in the iOS Simulator (Safari, a notch iPhone) and, when installed, the Android Emulator
+# (Chrome), waits WAIT_S seconds (default 45) and saves screenshots. It never installs anything: when a
+# runtime or device is missing it prints the one-time step for the author. The emulator is shut down
+# at the end; the iOS Simulator is left booted.
+set -euo pipefail
+[ $# -eq 2 ] || { echo "usage: $0 <url> <out_dir>"; exit 2; }
+URL="$1"; OUT="$2"; WAIT="${WAIT_S:-45}"
+mkdir -p "$OUT"
+export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
+
+RUNTIMES=$(xcrun simctl list runtimes 2>/dev/null || true)
+if printf '%s\n' "$RUNTIMES" | grep -E '^iOS .*SimRuntime' | grep -v unavailable >/dev/null; then
+  UDID=$(xcrun simctl list devices available | grep -E 'iPhone [0-9]+ Pro \(' | head -1 | grep -oE '[0-9A-F-]{36}' || true)
+  if [ -z "$UDID" ]; then
+    echo "MISSING iPhone Pro simulator. One-time step (author): Xcode > Window > Devices and Simulators > + > iPhone 17 Pro"
+  else
+    xcrun simctl boot "$UDID" 2>/dev/null || true
+    xcrun simctl bootstatus "$UDID" -b >/dev/null
+    xcrun simctl openurl "$UDID" "$URL"
+    sleep "$WAIT"
+    xcrun simctl io "$UDID" screenshot "$OUT/ios.png" >/dev/null 2>&1
+    echo "ios: $OUT/ios.png"
+  fi
+else
+  echo "MISSING iOS Simulator runtime. One-time step (author): xcodebuild -downloadPlatform iOS"
+fi
+
+SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+AVD=""
+if [ -x "$SDK/emulator/emulator" ]; then
+  AVD=$("$SDK/emulator/emulator" -list-avds 2>/dev/null | awk '!/^INFO/ && NF {print; exit}' || true)
+fi
+if [ -z "$AVD" ]; then
+  echo "MISSING Android Emulator. One-time step (author): install Android Studio, then Device Manager > add a Pixel with a Google Play system image (it ships Chrome)."
+  exit 0
+fi
+ADB="$SDK/platform-tools/adb"
+SERIAL=emulator-5554
+"$SDK/emulator/emulator" -avd "$AVD" -port 5554 -no-window -no-snapshot-save -no-audio >/dev/null 2>&1 &
+booted=""
+for _ in $(seq 1 150); do
+  if [ "$("$ADB" -s "$SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then booted=1; break; fi
+  sleep 2
+done
+[ -n "$booted" ] || { echo "ERROR: Android emulator $AVD did not boot within 300 s"; "$ADB" -s "$SERIAL" emu kill >/dev/null 2>&1 || true; exit 1; }
+case "$URL" in
+  http://localhost:*|http://127.0.0.1:*)
+    PORT=${URL#*//*:}; PORT=${PORT%%/*}
+    "$ADB" -s "$SERIAL" reverse "tcp:$PORT" "tcp:$PORT" >/dev/null ;;  # localhost stays a secure context
+esac
+# Skip Chrome's first-run screens.
+"$ADB" -s "$SERIAL" shell 'echo "_ --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
+"$ADB" -s "$SERIAL" shell am set-debug-app --persistent com.android.chrome >/dev/null
+"$ADB" -s "$SERIAL" shell am start -a android.intent.action.VIEW -d "$URL" com.android.chrome >/dev/null
+sleep "$WAIT"
+"$ADB" -s "$SERIAL" exec-out screencap -p > "$OUT/android.png"
+echo "android: $OUT/android.png"
+"$ADB" -s "$SERIAL" emu kill >/dev/null 2>&1 || true
+```
+
+Push the branch, wait for the `pages` run, then run `export/device_check.sh https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p10-web/ /tmp/lst-cp2` and the desktop Chrome check with the Playwright method and flags logged in D-138 (screenshot plus console and page errors). The Chrome check must pass by CP2. Read the screenshots: the game renders, the bottom-left label shows the head's short hash, and the HUD is clear of the Dynamic Island and the home indicator. Fix anything that fails before CP2, and attach the screenshots' findings to the CP2 message. If the script prints a MISSING line, pass that one-time install step to the author.
+
 - [ ] **Step 10: CHECKPOINT 2. Stop and wait for the author.**
 
 Push the branch and wait for the `pages` workflow run to go green. Give the author https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p10-web/ and this checklist to try on the phone:
@@ -8611,6 +8704,7 @@ Push the branch and wait for the `pages` workflow run to go green. Give the auth
 - [ ] The edge arrow points at the incoming lane. The camera follows smoothly and shakes a little on diner hits.
 - [ ] Switching tabs or apps mid-night and returning costs no diner HP.
 - [ ] The day loop works: haul, sell, build, upgrade, close up.
+- [ ] Perf early warning (optional, same session): open https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p10-web/profile/, play into a night and read the overlay's `avg` and `worst`.
 - [ ] D-119 phone confirmation: open https://khanhnguyendev.github.io/last-stand-tycoon/probe/ (the probe is built on `main` only) and reply with one line: `SPIKE phone=<model> browser=<name version> loaded=<yes|no> build=… safe=… win=… screen=… scale=… css=… inner=… dpr=… secure=… iframe=… notes=<none or error>` (each value copied from the probe's lines).
 
 Do not start Task 33 until the author says continue.
@@ -8828,14 +8922,9 @@ for f in index.wasm index.pck index.js; do printf "%s gz bytes: " $f; gzip -9 -c
 
 Record the gzip sum (wasm + pck) as "release build size, compressed" (D-086).
 
-- [ ] **Step 2: HUMAN, on the author's phone (profile build).** Push the branch; the author opens the profile build at https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p13-perf/profile/ (D-135). The author:
-  - notes the time from page open until playable, and until first combat (D-085);
-  - plays to night 3 and, during 60 s of combat, reads the overlay's `avg` and `worst` values;
-  - reports the phone model.
+- [ ] **Step 2: Device numbers without the phone (D-138).** Push the branch; run `export/device_check.sh https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p13-perf/profile/ /tmp/lst-perf` and the desktop Chrome check on the same URL. Record, for information only, the overlay's `avg`/`worst` visible in each screenshot after `WAIT_S` seconds, labelled "idle, no combat". Load time is not measured off-phone. Simulator and desktop fps are not criterion 4; the phone reading happens at CP3 (Task 37, Step 3).
 
-  Also open it in desktop Chrome and note the same numbers.
-
-- [ ] **Step 3: Fill in the results table.** Complete spec §16's rows: build size, load time, first combat, criterion 4 (phone model, avg fps, worst frame). If the phone is clearly high-end, write "not validated on mid-range; carried to S6" (D-084).
+- [ ] **Step 3: Fill in the results table.** Complete spec §16's build-size row, and note the device numbers from Step 2 next to it. The phone rows (load time, first combat, criterion 4) are filled in at Task 37, Step 4.
 
 - [ ] **Step 4: Commit**
 
@@ -8853,16 +8942,17 @@ git commit -m "docs: record S1 web baseline and perf results"
 - [ ] **Step 1: The pre-upload check.**
   - `./run_tests.sh all` is green.
   - `grep -a -c "ui/debug" build/web_release/index.pck` prints 0.
-  - The `pages` workflow run for the branch head is green, and https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p14-gate/ shows the head's short hash.
+  - The `pages` workflow run for the branch head is green, and https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p14-gate/ shows the head's short hash, and so does https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p14-gate/profile/.
 
 - [ ] **Step 2: CHECKPOINT 3. Stop and wait for the author.** Hand over the preview URL above. Do nothing further until the author has played.
 
 - [ ] **Step 3: HUMAN.**
   - The author opens the preview URL on their phone and confirms it loads and plays (DoD 6).
-  - They play 3 full cycles and answer the 6 playtest questions (spec §15). Each answer is tagged **loop** or **presentation** (D-107).
+  - They play the 3 gate cycles on the **profile** build (https://khanhnguyendev.github.io/last-stand-tycoon/preview/s1-p14-gate/profile/: the release template plus the small fps overlay), so the one phone session also gives the phone numbers (D-138). They note the time from page open until playable and until first combat (D-085), and during 60 s of night-3 combat they read the overlay's `avg` and `worst`. They report the phone model.
+  - They answer the 6 playtest questions (spec §15). Each answer is tagged **loop** or **presentation** (D-107).
   - They give the gate verdict: "want a 4th?"
 
-- [ ] **Step 4: Record the gate.** Fill in spec §16's "Playtest answers 1–6" and "Gate verdict". Tick off every definition-of-done item in spec §14.2, and list any that are unmet.
+- [ ] **Step 4: Record the gate.** Fill in spec §16's phone rows (load time, first combat, criterion 4 with the phone model; if the phone is clearly high-end, write "not validated on mid-range; carried to S6", D-084), "Playtest answers 1–6" and "Gate verdict". If criterion 4 fails on a phone that is not clearly high-end, list it as unmet and escalate to the author before reporting done. Tick off every definition-of-done item in spec §14.2, and list any that are unmet.
 
 ```bash
 git add docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md
