@@ -102,6 +102,7 @@ func _on_fail_timer(fail_id: int) -> void:
 	_restore_snapshot()
 
 func _restore_snapshot() -> void:
+	wave_director.stop()  # a DAY restore never calls start_night(), which would drop the live boar list
 	_recall_all()
 	GameState.from_dict(snapshot)
 	var night_restart := String(snapshot.resume_phase) == "NIGHT"
