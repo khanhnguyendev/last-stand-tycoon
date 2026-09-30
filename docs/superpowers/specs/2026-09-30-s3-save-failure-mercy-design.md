@@ -80,7 +80,10 @@ envelope := {
   The steps shipped now are:
   - `1 → 2`: adds empty `cards`, `card_offer` and `guards`;
   - `2 → 3`: adds `night_fails = 0`.
-  An unknown or newer version fails with `reason = "version"`. `GameState.from_dict` itself still accepts only the
+  An unknown or newer version fails with `reason = "version"`.
+- **Content validation:** `decode` also rejects a state whose `cards`, `card_offer` or `guards` ids are not in
+  `CardCatalog.IDS` / `ADVENTURERS`, and levels outside `0..max_level` (`reason = "content"`). This matters because
+  release builds strip the asserts in `CardCatalog`/`pick_card` (S2 Task 2 review). `GameState.from_dict` itself still accepts only the
   current version; migration happens in `SaveCodec`, before `from_dict`.
 
 ## 5. Save store and triggers
