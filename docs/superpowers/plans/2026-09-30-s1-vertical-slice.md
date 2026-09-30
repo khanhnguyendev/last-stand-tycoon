@@ -6250,8 +6250,9 @@ func test_first_combat_idle_player_within_30s() -> void:
 func test_night1_fail_restarts_night() -> void:
 	h.start(SEED, ParkedBot)
 	var snap: Dictionary = h.main.phase_controller.snapshot.duplicate(true)
-	await h.run_night()
-	await h.run_until(func(): return not h.main.phase_controller.failing, 5.0)
+	var r := await h.run_night()
+	assert_true(r.failed, "ParkedBot must fall")
+	assert_true(await h.run_until(func(): return not h.main.phase_controller.failing, 5.0), "restore fired")
 	assert_eq(h.main.phase_controller.phase, Phase.NIGHT)
 	var now := GameState.to_dict()
 	now.resume_phase = snap.resume_phase
@@ -6293,8 +6294,11 @@ extends SceneTree
 ## Renders the real game and saves a 720x1280 PNG. Run WITH rendering (no --headless):
 ## "$GODOT" --path . --resolution 720x1280 -s res://tests/sim/capture.gd -- --out=docs/screenshots/s1/x.png --seconds=12
 ## --lane=<west|north|east>: hero parked at that lane's zone, one Boar 2 s before it reaches hero range.
+## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
+## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
 
 var _args := {}
+var _bal: Node
 
 func _initialize() -> void:
 	for a in OS.get_cmdline_user_args():
@@ -6303,29 +6307,37 @@ func _initialize() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	Balance.reset()
-	var main := Main.create()
+	var camera_math = load("res://core/camera_math.gd")
+	var map_layout = load("res://core/map_layout.gd")
+	var enemy_path = load("res://core/enemy_path.gd")
+	_bal = root.get_node("Balance")
+	_bal.reset()
+	var main = load("res://world/main.gd").create()
 	root.add_child(main)
-	var bot: BotBase = (ParkedBot if _args.has("lane") else NaiveBot).new()
+	var bot = load("res://actors/bots/parked_bot.gd" if _args.has("lane") else "res://actors/bots/naive_bot.gd").new()
 	main.add_child(bot)
 	bot.setup(main)
 	main.phase_controller.start_new_game(int(_args.get("seed", "20260930")))
 	var cam := Camera3D.new()
 	var vp := root.get_visible_rect().size
-	CameraMath.apply_lens(cam, Balance.ui, vp.x / vp.y)  # D-145
+	camera_math.apply_lens(cam, _bal.ui, vp.x / vp.y)  # D-145
 	cam.current = true
 	root.add_child(cam)
 	if _args.has("lane"):
 		var lane: String = _args.lane
-		main.phase_controller.phase = Phase.DAY  # freeze waves for a staged shot
+		if not map_layout.LANE_PATHS.has(lane):
+			push_error("bad --lane %s" % lane)
+			quit(2)
+			return
+		main.phase_controller.phase = load("res://core/phase.gd").DAY  # freeze waves for a staged shot
 		main.world.wave_director.stop()
-		main.hero.teleport(MapLayout.lane_end(lane))
+		main.hero.teleport(map_layout.lane_end(lane))
 		bot.queue_free()
-		var eb := Balance.data.enemy
-		var b := main.world.wave_director.debug_spawn(lane)
-		var length := MapLayout.path_length(lane)
-		var d := length
-		while d > 0.0 and EnemyPath.position_at(lane, d, 0.0, eb.offset_fade_distance).distance_to(MapLayout.lane_end(lane)) <= Balance.data.hero.attack_range:
+		var eb = _bal.data.enemy
+		var b = main.world.wave_director.debug_spawn(lane)
+		var length: float = map_layout.path_length(lane)
+		var d: float = length
+		while d > 0.0 and enemy_path.position_at(lane, d, 0.0, eb.offset_fade_distance).distance_to(map_layout.lane_end(lane)) <= _bal.data.hero.attack_range:
 			d -= 0.05
 		b.dist = maxf(d - eb.speed * 2.0, 0.0)
 		b.set_physics_process(false)
@@ -6333,13 +6345,20 @@ func _run() -> void:
 	else:
 		for i in int(float(_args.get("seconds", "12")) * 60.0):
 			await physics_frame
-	cam.global_transform = CameraMath.camera_transform(CameraMath.focus_for(main.hero.xz()), Balance.ui)
+	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(main.hero.xz()), _bal.ui)
 	for i in 3:
 		await process_frame
 	var img := root.get_texture().get_image()
+	if img.get_size() != Vector2i(720, 1280):
+		push_warning("capture size %s" % img.get_size())
 	var out: String = _args.get("out", "docs/screenshots/s1/capture.png")
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://").path_join(out.get_base_dir()))
-	img.save_png(ProjectSettings.globalize_path("res://").path_join(out))
+	var path := out if out.is_absolute_path() else ProjectSettings.globalize_path("res://").path_join(out)
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var err := img.save_png(path)
+	if err != OK:
+		push_error("save failed %d" % err)
+		quit(1)
+		return
 	print("saved ", out, " ", img.get_size())
 	quit(0)
 ```
