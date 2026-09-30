@@ -901,3 +901,53 @@ wording).**
 - Moved to S6: the itch.io draft, the itch iframe checks (safe area and fullscreen inside the embed)
   and butler uploads.
 - Localhost stays fine for desktop checks, because localhost is a secure context.
+
+## 2026-09-30: S1 Task 0 spike results
+
+**D-116 Pinned Godot: `4.7.2-stable` (spike).**
+- `GODOT_TAG=4.7.2-stable`, the newest 4.7.x stable in `godotengine/godot-builds` (the others are
+  `4.7.1-stable` and `4.7-stable`). `--version` prints `4.7.2.stable.official.ed1daf0bf`.
+- `$GODOT=/Users/ryan/Applications/Godot-4.7.2-stable/Godot.app/Contents/MacOS/Godot`.
+- SHA-512 `OK` against the release's `SHA512-SUMS.txt` for the macOS universal zip and the export
+  templates `.tpz`. The first `pages` run also verified the Linux x86_64 zip and the `.tpz`.
+- Export templates are installed in `~/Library/Application Support/Godot/export_templates/4.7.2.stable/`.
+
+**D-117 GUT `v9.7.1`; `--headless --import` works (spike).**
+- The plan's `releases/latest` query returns `v9.6.1`, because GitHub marks the 9.6.x backport as
+  "latest". GUT 9.7.x is the line with the Godot 4.7 fixes (9.7.0 adapts doubles to 4.7's stricter
+  return types), so the pinned tag is **`v9.7.1`**. Task 1 uses it.
+- `"$GODOT" --headless --path . --import` exits 0. With 9.7.1 a single import on a fresh project
+  (no `.godot/`) is enough for GUT to load. With 9.6.1 the first GUT run reported missing GUT
+  class_names until a second import ran.
+- Probe results on 9.7.1: the autoload test and the projection test pass.
+
+**D-118 `--fixed-fps 60` runs unthrottled; tick-sampling rule (spike).**
+- 3600 physics ticks took 29–30 ms headless. No `time_scale` fallback.
+- `SceneTree.physics_frame` is emitted **before** the nodes' `_physics_process` for that tick. Code
+  resuming from `await get_tree().physics_frame` sees state from before this tick's node updates.
+  The probe's first count was 3599 of 3600 for that reason, not because of the stepping.
+- Rule for tests and sims: take every reading at the same kind of point (for example, always right
+  after an `await physics_frame`). Counts between two such points are exact (3600 awaits = 3600 ticks).
+  Where a test needs the tick's node updates applied, it awaits one more `physics_frame` (or a
+  `process_frame`) before asserting.
+
+**D-119 Web safe area comes from CSS `env()` (spike; confirmed on the author's phone at CP2).**
+- The probe ran on the Pages URL (`preview/s1-p0-spike/probe/`, build `d0525ba`) in the iOS
+  Simulator: iPhone 17 Pro, iOS 26.5, Safari, portrait, standalone page (not an iframe):
+  `safe=[P: (0, 0), S: (1206, 2142)]`, `win=(1206, 2142)`, `screen=(1206, 2622) scale=3.0`,
+  `css(top,bottom,left,right)=0,0,0,0`, `inner=402x714 dpr=3`, `secure=true iframe=false`.
+- `DisplayServer.get_display_safe_area()` on web returns the window rect (it equals `win`, not the
+  screen), so it carries no inset information. The web path uses CSS `env(safe-area-inset-*)`
+  through `JavaScriptBridge`, which `ui/hud/safe_area.gd` (plan Task 29) already does. Keep its web
+  branch. The page needs `viewport-fit=cover` (the Task 32 shell has it).
+- In portrait Safari the browser bars keep the page clear of the Dynamic Island and the home
+  indicator, so both sources read 0 there. Cases with nonzero insets (landscape, a home-screen web
+  app) were not measured. The phone reading at CP2 (`/probe/` on the Pages site) confirms the
+  decision.
+
+**D-120 Plain-http LAN does not work; phones use GitHub Pages (spike, D-135).**
+- iPhone Safari on `http://192.168.1.52:8000/` stopped with "Secure Context - Check web server
+  configuration (use HTTPS)". Godot 4.7 web needs a secure context.
+- The pre-agreed fallback applies, as amended by D-135: phone tests use the HTTPS GitHub Pages URL.
+  `http://localhost` is still fine for desktop checks (localhost is a secure context).
+- The single-threaded export loads on Pages with no COOP/COEP headers (`secure=true`, D-014).
