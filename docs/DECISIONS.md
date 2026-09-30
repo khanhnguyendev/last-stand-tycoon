@@ -1244,3 +1244,29 @@ falls and the night restarts identically.
   sweep breaks at day 8.
 - Hero cards (S2) add power, so S2 re-tunes wave scaling against a target break day *with* cards.
   Recorded in the spec's S2 decomposition line. No S1 work.
+
+**D-157 Export keeps text resources as text (Task 32).**
+- `BalanceData` builds its sub-resources in script initializers (`@export var wave: WaveBalance = WaveBalance.new()`),
+  and `balance.tres` stores none of them explicitly.
+- By default the export converts `.tres` files to binary. The converter loads them with placeholder scripts, so it
+  can't evaluate non-constant initializers. It then writes those properties as `null`, and at runtime `null`
+  overrides the initializer. The result: every exported build (release included) had `Balance.data.wave`, `.build`
+  and the rest null.
+- The release template hides script errors, so this showed up only as a silently broken game (no tower spots, no
+  waves). Running the exported pack with the debug binary shows `Invalid access ... 'base_counts' on Nil`.
+- Fix: `project.godot` `[editor] export/convert_text_resources_to_binary=false`. The text `.tres` keeps storing only
+  the non-default properties, so the initializers apply exactly as in the editor and in tests.
+- Alternative, not taken: write every sub-resource into `balance.tres` explicitly. That is more file churn, and the
+  same trap would remain for any future initializer-built resource.
+- Guards:
+  - A unit test asserts the setting stays `false`.
+  - `pages.yml` boots every exported pack (release, profile, debug) with `--headless --main-pack <pck> --quit-after 120`
+    and fails on `SCRIPT ERROR`, `Invalid access` or `Parse Error`. Checked locally: a pack exported with the fix logs
+    0 errors, and a pre-fix binary-converted pack logs 248.
+
+**D-158 Export presets drop VRAM texture compression for S1 (Task 32).**
+- The plan's `vram_texture_compression/for_mobile` lines make Godot reject the preset unless
+  `rendering/textures/vram_compression/import_etc2_astc=true` is set. S1 ships no textures outside `addons/gut`
+  (only `Nunito.ttf`), so the lines had no effect.
+- S4 (art) restores `for_mobile=true` together with `import_etc2_astc=true`. Without both, phones fall back to
+  decompressing textures on the CPU.
