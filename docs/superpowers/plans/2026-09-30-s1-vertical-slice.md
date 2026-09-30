@@ -292,7 +292,7 @@ git commit -m "docs: log S1 toolchain spike results"
 ### Task 1: Godot project, GUT, test runner, CLAUDE.md
 
 **Files:**
-- Create: `project.godot`, `.gitignore`, `.gutconfig.json`, `run_tests.sh`, `CLAUDE.md`, `addons/gut/` (copied), `tests/unit/test_smoke.gd`, `world/main.tscn`, `world/main.gd` (stub)
+- Create: `project.godot`, `.gutconfig.json`, `run_tests.sh`, `CLAUDE.md`, `addons/gut/` (copied), `tests/unit/test_smoke.gd`, `world/main.tscn`, `world/main.gd` (stub)
 
 **Interfaces:**
 - Produces:
@@ -375,14 +375,12 @@ extends Node3D
 @export var auto_start := true
 ```
 
-- [ ] **Step 5: Write `.gitignore`, `.gutconfig.json` and `run_tests.sh`**
+- [ ] **Step 5: Write `.gutconfig.json` and `run_tests.sh`**
 
-`.gitignore`:
-```
-.godot/
-build/
-tests/sim/out/
-.DS_Store
+`.gitignore` already exists (committed with the plan). Don't overwrite it; check that it ignores `.godot/`, `build/` and `tests/sim/out/`:
+
+```bash
+for p in .godot/ build/ tests/sim/out/; do grep -qx "$p" .gitignore && echo "ok $p" || echo "MISSING $p"; done
 ```
 
 `.gutconfig.json`:
@@ -489,7 +487,7 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - [ ] **Step 9: Commit**
 
 ```bash
-git add project.godot .gitignore .gutconfig.json run_tests.sh CLAUDE.md addons/gut autoload world tests
+git add project.godot .gutconfig.json run_tests.sh CLAUDE.md addons/gut autoload world tests
 git commit -m "chore: bootstrap Godot 4.7 project with GUT test runner"
 ```
 
