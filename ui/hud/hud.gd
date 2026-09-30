@@ -6,6 +6,7 @@ extends CanvasLayer
 
 var root: Control
 var gold_label: Label
+var card_strip: CardStrip
 var day_label: Label
 var moons: Array = []
 var diner_bar: ProgressBar
@@ -42,6 +43,9 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_apply_safe_area)
 	gold_label = _label(48, Vector2(24, 16))
 	gold_label.pivot_offset = Vector2(0, 30)
+	card_strip = CardStrip.new()
+	card_strip.position = Vector2(24, 84)
+	root.add_child(card_strip)
 	# Day label / moons / diner bar sit in one column anchored to the top centre.
 	var column := VBoxContainer.new()
 	_top_column = column
@@ -120,6 +124,7 @@ func _ready() -> void:
 	EventBus.wave_incoming.connect(_on_wave_incoming)
 	EventBus.wave_spawned_out.connect(_on_wave_spawned_out)
 	EventBus.wave_cleared.connect(_on_wave_cleared)
+	EventBus.card_offered.connect(_on_card_offered)
 	EventBus.diner_damaged.connect(_on_diner_damaged)
 	EventBus.state_restored.connect(_refresh_all)
 	EventBus.banner_requested.connect(_on_banner)
@@ -190,6 +195,10 @@ func _on_phase_changed(phase: int, day: int) -> void:
 		_filled = 0
 		_paint_moons()
 
+## phase_changed(DAWN) carries the old day; the offer comes after advance_day (S2 spec 5.1).
+func _on_card_offered(_offer: Array) -> void:
+	day_label.text = tr("Day %d") % GameState.day
+
 func _on_wave_cleared(w: int) -> void:
 	_filled = clampi(w + 1, 0, moons.size())
 	_paint_moons()
@@ -239,7 +248,7 @@ func _process(_delta: float) -> void:
 ## Where arrow tips may sit: the safe root rect, inset by the edge margin, below the top HUD.
 func _arrow_rect() -> Rect2:
 	var rect := root.get_global_rect().grow(-Balance.ui.arrow_edge_margin)
-	var hud_bottom := maxf(_top_column.get_global_rect().end.y, gold_label.get_global_rect().end.y)
+	var hud_bottom := maxf(maxf(_top_column.get_global_rect().end.y, gold_label.get_global_rect().end.y), card_strip.get_global_rect().end.y if card_strip.text != "" else 0.0)
 	var top := hud_bottom + Balance.ui.arrow_hud_gap + ARROW_EXTENT
 	if top > rect.position.y:
 		rect.size.y -= top - rect.position.y

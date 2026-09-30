@@ -10,17 +10,20 @@ var stuck_count := 0
 var _route: Array = []
 var _stuck_pos := Vector2.ZERO
 var _stuck_ticks := 0
+var _pending_offer: Array = []
 
 func setup(m: Main) -> void:
 	main = m
 	hero = m.hero
 	hero.input.player_control = false
 	EventBus.state_restored.connect(reset_route)
+	EventBus.card_offered.connect(_on_card_offered)
 	EventBus.hero_place_requested.connect(func(_p): reset_route())
 
 func reset_route() -> void:
 	goal = ""
 	_route = []
+	_pending_offer = []
 	_reset_stuck()
 
 func go_to(node_name: String) -> void:
@@ -36,8 +39,19 @@ func arrived() -> bool:
 func _physics_process(delta: float) -> void:
 	if main == null:
 		return
+	if not _pending_offer.is_empty():
+		var pick := choose_card(_pending_offer)
+		_pending_offer = []
+		EventBus.card_chosen.emit(pick)
 	think(delta)
 	_steer()
+
+func _on_card_offered(offer: Array) -> void:
+	_pending_offer = offer.duplicate()
+
+## Which card to take from a dawn offer (D-168). Base: leftmost.
+func choose_card(offer: Array) -> StringName:
+	return offer[0]
 
 func think(_delta: float) -> void:
 	pass
@@ -46,7 +60,7 @@ func day_think(_delta: float) -> void:
 	go_to("sign")  # walking in arms the sign (D-121); standing there closes up
 
 func _steer() -> void:
-	var step := Balance.data.hero.move_speed / float(Engine.physics_ticks_per_second)
+	var step := hero.move_speed() / float(Engine.physics_ticks_per_second)
 	while not _route.is_empty():
 		var tol := step if _route.size() > 1 else 0.02
 		if hero.xz().distance_to(_route[0]) <= tol:

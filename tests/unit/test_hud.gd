@@ -176,8 +176,35 @@ func test_arrow_rect_top_clears_the_hud() -> void:
 	var need := maxf(hud._top_column.get_global_rect().end.y, hud.gold_label.get_global_rect().end.y) \
 		+ Balance.ui.arrow_hud_gap + Hud.ARROW_EXTENT
 	assert_gte(hud._arrow_rect().position.y, need)
+	GameState.debug_grant_card(&"tank")
+	assert_ne(hud.card_strip.text, "")
+	need = maxf(need, hud.card_strip.get_global_rect().end.y + Balance.ui.arrow_hud_gap + Hud.ARROW_EXTENT)
+	assert_gte(hud._arrow_rect().position.y, need)
+
+func test_empty_card_strip_does_not_push_the_arrow_rect_down() -> void:
+	assert_eq(hud.card_strip.text, "")
+	hud.card_strip.position.y = 400.0  # test-only: park the strip well below the top column
+	var strip_y := hud.card_strip.get_global_rect().position.y
+	assert_gt(strip_y, hud._top_column.get_global_rect().end.y, "strip is parked below the column")
+	assert_lt(hud._arrow_rect().position.y, strip_y, "an empty strip is ignored")
+	GameState.debug_grant_card(&"tank")
+	assert_ne(hud.card_strip.text, "")
+	assert_gte(hud._arrow_rect().position.y, hud.card_strip.get_global_rect().end.y)
 
 func test_hover_point_is_clamped_below_the_hud() -> void:
 	var rect := Rect2(0, 200, 600, 800)
 	assert_eq(hud._hover_point(Vector2(100, 210), rect), Vector2(100, 200), "clamped to the rect top")
 	assert_eq(hud._hover_point(Vector2(100, 700), rect), Vector2(100, 700 - Balance.ui.arrow_hover_px))
+
+func test_card_strip_lists_owned_cards_in_catalog_order() -> void:
+	assert_eq(main.hud.card_strip.text, "")
+	GameState.debug_grant_card(&"tank")
+	GameState.debug_grant_card(&"hero_damage")
+	GameState.debug_grant_card(&"tank")
+	assert_eq(main.hud.card_strip.text, "DM1  TK2")
+	GameState.new_game(2)
+	assert_eq(main.hud.card_strip.text, "")
+
+func test_day_label_shows_new_day_on_offer() -> void:
+	EventBus.wave_cleared.emit(2)
+	assert_eq(main.hud.day_label.text, "Day 2")

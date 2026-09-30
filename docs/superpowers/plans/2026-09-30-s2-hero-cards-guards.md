@@ -292,7 +292,7 @@ func test_every_card_has_text_and_glyph() -> void:
 
 func test_level_and_banner_text() -> void:
 	assert_eq(CardCatalog.level_text(0), "NEW")
-	assert_eq(CardCatalog.level_text(2), "Lv 2 → 3")
+	assert_eq(CardCatalog.level_text(2), "Lv 2 » 3")
 	assert_eq(CardCatalog.pick_banner(&"archer", 1), "The Archer joins!")
 	assert_eq(CardCatalog.pick_banner(&"tank", 3), "Tank Lv 3")
 	assert_eq(CardCatalog.pick_banner(&"move_speed", 2), "Running Shoes Lv 2")
@@ -389,11 +389,11 @@ static func effect_text(id: StringName, cb: CardBalance) -> String:
 			return TranslationServer.translate("Shoots from the roof")
 	return TranslationServer.translate("Holds the west lane")
 
-## The level line on a card: NEW for an unowned card, otherwise "Lv n → n+1".
+## The level line on a card: NEW for an unowned card, otherwise "Lv n » n+1".
 static func level_text(current_level: int) -> String:
 	if current_level <= 0:
 		return TranslationServer.translate("NEW")
-	return TranslationServer.translate("Lv %d → %d") % [current_level, current_level + 1]
+	return TranslationServer.translate("Lv %d » %d") % [current_level, current_level + 1]
 
 static func pick_banner(id: StringName, new_level: int) -> String:
 	if kind(id) == &"adventurer" and new_level == 1:
@@ -1236,6 +1236,8 @@ git commit -m "feat(bots): card policies; bots use effective carry and move spee
 
 ### Task 8: `CardPickOverlay`
 
+**Release note (S2 Task 5 review):** from Task 5 on, dawn waits for a pick, and only this overlay lets a human pick. So Phases 2 and 3 ship together in one PR (`s2/p3-pick-ui` is stacked on `s2/p2-flow`); the Phase 2 branch is never merged alone.
+
 **Files:**
 - Create: `ui/card_pick/card_pick_overlay.gd`
 - Modify: `tests/unit/test_glyphs.gd`
@@ -1407,10 +1409,10 @@ func test_layout_fits_landscape_and_two_cards() -> void:
 	assert_lte(r[2].end.y, 1280.0 - 60.0)
 ```
 
-In `tests/unit/test_glyphs.gd`, change the sample to `const SAMPLE := "Quán ăn mở cửa — Đêm thứ 3 → 4"`.
+In `tests/unit/test_glyphs.gd`, change the sample to `const SAMPLE := "Quán ăn mở cửa — Đêm thứ 3 » 4"`.
 
 - [ ] **Step 2: Run them and see them fail.** Run `./run_tests.sh unit`. Expected: FAIL; `CardPickOverlay` is not declared.
-  - If `test_glyphs` fails on "→" once the rest passes, Nunito lacks U+2192. In that case, change `CardCatalog.level_text` to `"Lv %d > %d"`, revert the sample, update the Task 2 test pin, and report it.
+  - If `test_glyphs` fails on "→" once the rest passes, Nunito lacks U+2192. In that case, change `CardCatalog.level_text` to `"Lv %d » %d"` (Nunito has U+00BB; the shipped choice), revert the sample, update the Task 2 test pin, and report it.
 
 - [ ] **Step 3: Implement.** `ui/card_pick/card_pick_overlay.gd`:
 ```gdscript
@@ -1665,6 +1667,7 @@ func test_parse() -> void:
 		{"cards": {&"archer": 1, &"tank": 2}, "scene": "cardpick"})
 	assert_eq(DS.parse(""), {"cards": {}, "scene": ""})
 	assert_eq(DS.parse("?cards=bogus:3,tank:x"), {"cards": {}, "scene": ""}, "unknown ids and bad levels are dropped")
+	assert_eq(DS.parse("?cards=tank:9").cards, {&"tank": Balance.data.cards.max_level}, "levels clamp to max")
 
 func test_apply_grants_cards_and_opens_pick() -> void:
 	DS.apply(main, DS.parse("?cards=tank:2,move_speed:1&scene=cardpick"))
@@ -1736,7 +1739,8 @@ static func parse(query: String) -> Dictionary:
 			for item in kv[1].split(",", false):
 				var il := item.split(":", true, 1)
 				if il.size() == 2 and StringName(il[0]) in CardCatalog.IDS and il[1].is_valid_int():
-					out.cards[StringName(il[0])] = int(il[1])
+					# clamp: release builds strip pick_card's max-level assert (S2 Task 4 review)
+					out.cards[StringName(il[0])] = clampi(int(il[1]), 0, Balance.data.cards.max_level)
 	return out
 
 static func apply(main, q: Dictionary) -> void:
@@ -1770,12 +1774,12 @@ func _apply_scene() -> void:
 
 - [ ] **Step 5: Simulator self-review (D-159).** The main session pushes the phase branch. Then:
   - `WAIT_S=25 export/device_check.sh "https://khanhnguyendev.github.io/last-stand-tycoon/preview/s2-p3-pick-ui/debug/?scene=cardpick" <scratch>/pick_ios`
-  - the same with `?cards=hero_damage:5,attack_speed:5,move_speed:5,carry_capacity:5,tank:2&scene=cardpick`. The pool is then exactly gold_per_steak, archer and tank, so the panels show both "NEW" and "Lv 2 → 3" for any seed.
+  - the same with `?cards=hero_damage:5,attack_speed:5,move_speed:5,carry_capacity:5,tank:2&scene=cardpick`. The pool is then exactly gold_per_steak, archer and tank, so the panels show both "NEW" and "Lv 2 » 3" for any seed.
   - `node export/pw_check.mjs "<same url>" <scratch>/pick_android.png android`
 
   Read each screenshot and check:
   - all panels are inside the safe area, with nothing under the notch or home indicator;
-  - the text is readable and unclipped, "→" renders, and the level lines read "NEW" / "Lv 2 → 3";
+  - the text is readable and unclipped, "»" renders, and the level lines read "NEW" / "Lv 2 » 3";
   - the strip reads "DM5  AS5  MV5  CA5  TK2" under the gold (second URL);
   - the heading doesn't collide with the top HUD.
 

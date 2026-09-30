@@ -1,7 +1,7 @@
 extends GutTest
 ## D-079: the font must cover Vietnamese diacritics.
 
-const SAMPLE := "Quán ăn mở cửa — Đêm thứ 3"
+const SAMPLE := "Quán ăn mở cửa — Đêm thứ 3 » 4"
 
 func test_nunito_has_all_glyphs() -> void:
 	var font: FontFile = load(WorldLabel.FONT_PATH)

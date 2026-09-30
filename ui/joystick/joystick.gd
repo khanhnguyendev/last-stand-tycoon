@@ -21,6 +21,10 @@ func _input(event: InputEvent) -> void:
 ## While a touch is held, re-send the vector every tick: Hero.teleport clears the stored move
 ## and a still thumb produces no drag events (Task 15 review).
 func _physics_process(_delta: float) -> void:
+	if _input_api != null and _input_api.blocked:
+		if is_active():
+			_end()
+		return
 	if is_active() and _input_api != null:
 		_input_api.set_move(_vec)
 
@@ -30,7 +34,7 @@ func is_active() -> bool:
 func handle(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
-			if (not is_active() or event.index == active_index) and _allowed(event.position):
+			if (not is_active() or event.index == active_index) and _allowed(event.position) and not _blocked():
 				_begin(event.index, event.position)
 		elif event.index == active_index:
 			_end()
@@ -39,7 +43,7 @@ func handle(event: InputEvent) -> void:
 			_drag(event.position)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
-			if (not is_active() or active_index == -1) and _allowed(event.position):
+			if (not is_active() or active_index == -1) and _allowed(event.position) and not _blocked():
 				_begin(-1, event.position)
 		elif active_index == -1:
 			_end()
@@ -48,6 +52,9 @@ func handle(event: InputEvent) -> void:
 			_end()  # the release happened outside the window
 		else:
 			_drag(event.position)
+
+func _blocked() -> bool:
+	return _input_api != null and _input_api.blocked
 
 func _allowed(p: Vector2) -> bool:
 	var w := get_viewport_rect().size.x

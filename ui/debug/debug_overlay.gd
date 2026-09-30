@@ -14,6 +14,7 @@ var _rect := Rect2()
 var _owned := {}
 var _label: Label
 var _warnings: Array = []
+var _scene_query := {}
 
 func _init() -> void:
 	name = "DebugOverlay"
@@ -38,6 +39,17 @@ func setup(main: Main) -> void:
 	_place_button()
 	for pool in main.find_children("*", "NodePool", true, false):
 		pool.grew.connect(func(n: int): _warnings.append("%s grew to %d" % [pool.name, n]))
+	if OS.has_feature("web"):
+		_scene_query = load("res://ui/debug/debug_scenes.gd").parse(str(JavaScriptBridge.eval("window.location.search", true)))
+		EventBus.phase_changed.connect(_on_first_phase, CONNECT_ONE_SHOT)
+
+## The URL scene waits for the game's first NIGHT (Main starts it deferred) and then runs deferred, so it never
+## re-enters PhaseController while _enter_night is still emitting phase_changed.
+func _on_first_phase(_phase: int, _day: int) -> void:
+	_apply_scene.call_deferred()
+
+func _apply_scene() -> void:
+	load("res://ui/debug/debug_scenes.gd").apply(_main, _scene_query)
 
 func _process(_delta: float) -> void:
 	if _main == null:

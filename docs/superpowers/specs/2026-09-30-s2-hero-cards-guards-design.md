@@ -69,8 +69,8 @@ re-tune, snapshot schema v2.
 - `CardCatalog.IDS` fixes the order above. That order is also the tie-break order everywhere.
 - `CardCatalog.kind(id)`, `CardCatalog.UPGRADES` (the 5 upgrade ids in `IDS` order), and `static func max_level()`,
   which returns `Balance.data.cards.max_level` (5).
-- Each card shows: its name, a one-line effect ("+20% hero damage"), and "NEW" for level 0 or "Lv 2 → 3"
-  otherwise. All strings go through `tr()`. `test_glyphs` adds "→" to its sample, so Nunito's coverage is checked.
+- Each card shows: its name, a one-line effect ("+20% hero damage"), and "NEW" for level 0 or "Lv 2 » 3"
+  otherwise (Nunito has no U+2192 arrow). All strings go through `tr()`. `test_glyphs` adds "»" to its sample, so Nunito's coverage is checked.
 
 ### 4.2 Effects (`core/card_effects.gd`, static, pure; D-167)
 
@@ -113,9 +113,11 @@ The consumers (every read of these base values goes through `CardEffects` with `
 
 `_card_pick()` replaces the stub:
 1. `offer = CardOffer.make(GameState.run_seed, GameState.day, GameState.cards, Balance.data.cards)`.
-2. If the offer is empty: set `dawn_substate = ""` and `_enter_day()`.
-3. Otherwise: `GameState.set_card_offer(offer)` (emits `card_offered(offer)`) and set `dawn_substate = "CARD_PICK"`.
-   The controller then waits.
+2. If the offer is empty: show the "Dawn" banner, set `dawn_substate = ""`, then `_enter_day()`.
+3. Otherwise: set `dawn_substate = "CARD_PICK"`, then `GameState.set_card_offer(offer)` (emits `card_offered(offer)`).
+   The sub-state is set first, so a listener that picks synchronously is accepted. The controller then waits.
+   There is no "Dawn" banner in this case: the pick overlay would cover it, and the pick banner replaces it. This
+   overrides S1 §5.4's "Dawn" banner for dawns with an offer.
 
 On `EventBus.card_chosen(id)`:
 - It is ignored unless `phase == DAWN`, `dawn_substate == "CARD_PICK"` and `id in GameState.card_offer`.
@@ -215,11 +217,11 @@ Pick banners (`tr()`):
 
 ### 6.1 Posts (`MapLayout`, D-163)
 
-- `GUARD_POST_TANK`: the west lane's center-line point at `path_length − 3.0` (≈ (-6.60, -2.65)), computed from
+- `MapLayout.guard_post(&"tank")`: the west lane's center-line point at `path_length − 3.0` (≈ (-6.60, -2.65)), computed from
   `LANE_PATHS` and pinned in a test.
 - `GUARD_POST_ARCHER`: `(2.5, -2.5)`, on the roof at height `DINER_HEIGHT`.
 - `DINER_DOOR`: `(-3.0, 4.6)`, on the south wall, west of the counter.
-- `TANK_RETURN_PATH`: `[DINER_DOOR, (-5.0, 4.6), GUARD_POST_TANK]`. It must stay clear of the diner box and of the
+- `MapLayout.tank_return_path()`: `[DINER_DOOR, (-5.0, 4.6), MapLayout.guard_post(&"tank")]`. It must stay clear of the diner box and of the
   tower footprints; a test checks this.
 - Geometry guarantees, in `tests/unit/test_geometry.gd`:
   - The Archer's range at level 1 covers all three lane ends, plus the north and east fence stop points.
