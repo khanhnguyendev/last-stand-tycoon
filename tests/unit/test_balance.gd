@@ -31,3 +31,14 @@ func test_inject_replaces_data() -> void:
 	Balance.inject(d)
 	assert_eq(Balance.data.hero.move_speed, 1.0)
 	Balance.reset()
+
+func test_inject_ui_semantics() -> void:
+	var d := BalanceData.new()
+	var u := UiTuning.new()
+	u.camera_fov_h = 1.0
+	Balance.inject(d, u)
+	assert_eq(Balance.ui.camera_fov_h, 1.0)
+	var before := Balance.ui
+	Balance.inject(BalanceData.new())
+	assert_same(Balance.ui, before)
+	Balance.reset()

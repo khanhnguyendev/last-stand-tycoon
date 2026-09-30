@@ -493,24 +493,27 @@ SUITE="${1:-all}"
 "$GODOT" --headless --path . --import >/dev/null 2>&1 || true
 run_gut() {
   local log rc; log="$(mktemp)"
+  trap 'rm -f "$log"' RETURN INT TERM
   set +e
   "$GODOT" --headless --path . --fixed-fps 60 -s res://addons/gut/gut_cmdln.gd \
     -gconfig= -ginclude_subdirs -gprefix=test_ "$@" -gexit 2>&1 | tee "$log"
   rc=${PIPESTATUS[0]}
   set -e
-  if [ "$rc" -eq 0 ] && sed 's/\x1b\[[0-9;]*m//g' "$log" | grep -Eq '^Errors[[:space:]]+[1-9]|Could not find script|could not be loaded|does not exist\.|Nothing was run|SCRIPT ERROR'; then
+  if [ "$rc" -eq 0 ] && sed 's/\x1b\[[0-9;]*m//g' "$log" | grep -E '^Errors[[:space:]]+[1-9]|Could not find script|could not be loaded|\[GUT ERROR\]:.*does not exist\.|Nothing was run|SCRIPT ERROR' >/dev/null; then
     echo "GUT reported errors (see above); failing"; rc=1
   fi
+  trap - RETURN INT TERM
   rm -f "$log"; return "$rc"
 }
 case "$SUITE" in
   unit) run_gut -gdir=res://tests/unit ;;
   sim)
-    if ! find tests/sim -name 'test_*.gd' 2>/dev/null | grep -q .; then echo "SIM SUITE: no sim tests yet"; exit 0; fi
+    if [ -z "$(find tests/sim -name 'test_*.gd' -print -quit 2>/dev/null)" ]; then echo "SIM SUITE: no sim tests yet"; exit 0; fi
     start=$SECONDS
-    run_gut -gdir=res://tests/sim
+    rc=0; run_gut -gdir=res://tests/sim || rc=$?
     elapsed=$((SECONDS - start))
     echo "SIM SUITE: ${elapsed}s (budget 60s)"
+    [ "$rc" -eq 0 ] || exit "$rc"
     if [ "$elapsed" -gt 60 ]; then echo "SIM SUITE OVER BUDGET"; exit 1; fi ;;
   all) "$SELF" unit && "$SELF" sim ;;
   --quick)
@@ -629,6 +632,8 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - EventBus = cross-system events only; local signals inside a system.
 - Every number in `balance/`; every user string through `tr()`.
 - Ties broken by `spawn_index`, never node order.
+- `./run_tests.sh` fails on GUT errors as well as failed asserts, including any `SCRIPT ERROR`. Don't write tests that expect engine errors.
+- Sims and tests read state at matching points after `await get_tree().physics_frame`; `physics_frame` fires before the nodes' `_physics_process` (D-118).
 ```
 
 - [ ] **Step 9: Commit**
@@ -693,6 +698,17 @@ func test_inject_replaces_data() -> void:
 	d.hero.move_speed = 1.0
 	Balance.inject(d)
 	assert_eq(Balance.data.hero.move_speed, 1.0)
+	Balance.reset()
+
+func test_inject_ui_semantics() -> void:
+	var d := BalanceData.new()
+	var u := UiTuning.new()
+	u.camera_fov_h = 1.0
+	Balance.inject(d, u)
+	assert_eq(Balance.ui.camera_fov_h, 1.0)
+	var before := Balance.ui
+	Balance.inject(BalanceData.new())
+	assert_same(Balance.ui, before)
 	Balance.reset()
 ```
 

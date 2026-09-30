@@ -11,24 +11,27 @@ SUITE="${1:-all}"
 "$GODOT" --headless --path . --import >/dev/null 2>&1 || true
 run_gut() {
   local log rc; log="$(mktemp)"
+  trap 'rm -f "$log"' RETURN INT TERM
   set +e
   "$GODOT" --headless --path . --fixed-fps 60 -s res://addons/gut/gut_cmdln.gd \
     -gconfig= -ginclude_subdirs -gprefix=test_ "$@" -gexit 2>&1 | tee "$log"
   rc=${PIPESTATUS[0]}
   set -e
-  if [ "$rc" -eq 0 ] && sed 's/\x1b\[[0-9;]*m//g' "$log" | grep -Eq '^Errors[[:space:]]+[1-9]|Could not find script|could not be loaded|does not exist\.|Nothing was run|SCRIPT ERROR'; then
+  if [ "$rc" -eq 0 ] && sed 's/\x1b\[[0-9;]*m//g' "$log" | grep -E '^Errors[[:space:]]+[1-9]|Could not find script|could not be loaded|\[GUT ERROR\]:.*does not exist\.|Nothing was run|SCRIPT ERROR' >/dev/null; then
     echo "GUT reported errors (see above); failing"; rc=1
   fi
+  trap - RETURN INT TERM
   rm -f "$log"; return "$rc"
 }
 case "$SUITE" in
   unit) run_gut -gdir=res://tests/unit ;;
   sim)
-    if ! find tests/sim -name 'test_*.gd' 2>/dev/null | grep -q .; then echo "SIM SUITE: no sim tests yet"; exit 0; fi
+    if [ -z "$(find tests/sim -name 'test_*.gd' -print -quit 2>/dev/null)" ]; then echo "SIM SUITE: no sim tests yet"; exit 0; fi
     start=$SECONDS
-    run_gut -gdir=res://tests/sim
+    rc=0; run_gut -gdir=res://tests/sim || rc=$?
     elapsed=$((SECONDS - start))
     echo "SIM SUITE: ${elapsed}s (budget 60s)"
+    [ "$rc" -eq 0 ] || exit "$rc"
     if [ "$elapsed" -gt 60 ]; then echo "SIM SUITE OVER BUDGET"; exit 1; fi ;;
   all) "$SELF" unit && "$SELF" sim ;;
   --quick)
