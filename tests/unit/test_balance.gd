@@ -75,3 +75,9 @@ func test_s2_reset_deep_copies_guard_stats() -> void:
 	Balance.data.guards.tank.max_hp = 1.0
 	Balance.reset()
 	assert_eq(Balance.data.guards.tank.max_hp, 160.0, "D-157: sub-resources built by initializers survive reset")
+
+func test_s3_tuning_defaults() -> void:
+	assert_almost_eq(Balance.data.wave.mercy_step, 0.15, 1e-6)
+	assert_almost_eq(Balance.data.wave.mercy_floor, 0.40, 1e-6)
+	assert_almost_eq(Balance.ui.banner_min_s, 0.6, 1e-6)
+	assert_almost_eq(Balance.ui.autosave_interval_s, 3.0, 1e-6)

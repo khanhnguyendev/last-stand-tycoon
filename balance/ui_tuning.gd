@@ -46,3 +46,6 @@ extends Resource
 @export var card_panel_size := Vector2(560, 220)
 @export var card_panel_gap := 24.0
 @export var card_panel_min_h := 120.0
+## S3: a new banner shortens the one on screen to at most banner_min_s (D-175); autosave throttle (D-173).
+@export var banner_min_s := 0.6
+@export var autosave_interval_s := 3.0
