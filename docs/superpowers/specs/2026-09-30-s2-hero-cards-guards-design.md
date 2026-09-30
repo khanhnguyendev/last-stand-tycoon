@@ -114,8 +114,8 @@ The consumers (every read of these base values goes through `CardEffects` with `
 `_card_pick()` replaces the stub:
 1. `offer = CardOffer.make(GameState.run_seed, GameState.day, GameState.cards, Balance.data.cards)`.
 2. If the offer is empty: set `dawn_substate = ""` and `_enter_day()`.
-3. Otherwise: `GameState.set_card_offer(offer)` (emits `card_offered(offer)`) and set `dawn_substate = "CARD_PICK"`.
-   The controller then waits.
+3. Otherwise: set `dawn_substate = "CARD_PICK"`, then `GameState.set_card_offer(offer)` (emits `card_offered(offer)`).
+   The sub-state is set first, so a listener that picks synchronously is accepted. The controller then waits.
 
 On `EventBus.card_chosen(id)`:
 - It is ignored unless `phase == DAWN`, `dawn_substate == "CARD_PICK"` and `id in GameState.card_offer`.

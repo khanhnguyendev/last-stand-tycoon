@@ -1236,6 +1236,8 @@ git commit -m "feat(bots): card policies; bots use effective carry and move spee
 
 ### Task 8: `CardPickOverlay`
 
+**Release note (S2 Task 5 review):** from Task 5 on, dawn waits for a pick, and only this overlay lets a human pick. So Phases 2 and 3 ship together in one PR (`s2/p3-pick-ui` is stacked on `s2/p2-flow`); the Phase 2 branch is never merged alone.
+
 **Files:**
 - Create: `ui/card_pick/card_pick_overlay.gd`
 - Modify: `tests/unit/test_glyphs.gd`
@@ -1665,6 +1667,7 @@ func test_parse() -> void:
 		{"cards": {&"archer": 1, &"tank": 2}, "scene": "cardpick"})
 	assert_eq(DS.parse(""), {"cards": {}, "scene": ""})
 	assert_eq(DS.parse("?cards=bogus:3,tank:x"), {"cards": {}, "scene": ""}, "unknown ids and bad levels are dropped")
+	assert_eq(DS.parse("?cards=tank:9").cards, {&"tank": Balance.data.cards.max_level}, "levels clamp to max")
 
 func test_apply_grants_cards_and_opens_pick() -> void:
 	DS.apply(main, DS.parse("?cards=tank:2,move_speed:1&scene=cardpick"))
@@ -1736,7 +1739,8 @@ static func parse(query: String) -> Dictionary:
 			for item in kv[1].split(",", false):
 				var il := item.split(":", true, 1)
 				if il.size() == 2 and StringName(il[0]) in CardCatalog.IDS and il[1].is_valid_int():
-					out.cards[StringName(il[0])] = int(il[1])
+					# clamp: release builds strip pick_card's max-level assert (S2 Task 4 review)
+					out.cards[StringName(il[0])] = clampi(int(il[1]), 0, Balance.data.cards.max_level)
 	return out
 
 static func apply(main, q: Dictionary) -> void:
