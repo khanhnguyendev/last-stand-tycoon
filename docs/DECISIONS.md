@@ -1262,8 +1262,8 @@ falls and the night restarts identically.
   - A unit test asserts the setting stays `false`.
   - `pages.yml` boots every exported pack (release, profile, debug) with
     `--headless --fixed-fps 60 --main-pack <pck> --quit-after 120`, which is 2 s of game time on any runner.
-  - It fails on a non-zero exit, or on `SCRIPT ERROR`, `Invalid access`, `Parse Error`, `Failed loading resource` or
-    `Cannot open file` in the log.
+  - It fails if the pack is missing, on a non-zero exit, or on `SCRIPT ERROR`, `Invalid access`, `Parse Error`,
+    `Failed loading resource` or `Cannot open` in the log. A missing `--main-pack` exits 0 with only a `Cannot open` line.
   - Checked locally: a pack exported with the fix logs 0 errors, and a pre-fix binary-converted pack logs 374.
 
 **D-158 Export presets drop VRAM texture compression for S1 (Task 32).**

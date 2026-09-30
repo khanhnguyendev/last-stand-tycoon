@@ -147,6 +147,7 @@ jobs:
             boot_check() {
               local log="$RUNNER_TEMP/boot_$1.log"
               local rc=0
+              [ -s "$2" ] || { echo "::error::$1 pack missing: $2"; exit 1; }
               # --fixed-fps 60: 120 iterations = 2 s of game time on any runner
               "$GODOT" --headless --fixed-fps 60 --main-pack "$2" --quit-after 120 > "$log" 2>&1 || rc=$?
               if [ "$rc" != "0" ]; then
@@ -154,7 +155,7 @@ jobs:
                 echo "::error::$1 pack exited with $rc at boot"
                 exit 1
               fi
-              if grep -E "SCRIPT ERROR|Invalid access|Parse Error|Failed loading resource|Cannot open file" "$log"; then
+              if grep -E "SCRIPT ERROR|Invalid access|Parse Error|Failed loading resource|Cannot open" "$log"; then
                 echo "::error::$1 pack logs script or resource errors at boot (see above)"
                 exit 1
               fi

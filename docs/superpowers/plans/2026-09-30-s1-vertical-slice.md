@@ -10779,8 +10779,10 @@ git commit -m "feat: pause the game on focus loss and hidden tab"
 ### Task 32: Web shell, three presets, debug and perf overlays → **CHECKPOINT 2**
 
 **Occluder alpha picker for CP2 (author, CP1 review; D-151).** The author picks `UiTuning.occluder_alpha` on the phone:
-- The debug overlay gets a touch button "Fade α: 0.30" that cycles 0.30 → 0.45 → 0.60 and writes `Balance.ui.occluder_alpha` live. Hotkey `O` does the same on desktop.
+- The debug overlay gets a touch button "Fade alpha 0.30" (the web font has no α glyph) that cycles 0.30 → 0.45 → 0.60 and writes `Balance.ui.occluder_alpha` live. Hotkey `O` does the same on desktop.
+- The button sits bottom-right inside the safe area, clear of the joystick's `edge_ignore_px` strips. It consumes its own press in `_input` (the overlay is added after InputLayer, so it sees events first) and only the releases of fingers it owns, so a stick touch that ends over the button still ends the stick.
 - The debug overlay only exists in the `web_debug` preset (D-099), so the `pages` workflow also exports `web_debug` to `<path>/debug/` when that preset exists. The release and profile builds stay debug-free.
+- The `pages` workflow boots every exported pack headless (`--fixed-fps 60 --main-pack <pck> --quit-after 120`) and fails on script or resource errors (D-157).
 - The CP2 checklist asks the author to try all three values and reply with the pick. The pick then becomes the `ui_tuning.gd` default, and the decision is logged.
 - Tests: the button cycles the three values and updates any active `OccluderFade` target alpha; `ui/debug/*` stays absent from release and profile packs.
 
@@ -10803,9 +10805,24 @@ git commit -m "feat: pause the game on focus loss and hidden tab"
 `tests/unit/test_overlays.gd`:
 ```gdscript
 extends GutTest
+## Task 32: overlays, build label and the CP2 occluder-alpha picker (D-151). Picker tests go through the
+## overlay Main itself adds (debug builds), so they also prove it is added after InputLayer.
 
 func before_each() -> void:
 	Balance.reset()
+
+func _touch(vp: Viewport, pos: Vector2, pressed: bool, index := 0) -> void:
+	var e := InputEventScreenTouch.new()
+	e.index = index
+	e.position = pos
+	e.pressed = pressed
+	vp.push_input(e, true)  # local coords: the headless window would rescale the point
+
+func _main_with_overlay() -> Array:
+	var main := Main.create()
+	add_child_autofree(main)
+	main.hero.input.player_control = false
+	return [main, main.get_node_or_null("DebugOverlay")]
 
 func test_perf_overlay_stats() -> void:
 	var p := PerfOverlay.new()
@@ -10816,7 +10833,15 @@ func test_perf_overlay_stats() -> void:
 	assert_almost_eq(p.worst_ms(), 120.0, 0.01)
 	assert_lt(p.avg_fps(), 60.0)
 
-func test_debug_overlay_present_in_debug_build_and_hotkey_gold() -> void:
+func test_perf_overlay_window_drops_old_frames() -> void:
+	var p := PerfOverlay.new()
+	add_child_autofree(p)
+	p.record(0.5)
+	for i in 4000:
+		p.record(1.0 / 60.0)
+	assert_lt(p.worst_ms(), 100.0, "the 0.5 s frame left the 60 s window")
+
+func test_debug_overlay_hotkey_gold() -> void:
 	if not OS.is_debug_build():
 		pass_test("release runner: overlay intentionally absent")
 		return
@@ -10832,11 +10857,170 @@ func test_main_does_not_preload_debug() -> void:
 	var src := FileAccess.get_file_as_string("res://world/main.gd")
 	assert_false(src.contains("preload(\"res://ui/debug"), "debug overlay must be load()ed, never preloaded (D-099)")
 
-func test_build_label_off_web_is_dev_and_added_by_main() -> void:
+func test_build_label_off_web_is_dev() -> void:
 	assert_eq(BuildLabel.build_id(), "dev")
+	var b := BuildLabel.new()
+	add_child_autofree(b)
+	assert_eq(b.layer, 100)
+	var l: Label = b.get_child(0)
+	assert_eq(l.text, "dev")
+	assert_almost_eq(l.modulate.a, 0.5, 1e-4)
+	assert_eq(l.get_theme_font_size("font_size"), 14)
+
+func test_main_adds_build_label_once() -> void:
 	var main := Main.create()
 	add_child_autofree(main)
 	assert_eq(main.get_children().filter(func(c): return c is BuildLabel).size(), 1)
+
+func test_main_gates_overlays_by_build_and_feature() -> void:
+	var src := FileAccess.get_file_as_string("res://world/main.gd")
+	assert_true(src.contains("profile_overlay"))
+	assert_true(src.contains("OS.is_debug_build()"))
+
+func test_d157_export_keeps_tres_as_text() -> void:
+	assert_false(ProjectSettings.get_setting("editor/export/convert_text_resources_to_binary", true),
+		"D-157: export must keep .tres as text")
+
+# --- occluder-alpha picker (D-151); debug builds only ---
+
+func test_fade_alpha_cycles_three_values_and_writes_balance() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var o: Node = _main_with_overlay()[1]
+	assert_not_null(o)
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.30, 1e-4)
+	o.cycle_occluder_alpha()
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4)
+	o.cycle_occluder_alpha()
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.60, 1e-4)
+	o.cycle_occluder_alpha()
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.30, 1e-4)
+
+func test_real_o_key_event_cycles_exactly_once_and_button_shows_value() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	var o: Node = pair[1]
+	assert_eq(o.fade_button.text, "Fade alpha 0.30")
+	var e := InputEventKey.new()
+	e.physical_keycode = KEY_O
+	e.keycode = KEY_O
+	e.pressed = true
+	main.get_viewport().push_input(e, true)
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4)
+	assert_eq(o.fade_button.text, "Fade alpha 0.45")
+
+func test_active_occluder_fade_follows_live_alpha_change() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	var o: Node = pair[1]
+	main.phase_controller.start_new_game(72)
+	main.hero.teleport((MapLayout.ZONE_RECTS["north"] as Rect2).get_center())
+	main.camera_rig.snap()
+	for i in 40:
+		await get_tree().process_frame
+	assert_true(main.world.occluder_fade.is_faded())
+	assert_almost_eq(main.world.occluder_fade.current_alpha(), 0.30, 1e-3)
+	o.cycle_occluder_alpha()
+	for i in 40:
+		await get_tree().process_frame
+	assert_almost_eq(main.world.occluder_fade.current_alpha(), 0.45, 1e-3)
+
+func test_button_rect_is_bottom_right_inside_safe_area_clear_of_edge_strips() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	var o: Node = pair[1]
+	var vp := main.get_viewport().get_visible_rect().size
+	var r: Rect2 = o.button_rect()
+	var ins := SafeArea.insets(vp)
+	assert_lte(r.end.x, vp.x - ins.right - Balance.ui.edge_ignore_px - 8.0, "clear of the joystick edge strip")
+	assert_lte(r.end.y, vp.y - ins.bottom, "above the bottom inset")
+	assert_gt(r.position.x, vp.x * 0.5, "right half")
+	assert_gt(r.position.y, vp.y * 0.75, "bottom quarter")
+
+func test_touch_on_button_cycles_and_does_not_start_the_stick() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	var c: Vector2 = pair[1].button_rect().get_center()
+	_touch(main.get_viewport(), c, true)
+	assert_false(main.joystick.is_active(), "a press on the button must not start the stick")
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4, "press cycles once")
+	_touch(main.get_viewport(), c, false)
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4, "release does not cycle")
+
+func test_stick_released_over_button_still_ends() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	_touch(main.get_viewport(), Vector2(200, 700), true)
+	assert_true(main.joystick.is_active())
+	_touch(main.get_viewport(), pair[1].button_rect().get_center(), false)
+	assert_false(main.joystick.is_active(), "the stick's release must not be swallowed by the button")
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.30, 1e-4, "no cycle")
+
+func test_touch_elsewhere_still_starts_the_stick() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var main: Main = _main_with_overlay()[0]
+	_touch(main.get_viewport(), Vector2(200, 700), true)
+	assert_true(main.joystick.is_active())
+	_touch(main.get_viewport(), Vector2(200, 700), false)
+
+func test_mouse_click_on_button_cycles_once_and_skips_stick() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.position = pair[1].button_rect().get_center()
+	e.pressed = true
+	main.get_viewport().push_input(e, true)
+	assert_false(main.joystick.is_active())
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4)
+
+func test_emulated_mouse_event_on_button_is_ignored() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.device = InputEvent.DEVICE_ID_EMULATION
+	e.position = pair[1].button_rect().get_center()
+	e.pressed = true
+	main.get_viewport().push_input(e, true)
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.30, 1e-4)
+
+func test_stale_owned_finger_does_not_swallow_the_stick_release() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	var vp := main.get_viewport()
+	_touch(vp, pair[1].button_rect().get_center(), true)  # index 0 owned by the button, release dropped
+	_touch(vp, Vector2(200, 700), true)                    # same index again: starts the stick
+	assert_true(main.joystick.is_active())
+	_touch(vp, pair[1].button_rect().get_center(), false)
+	assert_false(main.joystick.is_active(), "the stale owned index must not swallow this release")
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -10864,6 +11048,7 @@ func _ready() -> void:
 	_label = Label.new()
 	_label.position = Vector2(12, 1180)
 	_label.add_theme_font_size_override("font_size", 26)
+	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_label)
 
 func record(frame_seconds: float) -> void:
@@ -10894,10 +11079,23 @@ func _process(delta: float) -> void:
 ```gdscript
 extends CanvasLayer
 ## Debug builds only (D-047, D-099, D-115). Loaded with load() from Main; excluded from release/profile.
+## Also hosts the CP2 occluder-alpha picker (D-151): a bottom-right button and the O key cycle
+## Balance.ui.occluder_alpha through 0.30 / 0.45 / 0.60; OccluderFade reads it every frame.
 
+const ALPHAS: Array[float] = [0.30, 0.45, 0.60]
+const BUTTON_SIZE := Vector2(250, 64)
+## Gap to the safe-area edge, on top of the joystick's edge_ignore_px strip.
+const BUTTON_MARGIN := 24.0
+
+var fade_button: Button
 var _main: Main
+var _rect := Rect2()
+var _owned := {}
 var _label: Label
 var _warnings: Array = []
+
+func _init() -> void:
+	name = "DebugOverlay"
 
 func setup(main: Main) -> void:
 	_main = main
@@ -10906,7 +11104,17 @@ func setup(main: Main) -> void:
 	_label = Label.new()
 	_label.position = Vector2(420, 110)
 	_label.add_theme_font_size_override("font_size", 20)
+	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_label)
+	# Visual only: the overlay's own _input handles the press, so the Button never needs the mouse.
+	fade_button = Button.new()
+	fade_button.focus_mode = Control.FOCUS_NONE
+	fade_button.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fade_button.add_theme_font_size_override("font_size", 26)
+	add_child(fade_button)
+	_refresh_button()
+	get_viewport().size_changed.connect(_place_button)
+	_place_button()
 	for pool in main.find_children("*", "NodePool", true, false):
 		pool.grew.connect(func(n: int): _warnings.append("%s grew to %d" % [pool.name, n]))
 
@@ -10918,6 +11126,62 @@ func _process(_delta: float) -> void:
 		Phase.name_of(_main.phase_controller.phase), wd.wave_index, wd.alive_count(),
 		Engine.get_frames_per_second(), "\n".join(_warnings)]
 
+## Bottom-right, inside the safe area, clear of the joystick's edge strips and above the bottom inset.
+func button_rect() -> Rect2:
+	var vp := get_viewport().get_visible_rect().size
+	var ins := SafeArea.insets(vp)
+	var right: float = vp.x - float(ins.right) - Balance.ui.edge_ignore_px - BUTTON_MARGIN
+	var bottom: float = vp.y - float(ins.bottom) - BUTTON_MARGIN
+	return Rect2(Vector2(right - BUTTON_SIZE.x, bottom - BUTTON_SIZE.y), BUTTON_SIZE)
+
+func _place_button() -> void:
+	_rect = button_rect()
+	var r := _rect
+	fade_button.position = r.position
+	fade_button.size = r.size
+
+func _refresh_button() -> void:
+	fade_button.text = "Fade alpha %.2f" % Balance.ui.occluder_alpha
+
+func cycle_occluder_alpha() -> void:
+	var cur := Balance.ui.occluder_alpha
+	var idx := 0
+	for i in ALPHAS.size():
+		if absf(ALPHAS[i] - cur) < absf(ALPHAS[idx] - cur):
+			idx = i
+	Balance.ui.occluder_alpha = ALPHAS[(idx + 1) % ALPHAS.size()]
+	_refresh_button()
+
+## Runs before the joystick's _input (this node is added after InputLayer; _input goes last-added first),
+## so a press on the button is consumed here and never starts the stick. A release is consumed only when
+## this button owns that finger, so the release of a stick touch that ends over the button still reaches
+## the joystick.
+func _input(event: InputEvent) -> void:
+	var idx := -1
+	var pressed := false
+	if event is InputEventScreenTouch:
+		idx = event.index
+		pressed = event.pressed
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		pressed = event.pressed
+	else:
+		return
+	if event.device == InputEvent.DEVICE_ID_EMULATION:
+		return
+	if pressed:
+		_owned.erase(idx)  # a new press of this index means its old touch ended (a dropped release)
+		if _rect.has_point(event.position):
+			_owned[idx] = true
+			cycle_occluder_alpha()
+			get_viewport().set_input_as_handled()
+	elif _owned.erase(idx):
+		get_viewport().set_input_as_handled()
+
+## D-147: a paused tree drops touch releases, so forget every owned finger.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PAUSED:
+		_owned.clear()
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		handle_key(event.physical_keycode)
@@ -10928,14 +11192,17 @@ func handle_key(keycode: Key) -> void:
 		KEY_J: _main.phase_controller.debug_skip_to_day()
 		KEY_N: _main.phase_controller.debug_skip_to_night()
 		KEY_K: _main.world.wave_director.debug_kill_all()
+		KEY_O: cycle_occluder_alpha()
 		KEY_F:
 			if _main.phase_controller.phase == Phase.NIGHT:
 				GameState.damage_diner(1e9)
 ```
 
-Modify `world/main.gd`, at the end of `_ready()` before the `auto_start` block:
+Modify `world/main.gd`, at the end of `_ready()` before the `auto_start` block. The overlay is added after InputLayer, so its `_input` (the fade button) runs before the joystick's:
 ```gdscript
 	if OS.is_debug_build() and ResourceLoader.exists("res://ui/debug/debug_overlay.gd"):
+		# D-099: load(), never preload, so release/profile can exclude ui/debug/*. Added after InputLayer
+		# so its _input (the fade button) runs before the joystick's.
 		var overlay: CanvasLayer = load("res://ui/debug/debug_overlay.gd").new()
 		add_child(overlay)
 		overlay.setup(self)
@@ -10944,11 +11211,18 @@ Modify `world/main.gd`, at the end of `_ready()` before the `auto_start` block:
 	add_child(BuildLabel.new())
 ```
 
+Append to `project.godot` (D-157; without it every exported build has null `Balance.data` sub-resources, because the export's binary conversion can't evaluate script initializers):
+```ini
+[editor]
+
+export/convert_text_resources_to_binary=false
+```
+
 `ui/build_label.gd` (D-135: every Pages build shows its git hash):
 ```gdscript
 class_name BuildLabel
 extends CanvasLayer
-## Bottom-left build id. The pages workflow sets window.LST_BUILD = "<short hash> <branch>".
+## Bottom-left build id inside the safe area (D-135). The pages workflow sets window.LST_BUILD = "<short hash> <branch>".
 
 var _label: Label
 
@@ -11009,7 +11283,7 @@ Then make exactly these edits in `export/web_shell.html`:
    <script>
    document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
    document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
-   document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
+   document.addEventListener('dblclick', function (e) { e.preventDefault(); });
    </script>
    ```
 
@@ -11028,7 +11302,7 @@ dedicated_server=false
 custom_features=""
 export_filter="all_resources"
 include_filter=""
-exclude_filter="tests/*, addons/gut/*, docs/*"
+exclude_filter="build/*, tests/*, addons/gut/*, docs/*"
 export_path="build/web_debug/index.html"
 encryption_include_filters=""
 encryption_exclude_filters=""
@@ -11041,8 +11315,6 @@ custom_template/debug=""
 custom_template/release=""
 variant/extensions_support=false
 variant/thread_support=false
-vram_texture_compression/for_desktop=true
-vram_texture_compression/for_mobile=true
 html/export_icon=true
 html/custom_html_shell="res://export/web_shell.html"
 html/head_include=""
@@ -11061,7 +11333,7 @@ dedicated_server=false
 custom_features="profile_overlay"
 export_filter="all_resources"
 include_filter=""
-exclude_filter="ui/debug/*, tests/*, addons/gut/*, docs/*"
+exclude_filter="build/*, ui/debug/*, tests/*, addons/gut/*, docs/*"
 export_path="build/web_profile/index.html"
 encryption_include_filters=""
 encryption_exclude_filters=""
@@ -11074,8 +11346,6 @@ custom_template/debug=""
 custom_template/release=""
 variant/extensions_support=false
 variant/thread_support=false
-vram_texture_compression/for_desktop=true
-vram_texture_compression/for_mobile=true
 html/export_icon=true
 html/custom_html_shell="res://export/web_shell.html"
 html/head_include=""
@@ -11094,7 +11364,7 @@ dedicated_server=false
 custom_features=""
 export_filter="all_resources"
 include_filter=""
-exclude_filter="ui/debug/*, tests/*, addons/gut/*, docs/*"
+exclude_filter="build/*, ui/debug/*, tests/*, addons/gut/*, docs/*"
 export_path="build/web_release/index.html"
 encryption_include_filters=""
 encryption_exclude_filters=""
@@ -11107,8 +11377,6 @@ custom_template/debug=""
 custom_template/release=""
 variant/extensions_support=false
 variant/thread_support=false
-vram_texture_compression/for_desktop=true
-vram_texture_compression/for_mobile=true
 html/export_icon=true
 html/custom_html_shell="res://export/web_shell.html"
 html/head_include=""
@@ -11123,6 +11391,7 @@ progressive_web_app/enabled=false
 - [ ] **Step 7: Export all three and verify the exclusions**
 
 ```bash
+mkdir -p build && touch build/.gdignore   # keep old exports out of new packs
 mkdir -p build/web_debug build/web_profile build/web_release
 "$GODOT" --headless --path . --export-debug "web_debug" build/web_debug/index.html
 "$GODOT" --headless --path . --export-release "web_profile" build/web_profile/index.html
@@ -11141,11 +11410,12 @@ Expected:
 ````markdown
 # Web export
 
-Presets (export_presets.cfg): `web_debug` (debug template, debug overlay + hotkeys G/J/N/K/F),
+Presets (export_presets.cfg): `web_debug` (debug template, debug overlay + hotkeys G/J/N/K/F/O; the bottom-right "Fade alpha" button and O cycle the occluder alpha 0.30/0.45/0.60 live, D-151),
 `web_profile` (release template, fps/frame-time overlay only), `web_release` (GitHub Pages builds, D-135).
 All single-threaded (no COOP/COEP headers needed) with the custom shell `export/web_shell.html`.
 
 ```bash
+mkdir -p build && touch build/.gdignore   # keeps old exports out of the project scan and the pack
 "$GODOT" --headless --path . --export-release "web_release" build/web_release/index.html
 cd build/web_release && python3 -m http.server 8000 --bind 127.0.0.1   # desktop check only: http://localhost:8000/ (localhost is a secure context)
 ```
@@ -11155,6 +11425,11 @@ Release check: `grep -a -c "ui/debug" build/web_release/index.pck` must print 0.
 Phones: push the branch; the `pages` workflow deploys it to https://khanhnguyendev.github.io/last-stand-tycoon/preview/<slug>/ (slug: branch name, every character outside [A-Za-z0-9._-] → "-")
 (main: the site root). The bottom-left label shows the build's git hash. Plain-http LAN does not work
 (secure context, D-120). The itch.io draft is S6.
+
+Checks without a phone (D-138, D-141): `export/device_check.sh <url> <out_dir>` (iOS Simulator, Android Emulator if installed, else
+Playwright "Pixel 7", labelled emulated) and `node export/pw_check.mjs <url> <out.png> [android|desktop]` (Playwright from `$LST_PW_DIR`,
+default `~/.cache/lst-playwright`). Both expect `window.LST_BUILD`, which the pages workflow injects; a local build needs
+`<script>window.LST_BUILD="local";</script>` added before `</head>` of its `index.html`.
 ````
 
 - [ ] **Step 9: Commit**
