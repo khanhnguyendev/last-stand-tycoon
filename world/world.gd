@@ -4,6 +4,7 @@ extends Node3D
 
 var lanes := {}
 var diner_body: StaticBody3D
+var build_spots := {}
 
 @export var enemy_pool: NodePool
 @export var steak_pool: NodePool
@@ -17,6 +18,7 @@ func _ready() -> void:
 	_build_lanes()
 	_setup_pools()
 	wave_director.setup(enemy_pool, steak_pool)
+	_build_spots()
 
 func _build_environment() -> void:
 	var sun := DirectionalLight3D.new()
@@ -72,6 +74,13 @@ func add_static_box(node_name: String, size: Vector3, xz: Vector2, color: Color)
 	body.position = MapLayout.to3(xz)
 	add_child(body)
 	return body
+
+func _build_spots() -> void:
+	for id in MapLayout.SPOT_IDS:
+		var s: BuildSpot = TowerSpot.new() if MapLayout.spot_kind(id) == "tower" else FenceSpot.new()
+		add_child(s)
+		s.setup(id, self)
+		build_spots[id] = s
 
 static func pool_sizes(bd: BalanceData) -> Dictionary:
 	var steaks := 0
