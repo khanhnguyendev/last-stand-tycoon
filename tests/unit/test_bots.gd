@@ -115,3 +115,19 @@ func test_fast_hero_arrives_without_overshoot() -> void:
 	assert_true(h.bot.arrived(), "arrives at move_speed L5")
 	assert_false(overshoot, "the arrival step uses the effective speed")
 	assert_eq(h.bot.stuck_count, 0)
+
+func test_bot_picks_one_tick_after_the_offer() -> void:
+	h.start(11, BotBase)
+	EventBus.wave_cleared.emit(2)
+	assert_eq(h.main.phase_controller.phase, Phase.DAWN)
+	await h.tick()
+	await h.tick()
+	assert_eq(h.main.phase_controller.phase, Phase.DAY)
+	assert_eq(GameState.card_level(&"archer"), 1)
+
+func test_debug_skip_leaves_a_stale_bot_pick_ignored() -> void:
+	h.start(11, BotBase)
+	h.main.phase_controller.debug_skip_to_day()
+	await h.tick()
+	await h.tick()
+	assert_eq(GameState.cards, {})

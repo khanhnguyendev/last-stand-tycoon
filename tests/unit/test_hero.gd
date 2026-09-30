@@ -84,6 +84,7 @@ func test_attack_cards_reconfigure_attacker_and_restore_resets() -> void:
 
 func test_input_blocked_in_dawn_only() -> void:
 	main.phase_controller.start_new_game(1)
+	assert_false(main.hero.input.blocked, "night is not blocked")
 	main.hero.input.player_control = true
 	EventBus.wave_cleared.emit(2)  # -> DAWN / CARD_PICK
 	assert_true(main.hero.input.blocked)
@@ -92,6 +93,9 @@ func test_input_blocked_in_dawn_only() -> void:
 	Input.action_press(&"move_right")
 	assert_eq(main.hero.input.get_move(), Vector2.ZERO, "WASD is blocked too")
 	Input.action_release(&"move_right")
+	main.phase_controller.start_new_game(2)
+	assert_false(main.hero.input.blocked, "a new game during the pick unblocks")
+	EventBus.wave_cleared.emit(2)
 	EventBus.card_chosen.emit(GameState.card_offer[0])
 	assert_false(main.hero.input.blocked)
 	main.hero.input.set_move(Vector2.RIGHT)

@@ -190,6 +190,12 @@ func test_blocked_input_ends_stick_and_ignores_new_press() -> void:
 	assert_false(js.is_active(), "blocked ends the stick")
 	_touch(1, Vector2(300, 700), true)
 	assert_false(js.is_active(), "no new stick while blocked")
+	var m := InputEventMouseButton.new()
+	m.button_index = MOUSE_BUTTON_LEFT
+	m.pressed = true
+	m.position = Vector2(300, 700)
+	js.handle(m)
+	assert_false(js.is_active(), "no mouse stick while blocked")
 	input.blocked = false
 	_touch(1, Vector2(300, 700), false)
 	_touch(2, Vector2(300, 700), true)

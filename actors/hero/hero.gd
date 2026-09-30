@@ -45,7 +45,7 @@ func _init() -> void:
 
 func _ready() -> void:
 	EventBus.hero_place_requested.connect(teleport)
-	EventBus.card_picked.connect(func(_id: StringName, _level: int): _apply_card_stats())
+	EventBus.card_picked.connect(_apply_card_stats.unbind(2))
 	EventBus.state_restored.connect(_apply_card_stats)
 	EventBus.phase_changed.connect(_on_phase_changed)
 

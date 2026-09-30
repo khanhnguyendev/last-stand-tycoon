@@ -172,6 +172,8 @@ func test_damage_knockout_once_then_noop_and_revive() -> void:
 	assert_signal_emit_count(EventBus, "guard_damaged", 2)
 	assert_signal_emit_count(EventBus, "guard_knocked_out", 1)
 	GameState.damage_guard(&"archer", 5.0)  # no entry: no-op
+	assert_signal_emit_count(EventBus, "guard_damaged", 2)
+	assert_false(GameState.guards.has(&"archer"))
 	GameState.revive_guard(&"tank")
 	assert_eq(GameState.guards[&"tank"].hp, mx)
 	assert_signal_emitted_with_parameters(EventBus, "guard_revived", [&"tank"])
@@ -179,11 +181,29 @@ func test_damage_knockout_once_then_noop_and_revive() -> void:
 func test_dawn_heals_guards_with_signal() -> void:
 	GameState.debug_grant_card(&"tank")
 	GameState.damage_guard(&"tank", 1000.0)
+	GameState.damage_diner(1.0)
 	watch_signals(EventBus)
+	var seen := []
+	EventBus.guard_healed.connect(func(_g, _h): seen.append(GameState.diner_hp), CONNECT_ONE_SHOT)
 	GameState.heal_for_dawn()
+	assert_eq(seen, [Balance.data.build.diner_max_hp], "the diner is healed first")
 	var mx := Balance.data.guards.tank.max_hp
 	assert_eq(GameState.guards[&"tank"].hp, mx)
 	assert_signal_emitted_with_parameters(EventBus, "guard_healed", [&"tank", mx])
+
+func test_card_offered_emits_a_copy() -> void:
+	var got := []
+	EventBus.card_offered.connect(func(o): got.append(o), CONNECT_ONE_SHOT)
+	GameState.set_card_offer([&"archer", &"tank"] as Array[StringName])
+	assert_eq(got.size(), 1)
+	got[0].append(&"x")
+	assert_eq(GameState.card_offer, [&"archer", &"tank"] as Array[StringName])
+
+func test_debug_grant_keeps_an_open_offer() -> void:
+	GameState.set_card_offer([&"archer", &"move_speed"] as Array[StringName])
+	GameState.debug_grant_card(&"tank")
+	assert_eq(GameState.card_level(&"tank"), 1)
+	assert_eq(GameState.card_offer, [&"archer", &"move_speed"] as Array[StringName])
 
 func test_card_effects_reach_economy() -> void:
 	var cb := Balance.data.cards
@@ -203,13 +223,13 @@ func test_card_effects_reach_economy() -> void:
 func test_round_trip_v2_through_json() -> void:
 	GameState.debug_grant_card(&"tank")
 	GameState.debug_grant_card(&"hero_damage")
-	GameState.damage_guard(&"tank", 30.0)
+	GameState.damage_guard(&"tank", 1.0 / 3.0)
 	GameState.set_card_offer([&"archer", &"move_speed"] as Array[StringName])
 	var d := GameState.to_dict()
 	assert_eq(int(d.v), 2)
 	assert_eq(d.cards, {"tank": 1, "hero_damage": 1})
 	assert_eq(d.card_offer, ["archer", "move_speed"])
-	assert_eq(d.guards, {"tank": {"hp": Balance.data.guards.tank.max_hp - 30.0}})
+	assert_eq(d.guards, {"tank": {"hp": Balance.data.guards.tank.max_hp - 1.0 / 3.0}})
 	var back = JSON.parse_string(JSON.stringify(d, "", true, true))  # D-146 full precision
 	GameState.new_game(1)
 	GameState.from_dict(back)

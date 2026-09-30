@@ -236,7 +236,7 @@ func guard_max_hp(id: StringName) -> float:
 
 func set_card_offer(offer: Array[StringName]) -> void:
 	card_offer = offer.duplicate()
-	EventBus.card_offered.emit(Array(card_offer))
+	EventBus.card_offered.emit(Array(card_offer.duplicate()))
 
 ## Debug skip only (spec 5.1): no signal, so no overlay shows.
 func clear_card_offer() -> void:
@@ -253,10 +253,13 @@ func pick_card(id: StringName) -> int:
 	EventBus.card_picked.emit(id, level)
 	return level
 
-## Debug and test helper: offer exactly this card, then pick it.
+## Debug and test helper: picks exactly this card; an open dawn offer is kept.
 func debug_grant_card(id: StringName) -> int:
+	var prev := card_offer.duplicate()
 	card_offer = [id]
-	return pick_card(id)
+	var lvl := pick_card(id)
+	card_offer = prev
+	return lvl
 
 func damage_guard(id: StringName, amount: float) -> void:
 	if not guards.has(id) or float(guards[id].hp) <= 0.0:

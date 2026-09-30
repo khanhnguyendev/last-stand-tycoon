@@ -96,7 +96,10 @@ func test_dawn_steps_in_order() -> void:
 	for i in 3:
 		main.world.steak_pool.acquire().place(Vector3(20, 0, 0))
 	watch_signals(EventBus)
+	var seen := []
+	EventBus.card_offered.connect(func(_o): seen.append(GameState.day), CONNECT_ONE_SHOT)
 	EventBus.wave_cleared.emit(2)
+	assert_eq(seen, [2], "the offer is built after advance_day")
 	assert_eq(pc.phase, Phase.DAWN)
 	assert_eq(pc.dawn_substate, "CARD_PICK")
 	assert_eq(GameState.card_offer.size(), 3)
