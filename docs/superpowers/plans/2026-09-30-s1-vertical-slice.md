@@ -907,6 +907,8 @@ extends Resource
 @export var telegraph_scale_max := 2.0
 @export var pulse_scale := 1.15
 @export var pulse_hz := 1.0
+## Visual scale added per built level (spec 8.6).
+@export var build_level_scale := 1.1
 ```
 
 `balance/balance.tres`:
@@ -3724,10 +3726,48 @@ func test_death_reports_once() -> void:
 
 func test_hp_mult_applies() -> void:
 	var b := Boar.new()
+	b.process_mode = Node.PROCESS_MODE_DISABLED
 	add_child_autofree(b)
 	b.spawn("east", 3, 0.0, 1.15, dir)
 	assert_almost_eq(b.health.max_hp, Balance.data.enemy.hp * 1.15, 0.0001)
 	assert_eq(b.candidate().spawn_index, 3)
+
+func test_listed_but_unregistered_fence_kind_does_not_stall() -> void:
+	GameState.add_gold(GameState.next_level_cost("fence_n"))
+	GameState.pay_into_spot("fence_n", GameState.next_level_cost("fence_n"))
+	assert_true(Balance.data.wave.target_priority.kinds.has(&"fence_on_lane"))
+	dir.providers = TargetProviders.new()
+	dir.providers.register(&"diner", func(e): return TargetProviders.diner(e))
+	var b := _boar("north")
+	_step(b, _walk_time("north") + 0.1)
+	assert_true(b.at_path_end(), "no fence provider registered: the boar walks")
+
+func test_reuse_resets_state() -> void:
+	var pool := NodePool.new()
+	add_child_autofree(pool)
+	pool.setup(func(): return Boar.new(), 1)
+	var b: Boar = pool.acquire()
+	b.process_mode = Node.PROCESS_MODE_DISABLED  # tests step it by hand
+	b.spawn("west", 5, 0.4, 1.0, dir)
+	var gen := b.generation
+	_step(b, 2.0)
+	assert_gt(b.dist, 0.0)
+	b.take_hit(1e9)
+	assert_false(b.alive)
+	b.play_death(pool)
+	b.visual.scale = Vector3(0.01, 0.01, 0.01)  # what the death tween leaves behind
+	pool.release(b)
+	var b2: Boar = pool.acquire()
+	assert_same(b2, b)
+	b2.process_mode = Node.PROCESS_MODE_DISABLED
+	b2.spawn("east", 6, 0.0, 1.0, dir)
+	assert_eq(b2.dist, 0.0)
+	assert_true(b2.alive)
+	assert_eq(b2.health.hp, b2.health.max_hp)
+	assert_eq(b2.visual.scale, Vector3.ONE)
+	assert_true(b2.current_target.is_empty())
+	assert_eq(b2.generation, gen + 1)
+	assert_eq(dir.died, [5], "exactly one death, for the first life")
 
 func test_pool_sizes_from_balance() -> void:
 	# PINNED REFERENCE: spec 11 at the default Balance (D-124: steaks from the CAPPED day-10 counts
@@ -3755,6 +3795,10 @@ var _providers := {}
 func register(kind: StringName, fn: Callable) -> void:
 	_providers[kind] = fn
 
+## True when a provider is registered for the kind AND the kind is in the priority list.
+func has_kind(kind: StringName) -> bool:
+	return _providers.has(kind) and Balance.data.wave.target_priority.kinds.has(kind)
+
 func find_target(enemy) -> Dictionary:
 	for kind in Balance.data.wave.target_priority.kinds:
 		if _providers.has(kind):
@@ -3763,14 +3807,16 @@ func find_target(enemy) -> Dictionary:
 				return t
 	return {}
 
-static func fence_on_lane(enemy) -> Dictionary:
-	var spot_id: String = MapLayout.LANE_FENCE[enemy.lane]
-	var b: Dictionary = GameState.buildings[spot_id]
+## Distance along the path where a boar stops for its lane's fence; INF when no fence stands.
+static func fence_stop_dist(enemy) -> float:
+	var b: Dictionary = GameState.buildings[MapLayout.LANE_FENCE[enemy.lane]]
 	if int(b.level) < 1 or float(b.hp) <= 0.0:
-		return {}
-	var fence_dist: float = enemy.path_length() - MapLayout.FENCE_OFFSET_FROM_END
-	if enemy.dist >= fence_dist - Balance.data.enemy.reach - 1e-4:
-		return {"kind": &"fence_on_lane", "spot_id": spot_id}
+		return INF
+	return enemy.path_length() - MapLayout.FENCE_OFFSET_FROM_END - Balance.data.enemy.reach
+
+static func fence_on_lane(enemy) -> Dictionary:
+	if enemy.dist >= fence_stop_dist(enemy) - 1e-4:
+		return {"kind": &"fence_on_lane", "spot_id": MapLayout.LANE_FENCE[enemy.lane]}
 	return {}
 
 static func diner(enemy) -> Dictionary:
@@ -3785,6 +3831,8 @@ extends Node3D
 
 var lane := ""
 var spawn_index := -1
+## Increments on every spawn; projectiles/attackers compare it to detect pool reuse across nights (Review Focus 2).
+var generation := 0
 var dist := 0.0
 var offset := 0.0
 var alive := false
@@ -3794,7 +3842,6 @@ var visual: Node3D
 var current_target: Dictionary = {}
 var _mesh: MeshInstance3D
 var _length := 0.0
-var _stop_dist := INF
 var _attack_timer := 0.0
 var _director: Object
 var _death_tween: Tween
@@ -3814,6 +3861,7 @@ func _init() -> void:
 	add_child(visual)
 
 func spawn(p_lane: String, p_index: int, p_offset: float, hp_mult: float, director: Object) -> void:
+	generation += 1
 	lane = p_lane
 	spawn_index = p_index
 	targetable.spawn_index = p_index
@@ -3844,12 +3892,8 @@ func _physics_process(delta: float) -> void:
 		var step := eb.speed * delta
 		var next := minf(dist + step, _length)
 		# do not walk past a standing fence's stop point in one tick
-		var spot_id: String = MapLayout.LANE_FENCE[lane]
-		var b: Dictionary = GameState.buildings[spot_id]
-		if int(b.level) >= 1 and float(b.hp) > 0.0:
-			var stop := _length - MapLayout.FENCE_OFFSET_FROM_END - eb.reach
-			if dist <= stop:
-				next = minf(next, stop)
+		if _director.providers.has_kind(&"fence_on_lane") and dist <= TargetProviders.fence_stop_dist(self):
+			next = minf(next, TargetProviders.fence_stop_dist(self))
 		dist = next
 		_update_position()
 		return
@@ -3991,7 +4035,7 @@ git commit -m "feat: add Boar enemy, steaks, data-driven target providers and po
     - `on_enemy_died(boar: Boar)`
     - `alive_enemies() -> Array`, `alive_count() -> int`, `enemy_candidates() -> Array`
     - `upcoming_main_lane() -> String`
-    - `debug_spawn(lane: String, offset: float = 0.0, hp_mult: float = 1.0) -> Boar`
+    - `debug_spawn(lane: String, unit_offset: float = 0.0, hp_mult: float = 1.0) -> Boar`
     - `debug_kill_all()`
   - It emits `wave_incoming`, `wave_started`, `wave_spawned_out`, `wave_cleared` and `enemy_killed`.
   - **`World`:** `wave_director: WaveDirector`.
@@ -4001,6 +4045,9 @@ git commit -m "feat: add Boar enemy, steaks, data-driven target providers and po
 `tests/unit/test_wave_director.gd`:
 ```gdscript
 extends GutTest
+
+## Ticks to let a same-tick effect (kill, signal) settle before asserting.
+const SETTLE_TICKS := 2
 
 var main: Main
 var wd: WaveDirector
@@ -4012,77 +4059,169 @@ func before_each() -> void:
 	GameState.new_game(4242)
 	wd = main.world.wave_director
 
+func after_each() -> void:
+	if EventBus.wave_cleared.is_connected(_stop_on_signal):
+		EventBus.wave_cleared.disconnect(_stop_on_signal)
+	if EventBus.wave_spawned_out.is_connected(_stop_on_signal):
+		EventBus.wave_spawned_out.disconnect(_stop_on_signal)
+
+func _stop_on_signal(_wave: int) -> void:
+	wd.stop()
+
 func _ticks(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 
+func _tk(seconds: float) -> int:
+	return int(round(seconds * Engine.physics_ticks_per_second))
+
+## Frame on which wave 0 starts (physics_frame fires before the director's tick, D-118).
+func _wave_start_tick() -> int:
+	return _tk(Balance.data.wave.first_wave_delay) + 1
+
+## Frame by which the first `count` spawns of a group at group offset 0 have happened.
+func _spawned_by(count: int) -> int:
+	return _wave_start_tick() + _tk((count - 1) * Balance.data.wave.spawn_interval) + 1
+
+func _plan0() -> Dictionary:
+	return GameState.lane_plan[0]
+
 func test_first_wave_starts_after_delay() -> void:
+	var p := _plan0()
 	watch_signals(EventBus)
 	wd.start_night(GameState.lane_plan)
-	assert_signal_emitted_with_parameters(EventBus, "wave_incoming", [0, &"north", &""])
-	await _ticks(299)
+	assert_signal_emitted_with_parameters(EventBus, "wave_incoming", [0, StringName(p.main), StringName(p.side)])
+	await _ticks(_tk(Balance.data.wave.first_wave_delay) - 1)
 	assert_signal_not_emitted(EventBus, "wave_started")
-	await _ticks(2)
-	assert_signal_emitted_with_parameters(EventBus, "wave_started", [0, &"north", &""])
+	await _ticks(SETTLE_TICKS)
+	assert_signal_emitted_with_parameters(EventBus, "wave_started", [0, StringName(p.main), StringName(p.side)])
 	assert_eq(wd.alive_count(), 1)
 
 func test_spawns_follow_schedule_and_spawn_out() -> void:
+	var p := _plan0()
+	assert_eq(int(p.side_count), 0, "day 1 has no side group")
 	watch_signals(EventBus)
 	wd.start_night(GameState.lane_plan)
-	await _ticks(301 + 48 * 3)  # 3 more spawns at 0.8 s
-	assert_eq(wd.alive_count(), 4)
+	await _ticks(_spawned_by(int(p.main_count)))
+	assert_eq(wd.alive_count(), int(p.main_count))
 	assert_signal_emitted_with_parameters(EventBus, "wave_spawned_out", [0])
 
 func test_clear_breather_next_wave() -> void:
+	var p := _plan0()
+	var breather := _tk(Balance.data.wave.breather)
 	watch_signals(EventBus)
 	wd.start_night(GameState.lane_plan)
-	await _ticks(301 + 48 * 3 + 2)
+	await _ticks(_spawned_by(int(p.main_count)) + SETTLE_TICKS)
 	wd.debug_kill_all()
-	await _ticks(2)
+	await _ticks(SETTLE_TICKS)
 	assert_signal_emitted_with_parameters(EventBus, "wave_cleared", [0])
-	assert_eq(get_signal_parameters(EventBus, "wave_incoming"), [1, StringName(GameState.lane_plan[1].main), &""])
-	await _ticks(595)
+	var p1: Dictionary = GameState.lane_plan[1]
+	assert_eq(get_signal_parameters(EventBus, "wave_incoming"), [1, StringName(p1.main), StringName(p1.side)])
+	await _ticks(breather - SETTLE_TICKS - 3)
 	assert_signal_emit_count(EventBus, "wave_started", 1)
 	await _ticks(10)
 	assert_signal_emit_count(EventBus, "wave_started", 2)
 
 func test_main_group_dead_before_side_spawns_is_not_clear() -> void:
 	GameState.advance_day()  # day 2: side groups
+	var wb: WaveBalance = Balance.data.wave
+	var p := _plan0()
+	var main_n := int(p.main_count)
+	var side_n := int(p.side_count)
+	assert_gt(side_n, 0, "day 2 wave 0 has a side group")
+	assert_lt((main_n - 1) * wb.spawn_interval, wb.side_group_delay, "all main spawn before the side group")
 	watch_signals(EventBus)
 	wd.start_night(GameState.lane_plan)
-	await _ticks(301 + 60)  # 1 s into wave 0: side group starts at 4 s
+	var elapsed := _spawned_by(main_n)
+	await _ticks(elapsed)
+	assert_eq(wd.alive_count(), main_n, "every main boar has spawned, no side boar yet")
 	wd.debug_kill_all()
-	await _ticks(30)
+	var before_side := _wave_start_tick() + _tk(wb.side_group_delay) - 3
+	await _ticks(before_side - elapsed)
+	assert_eq(wd.alive_count(), 0)
 	assert_signal_not_emitted(EventBus, "wave_cleared")
-	await _ticks(60 * 5)
+	await _ticks(_tk((side_n - 1) * wb.spawn_interval) + SETTLE_TICKS + 5)
+	assert_eq(wd.alive_count(), side_n)
 	wd.debug_kill_all()
-	await _ticks(2)
+	await _ticks(SETTLE_TICKS)
 	assert_signal_emitted_with_parameters(EventBus, "wave_cleared", [0])
+	assert_signal_emit_count(EventBus, "wave_cleared", 1)
 
-func test_kill_drops_two_steaks() -> void:
+func test_kill_drops_steaks_near_the_boar() -> void:
 	wd.start_night(GameState.lane_plan)
-	await _ticks(302)
+	await _ticks(_wave_start_tick())
+	assert_eq(wd.alive_count(), 1)
+	var boar: Boar = wd.alive_enemies()[0]
+	var pos := boar.global_position
 	wd.debug_kill_all()
 	await _ticks(1)
-	assert_eq(main.world.steak_pool.active().size(), 2)
+	var steaks: Array = main.world.steak_pool.active()
+	assert_eq(steaks.size(), Balance.data.economy.steaks_per_kill)
+	for s in steaks:
+		var d := Vector2(s.position.x - pos.x, s.position.z - pos.z).length()
+		assert_lte(d, Balance.data.enemy.drop_scatter + 1e-4)
 
 func test_same_seed_same_offsets() -> void:
+	var p := _plan0()
+	assert_eq(int(p.side_count), 0, "day 1 has no side group")
+	var n := int(p.main_count)
 	wd.start_night(GameState.lane_plan)
-	await _ticks(301 + 48 * 3 + 1)
+	await _ticks(_spawned_by(n))
 	var a: Array = wd.alive_enemies().map(func(b): return b.offset)
 	wd.stop()
 	main.world.enemy_pool.recall_all()
 	wd.start_night(GameState.lane_plan)
-	await _ticks(301 + 48 * 3 + 1)
+	await _ticks(_spawned_by(n))
 	var b: Array = wd.alive_enemies().map(func(x): return x.offset)
+	assert_eq(a.size(), n)
 	assert_eq(a, b)
+	var rng := Rng.stream(GameState.run_seed, GameState.day, &"spawns")
+	assert_eq(a[0], rng.randf_range(-1.0, 1.0) * Balance.data.enemy.lateral_spread)
 
 func test_stop_halts_everything() -> void:
 	watch_signals(EventBus)
 	wd.start_night(GameState.lane_plan)
 	wd.stop()
-	await _ticks(400)
+	await _ticks(_wave_start_tick() + SETTLE_TICKS + 100)
 	assert_signal_not_emitted(EventBus, "wave_started")
+
+func test_stop_mid_wave_no_clear() -> void:
+	var p := _plan0()
+	watch_signals(EventBus)
+	wd.start_night(GameState.lane_plan)
+	await _ticks(_spawned_by(int(p.main_count)))
+	var doomed: Array = wd.alive_enemies()
+	assert_gt(doomed.size(), 0)
+	wd.stop()
+	for b in doomed:
+		b.take_hit(1e9)
+	await _ticks(SETTLE_TICKS + 3)
+	assert_signal_not_emitted(EventBus, "wave_cleared")
+	assert_signal_not_emitted(EventBus, "enemy_killed")
+	assert_eq(wd.state, WaveDirector.State.IDLE)
+	assert_eq(main.world.steak_pool.active().size(), 0, "no drops for kills after stop()")
+
+func test_stop_in_cleared_handler_starts_no_breather() -> void:
+	var p := _plan0()
+	watch_signals(EventBus)
+	EventBus.wave_cleared.connect(_stop_on_signal)
+	wd.start_night(GameState.lane_plan)
+	await _ticks(_spawned_by(int(p.main_count)) + SETTLE_TICKS)
+	wd.debug_kill_all()
+	await _ticks(SETTLE_TICKS)
+	assert_signal_emitted_with_parameters(EventBus, "wave_cleared", [0])
+	assert_signal_emit_count(EventBus, "wave_incoming", 1, "only wave 0's")
+	assert_eq(wd.state, WaveDirector.State.IDLE)
+
+func test_stop_in_spawned_out_handler_is_not_a_clear() -> void:
+	var p := _plan0()
+	watch_signals(EventBus)
+	EventBus.wave_spawned_out.connect(_stop_on_signal)
+	wd.start_night(GameState.lane_plan)
+	await _ticks(_spawned_by(int(p.main_count)) + SETTLE_TICKS)
+	assert_signal_emitted_with_parameters(EventBus, "wave_spawned_out", [0])
+	assert_signal_not_emitted(EventBus, "wave_cleared")
+	assert_eq(wd.state, WaveDirector.State.IDLE)
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -4117,6 +4256,8 @@ var _spawned_out_sent := false
 var _spawn_rng: RandomNumberGenerator
 var _drop_rng: RandomNumberGenerator
 var _plan: Array = []
+## Bumped by start_night() and stop(); lets a signal handler that stops the night cancel the rest of a tick.
+var _night_id := 0
 
 func setup(p_enemy_pool: NodePool, p_steak_pool: NodePool) -> void:
 	enemy_pool = p_enemy_pool
@@ -4127,6 +4268,7 @@ func setup(p_enemy_pool: NodePool, p_steak_pool: NodePool) -> void:
 ## D-128 interface.
 func start_night(plan: Array) -> void:
 	stop()
+	_night_id += 1
 	_plan = plan
 	_spawn_counter = 0
 	_spawn_rng = Rng.stream(GameState.run_seed, GameState.day, &"spawns")
@@ -4136,6 +4278,7 @@ func start_night(plan: Array) -> void:
 
 ## D-128 interface.
 func stop() -> void:
+	_night_id += 1
 	state = State.IDLE
 	_alive.clear()
 	_schedule = []
@@ -4157,11 +4300,14 @@ func _physics_process(delta: float) -> void:
 		State.ACTIVE:
 			_t += delta
 			_spawn_due()
+			if state != State.ACTIVE:
+				return  # a wave_spawned_out handler stopped the night
 			if WaveSchedule.is_cleared(_schedule.size(), _next, _alive.size()):
 				var cleared := wave_index
+				var night := _night_id
 				state = State.IDLE
 				EventBus.wave_cleared.emit(cleared)
-				if state == State.IDLE and cleared < _plan.size() - 1:
+				if night == _night_id and cleared < _plan.size() - 1:
 					_begin_wait(Balance.data.wave.breather, cleared + 1)
 
 func _start_wave(w: int) -> void:
@@ -4192,7 +4338,12 @@ func _spawn(lane: String, unit_offset: float, hp_mult: float = -1.0) -> Boar:
 	return boar
 
 func on_enemy_died(boar: Boar) -> void:
-	_alive.erase(boar)
+	var idx := _alive.find(boar)
+	if idx < 0:
+		# Killed after stop() (or not ours): no signal, no drops.
+		boar.play_death(enemy_pool)
+		return
+	_alive.remove_at(idx)
 	EventBus.enemy_killed.emit(boar.spawn_index, StringName(boar.lane), boar.global_position)
 	for i in Balance.data.economy.steaks_per_kill:
 		var s: Steak = steak_pool.acquire()
@@ -4596,6 +4747,7 @@ class FakeTarget:
 	extends Node3D
 	var alive := true
 	var spawn_index := 1
+	var generation := 1
 	var hits := 0.0
 	func take_hit(a: float) -> void:
 		hits += a
@@ -4610,14 +4762,16 @@ func before_each() -> void:
 	pool.setup(func(): return Projectile.new(), 8)
 	target = FakeTarget.new()
 	add_child_autofree(target)
-	target.position = Vector3(2, 0, 0)
+	var hb := Balance.data.hero
+	target.position = Vector3(hb.attack_range * 0.5, 0, 0)
 
 func _attacker(moving: bool) -> Attacker:
+	var hb := Balance.data.hero
 	var a := Attacker.new()
 	a.process_mode = Node.PROCESS_MODE_DISABLED
 	add_child_autofree(a)
-	a.configure(10.0, 4.0, 0.5, 0.2, 0.5, 14.0)
-	a.candidates = func(): return [{"position": target.global_position, "spawn_index": 1, "ref": target}]
+	a.configure(hb.attack_damage, hb.attack_range, hb.attack_interval, hb.retarget_interval, 0.5, hb.projectile_speed)
+	a.candidates = func(): return [{"position": target.global_position, "spawn_index": target.spawn_index, "ref": target}]
 	a.projectile_pool = pool
 	a.is_moving = func(): return moving
 	return a
@@ -4629,19 +4783,59 @@ func _count_shots(a: Attacker, ticks: int) -> int:
 		a._physics_process(1.0 / 60.0)
 	return shots[0]
 
+## Shots in `ticks` ticks at 60 Hz for a given effective interval (fires at t=0, then every interval).
+func _expected(interval: float, ticks: int) -> int:
+	return int(floor((ticks - 1) / 60.0 / interval + 1e-6)) + 1
+
 func test_fires_immediately_then_on_interval() -> void:
-	assert_eq(_count_shots(_attacker(false), 120), 4)  # t=0, .5, 1.0, 1.5
+	var iv := Balance.data.hero.attack_interval
+	assert_eq(_count_shots(_attacker(false), 120), _expected(iv, 120))
 
 func test_moving_mult_slows_rate() -> void:
-	assert_eq(_count_shots(_attacker(true), 120), 2)  # interval effectively 1.0 s
+	var iv := Balance.data.hero.attack_interval / 0.5
+	assert_eq(_count_shots(_attacker(true), 120), _expected(iv, 120))
 
 func test_no_target_out_of_range() -> void:
-	target.position = Vector3(9, 0, 0)
+	target.position = Vector3(Balance.data.hero.attack_range + 5.0, 0, 0)
 	assert_eq(_count_shots(_attacker(false), 60), 0)
 
 func test_dead_target_not_shot() -> void:
 	target.alive = false
 	assert_eq(_count_shots(_attacker(false), 60), 0)
+
+func test_disabled_does_not_fire() -> void:
+	var a := _attacker(false)
+	a.enabled = false
+	assert_eq(_count_shots(a, 60), 0)
+
+func test_target_recycled_mid_interval_is_dropped() -> void:
+	var a := _attacker(false)
+	a.retarget_interval = 100.0  # only the generation check can drop the target
+	var shots := [0]
+	a.fired.connect(func(_t): shots[0] += 1)
+	a._physics_process(1.0 / 60.0)
+	assert_eq(shots[0], 1)
+	target.generation += 1  # pool reuse with the same spawn_index (new night)
+	a.candidates = func(): return []
+	for i in 60:
+		a._physics_process(1.0 / 60.0)
+	assert_eq(shots[0], 1, "stale target is not shot again")
+
+func test_projectile_hits_and_releases() -> void:
+	var p: Projectile = pool.acquire()
+	p.launch(Vector3(0, 1, 0), target, target.spawn_index, 7.0, 14.0, pool)
+	for i in 30:
+		p._physics_process(1.0 / 60.0)
+	assert_eq(target.hits, 7.0)
+	assert_false(pool.active().has(p))
+
+func test_projectile_drops_on_generation_change() -> void:
+	var p: Projectile = pool.acquire()
+	p.launch(Vector3(0, 1, 0), target, target.spawn_index, 7.0, 14.0, pool)
+	target.generation += 1
+	p._physics_process(1.0 / 60.0)
+	assert_eq(target.hits, 0.0)
+	assert_false(pool.active().has(p))
 ```
 
 `tests/unit/test_hero_combat.gd`:
@@ -4669,16 +4863,16 @@ func test_hero_kills_boar_in_range() -> void:
 	await _ticks(120)
 	assert_false(b.alive)
 	assert_signal_emitted(EventBus, "enemy_killed")
-	# the hero's magnet may already hold some of the 2 drops
-	assert_eq(GameState.carried_steaks + main.world.steak_pool.active().size(), 2)
+	# the hero's magnet may already hold some of the drops
+	assert_eq(GameState.carried_steaks + main.world.steak_pool.active().size(), Balance.data.economy.steaks_per_kill)
 
 func test_projectile_never_hits_recycled_boar() -> void:
-	# Review Focus 2
+	# Review Focus 2 (plan form)
 	var wd := main.world.wave_director
 	var b1 := wd.debug_spawn("north", 0.0, 100.0)
 	b1.dist = 0.0
 	var proj: Projectile = main.world.projectile_pool.acquire()
-	proj.launch(Vector3(0, 1, 30), b1, b1.spawn_index, 10.0, 1.0, main.world.projectile_pool)  # slow and far
+	proj.launch(Vector3(0, 1, 30), b1, b1.spawn_index, 10.0, 1.0, main.world.projectile_pool)
 	b1.take_hit(1e9)
 	await _ticks(20)  # death tween (0.15 s) releases b1
 	var b2 := wd.debug_spawn("north", 0.0, 1.0)
@@ -4687,6 +4881,40 @@ func test_projectile_never_hits_recycled_boar() -> void:
 	await _ticks(5)
 	assert_eq(b2.health.hp, hp_before)
 	assert_false(main.world.projectile_pool.active().has(proj))
+
+func test_projectile_in_flight_never_hits_reused_boar_same_index() -> void:
+	# Review Focus 2, hard form: the Boar is recycled with the SAME spawn_index (a new night) before
+	# the projectile ticks again, and the projectile is close enough to hit it at once.
+	var wd := main.world.wave_director
+	var pool := main.world.projectile_pool
+	var b1 := wd.debug_spawn("north", 0.0, 100.0)
+	var idx := b1.spawn_index
+	var gen := b1.generation
+	var proj: Projectile = pool.acquire()
+	proj.launch(b1.global_position + Vector3(0, 0.5, 0), b1, idx, 10.0, 1000.0, pool)
+	b1.take_hit(1e9)
+	main.world.enemy_pool.release(b1)  # the pool reclaims it immediately
+	var b2: Boar = main.world.enemy_pool.acquire()
+	assert_same(b2, b1)
+	b2.spawn("north", idx, 0.0, 1.0, wd)  # same spawn_index, new generation
+	assert_ne(b2.generation, gen)
+	var hp_before := b2.health.hp
+	assert_true(pool.active().has(proj), "projectile survived the reuse")
+	await _ticks(3)
+	assert_eq(b2.health.hp, hp_before, "recycled Boar untouched")
+	assert_false(pool.active().has(proj), "projectile despawned")
+
+func test_is_moving_false_on_tick_after_teleport() -> void:
+	main.hero.input.set_move(Vector2(1, 0))
+	await _ticks(3)
+	assert_true(main.hero.is_moving())
+	main.hero.teleport(Vector2(10, 8))
+	assert_false(main.hero.is_moving(), "teleport zeroes velocity")
+	await _ticks(1)
+	assert_false(main.hero.is_moving(), "no movement, so no moving-attack multiplier")
+
+func test_attacker_uses_is_moving_from_hero() -> void:
+	assert_eq(main.hero.attacker.is_moving, main.hero.is_moving)
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -4701,10 +4929,12 @@ Expected: FAIL (`Attacker` not declared).
 ```gdscript
 class_name Projectile
 extends Node3D
-## Homing cleaver/bolt (D-050, D-060). Damage on hit only; despawns if its target died or was recycled.
+## Homing cleaver/bolt (D-050, D-060). Damage on hit only; despawns if its target died or was recycled
+## (spawn_index changed, or the target's generation changed: spawn_index restarts every night, D-148).
 
 var _target: Object
 var _target_index := -1
+var _target_generation := 0
 var _damage := 0.0
 var _speed := 0.0
 var _pool: NodePool
@@ -4716,27 +4946,36 @@ func _init() -> void:
 	add_child(v)
 
 func launch(from: Vector3, target: Object, target_index: int, damage: float, speed: float, pool: NodePool) -> void:
-	position = from
+	global_position = from
 	_target = target
 	_target_index = target_index
+	_target_generation = Projectile.generation_of(target)
 	_damage = damage
 	_speed = speed
 	_pool = pool
 
+## Pool-reuse counter of a target; 0 when the target has none.
+static func generation_of(target: Object) -> int:
+	if target == null:
+		return 0
+	var g: Variant = target.get("generation")
+	return int(g) if g is int else 0
+
 func _physics_process(delta: float) -> void:
 	if _pool == null:
 		return
-	if not is_instance_valid(_target) or not _target.alive or _target.spawn_index != _target_index:
+	if not is_instance_valid(_target) or not _target.alive or _target.spawn_index != _target_index \
+			or Projectile.generation_of(_target) != _target_generation:
 		_finish()
 		return
 	var aim: Vector3 = _target.global_position + Vector3(0, 0.5, 0)
-	var to := aim - position
+	var to := aim - global_position
 	var step := _speed * delta
 	if to.length() <= step:
 		_target.take_hit(_damage)
 		_finish()
 	else:
-		position += to.normalized() * step
+		global_position += to.normalized() * step
 
 func on_release() -> void:
 	_pool = null
@@ -4769,6 +5008,7 @@ var is_moving: Callable = func(): return false
 var _cooldown := 0.0
 var _retarget := 0.0
 var _target: Dictionary = {}
+var _target_generation := 0
 
 func configure(p_damage: float, p_range: float, p_interval: float, p_retarget: float, p_moving_mult: float, p_speed: float) -> void:
 	damage = p_damage
@@ -4783,9 +5023,10 @@ func _physics_process(delta: float) -> void:
 		return
 	var origin := global_position
 	_retarget -= delta
-	if _retarget <= 0.0 or not _target_valid(origin):
+	if _retarget <= 0.0 or (not _target.is_empty() and not _target_valid(origin)):
 		_retarget = retarget_interval
 		_target = Targeting.select(origin, attack_range, candidates.call())
+		_target_generation = Projectile.generation_of(_target.ref) if not _target.is_empty() else 0
 	var rate := moving_mult if is_moving.call() else 1.0
 	_cooldown = maxf(_cooldown - delta * rate, 0.0)
 	if _cooldown <= 1e-6 and _target_valid(origin):
@@ -4799,7 +5040,8 @@ func _target_valid(origin: Vector3) -> bool:
 	if _target.is_empty():
 		return false
 	var r: Object = _target.ref
-	if not is_instance_valid(r) or not r.alive or r.spawn_index != int(_target.spawn_index):
+	if not is_instance_valid(r) or not r.alive or r.spawn_index != int(_target.spawn_index) \
+			or Projectile.generation_of(r) != _target_generation:
 		return false
 	var pos: Vector3 = r.global_position
 	return Vector2(pos.x - origin.x, pos.z - origin.z).length() <= attack_range
@@ -4865,6 +5107,10 @@ func setup(world: World) -> void:
 	attacker.candidates = world.wave_director.enemy_candidates
 	attacker.projectile_pool = world.projectile_pool
 	attacker.is_moving = is_moving
+
+## True only while actually moving: still_time is reset by teleport(), but velocity is zero then.
+func is_moving() -> bool:
+	return still_time <= 0.0 and velocity.length_squared() > 0.0
 ```
 
 The tests call `a._physics_process` directly with the node disabled, so the engine doesn't step it too.
@@ -4908,6 +5154,7 @@ extends GutTest
 
 var main: Main
 var pc: PhaseController
+var _spawned_out: Array = []
 
 func before_each() -> void:
 	Balance.reset()
@@ -4917,9 +5164,45 @@ func before_each() -> void:
 	main.hero.input.player_control = false
 	pc.start_new_game(99)
 
+func after_each() -> void:
+	if EventBus.wave_spawned_out.is_connected(_on_spawned_out):
+		EventBus.wave_spawned_out.disconnect(_on_spawned_out)
+
+func _on_spawned_out(w: int) -> void:
+	_spawned_out.append(w)
+
 func _ticks(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
+
+## Banner time (Balance.ui) in physics ticks, plus a small margin for tick sampling (D-118).
+func _fail_ticks() -> int:
+	return int(ceil(Balance.ui.banner_time * Engine.physics_ticks_per_second)) + 3
+
+## Runs the real WaveDirector to the point where wave 2 has finished spawning (boars of earlier waves are killed).
+func _advance_to_wave_2_spawned_out() -> void:
+	var wd := main.world.wave_director
+	_spawned_out.clear()
+	EventBus.wave_spawned_out.connect(_on_spawned_out)
+	var guard := 0
+	while not _spawned_out.has(2) and guard < 60 * 300:
+		if wd.wave_index < 2:
+			wd.debug_kill_all()
+		await get_tree().physics_frame
+		guard += 1
+	assert_true(_spawned_out.has(2), "wave 2 never finished spawning")
+	assert_gt(wd.alive_count(), 0, "wave 2 should still have live boars")
+
+## Leaves one Boar and one Steak active, so recall on restore can be checked.
+func _leave_pool_items() -> void:
+	main.world.wave_director.debug_spawn("north")
+	main.world.steak_pool.acquire().place(Vector3(20, 0, 0))
+	assert_eq(main.world.enemy_pool.active().size(), 1)
+	assert_eq(main.world.steak_pool.active().size(), 1)
+
+func _assert_pools_empty() -> void:
+	assert_eq(main.world.enemy_pool.active().size(), 0, "enemy pool not recalled")
+	assert_eq(main.world.steak_pool.active().size(), 0, "steak pool not recalled")
 
 func test_phase_controller_uses_only_the_narrow_interface() -> void:
 	# D-128: typed @export references only; no node paths, groups or tree searches.
@@ -4939,6 +5222,9 @@ func test_dawn_steps_in_order() -> void:
 	GameState.add_gold(GameState.next_level_cost("fence_w"))
 	GameState.pay_into_spot("fence_w", GameState.next_level_cost("fence_w"))
 	GameState.damage_fence("fence_w", 1e6)
+	GameState.add_gold(GameState.next_level_cost("fence_n"))
+	GameState.pay_into_spot("fence_n", GameState.next_level_cost("fence_n"))
+	GameState.damage_fence("fence_n", GameState.fence_max_hp(1) * 0.5)
 	GameState.damage_diner(50.0)
 	GameState.carried_steaks = 2  # test-only setup write
 	for i in 3:
@@ -4950,6 +5236,7 @@ func test_dawn_steps_in_order() -> void:
 	assert_eq(GameState.carried_steaks, 2)
 	assert_eq(GameState.diner_hp, Balance.data.build.diner_max_hp)
 	assert_eq(GameState.buildings.fence_w, {"level": 0, "paid": 0, "hp": 0.0})
+	assert_eq(GameState.buildings.fence_n.hp, GameState.fence_max_hp(1))
 	assert_eq(GameState.day, 2)
 	assert_ne(GameState.lane_plan[0].side, "")
 	assert_eq(main.world.steak_pool.active().size(), 0)
@@ -4978,38 +5265,90 @@ func test_close_up_ignored_at_night() -> void:
 
 func test_fail_night1_restarts_night() -> void:
 	var snap := pc.snapshot.duplicate(true)
+	_leave_pool_items()
 	GameState.add_gold(5)
 	watch_signals(EventBus)
 	GameState.damage_diner(1000.0)
 	assert_signal_emitted_with_parameters(EventBus, "night_failed", [1])
 	assert_true(pc.failing)
-	await _ticks(125)
+	await _ticks(_fail_ticks())
 	assert_false(pc.failing)
 	assert_eq(pc.phase, Phase.NIGHT)
 	var now := GameState.to_dict()
 	now.resume_phase = snap.resume_phase
 	assert_eq(now, snap)
 	assert_eq(main.hero.xz(), MapLayout.NIGHT1_START)
+	_assert_pools_empty()
 
 func test_fail_after_close_up_returns_to_day() -> void:
 	EventBus.wave_cleared.emit(2)
 	GameState.add_gold(30)
 	pc.close_up()
 	GameState.damage_diner(1000.0)
-	await _ticks(125)
+	await _ticks(_fail_ticks())
 	assert_eq(pc.phase, Phase.DAY)
 	assert_eq(GameState.gold, 30)
 	assert_eq(GameState.day, 2)
 	assert_eq(main.hero.xz(), MapLayout.HOME)
 
 func test_fall_and_clear_same_tick_fail_wins() -> void:
-	# Review Focus 3
+	# Review Focus 3, hand-emitted: the late wave_cleared(2) changes nothing.
+	watch_signals(EventBus)
 	GameState.damage_diner(1000.0)
 	EventBus.wave_cleared.emit(2)
-	assert_ne(pc.phase, Phase.DAWN)
-	await _ticks(125)
 	assert_eq(pc.phase, Phase.NIGHT)
 	assert_eq(GameState.day, 1)
+	assert_eq(GameState.diner_hp, 0.0)
+	assert_signal_not_emitted(EventBus, "phase_changed")
+	await _ticks(_fail_ticks())
+	assert_eq(pc.phase, Phase.NIGHT)
+	assert_eq(GameState.day, 1)
+
+func test_review_focus_3_diner_falls_then_wave_clears_through_wave_director() -> void:
+	await _advance_to_wave_2_spawned_out()
+	var wd := main.world.wave_director
+	watch_signals(EventBus)
+	GameState.damage_diner(1e6)
+	wd.debug_kill_all()
+	await _ticks(2)
+	_assert_no_clear_no_dawn()
+
+func test_review_focus_3_wave_clears_then_diner_falls_through_wave_director() -> void:
+	await _advance_to_wave_2_spawned_out()
+	var wd := main.world.wave_director
+	watch_signals(EventBus)
+	wd.debug_kill_all()
+	GameState.damage_diner(1e6)
+	await _ticks(2)
+	_assert_no_clear_no_dawn()
+
+func _assert_no_clear_no_dawn() -> void:
+	var cleared: int = get_signal_emit_count(EventBus, "wave_cleared")
+	for i in cleared:
+		assert_ne(get_signal_parameters(EventBus, "wave_cleared", i), [2], "wave_cleared(2) reached the bus")
+	for i in get_signal_emit_count(EventBus, "phase_changed"):
+		assert_ne(get_signal_parameters(EventBus, "phase_changed", i), [Phase.DAWN, 1], "dawn started")
+	assert_true(pc.failing)
+	assert_ne(pc.phase, Phase.DAWN)
+
+func test_new_game_during_fail_banner_cancels_stale_restore() -> void:
+	GameState.damage_diner(1000.0)
+	pc.start_new_game(7)
+	GameState.add_gold(3)
+	await _ticks(_fail_ticks())
+	assert_eq(GameState.run_seed, 7)
+	assert_eq(GameState.gold, 3)
+	assert_false(pc.failing)
+
+func test_new_game_recalls_pools() -> void:
+	_leave_pool_items()
+	pc.start_new_game(5)
+	_assert_pools_empty()
+
+func test_debug_skip_to_day_runs_dawn() -> void:
+	pc.debug_skip_to_day()
+	assert_eq(pc.phase, Phase.DAY)
+	assert_eq(GameState.day, 2)
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -5042,6 +5381,8 @@ var phase := Phase.NIGHT
 var dawn_substate := ""
 var snapshot: Dictionary = {}
 var failing := false
+## Bumped whenever a fail flow starts or is cancelled, so a stale fail timer never restores a snapshot.
+var _fail_id := 0
 
 func _ready() -> void:
 	EventBus.wave_cleared.connect(_on_wave_cleared)
@@ -5050,6 +5391,7 @@ func _ready() -> void:
 
 func start_new_game(seed: int = 0) -> void:
 	failing = false
+	_fail_id += 1
 	_recall_all()
 	GameState.new_game(seed)
 	snapshot = GameState.to_dict()
@@ -5105,10 +5447,17 @@ func _on_diner_fell() -> void:
 	if phase != Phase.NIGHT or failing:
 		return
 	failing = true
+	_fail_id += 1
+	var fail_id := _fail_id
 	wave_director.stop()
 	EventBus.night_failed.emit(GameState.day)
 	EventBus.banner_requested.emit(tr("The diner fell"))
-	await get_tree().create_timer(Balance.ui.banner_time, false, true).timeout
+	# A connected callback (not await): a freed controller never resumes. Timer is physics-time (D-118).
+	get_tree().create_timer(Balance.ui.banner_time, false, true).timeout.connect(_on_fail_timer.bind(fail_id))
+
+func _on_fail_timer(fail_id: int) -> void:
+	if fail_id != _fail_id:
+		return  # start_new_game() ran meanwhile
 	_restore_snapshot()
 
 func _restore_snapshot() -> void:
@@ -5134,8 +5483,6 @@ func _recall_all() -> void:
 ## Debug helpers (ui/debug hotkeys, tests). Same narrow interface.
 func debug_skip_to_day() -> void:
 	if phase == Phase.NIGHT and not failing:
-		wave_director.stop()
-		enemy_pool.recall_all()
 		_run_dawn()
 
 func debug_skip_to_night() -> void:
@@ -5249,6 +5596,11 @@ func _ticks(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 
+func _pay_full(id: String, levels := 1) -> void:
+	for i in levels:
+		GameState.add_gold(GameState.next_level_cost(id))
+		GameState.pay_into_spot(id, GameState.next_level_cost(id))
+
 func test_five_spots_at_layout_positions() -> void:
 	assert_eq(main.world.build_spots.size(), 5)
 	for id in MapLayout.SPOT_IDS:
@@ -5259,38 +5611,70 @@ func test_tower_inactive_until_built() -> void:
 	var t: TowerSpot = main.world.build_spots.tower_nw
 	assert_false(t.attacker.enabled)
 	assert_eq(t.find_children("*", "CollisionObject3D", true, false).size(), 0, "towers never collide (D-125)")
-	GameState.add_gold(GameState.next_level_cost("tower_nw"))
-	GameState.pay_into_spot("tower_nw", GameState.next_level_cost("tower_nw"))
+	_pay_full("tower_nw")
 	assert_true(t.attacker.enabled)
 	assert_eq(t.attacker.attack_range, Balance.data.build.tower_range[0])
+	assert_eq(t.attacker.damage, Balance.data.build.tower_damage[0])
+	assert_eq(t.attacker.interval, Balance.data.build.tower_interval)
 
 func test_built_tower_kills_boar() -> void:
-	GameState.add_gold(GameState.next_level_cost("tower_nw"))
-	GameState.pay_into_spot("tower_nw", GameState.next_level_cost("tower_nw"))
+	_pay_full("tower_nw")
 	var b := main.world.wave_director.debug_spawn("north")
 	b.dist = 12.0  # (0,-12): 8.6 m from the tower, walks into its level-1 range
 	await _ticks(60 * 5)
 	assert_false(b.alive)
 
+func test_unbuilt_tower_does_not_shoot() -> void:
+	var b := main.world.wave_director.debug_spawn("north")
+	b.dist = 12.0
+	var hp := b.health.hp
+	await _ticks(60 * 2)
+	assert_eq(b.health.hp, hp)
+
 func test_upgrade_changes_tower_stats() -> void:
-	GameState.add_gold(10000)
-	GameState.pay_into_spot("tower_ne", GameState.next_level_cost("tower_ne"))
-	GameState.pay_into_spot("tower_ne", GameState.next_level_cost("tower_ne"))
+	_pay_full("tower_ne", 2)
 	var t: TowerSpot = main.world.build_spots.tower_ne
 	assert_eq(t.attacker.damage, Balance.data.build.tower_damage[1])
 	assert_eq(t.attacker.attack_range, Balance.data.build.tower_range[1])
 
+func test_label_shows_remaining_cost_then_max() -> void:
+	var t: TowerSpot = main.world.build_spots.tower_nw
+	assert_eq(t.label.text, str(GameState.remaining_cost("tower_nw")))
+	_pay_full("tower_nw", Balance.data.build.max_level)
+	assert_eq(t.level, Balance.data.build.max_level)
+	assert_eq(t.label.text, tr("MAX"))
+
+func test_label_after_partial_payment() -> void:
+	var t: TowerSpot = main.world.build_spots.tower_nw
+	GameState.add_gold(1)
+	GameState.pay_into_spot("tower_nw", 1)
+	assert_eq(t.label.text, str(GameState.next_level_cost("tower_nw") - 1))
+
+func test_restore_into_built_state() -> void:
+	_pay_full("tower_ne", 2)
+	_pay_full("fence_n")
+	var d := GameState.to_dict()
+	GameState.new_game(5)
+	var t: TowerSpot = main.world.build_spots.tower_ne
+	var f: FenceSpot = main.world.build_spots.fence_n
+	assert_false(t.attacker.enabled)
+	GameState.from_dict(d)
+	assert_true(t.attacker.enabled)
+	assert_eq(t.attacker.damage, Balance.data.build.tower_damage[1])
+	assert_true(f.visual.visible)
+	assert_false(f.is_rubble())
+
 func test_fence_rubble_and_restore() -> void:
 	var f: FenceSpot = main.world.build_spots.fence_n
 	assert_false(f.visual.visible)
-	GameState.add_gold(GameState.next_level_cost("fence_n"))
-	GameState.pay_into_spot("fence_n", GameState.next_level_cost("fence_n"))
+	_pay_full("fence_n")
 	assert_true(f.visual.visible)
 	assert_false(f.is_rubble())
-	GameState.damage_fence("fence_n", 999.0)
+	GameState.damage_fence("fence_n", 1e9)
 	assert_true(f.is_rubble())
 	GameState.new_game(5)  # emits state_restored
 	assert_false(f.visual.visible)
+	assert_false(f.is_rubble())
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -5325,9 +5709,10 @@ func setup(id: String, world: World) -> void:
 	label = WorldLabel.make("", 40)
 	label.position = Vector3(0, 2.6, 0)
 	add_child(label)
-	for i in Balance.data.build.max_level:
+	var max_level: int = Balance.data.build.max_level
+	for i in max_level:
 		var pip := Visuals.box(Vector3(0.18, 0.18, 0.18), Visuals.COLORS.pip)
-		pip.position = Vector3(-0.3 + i * 0.3, 2.1, 0)
+		pip.position = Vector3((i - (max_level - 1) * 0.5) * 0.3, 2.1, 0)
 		add_child(pip)
 		_pips.append(pip)
 	EventBus.building_changed.connect(_on_building_changed)
@@ -5338,14 +5723,18 @@ func _on_building_changed(id: StringName, _level: int, _paid: int) -> void:
 	if String(id) == spot_id:
 		refresh()
 
+## Rebuilds everything from GameState. Safe before the first new_game (buildings is empty then).
 func refresh() -> void:
 	var b: Dictionary = GameState.buildings.get(spot_id, {"level": 0, "paid": 0, "hp": 0.0})
 	level = int(b.level)
-	visual.scale = Vector3.ONE * pow(1.1, maxi(level - 1, 0))
+	visual.scale = Vector3.ONE * pow(Balance.ui.build_level_scale, maxi(level - 1, 0))
 	for i in _pips.size():
 		_pips[i].visible = i < level
-	var remaining := GameState.remaining_cost(spot_id) if not GameState.buildings.is_empty() else -1
-	label.text = tr("MAX") if remaining < 0 else str(remaining)
+	if GameState.buildings.has(spot_id):
+		var remaining := GameState.remaining_cost(spot_id)
+		label.text = tr("MAX") if remaining < 0 else str(remaining)
+	else:
+		label.text = ""
 	_apply_level(level, b)
 
 ## Subclasses build their meshes under `visual`.
@@ -5374,6 +5763,7 @@ func _build_visual() -> void:
 	attacker.position.y = 1.5
 	attacker.candidates = _world.wave_director.enemy_candidates
 	attacker.projectile_pool = _world.projectile_pool
+	attacker.enabled = false
 	add_child(attacker)
 
 func _apply_level(p_level: int, _b: Dictionary) -> void:
@@ -5382,6 +5772,7 @@ func _apply_level(p_level: int, _b: Dictionary) -> void:
 	attacker.enabled = built
 	if built:
 		var bb := Balance.data.build
+		assert(p_level <= bb.tower_damage.size() and p_level <= bb.tower_range.size(), "tower level out of range")
 		attacker.configure(bb.tower_damage[p_level - 1], bb.tower_range[p_level - 1], bb.tower_interval,
 			Balance.data.hero.retarget_interval, 1.0, bb.tower_projectile_speed)
 ```
@@ -5398,10 +5789,10 @@ var _rubble := false
 func _build_visual() -> void:
 	var lane: String = MapLayout.FENCE_LANE[spot_id]
 	var path: Array = MapLayout.LANE_PATHS[lane]
-	var tan := Geometry.tangent_at(path, MapLayout.path_length(lane) - MapLayout.FENCE_OFFSET_FROM_END)
+	var tangent := Geometry.tangent_at(path, MapLayout.path_length(lane) - MapLayout.FENCE_OFFSET_FROM_END)
 	_bar = Visuals.box(Vector3(3.0, 0.8, 0.3), Visuals.COLORS.fence)
 	_bar.position.y = 0.4
-	visual.rotation.y = atan2(tan.x, tan.y)
+	visual.rotation.y = atan2(tangent.x, tangent.y)
 	visual.add_child(_bar)
 
 func _apply_level(p_level: int, b: Dictionary) -> void:
@@ -5918,7 +6309,7 @@ Do not start Task 21 until the author says continue.
   - `components/station_zone.gd`
   - `ui/progress_ring/progress_ring.gd`, `ui/progress_ring/progress_ring.gdshader`
   - `world/stations/freezer.gd`, `world/stations/counter.gd`
-- Modify: `world/world.gd`, `actors/hero/hero.gd` (`teleport_serial`)
+- Modify: `world/world.gd` (Hero.teleport_serial already exists from Task 15; read it, don't add it)
 - Test: `tests/unit/test_stations.gd`, helper `tests/unit/helpers.gd`
 
 **Interfaces:**
@@ -6294,7 +6685,7 @@ Expected: exit 0.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add components/station_zone.gd ui/progress_ring world/stations world/world.gd actors/hero/hero.gd tests/unit/helpers.gd tests/unit/test_stations.gd
+git add components/station_zone.gd ui/progress_ring world/stations world/world.gd tests/unit/helpers.gd tests/unit/test_stations.gd
 git commit -m "feat: add stand-still station zones that arm on entry, freezer and counter"
 ```
 
@@ -7525,8 +7916,109 @@ func test_mouse_drag_works() -> void:
 	js.handle(down)
 	var mv := InputEventMouseMotion.new()
 	mv.position = Vector2(360, 964)
+	mv.button_mask = MOUSE_BUTTON_MASK_LEFT
 	js.handle(mv)
 	assert_almost_eq(input.get_move().y, 1.0, 0.001)
+
+func test_move_reapplied_every_physics_tick() -> void:
+	# Hero.teleport clears the stored move; a still thumb must not leave the hero stopped.
+	_touch(0, Vector2(360, 900), true)
+	_drag(0, Vector2(360 + 64, 900))
+	input.set_move(Vector2.ZERO)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert_almost_eq(input.get_move().x, 1.0, 0.001, "restored without a drag event")
+
+func test_idle_stick_leaves_input_alone() -> void:
+	input.set_move(Vector2(0.5, 0.0))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert_eq(input.get_move(), Vector2(0.5, 0.0))
+
+func test_pause_notification_ends_stick() -> void:
+	# D-147
+	_touch(0, Vector2(360, 900), true)
+	_drag(0, Vector2(424, 900))
+	js.notification(Node.NOTIFICATION_PAUSED)
+	assert_false(js.is_active())
+	assert_eq(input.get_move(), Vector2.ZERO)
+
+func test_buttonless_mouse_motion_ends_stick() -> void:
+	var down := InputEventMouseButton.new()
+	down.button_index = MOUSE_BUTTON_LEFT
+	down.pressed = true
+	down.position = Vector2(360, 900)
+	js.handle(down)
+	var mv := InputEventMouseMotion.new()
+	mv.position = Vector2(424, 900)
+	mv.button_mask = MOUSE_BUTTON_MASK_LEFT
+	js.handle(mv)
+	assert_almost_eq(input.get_move().x, 1.0, 0.001)
+	var up := InputEventMouseMotion.new()
+	up.position = Vector2(430, 900)
+	up.button_mask = 0
+	js.handle(up)
+	assert_false(js.is_active())
+	assert_eq(input.get_move(), Vector2.ZERO)
+
+func test_mouse_release_ends_stick() -> void:
+	var down := InputEventMouseButton.new()
+	down.button_index = MOUSE_BUTTON_LEFT
+	down.pressed = true
+	down.position = Vector2(360, 900)
+	js.handle(down)
+	var mv := InputEventMouseMotion.new()
+	mv.position = Vector2(424, 900)
+	mv.button_mask = MOUSE_BUTTON_MASK_LEFT
+	js.handle(mv)
+	var rel := InputEventMouseButton.new()
+	rel.button_index = MOUSE_BUTTON_LEFT
+	rel.pressed = false
+	rel.position = Vector2(424, 900)
+	js.handle(rel)
+	assert_false(js.is_active())
+	assert_eq(input.get_move(), Vector2.ZERO)
+
+func test_repress_with_active_index_restarts_at_new_base() -> void:
+	_touch(0, Vector2(360, 900), true)
+	_drag(0, Vector2(424, 900))
+	_touch(0, Vector2(200, 700), true)
+	assert_true(js.is_active())
+	assert_eq(input.get_move(), Vector2.ZERO, "new base, knob at centre")
+	_drag(0, Vector2(200, 700 - 64))
+	assert_almost_eq(input.get_move().y, -1.0, 0.001)
+
+func test_first_finger_lift_ends_while_second_held() -> void:
+	_touch(0, Vector2(360, 900), true)
+	_drag(0, Vector2(424, 900))
+	_touch(1, Vector2(200, 400), true)
+	_touch(0, Vector2(424, 900), false)
+	assert_false(js.is_active())
+	assert_eq(input.get_move(), Vector2.ZERO)
+	_drag(1, Vector2(100, 400))
+	assert_false(js.is_active())
+	assert_eq(input.get_move(), Vector2.ZERO)
+
+func test_real_tree_pause_ends_stick() -> void:
+	# D-147: gut keeps running while paused; the stick's own branch is pausable.
+	var old_mode := gut.process_mode
+	gut.process_mode = Node.PROCESS_MODE_ALWAYS
+	js.get_parent().process_mode = Node.PROCESS_MODE_PAUSABLE
+	_touch(0, Vector2(360, 900), true)
+	_drag(0, Vector2(424, 900))
+	get_tree().paused = true
+	var ended := not js.is_active()
+	get_tree().paused = false
+	gut.process_mode = old_mode
+	assert_true(ended)
+	assert_eq(input.get_move(), Vector2.ZERO)
+
+func test_main_wires_joystick_in_input_layer() -> void:
+	var m := Main.create()
+	add_child_autofree(m)
+	var layer := m.joystick.get_parent() as CanvasLayer
+	assert_eq(layer.name, &"InputLayer")
+	assert_eq(layer.layer, 5)
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -7547,6 +8039,7 @@ var active_index := -2
 var _input_api: HeroInput
 var _base := Vector2.ZERO
 var _knob := Vector2.ZERO
+var _vec := Vector2.ZERO
 
 func setup(input: HeroInput) -> void:
 	_input_api = input
@@ -7558,13 +8051,19 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	handle(event)
 
+## While a touch is held, re-send the vector every tick: Hero.teleport clears the stored move
+## and a still thumb produces no drag events (Task 15 review).
+func _physics_process(_delta: float) -> void:
+	if is_active() and _input_api != null:
+		_input_api.set_move(_vec)
+
 func is_active() -> bool:
 	return active_index != -2
 
 func handle(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
-			if not is_active() and _allowed(event.position):
+			if (not is_active() or event.index == active_index) and _allowed(event.position):
 				_begin(event.index, event.position)
 		elif event.index == active_index:
 			_end()
@@ -7573,12 +8072,15 @@ func handle(event: InputEvent) -> void:
 			_drag(event.position)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
-			if not is_active() and _allowed(event.position):
+			if (not is_active() or active_index == -1) and _allowed(event.position):
 				_begin(-1, event.position)
 		elif active_index == -1:
 			_end()
 	elif event is InputEventMouseMotion and active_index == -1:
-		_drag(event.position)
+		if event.button_mask & MOUSE_BUTTON_MASK_LEFT == 0:
+			_end()  # the release happened outside the window
+		else:
+			_drag(event.position)
 
 func _allowed(p: Vector2) -> bool:
 	var w := get_viewport_rect().size.x
@@ -7589,6 +8091,7 @@ func _begin(i: int, p: Vector2) -> void:
 	active_index = i
 	_base = p
 	_knob = Vector2.ZERO
+	_vec = Vector2.ZERO
 	_input_api.set_move(Vector2.ZERO)
 	queue_redraw()
 
@@ -7596,14 +8099,21 @@ func _drag(p: Vector2) -> void:
 	var r := Balance.ui.joystick_radius_px
 	_knob = (p - _base).limit_length(r)
 	var v := _knob / r
-	_input_api.set_move(Vector2.ZERO if v.length() < Balance.ui.joystick_deadzone else v)
+	_vec = Vector2.ZERO if v.length() < Balance.ui.joystick_deadzone else v
+	_input_api.set_move(_vec)
 	queue_redraw()
 
 func _end() -> void:
 	active_index = -2
 	_knob = Vector2.ZERO
+	_vec = Vector2.ZERO
 	_input_api.set_move(Vector2.ZERO)
 	queue_redraw()
+
+## D-147: a paused tree drops the touch release, so end the stick when FocusPause pauses.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PAUSED and is_active():
+		_end()
 
 func _draw() -> void:
 	if not is_active():
@@ -7779,18 +8289,18 @@ func snap_to(p: Vector2) -> void:
 	camera.global_transform = CameraMath.camera_transform(_focus, Balance.ui)
 ```
 
-Modify `tests/sim/capture.gd`: delete the manual `Camera3D` block and use `main.camera_rig.snap()` before capturing.
+`tests/sim/capture.gd` keeps its own standalone `Camera3D` (D-149): the rig's `_process` shake could land in a screenshot.
 
 - [ ] **Step 4: Run the tests and see them pass**
 
 Run: `./run_tests.sh all`
 
-Expected: exit 0. Run `all` because `capture.gd` changed.
+Expected: exit 0.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add world/camera_rig.gd world/main.gd tests/sim/capture.gd tests/unit/test_camera_rig.gd
+git add world/camera_rig.gd world/main.gd tests/unit/test_camera_rig.gd
 git commit -m "feat: add follow camera rig with capped diner-hit shake"
 ```
 
@@ -8431,6 +8941,41 @@ func test_focus_out_pauses_and_in_resumes() -> void:
 	for i in 5:
 		await get_tree().physics_frame
 	assert_gt(counter.ticks, t0)
+
+func test_window_focus_out_and_in() -> void:
+	fp.notification(Node.NOTIFICATION_WM_WINDOW_FOCUS_OUT)
+	assert_true(get_tree().paused)
+	fp.notification(Node.NOTIFICATION_WM_WINDOW_FOCUS_IN)
+	assert_false(get_tree().paused)
+
+func test_visibility_hidden_and_visible() -> void:
+	fp.on_visibility_changed(true)
+	assert_true(get_tree().paused)
+	fp.on_visibility_changed(false)
+	assert_false(get_tree().paused)
+
+func test_focus_out_then_visible_resumes() -> void:
+	fp.notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	assert_true(get_tree().paused)
+	fp.on_visibility_changed(false)
+	assert_false(get_tree().paused)
+
+func test_foreign_pause_not_cleared_by_focus_in() -> void:
+	get_tree().paused = true
+	fp.notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	assert_true(get_tree().paused)
+	fp.on_visibility_changed(false)
+	assert_true(get_tree().paused)
+
+func test_process_mode_always() -> void:
+	assert_eq(fp.process_mode, Node.PROCESS_MODE_ALWAYS)
+
+func test_focus_out_on_already_paused_tree_keeps_foreign_pause() -> void:
+	get_tree().paused = true
+	fp.notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	fp.notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	assert_true(get_tree().paused)
+	get_tree().paused = false
 ```
 
 GUT's own runner must keep processing while paused. If `await get_tree().process_frame` hangs, set GUT's node to `PROCESS_MODE_ALWAYS` in this test's `before_each` with `gut.process_mode = Node.PROCESS_MODE_ALWAYS`.
@@ -8448,8 +8993,11 @@ Expected: FAIL (`FocusPause` not declared).
 class_name FocusPause
 extends Node
 ## Pause on focus loss / hidden tab so switching away never costs the diner (D-046).
+## Resume rule: the latest focus-in or visible event resumes (iOS may never send focus-in).
+## Only undoes a pause FocusPause itself set.
 
 var _js_cb: JavaScriptObject
+var _paused_by_focus := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -8457,24 +9005,38 @@ func _ready() -> void:
 		_js_cb = JavaScriptBridge.create_callback(_on_visibility)
 		JavaScriptBridge.get_interface("document").addEventListener("visibilitychange", _js_cb)
 
+func _exit_tree() -> void:
+	if OS.has_feature("web") and _js_cb != null:
+		JavaScriptBridge.get_interface("document").removeEventListener("visibilitychange", _js_cb)
+		_js_cb = null
+
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
 		set_paused(true)
-	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+	elif what == NOTIFICATION_APPLICATION_FOCUS_IN or what == NOTIFICATION_WM_WINDOW_FOCUS_IN:
 		set_paused(false)
 
 func set_paused(p: bool) -> void:
-	get_tree().paused = p
+	if p:
+		if not get_tree().paused:
+			get_tree().paused = true
+			_paused_by_focus = true
+	elif _paused_by_focus:
+		get_tree().paused = false
+		_paused_by_focus = false
+
+func on_visibility_changed(hidden: bool) -> void:
+	set_paused(hidden)
 
 func _on_visibility(_args: Array) -> void:
-	set_paused(bool(JavaScriptBridge.eval("document.hidden", true)))
+	on_visibility_changed(bool(JavaScriptBridge.eval("document.hidden", true)))
 ```
 
 Modify `world/main.gd`:
 ```gdscript
 var focus_pause: FocusPause
 
-# in _ready(), after hud:
+# first statements in _ready() (the one Task 15 creates); D-139 wiring applied by the main session:
 	focus_pause = FocusPause.new()
 	focus_pause.name = "FocusPause"
 	add_child(focus_pause)
