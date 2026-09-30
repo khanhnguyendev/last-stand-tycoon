@@ -38,3 +38,5 @@ extends Resource
 @export var arrow_side_scale := 0.6
 ## Banner backing panel alpha (CP1 review: banners must stay readable over world labels).
 @export var banner_panel_alpha := 0.55
+## Gap between the top HUD block and an edge arrow (CP1 review).
+@export var arrow_hud_gap := 8.0
