@@ -24,3 +24,5 @@ extends Resource
 @export var telegraph_scale_max := 2.0
 @export var pulse_scale := 1.15
 @export var pulse_hz := 1.0
+## Visual scale added per built level (spec 8.6).
+@export var build_level_scale := 1.1
