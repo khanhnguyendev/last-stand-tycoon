@@ -3,6 +3,7 @@ extends SceneTree
 ## "$GODOT" --path . --resolution 720x1280 -s res://tests/sim/capture.gd -- --out=docs/screenshots/s1/x.png --seconds=12
 ## --lane=<west|north|east>: hero parked at that lane's zone, one Boar 2 s before it reaches hero range.
 ## --hero-at=zone_center (with --lane): hero at the centre of that lane's attack zone instead of the lane end.
+## --cards=id:level,...: grant cards after start_new_game (Tank placed at its post). --scene=cardpick: no bot, emit wave_cleared so the pick opens.
 ## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
 ## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
 
@@ -27,6 +28,19 @@ func _run() -> void:
 	main.add_child(bot)
 	bot.setup(main)
 	main.phase_controller.start_new_game(int(_args.get("seed", "20260930")))
+	if _args.has("cards"):
+		var gs = root.get_node("GameState")
+		for pair in String(_args.cards).split(",", false):
+			var parts := pair.split(":")
+			for i in (int(parts[1]) if parts.size() > 1 else 1):
+				gs.debug_grant_card(StringName(parts[0]))
+		var tank = main.world.guard_roster.guards.get(&"tank")
+		if tank != null:
+			tank.place_at_post()
+	if _args.get("scene", "") == "cardpick":
+		bot.queue_free()
+		var gs2 = root.get_node("GameState")
+		root.get_node("EventBus").wave_cleared.emit(gs2.lane_plan.size() - 1)
 	var cam := Camera3D.new()
 	var vp := root.get_visible_rect().size
 	camera_math.apply_lens(cam, _bal.ui, vp.x / vp.y)  # D-145
@@ -54,6 +68,9 @@ func _run() -> void:
 		b.dist = maxf(d - eb.speed * 2.0, 0.0)
 		b.set_physics_process(false)
 		b._update_position()
+		if _args.has("seconds"):  # optional settle time (lets the "monsters return" banner clear)
+			for i in int(float(_args.seconds) * 60.0):
+				await physics_frame
 	else:
 		for i in int(float(_args.get("seconds", "12")) * 60.0):
 			await physics_frame
