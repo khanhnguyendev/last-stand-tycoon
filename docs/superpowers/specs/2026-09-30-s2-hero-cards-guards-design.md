@@ -478,8 +478,13 @@ Phase branches are `s2/p<N>-<slug>`, one PR per phase, all self-merged under D-1
 | Unspent gold through day 5 | at most 38 on every seed (under one tower, 40) |
 | Balance changes | Archer L1 damage 6.0 → 4.0 (D-179); none in the tuning pass (D-180) |
 | Known spread | seed 777: night 2 PlannerBot ends at 0.517 (cleared); late-game gold has no sink from about day 7 (REVIEW_QUEUE) |
-| Screenshots | `docs/screenshots/s2/lane_west.png`, `lane_north.png`, `lane_east.png`, `card_pick.png`, `guards_day.png` |
+| Screenshots | `docs/screenshots/s2/lane_west.png`, `lane_north.png`, `lane_east.png`, `card_pick.png`, `guards_night1.png` |
 | Simulator self-reviews | card pick (preview s2-p3-pick-ui), guards (preview s2-p4-guards): pass |
+
+Capture commands (with rendering, 720×1280):
+- lane shots: `-- --lane=<west|north|east> --cards=archer:1,tank:1 --seconds=4`
+- `card_pick.png`: `-- --scene=cardpick --cards=archer:1,tank:1 --seconds=4`
+- `guards_night1.png`: `-- --cards=archer:2,tank:2 --seconds=3`
 
 Notes for later sub-projects:
 - The HUD card strip sits close under the diner bar (S5 polish).
