@@ -9970,6 +9970,12 @@ git commit -m "feat: pause the game on focus loss and hidden tab"
 
 ### Task 32: Web shell, three presets, debug and perf overlays → **CHECKPOINT 2**
 
+**Occluder alpha picker for CP2 (author, CP1 review; D-151).** The author picks `UiTuning.occluder_alpha` on the phone:
+- The debug overlay gets a touch button "Fade α: 0.30" that cycles 0.30 → 0.45 → 0.60 and writes `Balance.ui.occluder_alpha` live. Hotkey `O` does the same on desktop.
+- The debug overlay only exists in the `web_debug` preset (D-099), so the `pages` workflow also exports `web_debug` to `<path>/debug/` when that preset exists. The release and profile builds stay debug-free.
+- The CP2 checklist asks the author to try all three values and reply with the pick. The pick then becomes the `ui_tuning.gd` default, and the decision is logged.
+- Tests: the button cycles the three values and updates any active `OccluderFade` target alpha; `ui/debug/*` stays absent from release and profile packs.
+
 **Files:**
 - Create:
   - `export/web_shell.html`, `export/README.md`, `export_presets.cfg`, `export/device_check.sh`, `export/pw_check.mjs`

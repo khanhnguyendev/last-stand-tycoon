@@ -28,7 +28,7 @@ There is no throwaway code. S2 and later add to it; they do not rewrite it.
 | Id | Sub-project | Notes |
 |---|---|---|
 | **S1** | Vertical slice | This spec |
-| S2 | Hero cards + adventurer guards | Fills the `CARD_PICK` stub. Adds `guard` to `TargetPriority`. |
+| S2 | Hero cards + adventurer guards | Fills the `CARD_PICK` stub. Adds `guard` to `TargetPriority`. Re-tunes wave scaling against a target break day *with* cards (D-156): in S1 the PlannerBot ends nights 2–4 at 100%, 83% and 75% diner HP. |
 | S3 | Save/load + failure & mercy | The Close-up snapshot is the night-start save point, so quitting mid-night costs the same as failing (D-048). |
 | S4 | Asset pipeline + art pass | S4 asset pipeline (TBD, D-024). Swaps each scene's `Visual` child. |
 | S5 | UI/HUD polish, onboarding, audio | |

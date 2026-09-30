@@ -1159,6 +1159,8 @@ wording).**
 ## 2026-09-30: CP1 approved
 
 **D-151 The diner fades when it hides an actor (author at CP1; implemented in Task 30).**
+- [AMENDED at the CP1 review: 0.3 looked too faint on grass. The value stays in `UiTuning`; at CP2 a debug
+  button cycles 0.30 / 0.45 / 0.60 on the phone, and the author picks one (plan Task 32).]
 - The spec camera (pitch 55°, distance 18) looks over a 3 m diner, which hides the north zone. In
   the CP1 render only a sliver of the hero showed.
 - Each frame, the camera→actor segment is tested against the diner's AABB (slightly grown), for the
@@ -1236,3 +1238,9 @@ falls and the night restarts identically.
   fence-first upgrades, at day 6.
 - (Correction: an earlier draft of this entry said only about 83% of steaks were picked up. That
   was a measurement error: the 6 carried steaks weren't counted. Nothing is lost.)
+
+**D-156 S2 input: re-tune wave scaling for cards (author, from the CP1 review).**
+- With the S1 PlannerBot (D-154, D-155), nights 2–4 end at 100%, 83% and 75% diner HP, and the
+  sweep breaks at day 8.
+- Hero cards (S2) add power, so S2 re-tunes wave scaling against a target break day *with* cards.
+  Recorded in the spec's S2 decomposition line. No S1 work.
