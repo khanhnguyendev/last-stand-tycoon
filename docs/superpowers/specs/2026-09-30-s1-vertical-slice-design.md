@@ -1061,11 +1061,11 @@ Paths use shortest distance on this graph, with no navmesh.
 
 | Item | Value |
 |---|---|
-| Release build size, compressed as served (wasm + pck) (D-086) | |
-| Phone load time (page open → playable) | |
-| Page open → first combat, on the phone (D-085) | |
-| Criterion 4: phone model, average fps, worst frame (profile build) | |
-| Sweep break day | |
+| Release build size, compressed as served (wasm + pck) (D-086) | gzip -9: 10,326,534 B (≈ 9.85 MiB: wasm 10,054,769 + pck 271,765; js 68,480 more). Brotli -q 11: 7,171,732 B. Raw: wasm 39,514,754, pck 295,840 (Task 36, commit 0cd6168). |
+| Phone load time (page open → playable) | Deferred to the final review (D-159). For information: iOS Simulator (Safari, localhost, cache state unknown) showed the HUD about 5.2 s after `simctl openurl`. |
+| Page open → first combat, on the phone (D-085) | Deferred to the final review (D-159). |
+| Criterion 4: phone model, average fps, worst frame (profile build) | Deferred to the final review (D-159). For information (`web_profile` from localhost, 60 s window, night 1 combat): iOS Simulator avg 58.4 fps, worst 143 ms; Pixel 7 **emulated** (software WebGL) avg 7.8, worst 150 ms; desktop Chrome, software WebGL, avg 16.4, worst 147 ms. The ~145 ms worst frame appears in every run, idle included, so it is likely a startup stall. |
+| Sweep break day | Day 8 (D-155, D-160). |
 | Playtest answers 1–6 | |
 | Gate verdict (criterion 5) | |
 
