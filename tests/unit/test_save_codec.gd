@@ -92,6 +92,17 @@ func test_content_rejects_bad_ids_levels_and_phase() -> void:
 	assert_eq(_content(func(s): s.lane_plan[0].main = "south"), "content")
 	assert_eq(_content(func(s): s.gold = {}), "content")
 	assert_eq(_content(func(s): s.night_fails = -1), "content")
+	assert_eq(_content(func(s): s.resume_phase = null), "content")
+	assert_eq(_content(func(s): s.card_offer = [[1, 2]]), "content")
+	assert_eq(_content(func(s): s.card_offer = [[]]), "content")
+	assert_eq(_content(func(s): s.day = 0), "content")
+	assert_eq(_content(func(s): s.gold = -1), "content")
+	assert_eq(_content(func(s): s.gold_pile = -1), "content")
+	assert_eq(_content(func(s): s.diner_hp = -1), "content")
+	assert_eq(_content(func(s): s.diner_hp = 0, "NIGHT"), "content")
+	assert_eq(_content(func(s): s.freezer_steaks = -1), "content")
+	assert_eq(_content(func(s): s.lane_plan[0].main_count = "x"), "content")
+	assert_eq(_content(func(s): s.lane_plan[0].side = "south"), "content")
 
 func test_envelope_edge_cases() -> void:
 	var env = JSON.parse_string(SaveCodec.encode(_state(), "abc", 1))
@@ -121,3 +132,16 @@ func test_content_rejects_card_pick_with_empty_or_maxed_offer() -> void:
 		s.card_offer = ["tank"]
 		s.cards["tank"] = bd.cards.max_level, "CARD_PICK"), "content")
 	assert_eq(_content(func(s): s.card_offer = ["archer", "move_speed"], "CARD_PICK"), "")
+
+func test_v_as_json_string_is_a_json_failure() -> void:
+	assert_eq(_content(func(s): s.v = "3"), "json")
+
+func test_migration_that_jumps_past_the_current_version_is_rejected() -> void:
+	var s := _state()
+	s.v = GameState.SCHEMA_VERSION - 1
+	SaveCodec.MIGRATIONS[GameState.SCHEMA_VERSION - 1] = func(st: Dictionary) -> Dictionary:
+		st.v = GameState.SCHEMA_VERSION + 1
+		return st
+	var r := SaveCodec.decode(SaveCodec.encode(s, "abc", 1), GameState.SCHEMA_VERSION, bd)
+	SaveCodec.MIGRATIONS.clear()
+	assert_eq([r.ok, r.reason], [false, "version"])

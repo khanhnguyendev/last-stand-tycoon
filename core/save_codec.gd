@@ -43,7 +43,8 @@ static func decode(text: String, current_v: int, bd: BalanceData) -> Dictionary:
 			out.reason = "version"
 			return out
 		state = MIGRATIONS[v].call(state)
-		if typeof(state) != TYPE_DICTIONARY or int(state.get("v", v)) <= v:
+		if typeof(state) != TYPE_DICTIONARY or not typeof(state.get("v")) in [TYPE_INT, TYPE_FLOAT] \
+				or int(state.get("v", v)) <= v:
 			out.reason = "version"
 			return out
 		v = int(state.v)
@@ -69,35 +70,44 @@ static func _parse(text: String) -> Variant:
 static func validate(s: Dictionary, bd: BalanceData) -> String:
 	for k in STATE_KEYS:
 		if not s.has(k):
-			return "missing %s" % k
+			return "missing " + str(k)
 	for k in ["v", "run_seed", "day", "gold", "gold_pile", "freezer_steaks", "counter_steaks", "carried_steaks",
 			"diner_hp", "night_fails"]:
 		if not typeof(s[k]) in [TYPE_INT, TYPE_FLOAT]:
-			return "type %s" % k
+			return "type " + str(k)
 	if int(s.night_fails) < 0 or int(s.day) < 1 or int(s.gold) < 0 or int(s.gold_pile) < 0:
 		return "range"
+	if typeof(s.resume_phase) != TYPE_STRING:
+		return "type resume_phase"
 	if not String(s.resume_phase) in RESUME_PHASES:
 		return "resume_phase"
+	if float(s.diner_hp) < 0.0 or (String(s.resume_phase) == "NIGHT" and float(s.diner_hp) <= 0.0):
+		return "range diner_hp"
+	for k in ["freezer_steaks", "counter_steaks", "carried_steaks"]:
+		if float(s[k]) < 0.0:
+			return "range " + k
 	for k in ["buildings", "cards", "guards"]:
 		if typeof(s[k]) != TYPE_DICTIONARY:
-			return "type %s" % k
+			return "type " + str(k)
 	for k in ["lane_plan", "card_offer"]:
 		if typeof(s[k]) != TYPE_ARRAY:
-			return "type %s" % k
+			return "type " + str(k)
 	for id in s.buildings:
 		if not String(id) in MapLayout.SPOT_IDS:
-			return "building %s" % id
+			return "building " + str(id)
 		if typeof(s.buildings[id]) != TYPE_DICTIONARY or not s.buildings[id].has_all(["level", "paid", "hp"]):
-			return "building fields %s" % id
+			return "building fields " + str(id)
 		for f in ["level", "paid", "hp"]:
 			if not typeof(s.buildings[id][f]) in [TYPE_INT, TYPE_FLOAT]:
-				return "building field type %s" % id
+				return "building field type " + str(id)
+		if float(s.buildings[id].paid) < 0.0 or float(s.buildings[id].hp) < 0.0:
+			return "range building " + str(id)
 		var bl := int(s.buildings[id].level)
 		if bl < 0 or bl > bd.build.max_level:
-			return "building level %s" % id
+			return "building level " + str(id)
 	for id in MapLayout.SPOT_IDS:
 		if not s.buildings.has(id):
-			return "missing building %s" % id
+			return "missing building " + str(id)
 	if s.lane_plan.size() != bd.wave.base_counts.size():
 		return "lane_plan"
 	for w in s.lane_plan:
@@ -109,24 +119,28 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 		for f in ["main_count", "side_count", "hp_mult"]:
 			if not typeof(w[f]) in [TYPE_INT, TYPE_FLOAT]:
 				return "lane fields"
+			if float(w[f]) < 0.0:
+				return "range " + f
 	var max_level := bd.cards.max_level
 	for id in s.cards:
 		if typeof(id) != TYPE_STRING or not StringName(id) in CardCatalog.IDS:
-			return "card %s" % id
+			return "card " + str(id)
 		if not typeof(s.cards[id]) in [TYPE_INT, TYPE_FLOAT]:
-			return "level type %s" % id
+			return "level type " + str(id)
 		var l := int(s.cards[id])
 		if l < 0 or l > max_level:
-			return "level %s" % id
+			return "level " + str(id)
 	for id in s.card_offer:
 		if typeof(id) != TYPE_STRING or not StringName(id) in CardCatalog.IDS:
-			return "offer %s" % id
+			return "offer " + str(id)
 	for id in s.guards:
 		if typeof(id) != TYPE_STRING or not StringName(id) in CardCatalog.ADVENTURERS:
-			return "guard %s" % id
+			return "guard " + str(id)
 		if typeof(s.guards[id]) != TYPE_DICTIONARY or not s.guards[id].has("hp") \
 				or not typeof(s.guards[id].hp) in [TYPE_INT, TYPE_FLOAT]:
-			return "guard fields %s" % id
+			return "guard fields " + str(id)
+		if float(s.guards[id].hp) < 0.0:
+			return "range guard " + str(id)
 	if String(s.resume_phase) == "CARD_PICK":
 		if s.card_offer.is_empty():
 			return "empty offer"

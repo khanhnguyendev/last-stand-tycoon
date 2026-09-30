@@ -10,7 +10,7 @@ var key_prefix := ""
 var _dir := ""
 var _web := false
 var _last_good_text := ""
-var _warned := false
+var _warned := {}
 
 static func for_platform() -> SaveStore:
 	var s := SaveStore.new()
@@ -79,8 +79,8 @@ func wipe() -> void:
 	writable = true
 
 func _warn(msg: String) -> void:
-	if not _warned:
-		_warned = true
+	if not _warned.has(msg):
+		_warned[msg] = true
 		push_warning("SaveStore: " + msg)
 
 ## Named _read_key/_write_key/_remove_key: _get/_set would override Object's property virtuals.

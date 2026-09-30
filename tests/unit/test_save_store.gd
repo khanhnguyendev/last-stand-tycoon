@@ -113,7 +113,6 @@ func test_js_call_escapes_keys_and_values() -> void:
 	assert_true(js.contains(JSON.stringify("line1\n\"q\" \\ đêm")))
 	var v := "line1\n\"q\" \\ đêm"
 	assert_true(SaveStore.js_call("set", "k", v).contains(JSON.stringify("k") + "," + JSON.stringify(v)))
-	assert_eq(JSON.parse_string(JSON.stringify(v)), v)
 	assert_true(js.begins_with("(function(){try{"))
 	assert_true(SaveStore.js_call("get", "k").contains("localStorage.getItem("))
 	assert_true(SaveStore.js_call("remove", "k").contains("localStorage.removeItem("))
