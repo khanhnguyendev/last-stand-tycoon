@@ -15,11 +15,16 @@ static func create(p_auto_start := false) -> Main:
 	return m
 
 var hero: Hero
+var camera_rig: CameraRig
 
 func _ready() -> void:
 	hero = Hero.new()
 	add_child(hero)
 	hero.setup(world)
 	hero.teleport(MapLayout.HOME)
+	camera_rig = CameraRig.new()
+	camera_rig.name = "CameraRig"
+	add_child(camera_rig)
+	camera_rig.setup(hero)
 	if auto_start:
 		phase_controller.start_new_game.call_deferred()
