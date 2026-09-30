@@ -65,3 +65,12 @@ func test_focus_out_on_already_paused_tree_keeps_foreign_pause() -> void:
 	fp.notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
 	assert_true(get_tree().paused)
 	get_tree().paused = false
+
+func test_main_wires_focus_pause_first() -> void:
+	var m := Main.create()
+	add_child_autofree(m)
+	assert_not_null(m.focus_pause)
+	assert_eq(m.focus_pause.get_parent(), m)
+	assert_eq(m.focus_pause.process_mode, Node.PROCESS_MODE_ALWAYS)
+	var kids := m.get_children()
+	assert_lt(kids.find(m.focus_pause), kids.find(m.hero))
