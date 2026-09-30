@@ -19,6 +19,13 @@ static func parse(query: String) -> Dictionary:
 					out.cards[StringName(il[0])] = clampi(int(il[1]), 0, Balance.data.cards.max_level)
 	return out
 
+## True when the query carries a key that asks for a fresh start (whole keys, not substrings).
+static func has_fresh_start_key(query: String) -> bool:
+	for pair in query.trim_prefix("?").split("&", false):
+		if pair.split("=", true, 1)[0] in ["scene", "cards", "reset"]:
+			return true
+	return false
+
 static func apply(main, q: Dictionary) -> void:
 	for id in CardCatalog.IDS:
 		for i in int(q.cards.get(id, 0)):

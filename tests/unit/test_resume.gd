@@ -29,6 +29,7 @@ func _session(play: Callable) -> void:
 	await play.call()
 	remove_child(main)
 	main.free()
+	GameState.new_game(1)  # a quit is a process restart: every later check must come from the save
 
 func _fail_ticks() -> int:
 	return int(ceil(Balance.ui.banner_time * Engine.physics_ticks_per_second)) + 3
@@ -54,7 +55,7 @@ func test_day_resumes_at_home_with_same_state() -> void:
 func test_card_pick_resumes_with_same_offer_and_overlay() -> void:
 	var offer: Array = []
 	await _session(func():
-		EventBus.wave_cleared.emit(2)
+		EventBus.wave_cleared.emit(GameState.lane_plan.size() - 1)
 		offer.append_array(GameState.card_offer))  # lambdas capture locals by value; mutate, don't reassign
 	_boot()
 	assert_eq([pc.phase, pc.dawn_substate], [Phase.DAWN, "CARD_PICK"])
@@ -63,8 +64,10 @@ func test_card_pick_resumes_with_same_offer_and_overlay() -> void:
 	assert_true(main.hero.input.blocked)
 
 func test_night_save_resumes_night1_start() -> void:
-	await _session(func(): pass)  # the new-game save
+	var seeds: Array = []
+	await _session(func(): seeds.append(GameState.run_seed))  # the new-game save
 	_boot()
+	assert_eq(GameState.run_seed, seeds[0], "resumed, not a new random seed")
 	assert_eq([pc.phase, GameState.day], [Phase.NIGHT, 1])
 	assert_eq(main.hero.xz(), MapLayout.NIGHT1_START)
 
@@ -83,6 +86,8 @@ func test_quit_during_night1_retry_keeps_mercy() -> void:
 			await get_tree().physics_frame)
 	await get_tree().process_frame
 	_boot()
+	assert_false("The monsters look tired tonight." in main.hud._banner_queue)
+	assert_ne(main.hud.banner.text, "The monsters look tired tonight.")
 	assert_eq([pc.phase, GameState.night_fails], [Phase.NIGHT, 1])
 	GameState.damage_diner(1e6)
 	for i in _fail_ticks():

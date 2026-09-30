@@ -16,6 +16,7 @@ func before_each() -> void:
 	main.autosave.store = store
 
 func after_each() -> void:
+	get_tree().paused = false
 	store.wipe()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_saves"))
@@ -35,7 +36,7 @@ func test_no_writes_at_night() -> void:
 	pc.start_new_game(9)
 	var w := main.autosave.writes
 	GameState.add_gold(5)
-	for i in int(Balance.ui.autosave_interval_s * 60.0) + 10:
+	for i in int(Balance.ui.autosave_interval_s * Engine.physics_ticks_per_second) + 10:
 		await get_tree().physics_frame
 	assert_eq(main.autosave.writes, w)
 
@@ -66,7 +67,11 @@ func test_throttled_day_writes() -> void:
 	for i in 10:
 		GameState.add_gold(1)
 	assert_eq(main.autosave.writes, w, "no write before the interval")
-	for i in int(Balance.ui.autosave_interval_s * 60.0) + 5:
+	var n := int(Balance.ui.autosave_interval_s * Engine.physics_ticks_per_second)
+	for i in n - 5:
+		await get_tree().physics_frame
+	assert_eq(main.autosave.writes, w, "no write before the interval")
+	for i in 10:
 		await get_tree().physics_frame
 	assert_eq(main.autosave.writes, w + 1, "one write for many changes")
 	assert_eq(int(_saved().gold), GameState.gold)
@@ -100,3 +105,40 @@ func test_main_create_has_no_store() -> void:
 	var m := Main.create()
 	add_child_autofree(m)
 	assert_null(m.autosave.store)
+	m.phase_controller.start_new_game(9)
+	m.phase_controller.debug_skip_to_day()
+	GameState.add_gold(1)
+	await get_tree().physics_frame
+	assert_false(m.autosave._dirty)
+
+func test_empty_offer_dawn_writes_day() -> void:
+	pc.start_new_game(9)
+	for id in CardCatalog.IDS:
+		GameState.cards[id] = Balance.data.cards.max_level  # test-only setup write
+	pc.debug_skip_to_day()
+	pc.close_up()
+	EventBus.wave_cleared.emit(GameState.lane_plan.size() - 1)
+	var s := _saved()
+	assert_eq([String(s.resume_phase), int(s.day)], ["DAY", 3])
+
+func test_nothing_written_during_a_day_snapshot_fail() -> void:
+	pc.start_new_game(9)
+	pc.debug_skip_to_day()
+	pc.close_up()
+	GameState.damage_diner(1e6)
+	var w := main.autosave.writes
+	for i in _fail_ticks() - 5:
+		await get_tree().physics_frame
+	assert_eq(main.autosave.writes, w, "no write before the restore")
+
+func test_throttle_holds_while_paused() -> void:
+	pc.start_new_game(9)
+	pc.debug_skip_to_day()
+	GameState.add_gold(1)
+	get_tree().paused = true
+	var n := int(Balance.ui.autosave_interval_s * Engine.physics_ticks_per_second) + 10
+	for i in n:
+		await get_tree().physics_frame
+	var w := main.autosave.writes
+	get_tree().paused = false
+	assert_eq(main.autosave.writes, w)

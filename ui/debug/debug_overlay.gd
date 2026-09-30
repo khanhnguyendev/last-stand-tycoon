@@ -40,11 +40,11 @@ func setup(main: Main) -> void:
 	for pool in main.find_children("*", "NodePool", true, false):
 		pool.grew.connect(func(n: int): _warnings.append("%s grew to %d" % [pool.name, n]))
 	if OS.has_feature("web"):
-		_scene_query = load("res://ui/debug/debug_scenes.gd").parse(str(JavaScriptBridge.eval("window.location.search", true)))
 		var raw := str(JavaScriptBridge.eval("window.location.search", true))
-		for key in ["scene=", "cards=", "reset="]:
-			if raw.contains(key):
-				main.debug_fresh_start = true
+		var scenes = load("res://ui/debug/debug_scenes.gd")
+		_scene_query = scenes.parse(raw)
+		if scenes.has_fresh_start_key(raw):
+			main.debug_fresh_start = true
 		EventBus.phase_changed.connect(_on_first_phase, CONNECT_ONE_SHOT)
 
 ## The URL scene waits for the game's first NIGHT (Main starts it deferred) and then runs deferred, so it never

@@ -17,6 +17,12 @@ func test_parse() -> void:
 	assert_eq(DS.parse("?cards=bogus:3,tank:x"), {"cards": {}, "scene": ""}, "unknown ids and bad levels are dropped")
 	assert_eq(DS.parse("?cards=tank:9").cards, {&"tank": Balance.data.cards.max_level}, "levels clamp to max")
 
+func test_has_fresh_start_key() -> void:
+	for q in ["?scene=cardpick", "?cards=x", "?reset=1", "?a=1&reset=1"]:
+		assert_true(DS.has_fresh_start_key(q), q)
+	for q in ["?preset=x", "?noscene=1", ""]:
+		assert_false(DS.has_fresh_start_key(q), q)
+
 func test_apply_grants_cards_and_opens_pick() -> void:
 	DS.apply(main, DS.parse("?cards=tank:2,move_speed:1&scene=cardpick"))
 	assert_eq(GameState.card_level(&"tank"), 2)

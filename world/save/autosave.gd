@@ -9,7 +9,8 @@ var phase := Phase.NIGHT
 var failing := false
 var _dirty := false
 var _since_dirty := 0.0
-var _js_cbs: Array = []
+var _js_hide: JavaScriptObject
+var _js_vis: JavaScriptObject
 
 func _ready() -> void:
 	EventBus.snapshot_taken.connect(_on_snapshot)
@@ -23,10 +24,17 @@ func _ready() -> void:
 	if OS.has_feature("web"):
 		var doc := JavaScriptBridge.get_interface("document")
 		var win := JavaScriptBridge.get_interface("window")
-		var on_hide := JavaScriptBridge.create_callback(_on_page_hidden)
-		_js_cbs.append(on_hide)
-		doc.addEventListener("visibilitychange", on_hide)
-		win.addEventListener("pagehide", on_hide)
+		_js_hide = JavaScriptBridge.create_callback(_on_page_hidden)
+		_js_vis = JavaScriptBridge.create_callback(_on_visibility)
+		doc.addEventListener("visibilitychange", _js_vis)
+		win.addEventListener("pagehide", _js_hide)
+
+func _exit_tree() -> void:
+	if OS.has_feature("web") and _js_hide != null:
+		JavaScriptBridge.get_interface("document").removeEventListener("visibilitychange", _js_vis)
+		JavaScriptBridge.get_interface("window").removeEventListener("pagehide", _js_hide)
+		_js_hide = null
+		_js_vis = null
 
 func flush() -> void:
 	if _dirty and phase == Phase.DAY and not failing:
@@ -34,6 +42,11 @@ func flush() -> void:
 
 func _on_page_hidden(_args: Array) -> void:
 	flush()
+
+## visibilitychange also fires when the page becomes visible again; only a hide flushes.
+func _on_visibility(_args: Array) -> void:
+	if bool(JavaScriptBridge.eval("document.hidden", true)):
+		flush()
 
 ## snapshot_taken always writes: new game, close-up, night-1 retry (spec 5.2 state machine).
 func _on_snapshot(snap: Dictionary) -> void:
@@ -57,6 +70,8 @@ func _on_build_completed(_spot: StringName, _level: int) -> void:
 		_write_live("DAY")
 
 func _mark_dirty() -> void:
+	if store == null:
+		return
 	if phase == Phase.DAY and not failing and not _dirty:
 		_dirty = true
 		_since_dirty = 0.0
@@ -69,16 +84,18 @@ func _physics_process(delta: float) -> void:
 		flush()
 
 func _write_live(resume_phase: String) -> void:
+	if store == null:
+		return
 	var d := GameState.to_dict()
 	d.resume_phase = resume_phase
 	_write_state(d)
 
 func _write_state(d: Dictionary) -> void:
+	_dirty = false
 	if store == null:
 		return
 	if store.write(SaveCodec.encode(d, _build_id(), int(Time.get_unix_time_from_system()))):
 		writes += 1
-	_dirty = false
 
 static func _build_id() -> String:
 	if OS.has_feature("web"):
