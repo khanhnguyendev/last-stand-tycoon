@@ -16,6 +16,7 @@ static func create(p_auto_start := false) -> Main:
 
 var hero: Hero
 var camera_rig: CameraRig
+var joystick: Joystick
 
 func _ready() -> void:
 	hero = Hero.new()
@@ -26,5 +27,12 @@ func _ready() -> void:
 	camera_rig.name = "CameraRig"
 	add_child(camera_rig)
 	camera_rig.setup(hero)
+	var input_layer := CanvasLayer.new()
+	input_layer.name = "InputLayer"
+	input_layer.layer = 5
+	add_child(input_layer)
+	joystick = Joystick.new()
+	input_layer.add_child(joystick)
+	joystick.setup(hero.input)
 	if auto_start:
 		phase_controller.start_new_game.call_deferred()
