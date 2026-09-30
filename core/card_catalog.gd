@@ -44,11 +44,11 @@ static func effect_text(id: StringName, cb: CardBalance) -> String:
 	assert(false, "unknown card %s" % id)
 	return ""
 
-## The level line on a card: NEW for an unowned card, otherwise "Lv n → n+1".
+## The level line on a card: NEW for an unowned card, otherwise "Lv n > n+1".
 static func level_text(current_level: int) -> String:
 	if current_level <= 0:
 		return TranslationServer.translate("NEW")
-	return TranslationServer.translate("Lv %d → %d") % [current_level, current_level + 1]
+	return TranslationServer.translate("Lv %d > %d") % [current_level, current_level + 1]
 
 static func pick_banner(id: StringName, new_level: int) -> String:
 	if kind(id) == &"adventurer" and new_level == 1:
