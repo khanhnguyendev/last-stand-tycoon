@@ -1139,3 +1139,10 @@ wording).**
   `fence_on_lane` provider is registered, so S2's `guard` kind stays enemy-code-free.
 - Boars carry a `generation` counter, incremented on every spawn, so projectiles and attackers can
   detect pool reuse across nights (Review Focus 2). `spawn_index` restarts every night.
+
+**D-149 Screenshots keep their own camera; the per-level scale lives in `UiTuning` (Task 18 and 28 reviews).**
+- `tests/sim/capture.gd` (Task 20) keeps its standalone `Camera3D`, set up with
+  `CameraMath.apply_lens`. The plan's Task 28 step that switched it to `main.camera_rig.snap()` is
+  dropped, because the rig's `_process` shake could land in a screenshot.
+- The ×1.1 visual scale per built level (spec 8.6) is `UiTuning.build_level_scale` ("every number in
+  `balance/`"). Level pips are centred for any `max_level`.

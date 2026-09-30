@@ -907,6 +907,8 @@ extends Resource
 @export var telegraph_scale_max := 2.0
 @export var pulse_scale := 1.15
 @export var pulse_hz := 1.0
+## Visual scale added per built level (spec 8.6).
+@export var build_level_scale := 1.1
 ```
 
 `balance/balance.tres`:
@@ -5594,6 +5596,11 @@ func _ticks(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 
+func _pay_full(id: String, levels := 1) -> void:
+	for i in levels:
+		GameState.add_gold(GameState.next_level_cost(id))
+		GameState.pay_into_spot(id, GameState.next_level_cost(id))
+
 func test_five_spots_at_layout_positions() -> void:
 	assert_eq(main.world.build_spots.size(), 5)
 	for id in MapLayout.SPOT_IDS:
@@ -5604,38 +5611,70 @@ func test_tower_inactive_until_built() -> void:
 	var t: TowerSpot = main.world.build_spots.tower_nw
 	assert_false(t.attacker.enabled)
 	assert_eq(t.find_children("*", "CollisionObject3D", true, false).size(), 0, "towers never collide (D-125)")
-	GameState.add_gold(GameState.next_level_cost("tower_nw"))
-	GameState.pay_into_spot("tower_nw", GameState.next_level_cost("tower_nw"))
+	_pay_full("tower_nw")
 	assert_true(t.attacker.enabled)
 	assert_eq(t.attacker.attack_range, Balance.data.build.tower_range[0])
+	assert_eq(t.attacker.damage, Balance.data.build.tower_damage[0])
+	assert_eq(t.attacker.interval, Balance.data.build.tower_interval)
 
 func test_built_tower_kills_boar() -> void:
-	GameState.add_gold(GameState.next_level_cost("tower_nw"))
-	GameState.pay_into_spot("tower_nw", GameState.next_level_cost("tower_nw"))
+	_pay_full("tower_nw")
 	var b := main.world.wave_director.debug_spawn("north")
 	b.dist = 12.0  # (0,-12): 8.6 m from the tower, walks into its level-1 range
 	await _ticks(60 * 5)
 	assert_false(b.alive)
 
+func test_unbuilt_tower_does_not_shoot() -> void:
+	var b := main.world.wave_director.debug_spawn("north")
+	b.dist = 12.0
+	var hp := b.health.hp
+	await _ticks(60 * 2)
+	assert_eq(b.health.hp, hp)
+
 func test_upgrade_changes_tower_stats() -> void:
-	GameState.add_gold(10000)
-	GameState.pay_into_spot("tower_ne", GameState.next_level_cost("tower_ne"))
-	GameState.pay_into_spot("tower_ne", GameState.next_level_cost("tower_ne"))
+	_pay_full("tower_ne", 2)
 	var t: TowerSpot = main.world.build_spots.tower_ne
 	assert_eq(t.attacker.damage, Balance.data.build.tower_damage[1])
 	assert_eq(t.attacker.attack_range, Balance.data.build.tower_range[1])
 
+func test_label_shows_remaining_cost_then_max() -> void:
+	var t: TowerSpot = main.world.build_spots.tower_nw
+	assert_eq(t.label.text, str(GameState.remaining_cost("tower_nw")))
+	_pay_full("tower_nw", Balance.data.build.max_level)
+	assert_eq(t.level, Balance.data.build.max_level)
+	assert_eq(t.label.text, tr("MAX"))
+
+func test_label_after_partial_payment() -> void:
+	var t: TowerSpot = main.world.build_spots.tower_nw
+	GameState.add_gold(1)
+	GameState.pay_into_spot("tower_nw", 1)
+	assert_eq(t.label.text, str(GameState.next_level_cost("tower_nw") - 1))
+
+func test_restore_into_built_state() -> void:
+	_pay_full("tower_ne", 2)
+	_pay_full("fence_n")
+	var d := GameState.to_dict()
+	GameState.new_game(5)
+	var t: TowerSpot = main.world.build_spots.tower_ne
+	var f: FenceSpot = main.world.build_spots.fence_n
+	assert_false(t.attacker.enabled)
+	GameState.from_dict(d)
+	assert_true(t.attacker.enabled)
+	assert_eq(t.attacker.damage, Balance.data.build.tower_damage[1])
+	assert_true(f.visual.visible)
+	assert_false(f.is_rubble())
+
 func test_fence_rubble_and_restore() -> void:
 	var f: FenceSpot = main.world.build_spots.fence_n
 	assert_false(f.visual.visible)
-	GameState.add_gold(GameState.next_level_cost("fence_n"))
-	GameState.pay_into_spot("fence_n", GameState.next_level_cost("fence_n"))
+	_pay_full("fence_n")
 	assert_true(f.visual.visible)
 	assert_false(f.is_rubble())
-	GameState.damage_fence("fence_n", 999.0)
+	GameState.damage_fence("fence_n", 1e9)
 	assert_true(f.is_rubble())
 	GameState.new_game(5)  # emits state_restored
 	assert_false(f.visual.visible)
+	assert_false(f.is_rubble())
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -5670,9 +5709,10 @@ func setup(id: String, world: World) -> void:
 	label = WorldLabel.make("", 40)
 	label.position = Vector3(0, 2.6, 0)
 	add_child(label)
-	for i in Balance.data.build.max_level:
+	var max_level: int = Balance.data.build.max_level
+	for i in max_level:
 		var pip := Visuals.box(Vector3(0.18, 0.18, 0.18), Visuals.COLORS.pip)
-		pip.position = Vector3(-0.3 + i * 0.3, 2.1, 0)
+		pip.position = Vector3((i - (max_level - 1) * 0.5) * 0.3, 2.1, 0)
 		add_child(pip)
 		_pips.append(pip)
 	EventBus.building_changed.connect(_on_building_changed)
@@ -5683,14 +5723,18 @@ func _on_building_changed(id: StringName, _level: int, _paid: int) -> void:
 	if String(id) == spot_id:
 		refresh()
 
+## Rebuilds everything from GameState. Safe before the first new_game (buildings is empty then).
 func refresh() -> void:
 	var b: Dictionary = GameState.buildings.get(spot_id, {"level": 0, "paid": 0, "hp": 0.0})
 	level = int(b.level)
-	visual.scale = Vector3.ONE * pow(1.1, maxi(level - 1, 0))
+	visual.scale = Vector3.ONE * pow(Balance.ui.build_level_scale, maxi(level - 1, 0))
 	for i in _pips.size():
 		_pips[i].visible = i < level
-	var remaining := GameState.remaining_cost(spot_id) if not GameState.buildings.is_empty() else -1
-	label.text = tr("MAX") if remaining < 0 else str(remaining)
+	if GameState.buildings.has(spot_id):
+		var remaining := GameState.remaining_cost(spot_id)
+		label.text = tr("MAX") if remaining < 0 else str(remaining)
+	else:
+		label.text = ""
 	_apply_level(level, b)
 
 ## Subclasses build their meshes under `visual`.
@@ -5719,6 +5763,7 @@ func _build_visual() -> void:
 	attacker.position.y = 1.5
 	attacker.candidates = _world.wave_director.enemy_candidates
 	attacker.projectile_pool = _world.projectile_pool
+	attacker.enabled = false
 	add_child(attacker)
 
 func _apply_level(p_level: int, _b: Dictionary) -> void:
@@ -5727,6 +5772,7 @@ func _apply_level(p_level: int, _b: Dictionary) -> void:
 	attacker.enabled = built
 	if built:
 		var bb := Balance.data.build
+		assert(p_level <= bb.tower_damage.size() and p_level <= bb.tower_range.size(), "tower level out of range")
 		attacker.configure(bb.tower_damage[p_level - 1], bb.tower_range[p_level - 1], bb.tower_interval,
 			Balance.data.hero.retarget_interval, 1.0, bb.tower_projectile_speed)
 ```
@@ -5743,10 +5789,10 @@ var _rubble := false
 func _build_visual() -> void:
 	var lane: String = MapLayout.FENCE_LANE[spot_id]
 	var path: Array = MapLayout.LANE_PATHS[lane]
-	var tan := Geometry.tangent_at(path, MapLayout.path_length(lane) - MapLayout.FENCE_OFFSET_FROM_END)
+	var tangent := Geometry.tangent_at(path, MapLayout.path_length(lane) - MapLayout.FENCE_OFFSET_FROM_END)
 	_bar = Visuals.box(Vector3(3.0, 0.8, 0.3), Visuals.COLORS.fence)
 	_bar.position.y = 0.4
-	visual.rotation.y = atan2(tan.x, tan.y)
+	visual.rotation.y = atan2(tangent.x, tangent.y)
 	visual.add_child(_bar)
 
 func _apply_level(p_level: int, b: Dictionary) -> void:
@@ -8243,18 +8289,18 @@ func snap_to(p: Vector2) -> void:
 	camera.global_transform = CameraMath.camera_transform(_focus, Balance.ui)
 ```
 
-Modify `tests/sim/capture.gd`: delete the manual `Camera3D` block and use `main.camera_rig.snap()` before capturing.
+`tests/sim/capture.gd` keeps its own standalone `Camera3D` (D-149): the rig's `_process` shake could land in a screenshot.
 
 - [ ] **Step 4: Run the tests and see them pass**
 
 Run: `./run_tests.sh all`
 
-Expected: exit 0. Run `all` because `capture.gd` changed.
+Expected: exit 0.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add world/camera_rig.gd world/main.gd tests/sim/capture.gd tests/unit/test_camera_rig.gd
+git add world/camera_rig.gd world/main.gd tests/unit/test_camera_rig.gd
 git commit -m "feat: add follow camera rig with capped diner-hit shake"
 ```
 
