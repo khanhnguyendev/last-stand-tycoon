@@ -169,3 +169,6 @@ func test_cancelled_touch_does_not_pick() -> void:
 	main.get_viewport().push_input(e, true)
 	assert_eq(pc.phase, Phase.DAWN)
 	assert_eq(GameState.cards, {})
+	_touch(0, c, true)
+	_touch(0, c, false)
+	assert_eq(pc.phase, Phase.DAY, "the cancelled finger was freed, so a normal tap picks")

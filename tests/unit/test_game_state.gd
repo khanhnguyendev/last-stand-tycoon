@@ -148,6 +148,12 @@ func test_clear_offer_emits_nothing() -> void:
 	assert_eq(GameState.card_offer, [] as Array[StringName])
 	assert_signal_not_emitted(EventBus, "card_offered")
 
+func test_debug_grant_card_drops_a_maxed_card_from_the_restored_offer() -> void:
+	GameState.set_card_offer([&"tank", &"archer"] as Array[StringName])
+	GameState.cards[&"tank"] = Balance.data.cards.max_level - 1  # test-only setup write
+	GameState.debug_grant_card(&"tank")
+	assert_eq(GameState.card_offer, [&"archer"] as Array[StringName])
+
 func test_tank_gets_hp_archer_does_not() -> void:
 	var t := Balance.data.guards.tank
 	GameState.debug_grant_card(&"archer")

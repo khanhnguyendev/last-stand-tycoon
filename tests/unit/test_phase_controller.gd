@@ -251,6 +251,7 @@ func test_empty_offer_skips_to_day() -> void:
 		GameState.cards[id] = Balance.data.cards.max_level  # test-only setup write
 	watch_signals(EventBus)
 	EventBus.wave_cleared.emit(2)
+	assert_signal_emitted_with_parameters(EventBus, "banner_requested", ["Dawn"])
 	assert_eq(pc.phase, Phase.DAY)
 	assert_eq(pc.dawn_substate, "")
 	assert_signal_not_emitted(EventBus, "card_offered")
@@ -258,6 +259,12 @@ func test_empty_offer_skips_to_day() -> void:
 	EventBus.wave_cleared.emit(2)
 	assert_eq(pc.phase, Phase.DAY, "a later dawn still works")
 	assert_eq(GameState.day, 3)
+
+func test_no_dawn_banner_when_an_offer_opens() -> void:
+	watch_signals(EventBus)
+	EventBus.wave_cleared.emit(2)
+	assert_eq(pc.dawn_substate, "CARD_PICK")
+	assert_signal_not_emitted(EventBus, "banner_requested")
 
 func test_debug_skip_grants_no_card_from_night_and_from_pick() -> void:
 	pc.debug_skip_to_day()
