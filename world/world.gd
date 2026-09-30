@@ -10,10 +10,13 @@ var counter: Counter
 var gold_pile: GoldPile
 var closeup_sign: CloseUpSign
 var telegraph_markers := {}
+var fly_fx: FlyFx
+var occluder_fade: OccluderFade
 
 @export var enemy_pool: NodePool
 @export var steak_pool: NodePool
 @export var projectile_pool: NodePool
+@export var fx_pool: NodePool
 @export var wave_director: WaveDirector
 @export var traveler_pool: NodePool
 @export var traveler_spawner: TravelerSpawner
@@ -54,6 +57,25 @@ func _build_ground() -> void:
 
 func _build_diner() -> void:
 	diner_body = add_static_box("Diner", Vector3(8, MapLayout.DINER_HEIGHT, 8), Vector2.ZERO, Visuals.COLORS.diner)
+	# D-151: the diner fades while it hides the hero or a Boar from the camera.
+	occluder_fade = OccluderFade.new()
+	occluder_fade.name = "OccluderFade"
+	diner_body.get_node("Visual").add_child(occluder_fade)
+	occluder_fade.setup(
+		AABB(Vector3(-MapLayout.DINER_HALF, 0.0, -MapLayout.DINER_HALF),
+			Vector3(MapLayout.DINER_HALF * 2.0, MapLayout.DINER_HEIGHT, MapLayout.DINER_HALF * 2.0)),
+		get_viewport().get_camera_3d, _occluder_targets)
+
+## Aim points (feet + the actor's AIM_HEIGHT) of everything the diner must not hide: the hero and every alive Boar.
+func _occluder_targets() -> Array:
+	var out: Array = []
+	var hero := get_tree().get_first_node_in_group(&"hero") as Node3D
+	if hero != null:
+		out.append(hero.global_position + Vector3(0, Hero.AIM_HEIGHT, 0))
+	if wave_director != null:
+		for b in wave_director.alive_enemies():
+			out.append((b as Node3D).global_position + Vector3(0, Boar.AIM_HEIGHT, 0))
+	return out
 
 func _build_lanes() -> void:
 	for id in LanePlanner.LANES:
@@ -101,7 +123,7 @@ func _build_stations() -> void:
 	add_child(gold_pile)
 	gold_pile.setup(self)
 	traveler_pool.setup(func(): return Traveler.new(), Balance.data.economy.queue_max * 2)
-	traveler_spawner.setup(traveler_pool)
+	traveler_spawner.setup(traveler_pool, fly_fx)
 	closeup_sign = CloseUpSign.new()
 	add_child(closeup_sign)
 	closeup_sign.setup(self)
@@ -127,3 +149,8 @@ func _setup_pools() -> void:
 	enemy_pool.setup(func(): return Boar.new(), sizes.enemy)
 	steak_pool.setup(func(): return Steak.new(), sizes.steak)
 	projectile_pool.setup(func(): return Projectile.new(), sizes.projectile)
+	fx_pool.setup(func(): return FlyFx.make_item(), sizes.fx)
+	fly_fx = FlyFx.new()
+	fly_fx.name = "FlyFx"
+	add_child(fly_fx)
+	fly_fx.setup(fx_pool)
