@@ -5057,6 +5057,7 @@ extends GutTest
 
 var main: Main
 var pc: PhaseController
+var _spawned_out: Array = []
 
 func before_each() -> void:
 	Balance.reset()
@@ -5066,9 +5067,45 @@ func before_each() -> void:
 	main.hero.input.player_control = false
 	pc.start_new_game(99)
 
+func after_each() -> void:
+	if EventBus.wave_spawned_out.is_connected(_on_spawned_out):
+		EventBus.wave_spawned_out.disconnect(_on_spawned_out)
+
+func _on_spawned_out(w: int) -> void:
+	_spawned_out.append(w)
+
 func _ticks(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
+
+## Banner time (Balance.ui) in physics ticks, plus a small margin for tick sampling (D-118).
+func _fail_ticks() -> int:
+	return int(ceil(Balance.ui.banner_time * Engine.physics_ticks_per_second)) + 3
+
+## Runs the real WaveDirector to the point where wave 2 has finished spawning (boars of earlier waves are killed).
+func _advance_to_wave_2_spawned_out() -> void:
+	var wd := main.world.wave_director
+	_spawned_out.clear()
+	EventBus.wave_spawned_out.connect(_on_spawned_out)
+	var guard := 0
+	while not _spawned_out.has(2) and guard < 60 * 300:
+		if wd.wave_index < 2:
+			wd.debug_kill_all()
+		await get_tree().physics_frame
+		guard += 1
+	assert_true(_spawned_out.has(2), "wave 2 never finished spawning")
+	assert_gt(wd.alive_count(), 0, "wave 2 should still have live boars")
+
+## Leaves one Boar and one Steak active, so recall on restore can be checked.
+func _leave_pool_items() -> void:
+	main.world.wave_director.debug_spawn("north")
+	main.world.steak_pool.acquire().place(Vector3(20, 0, 0))
+	assert_eq(main.world.enemy_pool.active().size(), 1)
+	assert_eq(main.world.steak_pool.active().size(), 1)
+
+func _assert_pools_empty() -> void:
+	assert_eq(main.world.enemy_pool.active().size(), 0, "enemy pool not recalled")
+	assert_eq(main.world.steak_pool.active().size(), 0, "steak pool not recalled")
 
 func test_phase_controller_uses_only_the_narrow_interface() -> void:
 	# D-128: typed @export references only; no node paths, groups or tree searches.
@@ -5088,6 +5125,9 @@ func test_dawn_steps_in_order() -> void:
 	GameState.add_gold(GameState.next_level_cost("fence_w"))
 	GameState.pay_into_spot("fence_w", GameState.next_level_cost("fence_w"))
 	GameState.damage_fence("fence_w", 1e6)
+	GameState.add_gold(GameState.next_level_cost("fence_n"))
+	GameState.pay_into_spot("fence_n", GameState.next_level_cost("fence_n"))
+	GameState.damage_fence("fence_n", GameState.fence_max_hp(1) * 0.5)
 	GameState.damage_diner(50.0)
 	GameState.carried_steaks = 2  # test-only setup write
 	for i in 3:
@@ -5099,6 +5139,7 @@ func test_dawn_steps_in_order() -> void:
 	assert_eq(GameState.carried_steaks, 2)
 	assert_eq(GameState.diner_hp, Balance.data.build.diner_max_hp)
 	assert_eq(GameState.buildings.fence_w, {"level": 0, "paid": 0, "hp": 0.0})
+	assert_eq(GameState.buildings.fence_n.hp, GameState.fence_max_hp(1))
 	assert_eq(GameState.day, 2)
 	assert_ne(GameState.lane_plan[0].side, "")
 	assert_eq(main.world.steak_pool.active().size(), 0)
@@ -5127,38 +5168,90 @@ func test_close_up_ignored_at_night() -> void:
 
 func test_fail_night1_restarts_night() -> void:
 	var snap := pc.snapshot.duplicate(true)
+	_leave_pool_items()
 	GameState.add_gold(5)
 	watch_signals(EventBus)
 	GameState.damage_diner(1000.0)
 	assert_signal_emitted_with_parameters(EventBus, "night_failed", [1])
 	assert_true(pc.failing)
-	await _ticks(125)
+	await _ticks(_fail_ticks())
 	assert_false(pc.failing)
 	assert_eq(pc.phase, Phase.NIGHT)
 	var now := GameState.to_dict()
 	now.resume_phase = snap.resume_phase
 	assert_eq(now, snap)
 	assert_eq(main.hero.xz(), MapLayout.NIGHT1_START)
+	_assert_pools_empty()
 
 func test_fail_after_close_up_returns_to_day() -> void:
 	EventBus.wave_cleared.emit(2)
 	GameState.add_gold(30)
 	pc.close_up()
 	GameState.damage_diner(1000.0)
-	await _ticks(125)
+	await _ticks(_fail_ticks())
 	assert_eq(pc.phase, Phase.DAY)
 	assert_eq(GameState.gold, 30)
 	assert_eq(GameState.day, 2)
 	assert_eq(main.hero.xz(), MapLayout.HOME)
 
 func test_fall_and_clear_same_tick_fail_wins() -> void:
-	# Review Focus 3
+	# Review Focus 3, hand-emitted: the late wave_cleared(2) changes nothing.
+	watch_signals(EventBus)
 	GameState.damage_diner(1000.0)
 	EventBus.wave_cleared.emit(2)
-	assert_ne(pc.phase, Phase.DAWN)
-	await _ticks(125)
 	assert_eq(pc.phase, Phase.NIGHT)
 	assert_eq(GameState.day, 1)
+	assert_eq(GameState.diner_hp, 0.0)
+	assert_signal_not_emitted(EventBus, "phase_changed")
+	await _ticks(_fail_ticks())
+	assert_eq(pc.phase, Phase.NIGHT)
+	assert_eq(GameState.day, 1)
+
+func test_review_focus_3_diner_falls_then_wave_clears_through_wave_director() -> void:
+	await _advance_to_wave_2_spawned_out()
+	var wd := main.world.wave_director
+	watch_signals(EventBus)
+	GameState.damage_diner(1e6)
+	wd.debug_kill_all()
+	await _ticks(2)
+	_assert_no_clear_no_dawn()
+
+func test_review_focus_3_wave_clears_then_diner_falls_through_wave_director() -> void:
+	await _advance_to_wave_2_spawned_out()
+	var wd := main.world.wave_director
+	watch_signals(EventBus)
+	wd.debug_kill_all()
+	GameState.damage_diner(1e6)
+	await _ticks(2)
+	_assert_no_clear_no_dawn()
+
+func _assert_no_clear_no_dawn() -> void:
+	var cleared: int = get_signal_emit_count(EventBus, "wave_cleared")
+	for i in cleared:
+		assert_ne(get_signal_parameters(EventBus, "wave_cleared", i), [2], "wave_cleared(2) reached the bus")
+	for i in get_signal_emit_count(EventBus, "phase_changed"):
+		assert_ne(get_signal_parameters(EventBus, "phase_changed", i), [Phase.DAWN, 1], "dawn started")
+	assert_true(pc.failing)
+	assert_ne(pc.phase, Phase.DAWN)
+
+func test_new_game_during_fail_banner_cancels_stale_restore() -> void:
+	GameState.damage_diner(1000.0)
+	pc.start_new_game(7)
+	GameState.add_gold(3)
+	await _ticks(_fail_ticks())
+	assert_eq(GameState.run_seed, 7)
+	assert_eq(GameState.gold, 3)
+	assert_false(pc.failing)
+
+func test_new_game_recalls_pools() -> void:
+	_leave_pool_items()
+	pc.start_new_game(5)
+	_assert_pools_empty()
+
+func test_debug_skip_to_day_runs_dawn() -> void:
+	pc.debug_skip_to_day()
+	assert_eq(pc.phase, Phase.DAY)
+	assert_eq(GameState.day, 2)
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -5191,6 +5284,8 @@ var phase := Phase.NIGHT
 var dawn_substate := ""
 var snapshot: Dictionary = {}
 var failing := false
+## Bumped whenever a fail flow starts or is cancelled, so a stale fail timer never restores a snapshot.
+var _fail_id := 0
 
 func _ready() -> void:
 	EventBus.wave_cleared.connect(_on_wave_cleared)
@@ -5199,6 +5294,7 @@ func _ready() -> void:
 
 func start_new_game(seed: int = 0) -> void:
 	failing = false
+	_fail_id += 1
 	_recall_all()
 	GameState.new_game(seed)
 	snapshot = GameState.to_dict()
@@ -5254,10 +5350,17 @@ func _on_diner_fell() -> void:
 	if phase != Phase.NIGHT or failing:
 		return
 	failing = true
+	_fail_id += 1
+	var fail_id := _fail_id
 	wave_director.stop()
 	EventBus.night_failed.emit(GameState.day)
 	EventBus.banner_requested.emit(tr("The diner fell"))
-	await get_tree().create_timer(Balance.ui.banner_time, false, true).timeout
+	# A connected callback (not await): a freed controller never resumes. Timer is physics-time (D-118).
+	get_tree().create_timer(Balance.ui.banner_time, false, true).timeout.connect(_on_fail_timer.bind(fail_id))
+
+func _on_fail_timer(fail_id: int) -> void:
+	if fail_id != _fail_id:
+		return  # start_new_game() ran meanwhile
 	_restore_snapshot()
 
 func _restore_snapshot() -> void:
@@ -5283,8 +5386,6 @@ func _recall_all() -> void:
 ## Debug helpers (ui/debug hotkeys, tests). Same narrow interface.
 func debug_skip_to_day() -> void:
 	if phase == Phase.NIGHT and not failing:
-		wave_director.stop()
-		enemy_pool.recall_all()
 		_run_dawn()
 
 func debug_skip_to_night() -> void:
