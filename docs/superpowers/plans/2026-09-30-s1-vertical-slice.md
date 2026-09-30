@@ -890,7 +890,9 @@ git commit -m "feat: add typed balance resources and Balance autoload"
 
 **Interfaces:**
 - Produces:
-  - Golden values for run seed 20260930 in `test_rng.gd` (D-130). If `test_golden_first_values` fails while the seed test passes, the engine's RNG differs from the reference PCG32: **escalate**, don't edit the golden list.
+  - Golden values for run seed 20260930 in `test_rng.gd` (D-130, D-134).
+    - `seeds` is the true oracle (an independent FNV-1a reference). If any seed mismatches, **escalate**; it is a derivation bug.
+    - `first` starts from an unverified Python replica of Godot's RNG. On the **first** Task 3 run only: if every seed passes but `first` fails, capture the engine's values (Step 4b), replace `first`, log a decision that the replica differed and the engine values from the pinned `GODOT_TAG` are now the golden baseline, and freeze them. After that, any mismatch is escalated and never regenerated.
   - `Rng.fnv1a32(s: String) -> int`
   - `Rng.derive_seed(run_seed: int, day: int, stream_name: StringName) -> int`
   - `Rng.stream(run_seed: int, day: int, stream_name: StringName) -> RandomNumberGenerator`
@@ -902,10 +904,13 @@ git commit -m "feat: add typed balance resources and Balance autoload"
 ```gdscript
 extends GutTest
 
-## Golden values (D-130). Seeds: FNV-1a 32 of "20260930:<day>:<stream>", days 1–30, from an
-## independent Python oracle. FIRST: the first randi() of each stream, from a reference PCG32 replica
-## of Godot's RandomPCG (seed -> pcg32_srandom_r(seed, PCG_DEFAULT_INC_64)). A mismatch means the
-## derivation or the engine RNG changed: escalate, never regenerate these silently.
+## Golden values (D-130, D-134).
+## "seeds": FNV-1a 32 of "20260930:<day>:<stream>", days 1–30, from an independent reference. It is the
+##   true oracle: a seed mismatch is a derivation bug. Escalate; never edit this list.
+## "first": the first randi() of each stream. It starts from an UNVERIFIED Python replica of Godot's
+##   RandomPCG. If, on the FIRST Task 3 run, every seed passes but "first" fails, replace "first" with
+##   values captured from the pinned GODOT_TAG engine, log that decision, and freeze the list. From then
+##   on any mismatch is escalated and never silently regenerated.
 const GOLDEN_RUN_SEED := 20260930
 const GOLDEN := {
 	&"lane_plan": {
@@ -1082,6 +1087,24 @@ static func new_run_seed() -> int:
 Run: `./run_tests.sh unit`
 
 Expected: exit 0.
+
+- [ ] **Step 4b (first run only, D-134): capture the engine's first values if the replica differs.** Do this only when `test_golden_seeds_distinct_and_stable` passes and `test_golden_first_values` fails on this first run. If a seed fails, stop and escalate instead.
+
+```bash
+cat > /tmp/lst_first.gd <<'GD'
+extends SceneTree
+func _initialize() -> void:
+	for stream_name in [&"lane_plan", &"spawns", &"travelers", &"drops"]:
+		var vals: Array = []
+		for d in range(1, 31):
+			vals.append(Rng.stream(20260930, d, stream_name).randi())
+		print(stream_name, " ", vals)
+	quit(0)
+GD
+cp /tmp/lst_first.gd ./lst_first_tmp.gd && "$GODOT" --headless --path . -s res://lst_first_tmp.gd; rm -f ./lst_first_tmp.gd
+```
+
+Paste the printed lists into each stream's `"first"` array in `test_rng.gd`, re-run `./run_tests.sh unit` (expect exit 0), and append a decision to `docs/DECISIONS.md`: "D-1xx RNG golden first values: the Python PCG32 replica differed from Godot `<GODOT_TAG>`; the engine-captured values are now the frozen golden baseline (supersedes the replica values in D-130)." Commit it with this task.
 
 - [ ] **Step 5: Commit**
 
@@ -8680,7 +8703,7 @@ gh api -X PUT repos/khanhnguyendev/last-stand-tycoon/branches/main/protection \
 JSON
 ```
 
-Note for the author: branch protection on a **private** repo needs GitHub Pro (or Team). If the call returns `403 Upgrade to GitHub Pro`, the options are upgrading or making the repo public. From Phase 12 on, every phase PR must be green before review.
+Note: the repo is public, so branch protection works on the free plan (D-134). From Phase 12 on, every phase PR must be green before review.
 
 ---
 

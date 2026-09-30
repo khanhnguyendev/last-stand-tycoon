@@ -805,7 +805,7 @@ wording).**
   steps use for the freezer. The pools no longer join a group.
 - This is documented as the single exception under Architecture in CLAUDE.md (plan Task 1).
 
-**D-130 Golden RNG test (author).**
+**D-130 [AMENDED by D-134] Golden RNG test (author).**
 - `test_rng.gd` commits a golden list for run seed 20260930, the 4 stream names and days 1–30. It
   holds the 120 derived seeds (all distinct) and the first `randi()` of each stream.
 - The seeds come from an independent Python FNV-1a 32 oracle. The first values come from a
@@ -849,5 +849,20 @@ wording).**
 - Only the author merges. After CI lands, the agent gives the author the exact `gh api` command that
   protects `main` (PR plus green `unit` and `sim` required, admins included). The agent never applies
   it.
-- Branch protection on a private repo needs GitHub Pro.
+- [AMENDED by D-134: the repo is public now] Branch protection on a private repo needs GitHub Pro.
 - Written in CLAUDE.md (plan Task 1) and in the plan's Git Workflow section.
+
+**D-134 How golden RNG mismatches are handled, and the repo is public (author).**
+- **`seeds` is the true oracle** (an independent FNV-1a reference). A seed mismatch is a derivation
+  bug and is escalated.
+- **`first` was produced by an unverified Python replica of Godot's RNG.** If, on the first Task 3
+  run, every seed passes but `first` fails:
+  1. replace `first` with values captured from the pinned `GODOT_TAG` engine (plan Task 3,
+     Step 4b);
+  2. log a decision that the replica differed and that the engine values are now the golden
+     baseline;
+  3. freeze the list.
+
+  After that, any mismatch is escalated and never silently regenerated.
+- The repo `khanhnguyendev/last-stand-tycoon` is now public, so branch protection works without
+  GitHub Pro. The Task 34 note is updated.
