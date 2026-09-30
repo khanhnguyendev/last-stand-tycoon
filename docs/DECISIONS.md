@@ -1308,3 +1308,28 @@ falls and the night restarts identically.
   - `docs/review/FINAL_REVIEW.md` (contents as the author listed them);
   - media in `docs/review/media/`: a 60–90 s iOS Simulator video covering a full night, the dawn card pick and a
     day, before/after screenshots, and one screenshot per lane.
+
+**D-160 S1 tuning pass: the baseline balance stands (Task 35; D-066, D-103).**
+- Baseline, seed 20260930, with no balance change:
+  - night 1 NaiveBot clears at 0.667 diner HP (target ≥ 0.50);
+  - night 2 PlannerBot clears at 1.000 (target ≥ 0.60);
+  - night 2 NaiveBot falls (target ≤ 0.30). There is no relaxation.
+- Sweep (PlannerBot): breaks at day 8, as in D-155. Unspent gold at close-up, days 1–5: 8 / 32 / 38 / 34 / 12, all under
+  one tower (40). **S1 breaks at day 8; this is the target for S2 card power** (D-156).
+- PlannerBot cycle (night + day seconds), days 1–7: 189 / 199 / 262 / 269 / 298 / 336 / 391. Day 2 misses the plan's
+  "≥ 4 min from day 2" stop condition by 41 s.
+- Rounds tried, one knob each, all reverted:
+  - `side_share_base` 0.20 → 0.25: no cycle change;
+  - `EnemyBalance.hp` 30 → 40 and 30 → 33: night 1 NaiveBot falls, so night 1 sits on an HP cliff;
+  - `EnemyBalance.speed` 2.0 → 1.8: +3 s;
+  - `WaveBalance.count_growth` 0.35 → 0.5: the break moves to day 5, which is a design change;
+  - `traveler_interval` 2.5 → 4.4: meets 4 min (day 2 = 243 s) with identical gold and diner HP;
+  - `traveler_interval` 2.5 → 5.0: the sweep stalls at the harness cap.
+- Decision: keep `traveler_interval` 2.5. The 4.4 value only adds time spent waiting at an empty counter, the opposite
+  of a queue building up in an arcade-idle day.
+  - D-066 already treats bot cycle times as a lower bound (the PlannerBot hauls and builds perfectly) and judges the
+    4–6 min criterion in the human playtest.
+  - S2 (cards, adventurer guards) and S5 (onboarding) change cycle length anyway, so the criterion is re-measured at
+    the final review.
+- Reversible: in REVIEW_QUEUE. The knob is `traveler_interval`, and 4.4 to 4.6 is the usable band (5.0 stalls the sweep).
+- The only S1 default change in Task 35 is `UiTuning.occluder_alpha` 0.3 → 0.45 (D-159).
