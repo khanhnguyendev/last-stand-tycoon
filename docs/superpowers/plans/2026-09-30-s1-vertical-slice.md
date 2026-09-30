@@ -60,7 +60,7 @@
 
 These are the input classes the spec implies but no feature test naturally covers. Each has a pinned test in its owning task.
 
-1. **Snapshot through JSON** (S3 will serialize it): ints come back as floats. `from_dict(JSON.parse_string(JSON.stringify(to_dict())))` must restore an identical state, with ints still ints. Pinned in **Task 10**.
+1. **Snapshot through JSON** (S3 will serialize it): ints come back as floats, and the default `JSON.stringify` drops float digits. `from_dict(JSON.parse_string(JSON.stringify(to_dict(), "", true, true)))` (full precision, D-146) must restore an identical state, with ints still ints. Pinned in **Task 10**.
 2. **A projectile in flight when its target dies and the pooled Boar is reused** for a new spawn: the projectile must despawn and never damage the new Boar. Pinned in **Task 16**.
 3. **The diner falls on the same tick that wave 3 clears:** the fail flow wins, there is no dawn, and a late `wave_cleared(2)` is ignored. Pinned in **Task 17**.
 4. **A second finger, or a touch that starts in a 16 px edge strip:** it is ignored. Lifting the second finger doesn't stop the joystick. Pinned in **Task 27**.
@@ -660,6 +660,7 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - EventBus = cross-system events only; local signals inside a system.
 - Every number in `balance/`; every user string through `tr()`.
 - Ties broken by `spawn_index`, never node order.
+- Edit `world/main.tscn` by hand only; never save it from the Godot editor (the editor rewrites the header and uids, and later plan tasks give its full text).
 - `./run_tests.sh` fails on GUT errors as well as failed asserts, including any `SCRIPT ERROR`. Don't write tests that expect engine errors.
 - Sims and tests read state at matching points after `await get_tree().physics_frame`; `physics_frame` fires before the nodes' `_physics_process` (D-118).
 ```
@@ -712,6 +713,9 @@ func test_spec_values_loaded() -> void:
 	assert_eq(d.economy.gold_per_steak, 3)
 	assert_eq(Array(d.build.tower_damage), [8.0, 12.0, 18.0])
 	assert_eq(d.build.diner_max_hp, 300.0)
+	assert_eq(d.build.fence_hp.size(), d.build.max_level)
+	assert_eq(d.build.tower_damage.size(), d.build.max_level)
+	assert_eq(d.build.tower_range.size(), d.build.max_level)
 	assert_eq(d.sim.night2_comfort_min, 0.60)
 	assert_eq(Balance.ui.camera_fov_h, 42.0)
 	assert_eq(Balance.ui.edge_ignore_px, 16.0)
@@ -2661,14 +2665,17 @@ func test_round_trip_identity() -> void:
 
 func test_round_trip_through_json_keeps_ints() -> void:
 	# Review Focus 1: S3 will serialize; JSON turns ints into floats.
+	# Full precision (4th arg of stringify) is required: the default drops float digits.
 	GameState.add_gold(1000)
 	GameState.pay_into_spot("fence_w", GameState.next_level_cost("fence_w"))
 	GameState.advance_day()
+	GameState.damage_diner(1.0 / 3.0)
 	var d := GameState.to_dict()
-	var parsed: Dictionary = JSON.parse_string(JSON.stringify(d))
+	var parsed: Dictionary = JSON.parse_string(JSON.stringify(d, "", true, true))
 	GameState.new_game(1)
 	GameState.from_dict(parsed)
 	assert_eq(GameState.to_dict(), d)
+	assert_eq(GameState.diner_hp, d.diner_hp, "float survives JSON exactly")
 	assert_eq(typeof(GameState.gold), TYPE_INT)
 	assert_eq(typeof(GameState.buildings.fence_w.level), TYPE_INT)
 	assert_eq(typeof(GameState.lane_plan[0].main_count), TYPE_INT)
@@ -2676,6 +2683,11 @@ func test_round_trip_through_json_keeps_ints() -> void:
 func test_from_dict_emits_state_restored() -> void:
 	watch_signals(EventBus)
 	GameState.from_dict(GameState.to_dict())
+	assert_signal_emitted(EventBus, "state_restored")
+
+func test_new_game_emits_state_restored() -> void:
+	watch_signals(EventBus)
+	GameState.new_game(7)
 	assert_signal_emitted(EventBus, "state_restored")
 
 func test_carry_capacity_and_transfers() -> void:
@@ -2890,7 +2902,7 @@ func from_dict(d: Dictionary) -> void:
 # --- gold and stocks ------------------------------------------------------
 
 func add_gold(n: int) -> void:
-	if n == 0:
+	if n <= 0:
 		return
 	gold += n
 	EventBus.gold_changed.emit(gold, n)
@@ -2958,6 +2970,7 @@ func remaining_cost(spot_id: String) -> int:
 	return -1 if cost < 0 else cost - int(buildings[spot_id].paid)
 
 func fence_max_hp(level: int) -> float:
+	assert(level >= 1 and level <= Balance.data.build.fence_hp.size(), "fence_max_hp level out of range")
 	return Balance.data.build.fence_hp[level - 1]
 
 func pay_into_spot(spot_id: String, amount: int) -> int:
@@ -3423,10 +3436,13 @@ func before_each() -> void:
 func test_main_builds_world_without_starting() -> void:
 	var main := Main.create()
 	add_child_autofree(main)
+	assert_false(main.auto_start)
 	assert_not_null(main.world)
 	assert_eq(main.world.lanes.size(), 3)
 	assert_not_null(main.world.diner_body)
-	var shape: BoxShape3D = main.world.diner_body.get_child(0).shape
+	assert_eq(main.world.diner_body.collision_layer, 1)
+	assert_eq(main.world.diner_body.collision_mask, 0)
+	var shape: BoxShape3D = main.world.diner_body.find_children("*", "CollisionShape3D", false, false)[0].shape
 	assert_eq(shape.size, Vector3(8, 3, 8))
 
 func test_lane_curve_matches_layout() -> void:
@@ -3509,9 +3525,11 @@ func _build_environment() -> void:
 func _build_ground() -> void:
 	var size := MapLayout.BOUNDS_MAX - MapLayout.BOUNDS_MIN
 	var ground := Visuals.plane(size, Visuals.COLORS.ground)
+	ground.name = "Ground"
 	ground.position = MapLayout.to3((MapLayout.BOUNDS_MIN + MapLayout.BOUNDS_MAX) * 0.5)
 	add_child(ground)
 	var road := Visuals.box(Vector3(size.x, 0.02, 2.0), Visuals.COLORS.road)
+	road.name = "Road"
 	road.position = Vector3(0, 0.01, MapLayout.ROAD_Z)
 	add_child(road)
 

@@ -1113,3 +1113,11 @@ wording).**
 - The lane-visibility test now runs at 9:16 and 16:9, with the hero at the zone centre and at the
   lane end, and with lateral offsets of −1, 0 and +1. A test checks the projection against a real
   `Camera3D`.
+
+**D-146 Snapshots are serialized with full float precision (Task 10 review).**
+- The default `JSON.stringify` drops float digits: a diner at `300 - 1/3` HP came back different
+  after a JSON round trip (and capped-wave `hp_mult` values would too).
+- Any JSON serialization of `GameState.to_dict()`, including S3 saves, uses
+  `JSON.stringify(d, "", true, true)` (full precision). The round-trip test pins it.
+- Also from the review: `fence_max_hp` asserts its level range, `add_gold` ignores non-positive
+  amounts, and `test_balance` pins that the per-level arrays have `max_level` entries.
