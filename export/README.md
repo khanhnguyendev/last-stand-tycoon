@@ -20,3 +20,5 @@ Checks without a phone (D-138, D-141): `export/device_check.sh <url> <out_dir>` 
 Playwright "Pixel 7", labelled emulated) and `node export/pw_check.mjs <url> <out.png> [android|desktop]` (Playwright from `$LST_PW_DIR`,
 default `~/.cache/lst-playwright`). Both expect `window.LST_BUILD`, which the pages workflow injects; a local build needs
 `<script>window.LST_BUILD="local";</script>` added before `</head>` of its `index.html`.
+
+Fresh starts (S3): a plain URL resumes a saved run from `localStorage`. Add `?reset=1` to debug URLs for a fresh start. Release URLs can't be reset; use a fresh browser profile. `node export/pw_resume.mjs <debug_url_base> <out_dir> [android|desktop]` is the resume smoke (one browser context: pick, plain-URL resume, reload).
