@@ -743,3 +743,17 @@ wording).**
   fences.
 - The waypoint test checks that every edge is traversable with hero-radius clearance against the
   remaining colliders.
+
+**D-126 A new game spawns the hero north of the diner (author; amends D-091).**
+- A new game and every night-1 restart place the hero at `MapLayout.NIGHT1_START` = (−2.5, −7). That
+  is north of the diner, 2.5 m off the north lane (beyond the ±1 m spread plus the hero radius) and
+  outside every station and build zone.
+- Night 1, wave 0 is always north, so combat comes to a new player with no map knowledge.
+- HOME (0, 9.5) stays south for restores to DAY. ParkedBot stays at HOME, so it remains a valid
+  negative control (it walks home before the first Boar arrives).
+- First combat on paper:
+  - an idle player at the start meets the first Boar at about 11.9 s (it spawns at 5 s and is in
+    range at z ≈ −10.1);
+  - NaiveBot meets it at about 12.4 s;
+  - an idle player at the old home never met it at all.
+- The plan adds an idle-player first-combat sim (≤ 30 s) next to the NaiveBot one.

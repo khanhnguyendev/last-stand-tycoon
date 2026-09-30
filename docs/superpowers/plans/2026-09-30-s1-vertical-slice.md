@@ -1228,7 +1228,7 @@ git commit -m "feat: add seeded lane planner and lane threat"
 **Interfaces:**
 - Produces, all XZ as `Vector2(x, z)`:
   - **`MapLayout` constants:**
-    - `DINER_HALF=4.0`, `DINER_HEIGHT=3.0`, `BOUNDS_MIN`, `BOUNDS_MAX`, `HOME=(0, 9.5)` (outside every zone, D-122)
+    - `DINER_HALF=4.0`, `DINER_HEIGHT=3.0`, `BOUNDS_MIN`, `BOUNDS_MAX`, `HOME=(0, 9.5)` (outside every zone, D-122), `NIGHT1_START=(-2.5, -7)` (D-126)
     - `LANE_PATHS: Dictionary[String → Array[Vector2]]`, `ZONE_AXIS`, `ZONE_RECTS: Dictionary[String → Rect2]`
     - `SPOT_IDS`, `TOWER_SPOTS`, `TOWER_LANES`, `FENCE_LANE`, `LANE_FENCE`, `FENCE_OFFSET_FROM_END=4.0`, `TELEGRAPH_OFFSET_FROM_END=5.5`
     - `COUNTER`, `COUNTER_SIZE`, `COUNTER_DROP`, `SERVICE_POINT`, `QUEUE_SLOTS`, `GOLD_PILE`
@@ -1373,6 +1373,24 @@ func test_E_paths_clear_towers_and_diner() -> void:
 				assert_true(Geometry.dist_point_rect(p, diner) >= eb.reach - 0.001, "%s inside diner reach at %.1f" % [lane, d])
 			d += 0.1
 
+func test_home_and_night1_start_are_clear() -> void:
+	# D-122, D-126: both spawn points are outside every station/build zone, off every lane, reachable.
+	var zones := [[MapLayout.SIGN, MapLayout.STATION_RADIUS], [MapLayout.FREEZER_ZONE, MapLayout.STATION_RADIUS],
+		[MapLayout.COUNTER_DROP, MapLayout.STATION_RADIUS], [MapLayout.GOLD_PILE, Balance.data.hero.magnet_radius]]
+	for id in MapLayout.SPOT_IDS:
+		zones.append([MapLayout.spot_position(id), MapLayout.BUILD_RADIUS])
+	for p in [MapLayout.HOME, MapLayout.NIGHT1_START]:
+		for z in zones:
+			assert_gt(p.distance_to(z[0]), float(z[1]), "%s inside zone at %s" % [p, z[0]])
+		for lane in LanePlanner.LANES:
+			var path: Array = MapLayout.LANE_PATHS[lane]
+			for i in range(1, path.size()):
+				assert_gt(Geometry.dist_point_segment(p, path[i - 1], path[i]),
+					Balance.data.enemy.lateral_spread + MapLayout.HERO_RADIUS, "%s on lane %s" % [p, lane])
+	# night 1, wave 0 comes up the north lane: it passes within hero range of the start
+	var north: Array = MapLayout.LANE_PATHS["north"]
+	assert_lt(Geometry.dist_point_segment(MapLayout.NIGHT1_START, north[0], north[1]), Balance.data.hero.attack_range)
+
 func test_fence_spots_match_spec() -> void:
 	assert_true(MapLayout.fence_spot("north").is_equal_approx(Vector2(0, -9.2)))
 	assert_almost_eq(MapLayout.fence_spot("west").x, -7.07, 0.02)
@@ -1492,6 +1510,8 @@ const DINER_HEIGHT := 3.0
 const BOUNDS_MIN := Vector2(-24, -24)
 const BOUNDS_MAX := Vector2(24, 14)
 const HOME := Vector2(0, 9.5)  ## outside every zone (D-122); the sign is SIGN
+## New game and night-1 restart spawn: north of the diner, off the lane, outside every zone (D-126).
+const NIGHT1_START := Vector2(-2.5, -7)
 const HERO_RADIUS := 0.4
 const TOWER_VISUAL_RADIUS := 0.5  ## mesh only: towers never collide with the hero (D-125)
 
@@ -4303,7 +4323,7 @@ func _ticks(n: int) -> void:
 func test_new_game_starts_night_with_night_snapshot() -> void:
 	assert_eq(pc.phase, Phase.NIGHT)
 	assert_eq(pc.snapshot.resume_phase, "NIGHT")
-	assert_eq(main.hero.xz(), MapLayout.HOME)
+	assert_eq(main.hero.xz(), MapLayout.NIGHT1_START)
 	assert_eq(main.world.wave_director.state, WaveDirector.State.WAITING)
 
 func test_dawn_steps_in_order() -> void:
@@ -4360,7 +4380,7 @@ func test_fail_night1_restarts_night() -> void:
 	var now := GameState.to_dict()
 	now.resume_phase = snap.resume_phase
 	assert_eq(now, snap)
-	assert_eq(main.hero.xz(), MapLayout.HOME)
+	assert_eq(main.hero.xz(), MapLayout.NIGHT1_START)
 
 func test_fail_after_close_up_returns_to_day() -> void:
 	EventBus.wave_cleared.emit(2)
@@ -4371,6 +4391,7 @@ func test_fail_after_close_up_returns_to_day() -> void:
 	assert_eq(pc.phase, Phase.DAY)
 	assert_eq(GameState.gold, 30)
 	assert_eq(GameState.day, 2)
+	assert_eq(main.hero.xz(), MapLayout.HOME)
 
 func test_fall_and_clear_same_tick_fail_wins() -> void:
 	# Review Focus 3
@@ -4416,7 +4437,7 @@ func start_new_game(seed: int = 0) -> void:
 	GameState.new_game(seed)
 	snapshot = GameState.to_dict()
 	snapshot.resume_phase = "NIGHT"
-	_main.hero.teleport(MapLayout.HOME)
+	_main.hero.teleport(MapLayout.NIGHT1_START)  # D-126: combat comes to a new player
 	EventBus.banner_requested.emit(tr("The monsters return"))
 	_enter_night()
 
@@ -4476,9 +4497,10 @@ func _on_diner_fell() -> void:
 func _restore_snapshot() -> void:
 	_recall_all()
 	GameState.from_dict(snapshot)
-	_main.hero.teleport(MapLayout.HOME)
+	var night_restart := String(snapshot.resume_phase) == "NIGHT"
+	_main.hero.teleport(MapLayout.NIGHT1_START if night_restart else MapLayout.HOME)  # D-122, D-126
 	failing = false
-	if String(snapshot.resume_phase) == "NIGHT":
+	if night_restart:
 		EventBus.banner_requested.emit(tr("The monsters return"))  # spec 5.2: each night-1 restart
 		_enter_night()
 	else:
@@ -5090,7 +5112,7 @@ func after_each() -> void:
 func test_first_combat_within_30s() -> void:
 	h.start(SEED, NaiveBot)
 	await h.run_until(func(): return h.first_combat_s >= 0.0, 40.0)
-	gut.p("first combat at %.2f s" % h.first_combat_s)
+	gut.p("first combat at %.2f s (on paper ~12 s from NIGHT1_START, D-126)" % h.first_combat_s)
 	assert_between(h.first_combat_s, 0.0, Balance.data.sim.first_combat_max_s)
 
 func test_night1_naive_bot_holds() -> void:
@@ -5105,6 +5127,13 @@ func test_night1_parked_bot_falls() -> void:
 	var r := await h.run_night()
 	gut.p("night1 parked: %s" % r)
 	assert_true(r.failed, "parking must not be a strategy (D-056)")
+
+func test_first_combat_idle_player_within_30s() -> void:
+	# D-126: a new player who never touches the joystick still meets wave 0 at the start point.
+	h.start(SEED, BotBase)  # base bot: no think(), the hero stays at NIGHT1_START
+	await h.run_until(func(): return h.first_combat_s >= 0.0, 40.0)
+	gut.p("idle first combat at %.2f s" % h.first_combat_s)
+	assert_between(h.first_combat_s, 0.0, Balance.data.sim.first_combat_max_s)
 
 func test_night1_fail_restarts_night() -> void:
 	h.start(SEED, ParkedBot)

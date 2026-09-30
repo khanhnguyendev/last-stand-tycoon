@@ -269,7 +269,7 @@ Main (Node3D)                      world/main.tscn
    - every building `{0, 0, 0}`
    - `lane_plan = LanePlanner.plan(run_seed, 1)`
 2. `_snapshot = GameState.to_dict()` with `resume_phase = "NIGHT"` (D-043).
-3. The hero is placed at **home (0, 8)** (D-091), and the phase becomes `NIGHT`.
+3. The hero is placed at the **night-1 start (−2.5, −7)**: north of the diner, off the north lane and outside every zone, so wave 0 (always north) walks into range with no map knowledge (D-126). The phase becomes `NIGHT`.
 
 ### 5.2 NIGHT
 
@@ -286,7 +286,7 @@ Main (Node3D)                      world/main.tscn
    stops spawning.
 2. Every pool recalls its items (enemies, steaks, projectiles, coin FX).
 3. `GameState.from_dict(_snapshot)` runs, which emits `state_restored`.
-4. The hero goes to home (0, 9.5), which is outside every station zone (D-122).
+4. The hero goes to the night-1 start (−2.5, −7) when `resume_phase == "NIGHT"` (D-126), otherwise to home (0, 9.5), which is outside every station zone (D-122).
 5. If `resume_phase == "NIGHT"`: enter `NIGHT` again (night 1 restarts directly, first spawn at
    about 5 s). If it is `"DAY"`: enter `DAY`.
 6. The lane plan is part of the snapshot, so the same night replays.
@@ -349,6 +349,7 @@ Then:
 | Freezer | 1.5×1.5 m box at (5.5, 5), zone at (5.5, 6.3) |
 | Close-up sign | (0, 8) |
 | Hero home | (0, 9.5): outside every zone; restores to DAY land here (D-122) |
+| Night-1 start | (−2.5, −7): new game and night-1 restart spawn, outside every zone and 2.5 m off the north lane (D-126) |
 | Road | East–west at z = 11. Travelers enter at (24, 11) and exit at (−24, 11). |
 
 - Station zones have a radius of 1.0 m; build-spot zones 1.2 m.
