@@ -1598,13 +1598,15 @@ func before_each() -> void:
 func test_helpers() -> void:
 	var path := [Vector2(0, 0), Vector2(0, 10), Vector2(10, 10)]
 	assert_almost_eq(Geometry.path_length(path), 20.0, 0.0001)
-	assert_eq(Geometry.point_at(path, 15.0), Vector2(5, 10))
-	assert_eq(Geometry.point_back_from_end(path, 4.0), Vector2(6, 10))
+	assert_true(Geometry.point_at(path, 15.0).is_equal_approx(Vector2(5, 10)))
+	assert_true(Geometry.point_back_from_end(path, 4.0).is_equal_approx(Vector2(6, 10)))
 	assert_almost_eq(Geometry.dist_point_segment(Vector2(5, 3), Vector2(0, 0), Vector2(10, 0)), 3.0, 0.0001)
 	assert_almost_eq(Geometry.dist_point_rect(Vector2(6, 0), Rect2(-4, -4, 8, 8)), 2.0, 0.0001)
 	assert_true(Geometry.rect_contains(Rect2(4, -1.5, 1.2, 3), Vector2(5.2, 0)))
 	var r := Geometry.enclosing_radius([Vector2(-1, 0), Vector2(1, 0), Vector2(0, 0.5)])
 	assert_almost_eq(r, 1.0, 0.0001)
+	assert_eq(Geometry.enclosing_radius([]), 0.0)
+	assert_eq(Geometry.enclosing_radius([Vector2(3, 3)]), 0.0)
 
 func _zone_points() -> Array:
 	var pts: Array = []
@@ -1704,7 +1706,7 @@ func test_E_paths_clear_towers_and_diner() -> void:
 			for offset in [-eb.lateral_spread, 0.0, eb.lateral_spread]:
 				var p := EnemyPath.position_at(lane, d, offset, eb.offset_fade_distance)
 				for spot_id in MapLayout.TOWER_SPOTS:
-					assert_true(p.distance_to(MapLayout.TOWER_SPOTS[spot_id]) >= 1.5 - 0.02, "%s near %s at %.1f" % [lane, spot_id, d])
+					assert_true(p.distance_to(MapLayout.TOWER_SPOTS[spot_id]) >= 1.5 - 1e-4, "%s near %s at %.1f" % [lane, spot_id, d])
 				assert_true(Geometry.dist_point_rect(p, diner) >= eb.reach - 0.001, "%s inside diner reach at %.1f" % [lane, d])
 			d += 0.1
 
@@ -1715,6 +1717,7 @@ func test_home_and_night1_start_are_clear() -> void:
 	for id in MapLayout.SPOT_IDS:
 		zones.append([MapLayout.spot_position(id), MapLayout.BUILD_RADIUS])
 	for p in [MapLayout.HOME, MapLayout.NIGHT1_START]:
+		assert_true(_reachable(p, _hero_colliders()), "%s not reachable" % [p])
 		for z in zones:
 			assert_gt(p.distance_to(z[0]), float(z[1]), "%s inside zone at %s" % [p, z[0]])
 		for lane in LanePlanner.LANES:
@@ -1731,6 +1734,36 @@ func test_fence_spots_match_spec() -> void:
 	assert_almost_eq(MapLayout.fence_spot("west").x, -7.07, 0.02)
 	assert_almost_eq(MapLayout.fence_spot("west").y, -3.54, 0.02)
 	assert_almost_eq(MapLayout.fence_spot("east").x, 7.07, 0.02)
+	assert_almost_eq(MapLayout.fence_spot("east").y, -3.54, 0.02)
+	# spec 6.1: telegraph markers sit 1.5 m up-path from each fence spot
+	for lane in LanePlanner.LANES:
+		assert_almost_eq(MapLayout.telegraph_spot(lane).distance_to(MapLayout.fence_spot(lane)), 1.5, 0.001, lane)
+
+## Perpendicular of the path's last segment, same convention as EnemyPath (D-111).
+func _end_perp(lane: String) -> Vector2:
+	var path: Array = MapLayout.LANE_PATHS[lane]
+	var t := (path[path.size() - 1] as Vector2 - path[path.size() - 2] as Vector2).normalized()
+	return Vector2(-t.y, t.x)
+
+func test_zone_axis_matches_end_perp() -> void:
+	for lane in LanePlanner.LANES:
+		assert_gt((MapLayout.ZONE_AXIS[lane] as Vector2).dot(_end_perp(lane)), 0.0, "%s axis opposes end perpendicular" % lane)
+
+func test_offset_blend_never_crosses_centerline() -> void:
+	# D-111: an enemy's lateral offset must stay on one side of the lane centerline while it blends onto the zone axis.
+	var eb := Balance.data.enemy
+	for lane in LanePlanner.LANES:
+		var length := MapLayout.path_length(lane)
+		var end_perp := _end_perp(lane)
+		for o in [-1.0, -0.5, 0.5, 1.0]:
+			var offset: float = o * eb.lateral_spread
+			var want := signf(offset)
+			var d := length - eb.offset_fade_distance - 1.0
+			while d <= length + 1e-6:
+				var base := EnemyPath.position_at(lane, d, 0.0, eb.offset_fade_distance)
+				var side := (EnemyPath.position_at(lane, d, offset, eb.offset_fade_distance) - base).dot(end_perp)
+				assert_gt(side * want, 1e-3, "%s offset %.2f crosses centerline at d=%.2f (side %.4f)" % [lane, offset, d, side])
+				d += 0.05
 ```
 
 - [ ] **Step 2: Run them and see them fail**
@@ -1758,6 +1791,7 @@ static func _segment_at(path: Array, dist: float) -> Array:
 	var d := clampf(dist, 0.0, path_length(path))
 	for i in range(1, path.size()):
 		var seg := (path[i] as Vector2).distance_to(path[i - 1])
+		assert(seg > 0.0, "zero-length path segment")
 		if d <= seg or i == path.size() - 1:
 			return [i, minf(d, seg)]
 		d -= seg
@@ -1802,6 +1836,8 @@ static func _contains_all(c: Vector2, radius: float, points: Array) -> bool:
 
 static func enclosing_radius(points: Array) -> float:
 	# Brute-force minimal enclosing circle: fine for a few dozen points.
+	if points.size() <= 1:
+		return 0.0
 	var best := INF
 	var n := points.size()
 	for i in n:
@@ -1856,7 +1892,8 @@ const LANE_PATHS := {
 	"east": [Vector2(16, -24), Vector2(11, -11), Vector2(5.2, 0)],
 }
 ## Width axis of each lane's attack zone (D-111).
-const ZONE_AXIS := {"north": Vector2(1, 0), "west": Vector2(0, 1), "east": Vector2(0, 1)}
+## Oriented so dot(axis, end-of-path perpendicular) > 0, keeping the blend on one side of the centerline.
+const ZONE_AXIS := {"north": Vector2(-1, 0), "west": Vector2(0, 1), "east": Vector2(0, -1)}
 ## Band between each wall and the reach line (D-101). Rect2(x, z, w, h).
 const ZONE_RECTS := {
 	"west": Rect2(-5.2, -1.5, 1.2, 3.0),
@@ -1924,9 +1961,9 @@ static func position_at(lane: String, dist: float, offset: float, fade: float) -
 	var length := Geometry.path_length(path)
 	var d := clampf(dist, 0.0, length)
 	var base := Geometry.point_at(path, d)
-	var tan := Geometry.tangent_at(path, d)
-	var perp := Vector2(-tan.y, tan.x)
-	var k := clampf((length - d) / fade, 0.0, 1.0) if fade > 0.0 else 0.0
+	var tangent := Geometry.tangent_at(path, d)
+	var perp := Vector2(-tangent.y, tangent.x)
+	var k := clampf((length - d) / fade, 0.0, 1.0) if fade > 0.0 else (1.0 if d < length else 0.0)
 	var axis: Vector2 = MapLayout.ZONE_AXIS[lane]
 	return base + perp * offset * k + axis * offset * (1.0 - k)
 ```

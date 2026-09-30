@@ -1074,3 +1074,17 @@ wording).**
   author.
 - If it is a checkpoint PR (Phases 5, 10, 14), it stops and asks. It never merges a checkpoint PR on
   the author's behalf.
+
+## 2026-09-30: Phase 2 review fixes
+
+**D-143 Zone axes point along each lane's end-of-path perpendicular (Task 6 review; refines D-111).**
+- The D-111 blend moves the lateral offset from the path perpendicular onto the zone's width axis
+  over the last `offset_fade_distance`. The plan's `ZONE_AXIS` signs were arbitrary. North's axis was
+  anti-parallel to its end perpendicular, so every north boar passed through one point halfway
+  through the blend and then swerved to the other side (east did the same, less sharply).
+- Rule: `ZONE_AXIS[lane].dot(end_perp) > 0` for every lane, fixed in the map data (the sign of an
+  axis carries no meaning for the zone rectangle). Tests guard it: the axis sign, and an offset never
+  crossing the centerline during the blend. Geometry tests D and E are unaffected, because the stop
+  points are symmetric in the offset.
+- Also from the Phase 2 reviews: `WaveSchedule` breaks float time ties main-first with a consistent
+  comparator, and the bot lane sort (plan Task 25) treats float threat ties with `is_equal_approx`.
