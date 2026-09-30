@@ -15,6 +15,9 @@ func before_each() -> void:
 	main.hero.teleport(Vector2(15, 8))  # hero out of every fight
 	roster = main.world.guard_roster
 
+func after_each() -> void:
+	get_tree().paused = false
+
 func _ticks(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
@@ -70,16 +73,27 @@ func test_tank_stops_a_west_boar_and_takes_damage() -> void:
 			break
 		if b.current_target.get("kind", &"") == &"guard":
 			engaged = true
-			if float(GameState.guards[&"tank"].hp) < GameState.guard_max_hp(&"tank"):
-				break  # engaged and has taken a hit
 	assert_true(engaged, "the boar targeted the tank")
 	assert_lt(float(GameState.guards[&"tank"].hp), GameState.guard_max_hp(&"tank"), "the tank took hits")
 	assert_lt(b.dist, b.path_length() - 1.0, "the boar never reached the diner")
-	if engaged and b.alive:
-		var held := b.dist
-		GameState.damage_guard(&"tank", 1e6)
-		await _ticks(30)
-		assert_gt(b.dist, held, "the boar walks on once the tank is down")
+
+func test_boar_walks_on_after_tank_knockout() -> void:
+	GameState.debug_grant_card(&"tank")
+	await _ticks(60 * 8)
+	var b: Boar = main.world.wave_director.debug_spawn("west")
+	var engaged := false
+	for i in 60 * 25:
+		await get_tree().physics_frame
+		if b.current_target.get("kind", &"") == &"guard":
+			engaged = true
+			if float(GameState.guards[&"tank"].hp) < GameState.guard_max_hp(&"tank"):
+				break
+	assert_true(b.alive)
+	assert_true(engaged)
+	var held := b.dist
+	GameState.damage_guard(&"tank", 1e6)
+	await _ticks(30)
+	assert_gt(b.dist, held, "the boar walks on once the tank is down")
 
 func test_knockout_respawn_at_door_then_return() -> void:
 	GameState.debug_grant_card(&"tank")
@@ -115,6 +129,7 @@ func test_hp_bar_follows_signals() -> void:
 	GameState.damage_guard(&"tank", 1e6)
 	assert_false(t._bar.visible, "a knockout hides the bar")
 	EventBus.wave_cleared.emit(2)  # dawn
+	assert_eq(t.state, Guard.State.POSTED)
 	assert_false(t._bar.visible, "full HP at dawn: no bar")
 
 func test_respawn_timer_pauses_with_the_tree() -> void:
