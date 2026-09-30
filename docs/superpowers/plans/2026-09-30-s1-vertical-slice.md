@@ -5960,7 +5960,7 @@ Do not start Task 21 until the author says continue.
   - `components/station_zone.gd`
   - `ui/progress_ring/progress_ring.gd`, `ui/progress_ring/progress_ring.gdshader`
   - `world/stations/freezer.gd`, `world/stations/counter.gd`
-- Modify: `world/world.gd`, `actors/hero/hero.gd` (`teleport_serial`)
+- Modify: `world/world.gd` (Hero.teleport_serial already exists from Task 15; read it, don't add it)
 - Test: `tests/unit/test_stations.gd`, helper `tests/unit/helpers.gd`
 
 **Interfaces:**
@@ -6336,7 +6336,7 @@ Expected: exit 0.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add components/station_zone.gd ui/progress_ring world/stations world/world.gd actors/hero/hero.gd tests/unit/helpers.gd tests/unit/test_stations.gd
+git add components/station_zone.gd ui/progress_ring world/stations world/world.gd tests/unit/helpers.gd tests/unit/test_stations.gd
 git commit -m "feat: add stand-still station zones that arm on entry, freezer and counter"
 ```
 
