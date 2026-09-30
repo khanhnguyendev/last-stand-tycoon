@@ -789,3 +789,13 @@ wording).**
   line or a mismatch.
 - The exact tag from D-116 is pinned as `GODOT_TAG` in CLAUDE.md and in `.github/workflows/ci.yml`.
   A CI step fails when the two differ, so local and CI always match.
+
+**D-128 is logged below with item 4** (the narrow PhaseController interface).
+
+**D-130 Golden RNG test (author).**
+- `test_rng.gd` commits a golden list for run seed 20260930, the 4 stream names and days 1–30. It
+  holds the 120 derived seeds (all distinct) and the first `randi()` of each stream.
+- The seeds come from an independent Python FNV-1a 32 oracle. The first values come from a
+  reference PCG32 replica of Godot's `RandomPCG` (`pcg32_srandom_r(seed, PCG_DEFAULT_INC_64)`).
+- A mismatch means the derivation or the engine RNG changed. Escalate; never regenerate the list
+  silently.
