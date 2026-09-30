@@ -201,6 +201,9 @@ func test_tank_is_behind_the_fence_stop_and_hits_fence_held_boars() -> void:
 	var t := Balance.data.guards.tank
 	var reach := Balance.data.enemy.reach
 	var stop := MapLayout.path_length("west") - MapLayout.FENCE_OFFSET_FROM_END - reach
+	var s := float(Balance.data.enemy.lateral_spread)
+	var fade := Balance.data.enemy.offset_fade_distance
+	assert_gt(Geometry.dist_point_segment(post, EnemyPath.position_at("west", stop, -s, fade), EnemyPath.position_at("west", stop, s, fade)), reach + t.body_radius)
 	for off in _offsets():
 		var q := EnemyPath.position_at("west", stop, off, Balance.data.enemy.offset_fade_distance)
 		var dd := q.distance_to(post)
@@ -236,6 +239,6 @@ func test_tank_return_path_is_clear() -> void:
 		var n := int(ceil(a.distance_to(b) / 0.05))
 		for k in n + 1:
 			var p := a.lerp(b, float(k) / float(n))
-			assert_gte(Geometry.dist_point_rect(p, box), r - 1e-4, "segment %d clears the diner" % i)
-			for t in MapLayout.TOWER_SPOTS.values():
-				assert_gte(p.distance_to(t), MapLayout.TOWER_VISUAL_RADIUS + r, "segment %d clears a tower" % i)
+			assert_gte(Geometry.dist_point_rect(p, box), r + 0.025, "segment %d clears the diner" % i)
+		for t in MapLayout.TOWER_SPOTS.values():
+			assert_gte(Geometry.dist_point_segment(t, a, b), MapLayout.TOWER_VISUAL_RADIUS + r, "segment %d clears a tower" % i)

@@ -61,6 +61,7 @@ const TANK_POST_BACK := 3.0
 static func guard_post(id: StringName) -> Vector2:
 	if id == &"archer":
 		return GUARD_POST_ARCHER
+	assert(id == &"tank", "no guard post for %s" % id)
 	return Geometry.point_back_from_end(LANE_PATHS["west"], TANK_POST_BACK)
 
 ## Door -> south-west corner (outside the diner) -> Tank post; test_geometry proves it clears the diner and towers.

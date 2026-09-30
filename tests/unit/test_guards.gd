@@ -42,6 +42,11 @@ func test_archer_is_never_targeted() -> void:
 		b.dist = b.path_length()
 		b._update_position()
 		assert_eq(roster.guard_target(b), {}, lane)
+	var probe := Node3D.new()
+	add_child_autofree(probe)
+	probe.global_position = roster.guards[&"archer"].global_position
+	assert_eq(roster.guard_target(probe), {}, "in reach but never targeted")
+	assert_false(roster.guards[&"archer"].is_targetable())
 
 func test_archer_kills_a_north_boar() -> void:
 	GameState.debug_grant_card(&"archer")
@@ -65,9 +70,16 @@ func test_tank_stops_a_west_boar_and_takes_damage() -> void:
 			break
 		if b.current_target.get("kind", &"") == &"guard":
 			engaged = true
+			if float(GameState.guards[&"tank"].hp) < GameState.guard_max_hp(&"tank"):
+				break  # engaged and has taken a hit
 	assert_true(engaged, "the boar targeted the tank")
 	assert_lt(float(GameState.guards[&"tank"].hp), GameState.guard_max_hp(&"tank"), "the tank took hits")
 	assert_lt(b.dist, b.path_length() - 1.0, "the boar never reached the diner")
+	if engaged and b.alive:
+		var held := b.dist
+		GameState.damage_guard(&"tank", 1e6)
+		await _ticks(30)
+		assert_gt(b.dist, held, "the boar walks on once the tank is down")
 
 func test_knockout_respawn_at_door_then_return() -> void:
 	GameState.debug_grant_card(&"tank")
@@ -90,6 +102,36 @@ func test_knockout_respawn_at_door_then_return() -> void:
 	assert_eq(t.state, Guard.State.POSTED)
 	assert_true(t.visual.visible)
 	assert_almost_eq(t.visual.scale.x, 1.0, 1e-3, "the respawned tank is full size")
+
+func test_hp_bar_follows_signals() -> void:
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	t.place_at_post()
+	assert_false(t._bar.visible)
+	var mx := GameState.guard_max_hp(&"tank")
+	GameState.damage_guard(&"tank", mx * 0.25)
+	assert_true(t._bar.visible)
+	assert_almost_eq(t._bar.scale.x, 0.75, 1e-3)
+	GameState.damage_guard(&"tank", 1e6)
+	assert_false(t._bar.visible, "a knockout hides the bar")
+	EventBus.wave_cleared.emit(2)  # dawn
+	assert_false(t._bar.visible, "full HP at dawn: no bar")
+
+func test_respawn_timer_pauses_with_the_tree() -> void:
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	t.place_at_post()
+	GameState.damage_guard(&"tank", 1e6)
+	var frames := int(ceil(Balance.data.guards.tank.respawn_s * 60.0))
+	get_tree().paused = true
+	for i in frames + 30:
+		await get_tree().process_frame
+	var state_paused := t.state
+	get_tree().paused = false
+	await _ticks(frames + 2)
+	var state_after := t.state
+	assert_eq(state_paused, Guard.State.DOWN, "no respawn while paused")
+	assert_eq(state_after, Guard.State.RETURNING)
 
 func test_dawn_restores_a_downed_tank() -> void:
 	GameState.debug_grant_card(&"tank")
@@ -114,6 +156,12 @@ func test_level_up_reconfigures() -> void:
 
 func test_occluder_points_include_visible_guards() -> void:
 	GameState.debug_grant_card(&"archer")
+	assert_eq(roster.occluder_points().size(), 1)
+	GameState.debug_grant_card(&"tank")
+	roster.guards[&"tank"].place_at_post()
+	assert_eq(roster.occluder_points().size(), 2)
+	GameState.damage_guard(&"tank", 1e6)
+	await _ticks(12)
 	assert_eq(roster.occluder_points().size(), 1)
 
 func test_priority_fence_then_guard_then_diner() -> void:
