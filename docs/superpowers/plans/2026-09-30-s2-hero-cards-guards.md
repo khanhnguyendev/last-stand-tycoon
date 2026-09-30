@@ -389,7 +389,7 @@ static func effect_text(id: StringName, cb: CardBalance) -> String:
 			return TranslationServer.translate("Shoots from the roof")
 	return TranslationServer.translate("Holds the west lane")
 
-## The level line on a card: NEW for an unowned card, otherwise "Lv n → n+1".
+## The level line on a card: NEW for an unowned card, otherwise "Lv n » n+1".
 static func level_text(current_level: int) -> String:
 	if current_level <= 0:
 		return TranslationServer.translate("NEW")
@@ -1409,7 +1409,7 @@ func test_layout_fits_landscape_and_two_cards() -> void:
 	assert_lte(r[2].end.y, 1280.0 - 60.0)
 ```
 
-In `tests/unit/test_glyphs.gd`, change the sample to `const SAMPLE := "Quán ăn mở cửa — Đêm thứ 3 → 4"`.
+In `tests/unit/test_glyphs.gd`, change the sample to `const SAMPLE := "Quán ăn mở cửa — Đêm thứ 3 » 4"`.
 
 - [ ] **Step 2: Run them and see them fail.** Run `./run_tests.sh unit`. Expected: FAIL; `CardPickOverlay` is not declared.
   - If `test_glyphs` fails on "→" once the rest passes, Nunito lacks U+2192. In that case, change `CardCatalog.level_text` to `"Lv %d » %d"` (Nunito has U+00BB; the shipped choice), revert the sample, update the Task 2 test pin, and report it.
@@ -1774,12 +1774,12 @@ func _apply_scene() -> void:
 
 - [ ] **Step 5: Simulator self-review (D-159).** The main session pushes the phase branch. Then:
   - `WAIT_S=25 export/device_check.sh "https://khanhnguyendev.github.io/last-stand-tycoon/preview/s2-p3-pick-ui/debug/?scene=cardpick" <scratch>/pick_ios`
-  - the same with `?cards=hero_damage:5,attack_speed:5,move_speed:5,carry_capacity:5,tank:2&scene=cardpick`. The pool is then exactly gold_per_steak, archer and tank, so the panels show both "NEW" and "Lv 2 → 3" for any seed.
+  - the same with `?cards=hero_damage:5,attack_speed:5,move_speed:5,carry_capacity:5,tank:2&scene=cardpick`. The pool is then exactly gold_per_steak, archer and tank, so the panels show both "NEW" and "Lv 2 » 3" for any seed.
   - `node export/pw_check.mjs "<same url>" <scratch>/pick_android.png android`
 
   Read each screenshot and check:
   - all panels are inside the safe area, with nothing under the notch or home indicator;
-  - the text is readable and unclipped, "→" renders, and the level lines read "NEW" / "Lv 2 → 3";
+  - the text is readable and unclipped, "»" renders, and the level lines read "NEW" / "Lv 2 » 3";
   - the strip reads "DM5  AS5  MV5  CA5  TK2" under the gold (second URL);
   - the heading doesn't collide with the top HUD.
 

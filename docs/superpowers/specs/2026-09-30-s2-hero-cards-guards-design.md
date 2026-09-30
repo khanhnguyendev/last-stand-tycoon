@@ -221,7 +221,7 @@ Pick banners (`tr()`):
   `LANE_PATHS` and pinned in a test.
 - `GUARD_POST_ARCHER`: `(2.5, -2.5)`, on the roof at height `DINER_HEIGHT`.
 - `DINER_DOOR`: `(-3.0, 4.6)`, on the south wall, west of the counter.
-- `MapLayout.tank_return_path()`: `[DINER_DOOR, (-5.0, 4.6), GUARD_POST_TANK]`. It must stay clear of the diner box and of the
+- `MapLayout.tank_return_path()`: `[DINER_DOOR, (-5.0, 4.6), MapLayout.guard_post(&"tank")]`. It must stay clear of the diner box and of the
   tower footprints; a test checks this.
 - Geometry guarantees, in `tests/unit/test_geometry.gd`:
   - The Archer's range at level 1 covers all three lane ends, plus the north and east fence stop points.
