@@ -431,7 +431,8 @@ for p in .godot/ build/ tests/sim/out/; do grep -qx "$p" .gitignore && echo "ok 
 `run_tests.sh`:
 ```bash
 #!/usr/bin/env bash
-# Usage: ./run_tests.sh [unit|sim|all]. Requires $GODOT (Godot 4.7 binary, see docs/DECISIONS.md D-116).
+# Usage: ./run_tests.sh [unit|sim|all|--quick]. Requires $GODOT (Godot 4.7 binary, see docs/DECISIONS.md D-116).
+# --quick = unit + night-1 sims, for local loops (D-132). CI always runs the full unit and sim suites.
 set -euo pipefail
 cd "$(dirname "$0")"
 : "${GODOT:?Set GODOT to the Godot 4.7 binary path}"
@@ -450,7 +451,11 @@ case "$SUITE" in
     echo "SIM SUITE: ${elapsed}s (budget 60s)"
     if [ "$elapsed" -gt 60 ]; then echo "SIM SUITE OVER BUDGET"; exit 1; fi ;;
   all) "$0" unit && "$0" sim ;;
-  *) echo "usage: $0 [unit|sim|all]"; exit 2 ;;
+  --quick)
+    run_gut res://tests/unit
+    "$GODOT" --headless --path . --fixed-fps 60 -s res://addons/gut/gut_cmdln.gd \
+      -gtest=res://tests/sim/test_night_sims.gd -gexit ;;
+  *) echo "usage: $0 [unit|sim|all|--quick]"; exit 2 ;;
 esac
 ```
 
@@ -516,7 +521,7 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 
 ## Commands
 - `export GODOT=<path from D-116>`
-- `./run_tests.sh unit` · `./run_tests.sh sim` · `./run_tests.sh all`
+- `./run_tests.sh unit` · `./run_tests.sh sim` · `./run_tests.sh all` · `./run_tests.sh --quick` (unit + night-1 sims; after Task 20)
 - Sweep: `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/sweep.gd`
 - Web export: see `export/README.md`
 
@@ -535,6 +540,10 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - v0.1 has no deadline. Scope is decided by quality and the v0.1 gate, never by the calendar. Plan estimates are information only.
 - No time-based stop rules. If a task turns out bigger than its plan describes (new files, new systems, or steps the plan didn't anticipate), stop and propose a split before continuing.
 - Escalate on facts, not time: a failed check whose pre-agreed fallback also fails (spike); must-hold balance targets that conflict, or 3 tuning rounds without progress (D-103).
+
+## Sim budget (D-132)
+- The sim suite must stay under 60 s headless (`run_tests.sh sim` fails above it).
+- If it goes over: **never drop, skip or weaken a test.** CI already runs `unit` and `sim` as parallel jobs, and `./run_tests.sh --quick` (unit + night-1 sims) is for local loops. Report per-test timings and escalate.
 
 ## Rules
 - Gameplay in `_physics_process` only; never depend on frame delta.
@@ -8546,12 +8555,13 @@ on:
   pull_request:
   push:
     branches: [main]
+env:
+  GODOT_TAG: "4.7-stable"   # EXACT tag from D-116; must equal CLAUDE.md "GODOT_TAG=" (D-129)
 jobs:
-  tests:
+  # Two parallel jobs (D-132). Their names are the required checks for branch protection (D-133).
+  unit:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      GODOT_TAG: "4.7-stable"   # EXACT tag from D-116; must equal CLAUDE.md "GODOT_TAG=" (D-129)
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Check the pinned Godot tag matches CLAUDE.md
@@ -8570,7 +8580,26 @@ jobs:
           echo "GODOT=$PWD/godot-bin" >> "$GITHUB_ENV"
       - name: Unit tests + grep ban
         run: ./run_tests.sh unit
-      - name: Sim tests (thresholds, < 60 s)
+  sim:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the pinned Godot tag matches CLAUDE.md
+        run: grep -q "GODOT_TAG=${GODOT_TAG}\*\*" CLAUDE.md || { echo "CLAUDE.md pins a different GODOT_TAG"; exit 1; }
+      - name: Download Godot headless (official, SHA-512 verified)
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/godotengine/godot-builds/releases/download/${GODOT_TAG}"
+          ZIP="Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          curl -fsSL -o SHA512-SUMS.txt "$BASE/SHA512-SUMS.txt"
+          curl -fsSL -o "$ZIP" "$BASE/$ZIP"
+          grep -E "[[:space:]]\*?${ZIP}\$" SHA512-SUMS.txt > wanted.sha512
+          sha512sum -c wanted.sha512
+          unzip -q "$ZIP"
+          mv "Godot_v${GODOT_TAG}_linux.x86_64" godot-bin && chmod +x godot-bin
+          echo "GODOT=$PWD/godot-bin" >> "$GITHUB_ENV"
+      - name: Sim tests (thresholds, < 60 s; never drop tests, D-132)
         run: ./run_tests.sh sim
 ```
 
@@ -8584,16 +8613,17 @@ Expected: `yaml ok`. If PyYAML is missing, run `pip3 install --user pyyaml` firs
 
 ```markdown
 ## CI
-`.github/workflows/ci.yml` runs `./run_tests.sh unit` and `./run_tests.sh sim` on Linux (Godot from D-116) for
-every PR and push to main. CI is canonical for sim thresholds (D-105). Branch protection "require ci/tests"
-is set by the author in GitHub settings. The sweep is manual.
+`.github/workflows/ci.yml` runs two parallel jobs, `unit` (`./run_tests.sh unit`) and `sim` (`./run_tests.sh sim`),
+on Linux with the pinned, SHA-512-verified Godot (D-116, D-129), for every PR and push to main. CI is canonical
+for sim thresholds (D-105). If the sim suite goes over 60 s: never drop tests; report timings and escalate
+(D-132). The sweep is manual.
 ```
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add .github/workflows/ci.yml CLAUDE.md
-git commit -m "ci: run unit and sim suites on every PR"
+git commit -m "ci: run unit and sim suites as parallel jobs on every PR"
 ```
 
 - [ ] **Step 5: HUMAN step, and the verification.** The repo has no git remote yet. Ask the author to create the GitHub repo and push, for example `gh repo create <name> --private --source . --push`. Then:

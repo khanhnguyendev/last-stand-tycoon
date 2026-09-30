@@ -831,3 +831,12 @@ wording).**
     consecutive tuning rounds make no progress on any target. Never change the design.
   - **Task size:** if a task turns out bigger than its plan describes (new files, new systems, or
     steps the plan didn't anticipate), stop and propose a split before continuing.
+
+**D-132 Sim budget handling (author).**
+- The sim suite stays under 60 s headless. When it goes over, tests are never dropped, skipped or
+  weakened.
+- `./run_tests.sh --quick` (unit plus the night-1 sims) is for local loops, from Task 20 on.
+- CI runs `unit` and `sim` as parallel jobs from the start (Task 34), so the first mitigation is
+  already in place.
+- If the budget is still exceeded: report per-test timings and escalate.
+- The rule is written in the plan (Tasks 1 and 34) and in CLAUDE.md.
