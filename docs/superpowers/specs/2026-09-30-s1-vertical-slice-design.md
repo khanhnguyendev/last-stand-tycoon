@@ -286,7 +286,7 @@ Main (Node3D)                      world/main.tscn
    stops spawning.
 2. Every pool recalls its items (enemies, steaks, projectiles, coin FX).
 3. `GameState.from_dict(_snapshot)` runs, which emits `state_restored`.
-4. The hero goes to home (0, 8).
+4. The hero goes to home (0, 9.5), which is outside every station zone (D-122).
 5. If `resume_phase == "NIGHT"`: enter `NIGHT` again (night 1 restarts directly, first spawn at
    about 5 s). If it is `"DAY"`: enter `DAY`.
 6. The lane plan is part of the snapshot, so the same night replays.
@@ -308,7 +308,7 @@ Main (Node3D)                      world/main.tscn
 
 ### 5.6 Close-up (D-039, D-036)
 
-The hero stands still in the sign zone (0.25 s), then the ring fills over `closeup_hold` = 1.0 s.
+The hero walks into the sign zone (arming it, D-121) and stands still (0.25 s), then the ring fills over `closeup_hold` = 1.0 s.
 Then:
 1. `GameState.collect_pile()` moves `gold_pile` into `gold`, and any ground steaks go to the
    freezer.
@@ -347,7 +347,8 @@ Then:
 | Queue slots | (0, 6.0), (−1.2, 7.0), (−2.4, 8.0), (−3.6, 9.0) |
 | Gold pile | (−2.5, 5.5) |
 | Freezer | 1.5×1.5 m box at (5.5, 5), zone at (5.5, 6.3) |
-| Close-up sign / hero home | (0, 8) |
+| Close-up sign | (0, 8) |
+| Hero home | (0, 9.5): outside every zone; restores to DAY land here (D-122) |
 | Road | East–west at z = 11. Travelers enter at (24, 11) and exit at (−24, 11). |
 
 - Station zones have a radius of 1.0 m; build-spot zones 1.2 m.
@@ -539,7 +540,8 @@ The hero is never a target in S1 (D-005).
 
 ### 8.1 Stand-still (D-006, D-070)
 
-- Standing still means hero speed < 0.1 m/s for 0.25 s inside a `StationZone`.
+- Standing still means hero speed < `stand_still_speed` (0.1 m/s) for `stand_still_time` (0.25 s) inside a `StationZone`.
+- **Arming (D-121):** a zone works only after the hero **walks into** its radius while the zone is active. A hero who is already inside when the zone activates (a phase change), or who is teleported in (a restore or new game), must leave and re-enter first. The zone disarms on `phase_changed`, on `state_restored` and on any hero teleport.
 - While the hero stands, the zone fires `tick` every `transfer_tick` = 0.08 s.
 - **State changes on the tick. Tweens are visual only** (D-096).
 - A shared progress-ring shader quad shows the progress (D-073).
@@ -918,19 +920,19 @@ GUT runs headless with `--fixed-fps 60` (D-013, D-035, D-080).
 
 All bots drive the hero only through `HeroInput`, and move between points on a fixed waypoint graph:
 - corners (±6, −6) and (±6.8, 6.8);
-- home (0, 8);
+- home (0, 9.5) and the sign (0, 8);
 - the freezer zone, the counter drop zone and the gold pile;
 - the three zone centers;
 - the five build spots.
 
 Paths use shortest distance on this graph, with no navmesh.
 
-- **ParkedBot:** stays at home (0, 8) and never moves.
+- **ParkedBot:** walks to home (0, 9.5) and stays there.
 - **NaiveBot (night):**
   - Goes to the current wave's main-lane zone center and stays while enemies are in range.
   - Then goes to the zone of the lane with the most live enemies (ties go to the lower lane index:
     west, north, east).
-  - Re-decides every 1.0 s. It builds nothing, and by day it goes home and closes up.
+  - Re-decides every 1.0 s. It builds nothing, and by day it walks to the sign and closes up.
 - **PlannerBot:** NaiveBot at night. By day:
   1. Haul and sell until freezer, carry and counter are all 0.
   2. Collect the pile.

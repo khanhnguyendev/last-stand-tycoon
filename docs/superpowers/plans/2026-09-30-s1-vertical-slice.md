@@ -1228,7 +1228,7 @@ git commit -m "feat: add seeded lane planner and lane threat"
 **Interfaces:**
 - Produces, all XZ as `Vector2(x, z)`:
   - **`MapLayout` constants:**
-    - `DINER_HALF=4.0`, `DINER_HEIGHT=3.0`, `BOUNDS_MIN`, `BOUNDS_MAX`, `HOME`
+    - `DINER_HALF=4.0`, `DINER_HEIGHT=3.0`, `BOUNDS_MIN`, `BOUNDS_MAX`, `HOME=(0, 9.5)` (outside every zone, D-122)
     - `LANE_PATHS: Dictionary[String → Array[Vector2]]`, `ZONE_AXIS`, `ZONE_RECTS: Dictionary[String → Rect2]`
     - `SPOT_IDS`, `TOWER_SPOTS`, `TOWER_LANES`, `FENCE_LANE`, `LANE_FENCE`, `FENCE_OFFSET_FROM_END=4.0`, `TELEGRAPH_OFFSET_FROM_END=5.5`
     - `COUNTER`, `COUNTER_SIZE`, `COUNTER_DROP`, `SERVICE_POINT`, `QUEUE_SLOTS`, `GOLD_PILE`
@@ -1438,7 +1438,7 @@ const DINER_HALF := 4.0
 const DINER_HEIGHT := 3.0
 const BOUNDS_MIN := Vector2(-24, -24)
 const BOUNDS_MAX := Vector2(24, 14)
-const HOME := Vector2(0, 8)
+const HOME := Vector2(0, 9.5)  ## outside every zone (D-122); the sign is SIGN
 const HERO_RADIUS := 0.4
 const TOWER_BODY_RADIUS := 0.5
 
@@ -1763,7 +1763,7 @@ git commit -m "feat: add targeting, economy costs and close-up pulse predicate"
   - `shortest(from: String, to: String) -> Array` (node names, inclusive)
   - `route_from(p: Vector2, goal: String) -> Array` (Vector2 points to walk)
   - `position_of(name: String) -> Vector2`
-- **Node names:** `home`, `gold_pile`, `front_e`, `counter_drop`, `freezer`, `sw`, `se`, `nw`, `ne`, `zone_west`, `zone_north`, `zone_east`, `fence_w`, `fence_n`, `fence_e`, `tower_nw`, `tower_ne`.
+- **Node names:** `home`, `sign`, `gold_pile`, `front_e`, `counter_drop`, `freezer`, `sw`, `se`, `nw`, `ne`, `zone_west`, `zone_north`, `zone_east`, `fence_w`, `fence_n`, `fence_e`, `tower_nw`, `tower_ne`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1891,6 +1891,7 @@ func route_from(p: Vector2, goal: String) -> Array:
 static func create_default() -> WaypointGraph:
 	var g := WaypointGraph.new()
 	g.add_node("home", MapLayout.HOME)
+	g.add_node("sign", MapLayout.SIGN)
 	g.add_node("gold_pile", MapLayout.GOLD_PILE)
 	g.add_node("front_e", Vector2(3.0, 6.5))
 	g.add_node("counter_drop", MapLayout.COUNTER_DROP)
@@ -1907,7 +1908,7 @@ static func create_default() -> WaypointGraph:
 	g.add_node("tower_nw", MapLayout.TOWER_SPOTS.tower_nw + Vector2(-0.75, -0.75))
 	g.add_node("tower_ne", MapLayout.TOWER_SPOTS.tower_ne + Vector2(0.75, -0.75))
 	for e in [
-		["home", "sw"], ["home", "se"], ["home", "front_e"], ["home", "gold_pile"], ["sw", "gold_pile"],
+		["home", "sign"], ["home", "sw"], ["home", "se"], ["home", "front_e"], ["home", "gold_pile"], ["sw", "gold_pile"],
 		["front_e", "freezer"], ["front_e", "counter_drop"], ["se", "freezer"],
 		["sw", "nw"], ["se", "ne"], ["sw", "zone_west"], ["se", "zone_east"],
 		["nw", "zone_west"], ["nw", "zone_north"], ["nw", "fence_w"], ["nw", "fence_n"], ["nw", "tower_nw"],
@@ -3655,7 +3656,7 @@ git commit -m "feat: add WaveDirector with schedule, clear rule, breather and dr
 **Interfaces:**
 - Produces:
   - **`Hero`** (CharacterBody3D, group `&"hero"`):
-    - `input: HeroInput`, `magnet: Magnet`, `carry_stack: CarryStack`, `still_time: float`
+    - `input: HeroInput`, `magnet: Magnet`, `carry_stack: CarryStack`, `still_time: float`, `teleport_serial: int`
     - `setup(world: World)`
     - `is_moving() -> bool`, `xz() -> Vector2`, `teleport(p: Vector2)`
   - **`HeroInput`:**
@@ -3842,6 +3843,8 @@ var input: HeroInput
 var magnet: Magnet
 var carry_stack: CarryStack
 var still_time := 0.0
+## Incremented by teleport(); StationZone disarms when it changes (D-121).
+var teleport_serial := 0
 
 func _init() -> void:
 	name = "Hero"
@@ -3895,6 +3898,7 @@ func teleport(p: Vector2) -> void:
 	global_position = MapLayout.to3(p)
 	velocity = Vector3.ZERO
 	still_time = 0.0
+	teleport_serial += 1
 	input.set_move(Vector2.ZERO)
 ```
 
@@ -4743,7 +4747,7 @@ git commit -m "feat: add tower and fence build spots with level-driven stats and
     - `setup(m: Main)`, `go_to(node_name: String)`, `arrived() -> bool`, `reset_route()`
     - virtual `think(delta: float)`, virtual `day_think(delta: float)`
   - **`ParkedBot`** always stays at `home`.
-  - **`NaiveBot`** follows the spec 13.3 rules. Its day behavior is going home, where standing at the sign closes up once Task 24 exists.
+  - **`NaiveBot`** follows the spec 13.3 rules. Its day behavior is walking to the `sign` node, where standing closes up once Task 24 exists.
   - **`SimHarness`** (RefCounted):
     - `SimHarness.new(parent: Node)`
     - `start(seed: int, bot_script: GDScript)`, `finish()`
@@ -4842,7 +4846,7 @@ func think(_delta: float) -> void:
 	pass
 
 func day_think(_delta: float) -> void:
-	go_to("home")
+	go_to("sign")  # walking in arms the sign (D-121); standing there closes up
 
 func _steer() -> void:
 	var step := Balance.data.hero.move_speed / float(Engine.physics_ticks_per_second)
@@ -5195,21 +5199,43 @@ Do not start Task 21 until the author says continue.
   - `components/station_zone.gd`
   - `ui/progress_ring/progress_ring.gd`, `ui/progress_ring/progress_ring.gdshader`
   - `world/stations/freezer.gd`, `world/stations/counter.gd`
-- Modify: `world/world.gd`
-- Test: `tests/unit/test_stations.gd`
+- Modify: `world/world.gd`, `actors/hero/hero.gd` (`teleport_serial`)
+- Test: `tests/unit/test_stations.gd`, helper `tests/unit/helpers.gd`
 
 **Interfaces:**
-- Consumes: the `Hero` in group `&"hero"` (`still_time`, `global_position`), `phase_changed`, `GameState.move_freezer_to_carry/move_carry_to_counter`.
+- Consumes: the `Hero` in group `&"hero"` (`still_time`, `global_position`, `teleport_serial`), `phase_changed`, `GameState.move_freezer_to_carry/move_carry_to_counter`.
 - Produces:
   - **`StationZone`** (Node3D):
-    - `radius: float`, `active_phases: Array[int]` (default `[Phase.DAY]`), `standing: bool`, `ring: ProgressRing`
+    - `radius: float`, `active_phases: Array[int]` (default `[Phase.DAY]`), `standing: bool`, `armed: bool`, `ring: ProgressRing`
+    - `disarm()`, called on `phase_changed`, `state_restored` and hero teleport (D-121)
     - signals `stand_started`, `ticked`, `stand_ended`
     - `is_active() -> bool`
   - **`ProgressRing`** (MeshInstance3D): `set_progress(p: float)`.
+  - **`TestHelpers.walk_in(hero: Hero, target: Vector2, from_offset := Vector2(0, 2)) -> void`** (async): teleports just outside, then walks in the way a player does. Every test that uses a station walks in with it; a teleport into a zone never arms it.
   - **`Freezer`** and **`Counter`** (Node3D): `setup(world: World)`, `zone: StationZone`, `label: WorldLabel`, `stack_count() -> int`.
   - **`World`:** `freezer: Freezer`, `counter: Counter`, `add_static_box(...)` (public, from Task 12).
 
 - [ ] **Step 1: Write the failing tests**
+
+`tests/unit/helpers.gd` (no `test_` prefix, so GUT doesn't collect it):
+```gdscript
+class_name TestHelpers
+extends RefCounted
+## Walks the hero into a point from just outside, the way a player enters a station (D-121).
+
+static func walk_in(hero: Hero, target: Vector2, from_offset := Vector2(0, 2.0)) -> void:
+	hero.teleport(target + from_offset)
+	var tree := hero.get_tree()
+	await tree.physics_frame
+	var step := Balance.data.hero.move_speed / float(Engine.physics_ticks_per_second)
+	for i in 600:
+		var d := target - hero.xz()
+		if d.length() < 0.02:
+			break
+		hero.input.set_move((d / step).limit_length(1.0))
+		await tree.physics_frame
+	hero.input.set_move(Vector2.ZERO)
+```
 
 `tests/unit/test_stations.gd`:
 ```gdscript
@@ -5235,40 +5261,61 @@ func _day() -> void:
 func test_freezer_fills_carry_to_capacity() -> void:
 	_day()
 	GameState.add_freezer(10)
-	main.hero.teleport(MapLayout.FREEZER_ZONE)
+	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
 	await _ticks(30)
 	assert_between(GameState.carried_steaks, 2, 4)
 	await _ticks(30)
-	assert_eq(GameState.carried_steaks, 6)
-	assert_eq(GameState.freezer_steaks, 4)
+	assert_eq(GameState.carried_steaks, Balance.data.hero.carry_capacity)
+	assert_eq(GameState.freezer_steaks, 10 - Balance.data.hero.carry_capacity)
 
 func test_freezer_inactive_at_night() -> void:
 	GameState.add_freezer(10)
-	main.hero.teleport(MapLayout.FREEZER_ZONE)
+	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
 	await _ticks(60)
 	assert_eq(GameState.carried_steaks, 0)
+
+func test_teleport_into_zone_does_not_arm() -> void:
+	# D-121
+	_day()
+	GameState.add_freezer(10)
+	main.hero.teleport(MapLayout.FREEZER_ZONE)
+	await _ticks(60)
+	assert_false(main.world.freezer.zone.armed)
+	assert_eq(GameState.carried_steaks, 0)
+
+func test_inside_when_zone_activates_needs_reentry() -> void:
+	# D-121: hero inside at NIGHT, zone activates at dawn -> nothing until it leaves and re-enters.
+	GameState.add_freezer(10)
+	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
+	_day()
+	await _ticks(60)
+	assert_eq(GameState.carried_steaks, 0)
+	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
+	await _ticks(60)
+	assert_gt(GameState.carried_steaks, 0)
 
 func test_moving_hero_does_not_transfer() -> void:
 	_day()
 	GameState.add_freezer(10)
-	main.hero.teleport(MapLayout.FREEZER_ZONE + Vector2(-0.8, 0))
+	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE + Vector2(-0.8, 0))
 	main.hero.input.set_move(Vector2(1, 0) * 0.1)  # 0.5 m/s drift inside the zone
 	await _ticks(20)
 	assert_eq(GameState.carried_steaks, 0)
 
 func test_counter_fills_up_to_capacity() -> void:
 	_day()
+	var cap := Balance.data.economy.counter_capacity
 	GameState.carried_steaks = 3  # test-only setup
-	GameState.counter_steaks = 11
-	main.hero.teleport(MapLayout.COUNTER_DROP)
+	GameState.counter_steaks = cap - 1
+	await TestHelpers.walk_in(main.hero, MapLayout.COUNTER_DROP)
 	await _ticks(60)
-	assert_eq(GameState.counter_steaks, 12)
+	assert_eq(GameState.counter_steaks, cap)
 	assert_eq(GameState.carried_steaks, 2)
 
 func test_leaving_ends_stand() -> void:
 	_day()
 	var z: StationZone = main.world.freezer.zone
-	main.hero.teleport(MapLayout.FREEZER_ZONE)
+	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
 	await _ticks(20)
 	assert_true(z.standing)
 	main.hero.teleport(Vector2(15, 8))
@@ -5347,9 +5394,13 @@ signal stand_ended
 var radius := 1.0
 var active_phases: Array[int] = [Phase.DAY]
 var standing := false
+## Armed only when the hero walks INTO the radius while the zone is active (D-121).
+var armed := false
 var ring: ProgressRing
 var _phase := Phase.NIGHT
 var _tick_timer := 0.0
+var _seen_outside := false
+var _seen_teleport := -1
 
 func _ready() -> void:
 	ring = ProgressRing.new()
@@ -5357,21 +5408,38 @@ func _ready() -> void:
 	ring.visible = false
 	add_child(ring)
 	EventBus.phase_changed.connect(_on_phase_changed)
+	EventBus.state_restored.connect(disarm)
 
 func is_active() -> bool:
 	return _phase in active_phases
 
+## A hero already inside must leave and re-enter before the zone works again.
+func disarm() -> void:
+	armed = false
+	_seen_outside = false
+	if standing:
+		_end()
+
 func _on_phase_changed(p: int, _day: int) -> void:
 	_phase = p
-	if not is_active() and standing:
-		_end()
+	disarm()
 
 func _physics_process(delta: float) -> void:
 	var hero := get_tree().get_first_node_in_group(&"hero") as Hero
-	var ok := false
-	if hero != null and is_active():
-		var d := Vector2(hero.global_position.x - global_position.x, hero.global_position.z - global_position.z).length()
-		ok = d <= radius and hero.still_time >= Balance.data.economy.stand_still_time - 1e-6
+	if hero == null:
+		return
+	if hero.teleport_serial != _seen_teleport:
+		_seen_teleport = hero.teleport_serial
+		disarm()
+	var d := Vector2(hero.global_position.x - global_position.x, hero.global_position.z - global_position.z).length()
+	var inside := d <= radius
+	if is_active():
+		if not inside:
+			_seen_outside = true
+			armed = false
+		elif _seen_outside:
+			armed = true
+	var ok := is_active() and inside and armed and hero.still_time >= Balance.data.economy.stand_still_time - 1e-6
 	if ok:
 		if not standing:
 			standing = true
@@ -5508,8 +5576,8 @@ Expected: exit 0.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add components/station_zone.gd ui/progress_ring world/stations world/world.gd tests/unit/test_stations.gd
-git commit -m "feat: add stand-still station zones, freezer and counter"
+git add components/station_zone.gd ui/progress_ring world/stations world/world.gd actors/hero/hero.gd tests/unit/helpers.gd tests/unit/test_stations.gd
+git commit -m "feat: add stand-still station zones that arm on entry, freezer and counter"
 ```
 
 ### Task 22: `Traveler`, `TravelerSpawner`, `GoldPile`, and the phase hooks
@@ -5551,7 +5619,7 @@ func before_each() -> void:
 	add_child_autofree(main)
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(21)
-	main.hero.teleport(Vector2(15, 8))  # off the close-up sign (Task 24) so the day never ends
+	main.hero.teleport(Vector2(15, 8))  # well away from every station zone
 	sp = main.world.traveler_spawner
 
 func _ticks(n: int) -> void:
@@ -5840,11 +5908,11 @@ func _ticks(n: int) -> void:
 		await get_tree().physics_frame
 
 func _stand(spot_id: String) -> void:
-	main.hero.teleport(WaypointGraph.create_default().position_of(spot_id))
+	await TestHelpers.walk_in(main.hero, WaypointGraph.create_default().position_of(spot_id))
 
 func test_fence_builds_in_about_1_6s_and_keeps_paying() -> void:
 	GameState.add_gold(25)
-	_stand("fence_n")
+	await _stand("fence_n")
 	await _ticks(15 + 100)  # 0.25 s still + ~1.67 s of ticks
 	assert_eq(GameState.buildings.fence_n.level, 1)
 	await _ticks(30)
@@ -5853,7 +5921,7 @@ func test_fence_builds_in_about_1_6s_and_keeps_paying() -> void:
 
 func test_partial_payment_persists_after_leaving() -> void:
 	GameState.add_gold(10)
-	_stand("tower_nw")
+	await _stand("tower_nw")
 	await _ticks(60)
 	assert_eq(GameState.gold, 0)
 	assert_eq(GameState.buildings.tower_nw.paid, 10)
@@ -5865,7 +5933,7 @@ func test_partial_payment_persists_after_leaving() -> void:
 func test_pays_only_what_gold_allows() -> void:
 	# Review Focus 5: gold below the drain never goes negative.
 	GameState.add_gold(1)
-	_stand("tower_ne")  # drain 2 per tick
+	await _stand("tower_ne")  # drain 2 per tick
 	await _ticks(40)
 	assert_eq(GameState.gold, 0)
 	assert_eq(GameState.buildings.tower_ne.paid, 1)
@@ -5877,14 +5945,26 @@ func test_max_level_spot_takes_nothing() -> void:
 	GameState.pay_into_spot("fence_w", 40)
 	GameState.pay_into_spot("fence_w", 80)
 	assert_eq(main.world.build_spots.fence_w.label.text, "MAX")
-	_stand("fence_w")
+	await _stand("fence_w")
 	await _ticks(60)
 	assert_eq(GameState.gold, 50)
+
+func test_dawn_inside_zone_needs_reentry() -> void:
+	# D-121: hero inside a build-spot zone when dawn activates it -> no payment until exit and re-entry.
+	main.phase_controller.close_up()  # back to NIGHT
+	GameState.add_gold(40)
+	await _stand("fence_e")
+	main.phase_controller.debug_skip_to_day()
+	await _ticks(60)
+	assert_eq(GameState.gold, 40)
+	await _stand("fence_e")
+	await _ticks(60)
+	assert_lt(GameState.gold, 40)
 
 func test_no_payment_at_night() -> void:
 	main.phase_controller.close_up()
 	GameState.add_gold(40)
-	_stand("fence_e")
+	await _stand("fence_e")
 	await _ticks(60)
 	assert_eq(GameState.gold, 40)
 ```
@@ -5971,7 +6051,7 @@ func _ticks(n: int) -> void:
 
 func test_standing_on_sign_starts_night_after_hold() -> void:
 	main.phase_controller.debug_skip_to_day()
-	main.hero.teleport(MapLayout.HOME)
+	await TestHelpers.walk_in(main.hero, MapLayout.SIGN)
 	await _ticks(15 + 55)  # still time + < 1 s of hold
 	assert_eq(main.phase_controller.phase, Phase.DAY)
 	await _ticks(15)
@@ -5980,13 +6060,26 @@ func test_standing_on_sign_starts_night_after_hold() -> void:
 
 func test_hold_resets_when_leaving() -> void:
 	main.phase_controller.debug_skip_to_day()
-	main.hero.teleport(MapLayout.HOME)
+	await TestHelpers.walk_in(main.hero, MapLayout.SIGN)
 	await _ticks(50)
 	main.hero.teleport(Vector2(10, 8))
 	await _ticks(5)
-	main.hero.teleport(MapLayout.HOME)
+	await TestHelpers.walk_in(main.hero, MapLayout.SIGN)
 	await _ticks(50)
 	assert_eq(main.phase_controller.phase, Phase.DAY)
+
+func test_restore_to_day_does_not_close_up() -> void:
+	# D-121, D-122: the hero lands at HOME after a fail; with no input the day must not end.
+	main.phase_controller.debug_skip_to_day()
+	GameState.add_gold(7)
+	main.phase_controller.close_up()
+	GameState.damage_diner(1e9)
+	await _ticks(int(Balance.ui.banner_time * 60) + 5)
+	assert_eq(main.phase_controller.phase, Phase.DAY)
+	assert_eq(main.hero.xz(), MapLayout.HOME)
+	await _ticks(60 * 5)
+	assert_eq(main.phase_controller.phase, Phase.DAY)
+	assert_eq(GameState.gold, 7)
 
 func test_pulse_follows_predicate() -> void:
 	main.phase_controller.debug_skip_to_day()
@@ -6252,7 +6345,7 @@ func day_think(_delta: float) -> void:
 		go_to("counter_drop")  # wait for travelers
 	else:
 		var spot := next_purchase()
-		go_to(spot if spot != "" else "home")
+		go_to(spot if spot != "" else "sign")
 
 func next_purchase() -> String:
 	var threat := LanePlanner.threat_by_lane(GameState.lane_plan, Balance.data.enemy.hp)
@@ -6495,7 +6588,7 @@ func test_restore_rebuilds_world_from_snapshot() -> void:
 		main.world.steak_pool.acquire().place(Vector3(15, 0, 0))
 	main.world.wave_director.debug_spawn("west")
 	main.world.projectile_pool.acquire()
-	main.hero.teleport(Vector2(15, 8))  # off the sign so the day does not close up while we wait
+	main.hero.teleport(Vector2(15, 8))  # away from every station zone while we wait
 	await _ticks(60 * 12)  # travelers arrive; one is mid-service
 	# restore
 	pc.snapshot = snap
@@ -7279,7 +7372,7 @@ func test_fly_is_visual_only_and_releases() -> void:
 func test_freezer_transfer_spawns_fly() -> void:
 	main.phase_controller.debug_skip_to_day()
 	GameState.add_freezer(3)
-	main.hero.teleport(MapLayout.FREEZER_ZONE)
+	await TestHelpers.walk_in(main.hero, MapLayout.FREEZER_ZONE)
 	for i in 25:
 		await get_tree().physics_frame
 	assert_gt(GameState.carried_steaks, 0, "FX hooks never break the transfer")

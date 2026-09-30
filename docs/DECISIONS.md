@@ -542,7 +542,7 @@ This is what S4 and S6 measure against.
 - Why: Godot's default `KEEP_HEIGHT` with FOV 50 in portrait shows only about 9.4 m of width, not the
   14 m that D-071 and D-076 assumed.
 
-**D-091 The hero's home is (0, 8), at the sign (amends D-057).**
+**D-091 [AMENDED by D-122, D-126] The hero's home is (0, 8), at the sign (amends D-057).**
 - New game, every restore and ParkedBot all place the hero at home.
 - The diner footprint is solid, so ParkedBot parks at home rather than at the diner center. That is
   8.3 m from the nearest zone point, more than the 4 m range, so the negative control still holds.
@@ -692,3 +692,27 @@ scripts. Tuning edits the script defaults, which keeps the diffs readable.
 
 **D-115 Debug hotkeys.** G: +100 gold. J: skip to DAY. N: skip to NIGHT. K: kill all. F: force the
 diner to fall. Debug builds only.
+
+## 2026-09-30: PR #1 review fixes
+
+(D-116 to D-120 stay reserved for the Task 0 spike results; see the plan's Task 0.)
+
+**D-121 Station zones arm on entry (author).**
+- A `StationZone` works only after the hero walks into its radius while the zone is active.
+- A hero who is already inside when the zone activates (a phase change), or who is teleported in
+  (a restore or new game), must leave and re-enter first.
+- The zone disarms on `phase_changed`, on `state_restored` and on any hero teleport
+  (`Hero.teleport_serial`).
+- Why: before this, a restore to DAY put the hero on the sign and started the night after about
+  1.25 s with no intent, and a hero standing on a build spot at dawn drained gold without asking.
+- Tests:
+  - a restore to DAY followed by 5 s of no input stays in DAY with gold unchanged;
+  - at dawn inside a build-spot zone, nothing is paid until the hero exits and re-enters;
+  - a teleport into a zone does not arm it;
+  - a normal walk-in works.
+
+**D-122 HOME moves off the sign to (0, 9.5) (author; amends D-091).**
+- (0, 9.5) is outside every zone: 1.5 m from the sign (radius 1.0) and 4.7 m from the gold pile
+  (magnet radius 1.5).
+- The sign stays at (0, 8). The waypoint graph gets a `sign` node (edge home–sign). Bots close up by
+  walking to `sign`, and ParkedBot stays at `home`.
