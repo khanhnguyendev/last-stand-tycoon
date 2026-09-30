@@ -40,3 +40,9 @@ extends Resource
 @export var banner_panel_alpha := 0.55
 ## Gap between the top HUD block and an edge arrow (CP1 review).
 @export var arrow_hud_gap := 8.0
+## S2 card pick overlay (D-162): early taps are ignored for card_input_guard_s; panel size, gap, and the
+## smallest height panels may shrink to on short (landscape) windows.
+@export var card_input_guard_s := 0.5
+@export var card_panel_size := Vector2(560, 220)
+@export var card_panel_gap := 24.0
+@export var card_panel_min_h := 120.0
