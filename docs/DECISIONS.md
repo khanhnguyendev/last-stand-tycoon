@@ -1744,3 +1744,8 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
      materials allow (Tasks 11–13).
 - **Hero:** the hero bakes entirely onto the apron atlas, so its sleeves turn white (a full chef coat;
   REVIEW_QUEUE).
+- **P2 checkpoint after the bake** (iOS Simulator, profile build, 3 runs):
+  - Night 3: 58.1 / 58.3 / 58.2, median 58.2 (gate ≥ 58 passes); 35 draw calls, the same as the placeholder
+    baseline.
+  - Day 3: 48.6 fps, 60 draw calls (pre-cast 52 / 59).
+  - Headroom is thin, so P3–P4 must keep draw calls flat or lower.
