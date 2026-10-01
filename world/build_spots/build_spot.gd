@@ -7,10 +7,16 @@ var level := 0
 var label: WorldLabel
 var zone: StationZone
 var visual: Node3D
+## The "build here" ring (S4 Task 12): a sibling of `visual`, shown only while the spot is unbuilt in DAY.
+var marker: Node3D
 var _world: World
 var _pips: Array = []
 var _fx: FlyFx
 var _pop: Tween
+## "level/rubble" of the model shown now. The model is swapped only when this changes (no per-event instancing).
+var _model_key := ""
+
+const MARKER_SCENE := preload("res://art/env/spot_marker.tscn")
 
 func setup(id: String, world: World) -> void:
 	spot_id = id
@@ -22,12 +28,18 @@ func setup(id: String, world: World) -> void:
 	add_child(visual)
 	_build_visual()
 	label = WorldLabel.make("", 40)
-	label.position = Vector3(0, 2.6, 0)
+	label.position = Vector3(0, _label_y(0), 0)
 	add_child(label)
+	marker = MARKER_SCENE.instantiate()
+	add_child(marker)
 	var max_level: int = Balance.data.build.max_level
 	for i in max_level:
-		var pip := Visuals.box(Vector3(0.18, 0.18, 0.18), Visuals.COLORS.pip)
-		pip.position = Vector3((i - (max_level - 1) * 0.5) * 0.3, 2.1, 0)
+		var pip := MeshInstance3D.new()
+		pip.name = "Pip%d" % i
+		pip.mesh = LevelStar.mesh()
+		pip.material_override = LevelStar.material()
+		pip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		pip.position = Vector3((i - (max_level - 1) * 0.5) * 0.3, _pip_y(1), 0)
 		add_child(pip)
 		_pips.append(pip)
 	# Stand-still payment (spec 8.x). The spot drives its own ring: paid / cost, not the stand charge.
@@ -82,11 +94,14 @@ func refresh() -> void:
 	visual.scale = Vector3.ONE * pow(Balance.ui.build_level_scale, maxi(level - 1, 0))
 	for i in _pips.size():
 		_pips[i].visible = i < level
+		_pips[i].position.y = _pip_y(level)
+	marker.visible = level == 0 and zone != null and zone.is_active()  # DAY only (the zone's phase is already current)
 	if GameState.buildings.has(spot_id):
 		var remaining := GameState.remaining_cost(spot_id)
 		label.text = tr("MAX") if remaining < 0 else str(remaining)
 	else:
 		label.text = ""
+	label.position.y = _label_y(level)
 	label.visible = zone == null or zone.is_active()  # cost text is a DAY thing; night is clutter
 	_apply_level(level, b)
 	if zone != null:
@@ -102,3 +117,26 @@ func _build_visual() -> void:
 ## Subclasses react to level/hp.
 func _apply_level(_level: int, _b: Dictionary) -> void:
 	pass
+
+func is_rubble() -> bool:
+	return false
+
+## The level pips float 0.3 m above the model of the level shown (Pillar 1: growth reads).
+func _pip_y(_level: int) -> float:
+	return 2.1
+
+## The cost label rides above the pips of a built tower; otherwise it keeps its S1 height.
+func _label_y(_level: int) -> float:
+	return 2.6
+
+## Swaps the model under `visual` for `scene` (null = nothing) when the "level/rubble" key changes; never otherwise.
+func _show_model(p_level: int, scene: PackedScene) -> void:
+	var key := "%d/%s" % [p_level, is_rubble()]
+	if key == _model_key:
+		return
+	_model_key = key
+	for c in visual.get_children():
+		visual.remove_child(c)
+		c.free()  # a static model: nothing else holds it
+	if scene != null:
+		visual.add_child(scene.instantiate())

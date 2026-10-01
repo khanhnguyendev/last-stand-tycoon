@@ -207,6 +207,13 @@ func _assert_hud_camera_fx(snap: Dictionary, day: bool, hero_pos: Vector2) -> vo
 	for b in _boars:
 		assert_false(b.flash_active(), "recalled boar does not flash")
 
+## D-197: the level scale is 1.0, so a surviving pop tween no longer shows as a wrong scale. Assert it is dead, right
+## after the restore (a finished tween is not valid either, so this must run before any waiting).
+func _assert_pops_killed() -> void:
+	for id in MapLayout.SPOT_IDS:
+		var spot: BuildSpot = main.world.build_spots[id]
+		assert_false(spot._pop != null and spot._pop.is_valid(), "%s: pop tween killed by restore" % id)
+
 ## Visual tweens that outlive the restore would show up a little later: wait them out.
 func _assert_no_late_visuals(snap: Dictionary) -> void:
 	await _ticks(int(ceil(maxf(Balance.ui.transfer_arc_time, Balance.ui.build_pop_time) * Engine.physics_ticks_per_second)) + 2)
@@ -284,6 +291,7 @@ func test_restore_rebuilds_world_from_snapshot() -> void:
 	await _mutate_everything(snap)
 	pc.snapshot = snap.duplicate(true)
 	pc._restore_snapshot()
+	_assert_pops_killed()
 	assert_eq(GameState.to_dict(), snap)
 	assert_eq(GameState.diner_hp, float(snap.diner_hp), "exact diner HP")
 	_assert_world_matches(snap)
@@ -298,6 +306,7 @@ func test_from_dict_alone_rebuilds_every_view() -> void:
 	var snap := _make_snapshot()
 	await _mutate_everything(snap)
 	GameState.from_dict(snap)
+	_assert_pops_killed()
 	assert_eq(GameState.to_dict(), snap)
 	_assert_views_match(snap)
 
@@ -322,6 +331,7 @@ func test_restore_from_json_round_trip_at_full_precision() -> void:
 	var parsed: Dictionary = JSON.parse_string(text)
 	pc.snapshot = parsed
 	pc._restore_snapshot()
+	_assert_pops_killed()
 	# ints come back as floats from JSON; from_dict casts them, so the state is exactly the original
 	assert_eq(GameState.to_dict(), snap)
 	assert_eq(GameState.diner_hp, float(snap.diner_hp), "exact diner HP after JSON")

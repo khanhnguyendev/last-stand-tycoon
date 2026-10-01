@@ -3,6 +3,8 @@ extends Node3D
 ## "Close up" sign (spec 5.6, 8.8, D-039, D-068). Hold closeup_hold standing still -> closeup_requested.
 ## The zone's own still-charge ring is off (drive_ring = false): this node drives the ring with the hold.
 
+const SIGN_SCENE := preload("res://art/env/closeup_sign.tscn")
+
 var zone: StationZone
 var hold := 0.0
 var pulsing := false
@@ -13,16 +15,10 @@ var _t := 0.0
 func setup(_world: World) -> void:
 	name = "CloseUpSign"
 	position = MapLayout.to3(MapLayout.SIGN)
-	_visual = Visuals.visual_root()
-	var post := Visuals.cylinder(0.08, 1.6, Visuals.COLORS.counter)
-	post.position.y = 0.8
-	_visual.add_child(post)
-	var board := Visuals.box(Vector3(1.4, 0.6, 0.1), Visuals.COLORS.sign)
-	board.position.y = 1.7
-	_visual.add_child(board)
+	_visual = SIGN_SCENE.instantiate()  # root "Visual": the pulse scales it (S4 Task 12, D-201: one baked mesh)
 	add_child(_visual)
 	var l := WorldLabel.make(tr("Close up"), 36)
-	l.position.y = 2.4
+	l.position.y = 1.95
 	add_child(l)
 	zone = StationZone.new()
 	zone.radius = MapLayout.STATION_RADIUS

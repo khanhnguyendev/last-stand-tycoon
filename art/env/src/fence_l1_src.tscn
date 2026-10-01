@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/kenney-castle/wall-narrow-wood-fence.glb" id="1_7g2ls"]
+
+[node name="FenceSrc" type="Node3D" unique_id=728381414]
+
+[node name="Rail0" type="Node3D" parent="." unique_id=829357188 instance=ExtResource("1_7g2ls")]
+transform = Transform3D(-3.934025e-08, 0, 1, 0, 0.62, 0, -0.9, 0, -4.371139e-08, -1, 0, 0)
+
+[node name="Rail1" type="Node3D" parent="." unique_id=1737827515 instance=ExtResource("1_7g2ls")]
+transform = Transform3D(-3.934025e-08, 0, 1, 0, 0.62, 0, -0.9, 0, -4.371139e-08, 0, 0, 0)
+
+[node name="Rail2" type="Node3D" parent="." unique_id=1577450212 instance=ExtResource("1_7g2ls")]
+transform = Transform3D(-3.934025e-08, 0, 1, 0, 0.62, 0, -0.9, 0, -4.371139e-08, 1, 0, 0)

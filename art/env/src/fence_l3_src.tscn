@@ -1,0 +1,23 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/kenney-castle/wall-narrow.glb" id="1_fwt2u"]
+
+[node name="FenceSrc" type="Node3D" unique_id=479378433]
+
+[node name="Stone0_0" type="Node3D" parent="." unique_id=1375983078 instance=ExtResource("1_fwt2u")]
+transform = Transform3D(-3.934025e-08, 0, 1, 0, 0.687, 0, -0.9, 0, -4.371139e-08, -1, 0, -0.25)
+
+[node name="Stone0_1" type="Node3D" parent="." unique_id=225312906 instance=ExtResource("1_fwt2u")]
+transform = Transform3D(-3.934025e-08, 0, 1, 0, 0.687, 0, -0.9, 0, -4.371139e-08, 0, 0, -0.25)
+
+[node name="Stone0_2" type="Node3D" parent="." unique_id=1466420997 instance=ExtResource("1_fwt2u")]
+transform = Transform3D(-3.934025e-08, 0, 1, 0, 0.687, 0, -0.9, 0, -4.371139e-08, 1, 0, -0.25)
+
+[node name="Stone1_0" type="Node3D" parent="." unique_id=1244747217 instance=ExtResource("1_fwt2u")]
+transform = Transform3D(1.0732392e-08, 0, -1, 0, 0.687, 0, 0.9, 0, 1.1924881e-08, -1, 0, 0.25)
+
+[node name="Stone1_1" type="Node3D" parent="." unique_id=1106703296 instance=ExtResource("1_fwt2u")]
+transform = Transform3D(1.0732392e-08, 0, -1, 0, 0.687, 0, 0.9, 0, 1.1924881e-08, 0, 0, 0.25)
+
+[node name="Stone1_2" type="Node3D" parent="." unique_id=1893557866 instance=ExtResource("1_fwt2u")]
+transform = Transform3D(1.0732392e-08, 0, -1, 0, 0.687, 0, 0.9, 0, 1.1924881e-08, 1, 0, 0.25)

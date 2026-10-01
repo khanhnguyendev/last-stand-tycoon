@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/kenney-tower-defense/tower-round-bottom-a.glb" id="1_fuane"]
+[ext_resource type="PackedScene" path="res://assets/kenney-tower-defense/tower-round-middle-a.glb" id="2_tjjor"]
+[ext_resource type="PackedScene" path="res://assets/kenney-tower-defense/tower-round-top-a.glb" id="3_c05bx"]
+[ext_resource type="PackedScene" path="res://assets/kenney-tower-defense/tower-round-crystals.glb" id="4_33r50"]
+
+[node name="TowerSrc" type="Node3D" unique_id=92047406]
+
+[node name="bottom" type="Node3D" parent="." unique_id=2086532249 instance=ExtResource("1_fuane")]
+transform = Transform3D(1.2, 0, 0, 0, 1.3505461, 0, 0, 0, 1.2, 0, 0, 0)
+
+[node name="middle" type="Node3D" parent="." unique_id=409539667 instance=ExtResource("2_tjjor")]
+transform = Transform3D(1.2, 0, 0, 0, 1.3505461, 0, 0, 0, 1.2, 0, 0.8103277, 0)
+
+[node name="top" type="Node3D" parent="." unique_id=2055914917 instance=ExtResource("3_c05bx")]
+transform = Transform3D(1.2, 0, 0, 0, 1.3505461, 0, 0, 0, 1.2, 0, 1.6206554, 0)
+
+[node name="crystals" type="Node3D" parent="." unique_id=479173430 instance=ExtResource("4_33r50")]
+transform = Transform3D(1.2, 0, 0, 0, 1.3505461, 0, 0, 0, 1.2, 0, 2.2959285, 0)

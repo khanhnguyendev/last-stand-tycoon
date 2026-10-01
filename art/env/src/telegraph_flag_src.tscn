@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/kenney-castle/flag-pennant.glb" id="1_hb33o"]
+
+[node name="FlagSrc" type="Node3D" unique_id=104965656]
+
+[node name="Pennant" type="Node3D" parent="." unique_id=532158778 instance=ExtResource("1_hb33o")]
+transform = Transform3D(1.6, 0, 0, 0, 1.6, 0, 0, 0, 1.6, 0, 0, 0)
