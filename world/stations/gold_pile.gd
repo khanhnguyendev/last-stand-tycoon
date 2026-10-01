@@ -4,16 +4,17 @@ extends Node3D
 
 const MAX_COINS := 30
 var label: WorldLabel
-var _coins: Array = []
+var _pile: MultiMeshInstance3D
 
 func setup(_world: World) -> void:
 	name = "GoldPile"
 	position = MapLayout.to3(MapLayout.GOLD_PILE)
+	var slots := PackedVector3Array()
 	for i in MAX_COINS:
-		var c := Visuals.cylinder(0.18, 0.06, Visuals.COLORS.coin)
-		c.position = Vector3((i % 3) * 0.38 - 0.38, 0.04 + floori(i / 3.0) * 0.07, 0)
-		add_child(c)
-		_coins.append(c)
+		slots.append(Vector3((i % 3) * 0.38 - 0.38, 0.04 + floori(i / 3.0) * 0.07, 0))
+	_pile = PileMesh.coin_pile(slots)
+	_pile.name = "Pile"
+	add_child(_pile)
 	label = WorldLabel.make("")
 	label.position.y = 1.6
 	add_child(label)
@@ -23,9 +24,8 @@ func setup(_world: World) -> void:
 
 func refresh() -> void:
 	var n := GameState.gold_pile
-	for i in _coins.size():
-		_coins[i].visible = i < n
+	PileMesh.set_count(_pile, n)
 	label.text = str(n) if n > 0 else ""
 
 func coin_count() -> int:
-	return _coins.filter(func(c): return c.visible).size()
+	return PileMesh.count(_pile)

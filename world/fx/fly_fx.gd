@@ -12,12 +12,20 @@ class FxItem:
 				tw.kill()
 			remove_meta(&"tween")
 
+const STEAK_SCENE := preload("res://art/pickups/steak.tscn")
+const COIN_SCENE := preload("res://art/pickups/coin.tscn")
 var _pool: NodePool
 
 static func make_item() -> Node3D:
 	var n := FxItem.new()
 	n.name = "Fx"
-	n.add_child(Visuals.box(Vector3(0.25, 0.12, 0.2), Visuals.COLORS.coin))
+	# both kinds are built once per pooled item; fly() only toggles which one shows (no per-fly instancing)
+	var steak: Node3D = STEAK_SCENE.instantiate()
+	steak.name = "SteakArt"
+	n.add_child(steak)
+	var coin: Node3D = COIN_SCENE.instantiate()
+	coin.name = "CoinArt"
+	n.add_child(coin)
 	return n
 
 func setup(pool: NodePool) -> void:
@@ -28,8 +36,8 @@ func in_flight() -> int:
 
 func fly(kind: String, from: Vector3, to: Vector3) -> void:
 	var n: Node3D = _pool.acquire()
-	var mesh: MeshInstance3D = n.get_child(0)
-	mesh.material_override = Visuals.material(Visuals.COLORS.coin if kind == "coin" else Visuals.COLORS.steak)
+	(n.get_node("SteakArt") as Node3D).visible = kind != "coin"
+	(n.get_node("CoinArt") as Node3D).visible = kind == "coin"
 	n.position = from
 	var apex := Balance.ui.transfer_arc_apex
 	var tw := n.create_tween()

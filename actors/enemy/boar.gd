@@ -4,6 +4,9 @@ extends Node3D
 
 ## Height above the feet the camera aims at when checking occlusion (D-151); the capsule centre.
 const AIM_HEIGHT := 0.5
+const VISUAL_SCENE := preload("res://art/boar/boar_visual.tscn")
+## Blob shadow radius under a Boar (ShadowField.CHARACTER_RADIUS is the characters').
+const SHADOW_RADIUS := 0.7
 
 var lane := ""
 var spawn_index := -1
@@ -14,9 +17,10 @@ var offset := 0.0
 var alive := false
 var health: Health
 var targetable: Targetable
-var visual: Node3D
+var visual: BoarVisual
+## Set by the World's pool factory (S4 D-201): the shared blob-shadow field this Boar's Visual registers with.
+var shadow_field: ShadowField
 var current_target: Dictionary = {}
-var _mesh: MeshInstance3D
 var _length := 0.0
 var _attack_timer := 0.0
 var _director: Object
@@ -31,10 +35,7 @@ func _init() -> void:
 	targetable = Targetable.new()
 	targetable.kind = &"enemy"
 	add_child(targetable)
-	visual = Visuals.visual_root()
-	_mesh = Visuals.capsule(0.35, 1.0, Visuals.COLORS.boar)
-	_mesh.position.y = 0.5
-	visual.add_child(_mesh)
+	visual = VISUAL_SCENE.instantiate()
 	add_child(visual)
 
 func spawn(p_lane: String, p_index: int, p_offset: float, hp_mult: float, director: Object) -> void:
@@ -51,8 +52,11 @@ func spawn(p_lane: String, p_index: int, p_offset: float, hp_mult: float, direct
 	health.reset(Balance.data.enemy.hp * hp_mult)
 	visual.scale = Vector3.ONE
 	_reset_flash()
+	visual.reset()
+	if shadow_field != null:
+		shadow_field.register(visual, SHADOW_RADIUS)
 	alive = true
-	_update_position()
+	_update_position(false)
 
 func path_length() -> float:
 	return _length
@@ -64,7 +68,7 @@ func _physics_process(delta: float) -> void:
 	if _flash_left > 0.0:
 		_flash_left -= delta
 		if _flash_left <= 0.0:
-			_mesh.material_override = Visuals.material(Visuals.COLORS.boar)
+			visual.set_flash(false)
 	if not alive:
 		return
 	var eb := Balance.data.enemy
@@ -76,12 +80,15 @@ func _physics_process(delta: float) -> void:
 		# do not walk past a standing fence's stop point in one tick
 		if _director.providers.has_kind(&"fence_on_lane") and dist <= TargetProviders.fence_stop_dist(self):
 			next = minf(next, TargetProviders.fence_stop_dist(self))
+		visual.set_motion(1.0 if next > dist else 0.0)
 		dist = next
 		_update_position()
 		return
+	visual.set_motion(0.0)
 	_attack_timer += delta
 	if _attack_timer >= eb.attack_interval - 1e-6:
 		_attack_timer -= eb.attack_interval
+		visual.attack()
 		var dmg := eb.damage * GameState.mercy_factor()
 		match current_target.kind:
 			&"fence_on_lane":
@@ -93,7 +100,8 @@ func _physics_process(delta: float) -> void:
 
 func take_hit(amount: float) -> void:
 	if alive:
-		_mesh.material_override = Visuals.material(Visuals.COLORS.flash)
+		visual.set_flash(true)
+		visual.hit()
 		_flash_left = Balance.ui.hit_flash_time
 		health.damage(amount)
 
@@ -102,12 +110,13 @@ func flash_active() -> bool:
 
 func _reset_flash() -> void:
 	_flash_left = 0.0
-	_mesh.material_override = Visuals.material(Visuals.COLORS.boar)
+	visual.set_flash(false)
 
 func candidate() -> Dictionary:
 	return {"position": global_position, "spawn_index": spawn_index, "ref": self}
 
 func play_death(pool: NodePool) -> void:
+	visual.die()
 	_death_tween = create_tween()
 	_death_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 	_death_tween.tween_property(visual, "scale", Vector3(0.01, 0.01, 0.01), 0.15)
@@ -116,6 +125,9 @@ func play_death(pool: NodePool) -> void:
 func on_release() -> void:
 	alive = false
 	_reset_flash()
+	visual.reset()
+	if shadow_field != null:
+		shadow_field.unregister(visual)
 	if _death_tween != null and _death_tween.is_valid():
 		_death_tween.kill()
 	_death_tween = null
@@ -124,6 +136,9 @@ func _on_died() -> void:
 	alive = false
 	_director.on_enemy_died(self)
 
-func _update_position() -> void:
+func _update_position(turn := true) -> void:
 	var p := EnemyPath.position_at(lane, dist, offset, Balance.data.enemy.offset_fade_distance)
+	var prev := position
 	position = MapLayout.to3(p)
+	if turn:
+		visual.face(position - prev)  # art only; ignores a zero step

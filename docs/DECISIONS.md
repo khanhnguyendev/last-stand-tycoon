@@ -1749,3 +1749,25 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
     baseline.
   - Day 3: 48.6 fps, 60 draw calls (pre-cast 52 / 59).
   - Headroom is thin, so P3–P4 must keep draw calls flat or lower.
+
+**D-202 Boar production details (S4 Task 9).**
+- **Mesh:** one merged mesh, 1456 triangles.
+- **Shading:**
+  - Rim 0.35 and roughness 0.6 in the shared shader.
+  - The upper body is lerped 0.4 from `enemy_maroon` toward `enemy_red` (the only non-swatch colour; ART_BIBLE),
+    because pure maroon read near-black under lambert in the game camera.
+  - The flash colour is pale pink-white (`warm_white` → `enemy_snout`), never white (R2).
+- **Animation and shadow:**
+  - The leg phase uses world position × 0.6, so trot speed is the same on every lane.
+  - There are 4 shared materials (idle, run, flash, run_flash).
+  - The shadow goes through the ShadowField.
+- **Tusks:** they read clearly at full size but only as small white flares at 40% (REVIEW_QUEUE).
+
+**D-203 Pickup art (S4 Task 10/10b).**
+- **Draw calls:** ground steaks draw through one shared `PickupField` MultiMesh, with one stable slot per pooled
+  steak (one draw in total; D-201). The piles (counter, freezer, gold, carry) are one MultiMesh each.
+- **Ground steaks** are drawn at `ground_steak_scale` 1.6 so they read as cartoon steaks at phone size. Pile steaks
+  stay at 1.0.
+- **Carry stack:** it sits behind the hero at 0.09 m spacing `(0, 1.3 + 0.09 i, -0.3)`, so it never covers the
+  cook's face (R2). A max stack (16) is still a satisfying tower.
+- **Coins:** coin rims map to `gold`, so stacks read gold, not bronze.

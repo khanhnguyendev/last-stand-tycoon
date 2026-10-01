@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://art/boar/boar_visual.gd" id="1_vis"]
+
+[node name="Visual" type="Node3D"]
+script = ExtResource("1_vis")
+
+[node name="Body" type="Node3D" parent="."]
+
+[node name="Mesh" type="MeshInstance3D" parent="Body"]
