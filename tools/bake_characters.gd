@@ -120,6 +120,9 @@ static func bake_role(role: String) -> Dictionary:
 			errors.append("%s: skin differs from the first part's" % mi.name)
 		if not mi.transform.is_equal_approx(Transform3D.IDENTITY):
 			errors.append("%s: non-identity transform on a skinned part" % mi.name)
+		if mi.mesh.get_surface_count() != 1:
+			errors.append("%s: %d surfaces, expected 1" % [mi.name, mi.mesh.get_surface_count()])
+			continue
 		var arr := mi.mesh.surface_get_arrays(0)
 		var base := verts.size()
 		verts.append_array(arr[Mesh.ARRAY_VERTEX])
@@ -140,6 +143,9 @@ static func bake_role(role: String) -> Dictionary:
 			continue
 		var inv_bind := skin.get_bind_pose(bind).affine_inverse()
 		for pm in att.find_children("*", "MeshInstance3D", true, false):
+			if (pm as MeshInstance3D).mesh.get_surface_count() != 1:
+				errors.append("%s: %d surfaces, expected 1" % [pm.name, (pm as MeshInstance3D).mesh.get_surface_count()])
+				continue
 			var xf: Transform3D = inv_bind * _relative(pm, att)
 			var normal_basis := xf.basis.inverse().transposed()
 			var arr := (pm as MeshInstance3D).mesh.surface_get_arrays(0)

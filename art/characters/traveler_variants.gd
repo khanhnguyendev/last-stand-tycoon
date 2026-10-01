@@ -54,5 +54,8 @@ static func signature(visual: ActorVisual) -> String:
 	var baked := (visual as KayKitVisual).baked if visual is KayKitVisual else null
 	if baked == null:
 		return ""
+	var body := MESHES.find(baked.mesh)
+	if body < 0:
+		return ""
 	var m := baked.material_override
-	return "%s/%s" % [BODIES[MESHES.find(baked.mesh)], m.resource_path if m != null else ""]
+	return "%s/%s" % [BODIES[body], m.resource_path if m != null else ""]

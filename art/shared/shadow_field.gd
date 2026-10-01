@@ -26,6 +26,7 @@ func _init() -> void:
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.albedo_texture = BLOB
+	mat.render_priority = -1  # shadows draw first among the transparent surfaces
 	plane.material = mat
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D

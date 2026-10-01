@@ -135,6 +135,14 @@ func _wait(sec: float) -> void:
 	while Time.get_ticks_msec() - t0 < int(sec * 1000.0):
 		await process_frame
 
+## One ShadowField for the --visual shots (S4 Task 8b, D-201), so the close-ups show the blob like the game does.
+func _shadow_field() -> ShadowField:
+	var f := root.get_node_or_null("ShadowField") as ShadowField
+	if f == null:
+		f = ShadowField.new()
+		root.add_child(f)
+	return f
+
 func _visual(scene_path: String) -> void:
 	if _args.has("variants"):
 		await _variants(scene_path)
@@ -144,6 +152,7 @@ func _visual(scene_path: String) -> void:
 		v.attack_clip = StringName(_args.attack_clip)
 	root.add_child(v)
 	v.position = Vector3(0, 0, _lineup_z)
+	_shadow_field().register(v, ShadowField.CHARACTER_RADIUS)
 	var cam := Camera3D.new()
 	cam.current = true
 	cam.keep_aspect = Camera3D.KEEP_HEIGHT
@@ -172,6 +181,7 @@ func _variants(scene_path: String) -> void:
 		var v = scene.instantiate()
 		root.add_child(v)
 		v.position = Vector3(0, 0, _lineup_z + (i - 2.5) * float(_args.get("spacing", 1.15)))
+		_shadow_field().register(v, ShadowField.CHARACTER_RADIUS)
 		tv.apply(v, i)
 		v.set_motion(0.5)
 		var fd := String(_args.get("face", "-1,0")).split(",")

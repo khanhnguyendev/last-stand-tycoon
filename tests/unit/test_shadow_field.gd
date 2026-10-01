@@ -112,3 +112,27 @@ func test_the_world_owns_one_field_and_the_actors_register_with_it() -> void:
 	wf._process(0.0)
 	assert_true(main.hero.visual in wf._nodes, "the hero is registered")
 	assert_gte(wf.shown_count(), 1)
+
+func test_a_guard_is_registered_and_skipped_once_poofed_away() -> void:
+	var main := Main.create()
+	add_child_autofree(main)
+	await get_tree().physics_frame
+	var wf: ShadowField = main.world.shadow_field
+	main.phase_controller.start_new_game(99)
+	main.world.wave_director.stop()
+	GameState.debug_grant_card(&"tank")
+	var guard: Guard = main.world.guard_roster.guards.get(&"tank")
+	assert_not_null(guard, "a tank guard exists")
+	if guard == null:
+		return
+	assert_true(guard.visual in wf._nodes, "the guard's visual is registered")
+	guard.place_at_post()
+	wf._process(0.0)
+	var before := wf.shown_count()
+	guard.poof(false)
+	for i in 12:  # the 0.15 s poof at 60 physics fps
+		await get_tree().physics_frame
+	assert_false(guard.visual.visible, "the poof hid the visual")
+	wf._process(0.0)
+	assert_eq(wf.shown_count(), before - 1, "a hidden guard is skipped")
+	assert_true(guard.visual in wf._nodes, "still registered, just skipped")

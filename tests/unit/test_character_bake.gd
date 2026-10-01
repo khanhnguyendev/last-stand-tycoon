@@ -42,10 +42,25 @@ func test_committed_bake_is_current() -> void:
 		assert_eq(fresh.errors, [], "%s bakes cleanly" % role)
 		var a := (fresh.mesh as ArrayMesh).surface_get_arrays(0)
 		var b := _mesh(role).surface_get_arrays(0)
-		for k in [Mesh.ARRAY_VERTEX, Mesh.ARRAY_TEX_UV, Mesh.ARRAY_BONES, Mesh.ARRAY_INDEX]:
-			assert_eq(a[k].size(), b[k].size(), "%s array %d size" % [role, k])
+		for k in [Mesh.ARRAY_BONES, Mesh.ARRAY_INDEX, Mesh.ARRAY_WEIGHTS]:
+			assert_true(a[k] == b[k], "%s array %d is current (exact): rerun tools/bake_characters.gd" % [role, k])
 		assert_true((a[Mesh.ARRAY_TEX_UV] as PackedVector2Array) == (b[Mesh.ARRAY_TEX_UV] as PackedVector2Array), "%s UVs are current: rerun tools/bake_characters.gd" % role)
+		for k in [Mesh.ARRAY_VERTEX, Mesh.ARRAY_NORMAL]:
+			var fa: PackedVector3Array = a[k]
+			var fb: PackedVector3Array = b[k]
+			assert_eq(fa.size(), fb.size(), "%s array %d size" % [role, k])
+			var off := 0
+			for i in mini(fa.size(), fb.size()):
+				if not fa[i].is_equal_approx(fb[i]):
+					off += 1
+			assert_eq(off, 0, "%s array %d: vertices that differ from the fresh bake" % [role, k])
 		assert_eq(fresh.mesh.get_meta("props"), _mesh(role).get_meta("props"), "%s prop ranges" % role)
+		var fskin: Skin = fresh.skin
+		var cskin := load("res://art/characters/baked/%s_skin.res" % role) as Skin
+		assert_eq(cskin.get_bind_count(), fskin.get_bind_count(), "%s bind count" % role)
+		for i in mini(cskin.get_bind_count(), fskin.get_bind_count()):
+			assert_eq(cskin.get_bind_name(i), fskin.get_bind_name(i), "%s bind %d name" % [role, i])
+			assert_true(cskin.get_bind_pose(i).is_equal_approx(fskin.get_bind_pose(i)), "%s bind %d pose" % [role, i])
 
 func _cloud_of_baked(v: KayKitVisual, first: int, count: int) -> PackedVector3Array:
 	var sk := v.body.get_node("Model").get_node(SKELETON) as Skeleton3D
