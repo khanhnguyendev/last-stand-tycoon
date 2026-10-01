@@ -1749,3 +1749,16 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
     baseline.
   - Day 3: 48.6 fps, 60 draw calls (pre-cast 52 / 59).
   - Headroom is thin, so P3–P4 must keep draw calls flat or lower.
+
+**D-202 Boar production details (S4 Task 9).**
+- **Mesh:** one merged mesh, 1456 triangles.
+- **Shading:**
+  - Rim 0.35 and roughness 0.6 in the shared shader.
+  - The upper body is lerped 0.4 from `enemy_maroon` toward `enemy_red` (the only non-swatch colour; ART_BIBLE),
+    because pure maroon read near-black under lambert in the game camera.
+  - The flash colour is pale pink-white (`warm_white` → `enemy_snout`), never white (R2).
+- **Animation and shadow:**
+  - The leg phase uses world position × 0.6, so trot speed is the same on every lane.
+  - There are 4 shared materials (idle, run, flash, run_flash).
+  - The shadow goes through the ShadowField.
+- **Tusks:** they read clearly at full size but only as small white flares at 40% (REVIEW_QUEUE).
