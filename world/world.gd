@@ -20,6 +20,8 @@ var guard_roster: GuardRoster
 ## One draw for every blob shadow (S4 D-201). Actors register their Visual with it: the hero and guards in setup(), the
 ## travelers in begin() (the factory below hands each one this field).
 var shadow_field: ShadowField
+## One draw for every ground steak (S4 Task 10b, D-201): the steak factory hands each steak this field and its slot.
+var pickup_field: PickupField
 
 @export var enemy_pool: NodePool
 @export var steak_pool: NodePool
@@ -31,6 +33,17 @@ var shadow_field: ShadowField
 
 ## S4 D-191: the n-th traveler the pool creates gets look n % 6. Visual only: no gameplay field, no Rng.
 var _traveler_count := 0
+
+## The n-th steak the pool creates owns slot n of the pickup field (visual only).
+var _steak_count := 0
+
+func _make_steak() -> Steak:
+	var s := Steak.new()
+	s.field = pickup_field
+	s.slot = _steak_count
+	_steak_count += 1
+	pickup_field.grow(_steak_count)
+	return s
 
 func _make_traveler() -> Traveler:
 	var t := Traveler.new()
@@ -185,7 +198,11 @@ static func pool_sizes(bd: BalanceData) -> Dictionary:
 func _setup_pools() -> void:
 	var sizes := World.pool_sizes(Balance.data)
 	enemy_pool.setup(_make_boar, sizes.enemy)
-	steak_pool.setup(func(): return Steak.new(), sizes.steak)
+	pickup_field = PickupField.new()
+	pickup_field.name = "PickupField"
+	pickup_field.setup(PileMesh.steak_mesh(), sizes.steak)
+	add_child(pickup_field)
+	steak_pool.setup(_make_steak, sizes.steak)
 	projectile_pool.setup(func(): return Projectile.new(), sizes.projectile)
 	fx_pool.setup(func(): return FlyFx.make_item(), sizes.fx)
 	fly_fx = FlyFx.new()

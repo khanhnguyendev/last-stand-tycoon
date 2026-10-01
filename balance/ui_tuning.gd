@@ -11,6 +11,8 @@ extends Resource
 @export var camera_follow_rate := 8.0
 @export var transfer_arc_time := 0.15
 @export var transfer_arc_apex := 0.6
+## Ground steaks only (the PickupField) are drawn at this scale so they read at phone size; piles stay at 1.0.
+@export var ground_steak_scale := 1.6
 @export var gold_punch_scale := 1.25
 @export var gold_punch_time := 0.12
 @export var shake_amp := 0.12
