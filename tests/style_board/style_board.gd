@@ -8,6 +8,8 @@ extends SceneTree
 ## --focus_z=-6.8 (game camera): follows a hero standing at the lineup (the default -2.6 frames the whole yard, lineup at the top edge).
 ## --lineup_z=-9.5: moves the lineup north, out from behind the diner roof, which hides the front (tusks) of anything at the default -6.8.
 ## --turnaround (run at --resolution 600x600; set e): the procedural boar from front, 3/4, side and top, each 300 px, side by side in --out.
+## --remapped (any --set, S4 Task 3): swaps every albedo texture for its palette-remapped atlas in art/palette/atlas/ (matched by
+## texture path / file name), to judge the D-188 remap on the real scene.
 ## --anims=<md path> (any --set) writes the animation inventory for all three sets and quits without rendering.
 ## Candidate assets live in assets/_candidates/ (gitignored, CC0). A -s script compiles before the autoloads exist,
 ## so project scripts are load()ed at run time and used untyped, like capture.gd.
@@ -91,6 +93,8 @@ func _run() -> void:
 		cam.keep_aspect = Camera3D.KEEP_HEIGHT
 		cam.fov = 32.0
 		cam.global_transform = Transform3D(Basis(), Vector3(0.0, 3.4, _lineup_z + 9.0)).looking_at(Vector3(0.0, 0.7, _lineup_z), Vector3.UP)
+	if _args.has("remapped"):
+		_remap_textures()
 	var t0 := Time.get_ticks_msec()  # idle animations run for 1 s before capture
 	while Time.get_ticks_msec() - t0 < 1000:
 		await process_frame
@@ -105,6 +109,60 @@ func _run() -> void:
 		return
 	print("saved ", out, " ", img.get_size(), " idle players: ", players.size())
 	quit(0)
+
+# --- remap review (S4 Task 3) ---
+
+const ATLAS := "res://art/palette/atlas/"
+const KIT_PACK := {"td": "kenney-tower-defense", "castle": "kenney-castle", "town": "kenney-fantasy-town",
+	"food": "kenney-food", "plat": "kenney-platformer"}
+
+## The remapped atlas file for a source texture, or "" when none matches.
+func _atlas_for(tex: Texture2D) -> String:
+	var path := tex.resource_path
+	var file := path.get_file()
+	if file == "" or "::" in path:
+		file = String(tex.resource_name) + ".png"
+	if file.begins_with("colormap"):
+		var rel := path.get_base_dir()  # .../env/<kit>/Textures
+		var kit := rel.get_base_dir().get_file()
+		if KIT_PACK.has(kit):
+			return ATLAS + KIT_PACK[kit] + "__colormap.png"
+		if kit.begins_with("kenney-"):  # the real assets/<pack>/Textures layout
+			return ATLAS + kit + "__colormap.png"
+		return ""
+	if file == "restaurantbits_texture.png":
+		return ATLAS + "kaykit-restaurant__restaurantbits_texture.png"
+	var i := file.to_lower().find("_texture")
+	if i >= 0:
+		var who := file.to_lower().substr(0, i).split("_")[-1]  # Rogue_Hooded_rogue_texture.png -> rogue
+		return ATLAS + "kaykit-adventurers__%s_texture.png" % who
+	return ""
+
+func _remap_textures() -> void:
+	var swapped := 0
+	var skipped := {}
+	var cache := {}
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		for i in m.mesh.get_surface_count():
+			var mat := m.get_active_material(i)
+			if not (mat is BaseMaterial3D) or (mat as BaseMaterial3D).albedo_texture == null:
+				continue
+			var tex := (mat as BaseMaterial3D).albedo_texture
+			var atlas := _atlas_for(tex)
+			if atlas == "" or not ResourceLoader.exists(atlas):
+				skipped[tex.resource_path if tex.resource_path != "" else String(tex.resource_name)] = true
+				continue
+			var key := "%d|%s" % [mat.get_instance_id(), atlas]
+			if not cache.has(key):
+				var d := (mat as BaseMaterial3D).duplicate() as BaseMaterial3D
+				d.albedo_texture = load(atlas)
+				cache[key] = d
+			m.set_surface_override_material(i, cache[key])
+			swapped += 1
+	print("remapped surfaces: ", swapped, " unmatched textures: ", skipped.keys())
 
 # --- staging -----------------------------------------------------------------------------------
 
