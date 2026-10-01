@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="PackedScene" path="res://assets/kenney-castle/wall-narrow.glb" id="1_fwt2u"]
+[ext_resource type="Material" path="res://art/materials/kenney-castle__stone.tres" id="mat_override"]
 
 [node name="FenceSrc" type="Node3D" unique_id=479378433]
 
@@ -21,3 +22,33 @@ transform = Transform3D(1.0732392e-08, 0, -1, 0, 0.687, 0, 0.9, 0, 1.1924881e-08
 
 [node name="Stone1_2" type="Node3D" parent="." unique_id=1893557866 instance=ExtResource("1_fwt2u")]
 transform = Transform3D(1.0732392e-08, 0, -1, 0, 0.687, 0, 0.9, 0, 1.1924881e-08, 1, 0, 0.25)
+
+[editable path="Stone0_0"]
+
+[editable path="Stone0_1"]
+
+[editable path="Stone0_2"]
+
+[editable path="Stone1_0"]
+
+[editable path="Stone1_1"]
+
+[editable path="Stone1_2"]
+
+[node name="wall-narrow" parent="Stone0_0" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow" parent="Stone0_1" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow" parent="Stone0_2" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow" parent="Stone1_0" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow" parent="Stone1_1" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow" parent="Stone1_2" index="0"]
+material_override = ExtResource("mat_override")

@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="PackedScene" path="res://assets/kenney-castle/wall-narrow-wood-fence.glb" id="1_o3co2"]
+[ext_resource type="Material" path="res://art/materials/kenney-castle__wood.tres" id="mat_override"]
 
 [node name="FenceSrc" type="Node3D" unique_id=1181990739]
 
@@ -15,3 +16,23 @@ transform = Transform3D(-3.059797e-08, 0, 1.5, 0, 0.62, 0, -0.7, 0, -6.556708e-0
 
 [node name="Rail1_1" type="Node3D" parent="." unique_id=677110861 instance=ExtResource("1_o3co2")]
 transform = Transform3D(-3.059797e-08, 0, 1.5, 0, 0.62, 0, -0.7, 0, -6.556708e-08, 0.75, 0, 0.25)
+
+[editable path="Rail0_0"]
+
+[editable path="Rail0_1"]
+
+[editable path="Rail1_0"]
+
+[editable path="Rail1_1"]
+
+[node name="wall-narrow-wood-fence" parent="Rail0_0" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow-wood-fence" parent="Rail0_1" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow-wood-fence" parent="Rail1_0" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow-wood-fence" parent="Rail1_1" index="0"]
+material_override = ExtResource("mat_override")

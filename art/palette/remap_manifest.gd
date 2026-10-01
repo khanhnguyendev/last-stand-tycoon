@@ -79,10 +79,20 @@ const BARBARIAN_BLUE_TO_APRON := {
 	"658aaa": "apron_white", "658aab": "apron_white",
 }
 
+## S4 Task 12 fence variants (castle atlas, used by the fence sources only) and the rubble variant (fantasy-town atlas,
+## fence-broken only). "swap" moves every swatch whose default palette name is a key to the value, like GUARD_SWAPS.
+## The fence pieces sample skin_light / diner_cream (the wall face), skin_mid (its shade) and wood (the darkest bands).
+const FENCE_WOOD_SWAP := {"skin_light": "wood", "diner_cream": "wood", "skin_mid": "wood_dark", "wood": "wood_dark"}
+const FENCE_STONE_SWAP := {"skin_light": "stone", "diner_cream": "stone", "skin_mid": "steel_dark", "wood": "ink_soft"}
+const RUBBLE_WOOD_SWAP := {"skin_mid": "wood", "dirt_dark": "wood_dark", "gold_dark": "wood_dark", "steel": "wood"}
+
 const BASE_ENTRIES: Array[Dictionary] = [
 	{"src": "res://assets/kenney-tower-defense/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-tower-defense__colormap.png", "overrides": {}},
 	{"src": "res://assets/kenney-castle/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-castle__colormap.png", "overrides": {}},
 	{"src": "res://assets/kenney-fantasy-town/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-fantasy-town__colormap.png", "overrides": {}},
+	{"src": "res://assets/kenney-castle/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-castle__wood.png", "overrides": {}, "swap": FENCE_WOOD_SWAP},
+	{"src": "res://assets/kenney-castle/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-castle__stone.png", "overrides": {}, "swap": FENCE_STONE_SWAP},
+	{"src": "res://assets/kenney-fantasy-town/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-fantasy-town__rubble.png", "overrides": {}, "swap": RUBBLE_WOOD_SWAP},
 	{"src": "res://assets/kenney-city-commercial/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-city-commercial__colormap.png", "overrides": {}},
 	{"src": "res://assets/kenney-food/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-food__colormap.png", "overrides": {}},
 	{"src": "res://assets/kenney-platformer/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-platformer__colormap.png", "overrides": COIN_RIM_TO_GOLD},
@@ -124,6 +134,11 @@ static func _build() -> Array[Dictionary]:
 				var n: String = default_names(d.src)[hex]
 				if GUARD_SWAPS.has(n):
 					ov[hex] = GUARD_SWAPS[n]
+		elif d.has("swap"):
+			for hex in default_names(d.src):
+				var sn: String = default_names(d.src)[hex]
+				if d.swap.has(sn):
+					ov[hex] = d.swap[sn]
 		elif d.has("tone"):
 			# Every non-skin swatch goes to the one traveler colour; skin swatches keep their (nearest) skin tones.
 			for hex in default_names(d.src):
@@ -132,6 +147,7 @@ static func _build() -> Array[Dictionary]:
 		d.overrides = ov
 		d.erase("guard_swap")
 		d.erase("tone")
+		d.erase("swap")
 		out.append(d)
 	return out
 
