@@ -7,7 +7,7 @@ extends SceneTree
 ## --night (any --set): the same framing under a dim blue-tinted sun and ambient (the game has no night lighting yet; world.gd's sun / ambient are day-only).
 ## --focus_z=-6.8 (game camera): follows a hero standing at the lineup (the default -2.6 frames the whole yard, lineup at the top edge).
 ## --lineup_z=-9.5: moves the lineup north, out from behind the diner roof, which hides the front (tusks) of anything at the default -6.8.
-## --turnaround (run at --resolution 600x600; set e): the procedural boar from front, 3/4, side and top, each 300 px, side by side in --out.
+## --turnaround (run at --resolution 600x600; set e; --production shows art/boar/boar_visual.tscn): the procedural boar from front, 3/4, side and top, each 300 px, side by side in --out.
 ## --remapped (any --set, S4 Task 3): swaps every albedo texture for its palette-remapped atlas in art/palette/atlas/ (matched by
 ## texture path / file name), to judge the D-188 remap on the real scene.
 ## --visual=<scene path> (S4 Task 6; run at --resolution 1280x720): that ActorVisual scene alone, side-on (--cam_x=-7 sees the hero's right, throwing, side; --attack_wait=<s> after fire). --out = idle shot,
@@ -595,9 +595,15 @@ func _turnaround() -> void:
 	_build_environment()
 	_flat(Vector3(40, 0.02, 40), _vis.ground, Vector3(0, -0.01, 0))
 	var pb = load("res://tests/style_board/proto_boar.gd")
-	var boar: Node3D = pb.build()
-	root.add_child(boar)
-	pb.idle(boar)
+	var boar: Node3D
+	if _args.has("production"):  # S4 Task 9: the shipped BoarVisual instead of the prototype
+		boar = load("res://art/boar/boar_visual.tscn").instantiate()
+		root.add_child(boar)
+		_shadow_field().register(boar, 0.7)
+	else:
+		boar = pb.build()
+		root.add_child(boar)
+		pb.idle(boar)
 	var cam := Camera3D.new()
 	cam.fov = 30.0
 	cam.current = true
