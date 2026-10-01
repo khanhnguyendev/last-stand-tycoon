@@ -15,6 +15,48 @@ const COIN_RIM_TO_GOLD := {
 	"e08861": "gold", "dc855e": "gold", "d07c57": "gold",
 }
 
+## The Restaurant Bits fridge body is a teal-green gradient (source r < 0x50, g > 0x70, g >= b; 180 hexes) that remapped to a
+## grass-like green on the grass (S4 Task 11). It is used by fridge_A only (the counter, stove, menu, pan and knife sample
+## no hex in this set), so the whole atlas maps it to ice_blue and the Freezer reads as a freezer (ART_BIBLE §2).
+const FRIDGE_TEAL_TO_ICE := {
+	"09716b": "ice_blue", "09716c": "ice_blue", "09726c": "ice_blue", "0a736d": "ice_blue", "0a746d": "ice_blue",
+	"0a746e": "ice_blue", "0b756e": "ice_blue", "0b766e": "ice_blue", "0b776f": "ice_blue", "0c776f": "ice_blue",
+	"0c786f": "ice_blue", "0c7870": "ice_blue", "0c7970": "ice_blue", "0d7970": "ice_blue", "0d7a71": "ice_blue",
+	"0d7b71": "ice_blue", "0e7b72": "ice_blue", "0e7c72": "ice_blue", "0e7d72": "ice_blue", "0e7d73": "ice_blue",
+	"0f7e73": "ice_blue", "0f7f74": "ice_blue", "107f74": "ice_blue", "108074": "ice_blue", "108175": "ice_blue",
+	"118175": "ice_blue", "118275": "ice_blue", "118276": "ice_blue", "118376": "ice_blue", "128476": "ice_blue",
+	"128477": "ice_blue", "128577": "ice_blue", "138678": "ice_blue", "138778": "ice_blue", "138779": "ice_blue",
+	"148879": "ice_blue", "148979": "ice_blue", "14897a": "ice_blue", "158a7a": "ice_blue", "158b7a": "ice_blue",
+	"158b7b": "ice_blue", "158c7b": "ice_blue", "168c7b": "ice_blue", "168d7c": "ice_blue", "178e7c": "ice_blue",
+	"178e7d": "ice_blue", "178f7d": "ice_blue", "18907e": "ice_blue", "18917e": "ice_blue", "18927e": "ice_blue",
+	"19927f": "ice_blue", "19937f": "ice_blue", "199480": "ice_blue", "1a9480": "ice_blue", "1a9580": "ice_blue",
+	"1a9581": "ice_blue", "1a9681": "ice_blue", "1b9681": "ice_blue", "1b9782": "ice_blue", "1b9882": "ice_blue",
+	"1c9883": "ice_blue", "1c9983": "ice_blue", "1c9a83": "ice_blue", "1c9a84": "ice_blue", "1d9b84": "ice_blue",
+	"1d9c84": "ice_blue", "1e9c85": "ice_blue", "1e9d85": "ice_blue", "1e9e86": "ice_blue", "1f9e86": "ice_blue",
+	"1f9f86": "ice_blue", "1f9f87": "ice_blue", "1fa087": "ice_blue", "20a187": "ice_blue", "20a188": "ice_blue",
+	"20a288": "ice_blue", "21a389": "ice_blue", "21a489": "ice_blue", "22a58a": "ice_blue", "22a68a": "ice_blue",
+	"22a68b": "ice_blue", "23a78b": "ice_blue", "23a88b": "ice_blue", "23a88c": "ice_blue", "23a98c": "ice_blue",
+	"24a98c": "ice_blue", "24aa8d": "ice_blue", "24ab8d": "ice_blue", "25ab8e": "ice_blue", "25ac8e": "ice_blue",
+	"26ad8e": "ice_blue", "26ad8f": "ice_blue", "26ae8f": "ice_blue", "26af8f": "ice_blue", "27af90": "ice_blue",
+	"27b090": "ice_blue", "27b191": "ice_blue", "28b191": "ice_blue", "28b291": "ice_blue", "28b292": "ice_blue",
+	"28b392": "ice_blue", "29b392": "ice_blue", "29b493": "ice_blue", "29b593": "ice_blue", "2ab594": "ice_blue",
+	"2ab694": "ice_blue", "2ab794": "ice_blue", "2bb895": "ice_blue", "2bb995": "ice_blue", "2bb996": "ice_blue",
+	"2cba96": "ice_blue", "2cbb97": "ice_blue", "2dbb97": "ice_blue", "2dbc97": "ice_blue", "2dbc98": "ice_blue",
+	"2dbd98": "ice_blue", "2ebe98": "ice_blue", "2ebe99": "ice_blue", "2ebf99": "ice_blue", "2fc099": "ice_blue",
+	"2fc09a": "ice_blue", "2fc19a": "ice_blue", "30c29b": "ice_blue", "30c39b": "ice_blue", "30c39c": "ice_blue",
+	"31c49c": "ice_blue", "31c59c": "ice_blue", "31c59d": "ice_blue", "31c69d": "ice_blue", "32c69d": "ice_blue",
+	"32c79e": "ice_blue", "32c89e": "ice_blue", "33c89e": "ice_blue", "33c99f": "ice_blue", "34ca9f": "ice_blue",
+	"34caa0": "ice_blue", "34cba0": "ice_blue", "34cca0": "ice_blue", "35cca1": "ice_blue", "35cda1": "ice_blue",
+	"35cea2": "ice_blue", "36cea2": "ice_blue", "36cfa2": "ice_blue", "36cfa3": "ice_blue", "36d0a3": "ice_blue",
+	"37d0a3": "ice_blue", "37d1a4": "ice_blue", "37d2a4": "ice_blue", "38d3a4": "ice_blue", "38d3a5": "ice_blue",
+	"38d4a5": "ice_blue", "39d5a6": "ice_blue", "39d6a6": "ice_blue", "39d6a7": "ice_blue", "3ad7a7": "ice_blue",
+	"3ad8a8": "ice_blue", "3bd9a8": "ice_blue", "3bd9a9": "ice_blue", "3bdaa9": "ice_blue", "3cdba9": "ice_blue",
+	"3cdcaa": "ice_blue", "3dddaa": "ice_blue", "3dddab": "ice_blue", "3ddeab": "ice_blue", "3edfac": "ice_blue",
+	"3ee0ac": "ice_blue", "3ee0ad": "ice_blue", "3fe1ad": "ice_blue", "3fe2ad": "ice_blue", "3fe2ae": "ice_blue",
+	"3fe3ae": "ice_blue", "40e3ae": "ice_blue", "40e4ae": "ice_blue", "40e4af": "ice_blue", "40e5af": "ice_blue",
+	"41e5af": "ice_blue", "41e6b0": "ice_blue", "41e7b0": "ice_blue", "42e7b1": "ice_blue", "42e8b1": "ice_blue",
+}
+
 const BARBARIAN_BLUE_TO_CLOTH := {
 	"354e5a": "cloth_blue", "354e5b": "cloth_blue", "364f5b": "cloth_blue", "364f5c": "cloth_blue", "36505c": "cloth_blue",
 	"37505d": "cloth_blue", "37515d": "cloth_blue", "37515e": "cloth_blue", "38515e": "cloth_blue", "38525f": "cloth_blue",
@@ -91,7 +133,7 @@ const BASE_ENTRIES: Array[Dictionary] = [
 	{"src": "res://assets/kaykit-adventurers/Textures/knight_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__knight_texture.png", "overrides": {}, "guard_swap": true},
 	{"src": "res://assets/kaykit-adventurers/Textures/rogue_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__rogue_texture.png", "overrides": {}, "guard_swap": true},
 	{"src": "res://assets/kaykit-adventurers/Textures/mage_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__mage_texture.png", "overrides": {}},
-	{"src": "res://assets/kaykit-restaurant/Assets/gltf/restaurantbits_texture.png", "out": "res://art/palette/atlas/kaykit-restaurant__restaurantbits_texture.png", "overrides": {}},
+	{"src": "res://assets/kaykit-restaurant/Assets/gltf/restaurantbits_texture.png", "out": "res://art/palette/atlas/kaykit-restaurant__restaurantbits_texture.png", "overrides": FRIDGE_TEAL_TO_ICE},
 	{"src": "res://assets/kaykit-adventurers/Textures/rogue_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__traveler_rogue_grey.png", "overrides": {}, "tone": "traveler_grey"},
 	{"src": "res://assets/kaykit-adventurers/Textures/rogue_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__traveler_rogue_beige.png", "overrides": {}, "tone": "traveler_beige"},
 	{"src": "res://assets/kaykit-adventurers/Textures/rogue_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__traveler_rogue_brown.png", "overrides": {}, "tone": "traveler_brown"},
