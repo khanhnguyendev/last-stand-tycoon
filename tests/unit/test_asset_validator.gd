@@ -132,3 +132,75 @@ func test_placeholder_rule() -> void:
 	var r := AssetValidator.check_no_placeholders(PackedStringArray([ROOT + "/code"]))
 	assert_eq(r.size(), 1)
 	assert_string_contains(r[0], "a.gd")
+
+func test_count_triangles_visible_only() -> void:
+	var root := Node3D.new()
+	var a := MeshInstance3D.new()
+	a.mesh = BoxMesh.new()  # 12 triangles
+	root.add_child(a)
+	var b := MeshInstance3D.new()
+	b.mesh = BoxMesh.new()
+	b.visible = false
+	root.add_child(b)
+	assert_eq(AssetValidator.count_triangles(root), 12)
+	root.free()
+
+func test_no_physics_rule() -> void:
+	DirAccess.make_dir_recursive_absolute(ROOT + "/scenes")
+	var n := Node3D.new()
+	var body := StaticBody3D.new()
+	n.add_child(body)
+	body.owner = n
+	var ps := PackedScene.new()
+	ps.pack(n)
+	ResourceSaver.save(ps, ROOT + "/scenes/bad.tscn")
+	n.free()
+	assert_eq(AssetValidator.check_no_physics(PackedStringArray([ROOT + "/scenes"])).size(), 1)
+
+func test_animation_rule() -> void:
+	var lib := AnimationLibrary.new()
+	lib.add_animation(&"Idle", Animation.new())
+	ResourceSaver.save(lib, ROOT + "/lib.tres")
+	assert_eq(AssetValidator.check_animations(ROOT + "/lib.tres", PackedStringArray(["Idle"])), [])
+	assert_eq(AssetValidator.check_animations(ROOT + "/lib.tres", PackedStringArray(["Idle", "Throw"])).size(), 1)
+
+func test_count_triangles_hidden_parent_and_mesh_root() -> void:
+	var root := Node3D.new()
+	var hidden := Node3D.new()
+	hidden.visible = false
+	var m := MeshInstance3D.new()
+	m.mesh = BoxMesh.new()
+	hidden.add_child(m)
+	root.add_child(hidden)
+	assert_eq(AssetValidator.count_triangles(hidden), 0, "hidden Node3D parent hides the subtree")
+	assert_eq(AssetValidator.count_triangles(root), 0)
+	root.free()
+	var solo := MeshInstance3D.new()
+	solo.mesh = BoxMesh.new()
+	assert_eq(AssetValidator.count_triangles(solo), 12, "a MeshInstance3D root counts itself")
+	solo.free()
+
+func test_budget_for_longest_prefix() -> void:
+	assert_eq(ArtBudgets.budget_for("res://art/characters/hero_visual.tscn"), 5500)
+	assert_eq(ArtBudgets.budget_for("res://art/env/props/x.tscn"), 1500)
+	assert_eq(ArtBudgets.budget_for("res://art/characters/kaykit_character.tscn"), -1)
+	assert_eq(ArtBudgets.budget_for("res://world/x.tscn"), -1)
+
+func _scene_with(child: Node, file: String) -> void:
+	DirAccess.make_dir_recursive_absolute(ROOT + "/phys")
+	var n := Node3D.new()
+	if child != null:
+		n.add_child(child)
+		child.owner = n
+	var ps := PackedScene.new()
+	ps.pack(n)
+	ResourceSaver.save(ps, ROOT + "/phys/" + file)
+	n.free()
+
+func test_no_physics_catches_shapes_and_passes_clean_scene() -> void:
+	_scene_with(null, "clean.tscn")
+	assert_eq(AssetValidator.check_no_physics(PackedStringArray([ROOT + "/phys"])).size(), 0, "clean Node3D")
+	_scene_with(CollisionShape3D.new(), "shape.tscn")
+	assert_eq(AssetValidator.check_no_physics(PackedStringArray([ROOT + "/phys"])).size(), 1, "bare CollisionShape3D")
+	_scene_with(CollisionPolygon3D.new(), "poly.tscn")
+	assert_eq(AssetValidator.check_no_physics(PackedStringArray([ROOT + "/phys"])).size(), 2, "CollisionPolygon3D")

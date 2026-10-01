@@ -13,7 +13,7 @@ dest_files=["res://.godot/imported/Barbarian.glb-1dc85fbd338c1b59cefc56c0f634427
 
 [params]
 
-nodes/root_type=""
+nodes/root_type="Node3D"
 nodes/root_name=""
 nodes/root_script=null
 mesh_library/use_node_names_as_mesh_names=false
@@ -35,11 +35,19 @@ animation/fps=30
 animation/trimming=false
 animation/remove_immutable_tracks=true
 animation/import_rest_as_RESET=false
-import_script/path=""
+import_script/path="res://tools/kaykit_import.gd"
 materials/extract=0
 materials/extract_format=0
 materials/extract_path=""
-_subresources={}
+_subresources={
+"materials": {
+"barbarian_texture": {
+"use_external/enabled": true,
+"use_external/fallback_path": "res://art/materials/kaykit-adventurers__barbarian_texture.tres",
+"use_external/path": "res://art/materials/kaykit-adventurers__barbarian_texture.tres"
+}
+}
+}
 gltf/naming_version=2
 gltf/embedded_image_handling=1
 gltf/texture_map_mode=1

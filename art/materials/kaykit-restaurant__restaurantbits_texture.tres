@@ -1,0 +1,8 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://art/palette/atlas/kaykit-restaurant__restaurantbits_texture.png" id="1_fisrt"]
+
+[resource]
+resource_name = "kaykit-restaurant__restaurantbits_texture"
+albedo_texture = ExtResource("1_fisrt")
+texture_filter = 0

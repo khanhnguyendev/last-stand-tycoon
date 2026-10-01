@@ -162,7 +162,77 @@ static func check_no_placeholders(dirs: PackedStringArray) -> Array[String]:
 					out.append("%s: uses a Visuals placeholder primitive" % p)
 	return out
 
-static func validate_project() -> Dictionary:
+static func _visible_chain(n: Node) -> bool:
+	var cur := n
+	while cur != null:
+		if cur is Node3D and not (cur as Node3D).visible:
+			return false
+		cur = cur.get_parent()
+	return true
+
+## Triangles of visible MeshInstance3D surfaces only (a hidden ancestor hides the mesh).
+static func count_triangles(node: Node) -> int:
+	var n := 0
+	var meshes := node.find_children("*", "MeshInstance3D", true, false)
+	if node is MeshInstance3D:
+		meshes.push_front(node)
+	for mi in meshes:
+		var m := mi as MeshInstance3D
+		if m.mesh == null or not _visible_chain(m):
+			continue
+		for s in m.mesh.get_surface_count():
+			var arr := m.mesh.surface_get_arrays(s)
+			var idx = arr[Mesh.ARRAY_INDEX]
+			n += (idx.size() if idx != null else (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()) / 3
+	return n
+
+## `host` must be inside the tree: scenes hide props in _ready(), which only runs once the instance is added.
+static func check_triangles(scenes: PackedStringArray, host: Node) -> Array[String]:
+	var out: Array[String] = []
+	for p in scenes:
+		var b := ArtBudgets.budget_for(p)
+		if b < 0:
+			continue
+		var inst: Node = (load(p) as PackedScene).instantiate()
+		host.add_child(inst)
+		var t := count_triangles(inst)
+		host.remove_child(inst)
+		inst.free()
+		if t > b:
+			out.append("%s: %d triangles > %d" % [p, t, b])
+	return out
+
+static func check_animations(lib_path: String, required: PackedStringArray) -> Array[String]:
+	var out: Array[String] = []
+	var lib := load(lib_path) as AnimationLibrary
+	if lib == null:
+		return ["%s: not an AnimationLibrary" % lib_path]
+	for c in required:
+		if not lib.has_animation(StringName(c)):
+			out.append("%s: missing clip %s" % [lib_path, c])
+	return out
+
+static func check_no_physics(dirs: PackedStringArray) -> Array[String]:
+	var out: Array[String] = []
+	for dir in dirs:
+		var files: Array = []
+		_files(dir, files)
+		for p in files:
+			if not (String(p).ends_with(".tscn") or String(p).ends_with(".glb") or String(p).ends_with(".gltf")):
+				continue
+			var ps := load(p) as PackedScene
+			if ps == null:
+				continue
+			var inst := ps.instantiate()
+			var physics := inst.find_children("*", "CollisionObject3D", true, false)
+			physics.append_array(inst.find_children("*", "CollisionShape3D", true, false))
+			physics.append_array(inst.find_children("*", "CollisionPolygon3D", true, false))
+			if inst is CollisionObject3D or inst is CollisionShape3D or inst is CollisionPolygon3D or not physics.is_empty():
+				out.append("%s: contains physics nodes" % p)
+			inst.free()
+	return out
+
+static func validate_project(host: Node = null) -> Dictionary:
 	var errors: Array[String] = []
 	var warnings: Array[String] = []
 	errors.append_array(check_licenses("res://assets", "res://docs/ASSET_LICENSES.md"))
@@ -175,6 +245,14 @@ static func validate_project() -> Dictionary:
 	errors.append_array(check_texture_sizes("res://art", 512))
 	errors.append_array(check_texture_sizes("res://art/icons", 256))
 	errors.append_array(check_stray_models("res://", PackedStringArray(STRAY_ALLOWED)))
+	errors.append_array(check_animations("res://art/characters/kaykit_anims.tres", KayKitClips.NAMES))
+	errors.append_array(check_no_physics(PackedStringArray(["res://art", "res://assets"])))
+	if host != null:
+		var scenes: Array = []
+		_files("res://art", scenes)
+		errors.append_array(check_triangles(PackedStringArray(scenes.filter(func(p): return String(p).ends_with(".tscn"))), host))
+	else:
+		warnings.append("triangle budgets skipped: validate_project() called without a host node")
 	var ph := check_no_placeholders(PackedStringArray(["res://actors", "res://autoload", "res://components", "res://core", "res://world", "res://ui", "res://art"]))
 	if PLACEHOLDERS_ARE_ERRORS:
 		errors.append_array(ph)
