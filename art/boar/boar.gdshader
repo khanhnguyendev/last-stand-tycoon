@@ -18,5 +18,7 @@ void fragment() {
 	vec3 c = COLOR.rgb;  // palette vertex colours are sRGB
 	vec3 lin = mix(pow((c + 0.055) / 1.055, vec3(2.4)), c / 12.92, step(c, vec3(0.04045)));
 	ALBEDO = flash ? flash_color : lin;
-	ROUGHNESS = 1.0;
+	ROUGHNESS = 0.6;
+	RIM = 0.35;
+	RIM_TINT = 0.4;
 }

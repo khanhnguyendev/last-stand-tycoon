@@ -85,13 +85,16 @@ static func _build() -> ArrayMesh:
 	var acc := {"verts": PackedVector3Array(), "norms": PackedVector3Array(), "cols": PackedColorArray(), "idx": PackedInt32Array()}
 	var maroon := Palette.color(&"enemy_maroon")
 	var red := Palette.color(&"enemy_red")
+	# The upper body and head lean toward enemy_red so the shaded flank still reads red-brown in the game camera; belly,
+	# tail and legs keep the darker colours.
+	var upper := maroon.lerp(red, 0.4)
 	var snout := Palette.color(&"enemy_snout")
 	var ink := Palette.color(&"ink")
 	var ink_soft := Palette.color(&"ink_soft")
 	var white := Palette.color(&"apron_white")
 
 	# body and belly
-	_add(acc, _sphere(BODY_R, 12, 6), _xf(Vector3(0, BODY_Y, 0), Vector3.ZERO, BODY_SCALE), maroon)
+	_add(acc, _sphere(BODY_R, 12, 6), _xf(Vector3(0, BODY_Y, 0), Vector3.ZERO, BODY_SCALE), upper)
 	_add(acc, _sphere(BODY_R, 12, 6), _xf(Vector3(0, BODY_Y - 0.09, 0.02), Vector3.ZERO, Vector3(0.9, 0.62, 1.05)), red)
 
 	# ridge: five cones along the back, tallest at the shoulders, leaning back
@@ -120,7 +123,7 @@ static func _build() -> ArrayMesh:
 
 	# head: big and low at the front, tilted slightly down
 	var head := _xf(HEAD_POS, Vector3(HEAD_TILT_DEG, 0, 0))
-	_add(acc, _sphere(HEAD_R, 12, 6), head * _xf(Vector3.ZERO, Vector3.ZERO, Vector3(1.05, 0.95, 1.0)), maroon)
+	_add(acc, _sphere(HEAD_R, 12, 6), head * _xf(Vector3.ZERO, Vector3.ZERO, Vector3(1.05, 0.95, 1.0)), upper)
 	_add(acc, _cone(0.14, 0.13, 0.07, 8, [false, true]), head * _xf(Vector3(0, -0.07, 0.275), Vector3(90, 0, 0)), snout)
 	for sx in [-1.0, 1.0]:
 		_add(acc, _sphere(0.022, 6, 3), head * _xf(Vector3(sx * 0.05, -0.05, 0.315), Vector3.ZERO, Vector3(1, 1.3, 0.7)), ink)
