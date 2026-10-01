@@ -4,7 +4,7 @@ extends Node3D
 
 var zone: StationZone
 var label: WorldLabel
-var _stack: Array = []
+var _pile: MultiMeshInstance3D
 var _fx: FlyFx
 const _stack_cap := 10
 
@@ -20,11 +20,12 @@ func setup(world: World) -> void:
 	label = WorldLabel.make("0")
 	label.position = MapLayout.to3(MapLayout.FREEZER - MapLayout.FREEZER_ZONE, 1.5 + _stack_cap * 0.18 + 0.5)
 	add_child(label)
+	var slots := PackedVector3Array()
 	for i in _stack_cap:
-		var m := Visuals.box(Vector3(0.35, 0.16, 0.25), Visuals.COLORS.steak)
-		m.position = MapLayout.to3(MapLayout.FREEZER - MapLayout.FREEZER_ZONE, 1.5 + i * 0.18)
-		add_child(m)
-		_stack.append(m)
+		slots.append(MapLayout.to3(MapLayout.FREEZER - MapLayout.FREEZER_ZONE, 1.5 + i * 0.18))
+	_pile = PileMesh.steak_pile(slots)
+	_pile.name = "Pile"
+	add_child(_pile)
 	EventBus.stocks_changed.connect(refresh)
 	EventBus.state_restored.connect(refresh)
 	refresh()
@@ -37,8 +38,7 @@ func _on_tick() -> void:
 
 func refresh() -> void:
 	label.text = str(GameState.freezer_steaks)
-	for i in _stack.size():
-		_stack[i].visible = i < GameState.freezer_steaks
+	PileMesh.set_count(_pile, GameState.freezer_steaks)
 
 func stack_count() -> int:
-	return _stack.filter(func(m): return m.visible).size()
+	return PileMesh.count(_pile)

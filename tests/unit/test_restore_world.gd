@@ -301,6 +301,16 @@ func test_from_dict_alone_rebuilds_every_view() -> void:
 	assert_eq(GameState.to_dict(), snap)
 	_assert_views_match(snap)
 
+func test_restore_piles_show_exact_counts() -> void:
+	var snap := GameState.to_dict()
+	snap.counter_steaks = Balance.data.economy.counter_capacity
+	snap.freezer_steaks = 0
+	snap.carried_steaks = 3
+	GameState.from_dict(snap)
+	assert_eq(main.world.counter.stack_count(), Balance.data.economy.counter_capacity)
+	assert_eq(main.world.freezer.stack_count(), 0)
+	assert_eq(main.hero.carry_stack.visible_count(), 3)
+
 func test_restore_from_json_round_trip_at_full_precision() -> void:
 	var snap := _make_snapshot()
 	assert_ne(float(JSON.parse_string(JSON.stringify(snap)).diner_hp), float(snap.diner_hp), "default precision must lose digits")
