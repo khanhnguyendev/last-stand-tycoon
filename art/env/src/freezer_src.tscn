@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/kaykit-restaurant/Assets/gltf/fridge_A.gltf" id="1"]
+
+[node name="FreezerSrc" type="Node3D"]
+
+[node name="fridge" parent="." instance=ExtResource("1")]
+transform = Transform3D(0.7, 0, 0, 0, 0.56, 0, 0, 0, 0.6, 0, 0, -0.07)
