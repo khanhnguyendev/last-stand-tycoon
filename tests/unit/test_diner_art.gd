@@ -123,3 +123,24 @@ func test_committed_bake_is_current() -> void:
 						off += 1
 				assert_eq(off, 0, "%s surface %d array %d: vertices that differ from the fresh bake" % [path, s, k])
 			assert_eq(fresh.surface_get_material(s), committed.surface_get_material(s), "%s surface %d material" % [path, s])
+
+func test_tall_vertices_lie_inside_the_occluder_boxes() -> void:
+	var d := _inst("res://art/env/diner.tscn")
+	var boxes: Array[AABB] = d.occluder_boxes
+	var mesh := _body(d).mesh
+	var outside := 0
+	var tall := 0
+	for s in mesh.get_surface_count():
+		for v in mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX] as PackedVector3Array:
+			if v.y <= 3.45:
+				continue
+			tall += 1
+			var inside := false
+			for b in boxes:
+				if b.grow(0.05).has_point(v):
+					inside = true
+					break
+			if not inside:
+				outside += 1
+	assert_gt(tall, 0, "the diner has vertices above the parapet")
+	assert_eq(outside, 0, "vertices above y 3.45 outside every DinerArt.occluder_boxes (grown 0.05): the boxes drifted from the art")
