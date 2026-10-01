@@ -3,6 +3,7 @@ extends SceneTree
 ## Run WITH rendering (not --headless), like tests/sim/capture.gd:
 ## "$GODOT" --path . --resolution 720x1280 -s res://tests/style_board/style_board.gd -- --set=a --out=docs/review/media/s4_style_board/set_a.png
 ## --closeup (run at --resolution 1280x720): a low 3/4 view of the lineup instead of the game camera, saved to --out.
+## --boars (run at --resolution 1280x720): three boars side by side (C tinted farm Pig, cute-monster Pig untinted, cute-monster Pig tinted + tusks + ridge).
 ## --anims=<md path> (any --set) writes the animation inventory for all three sets and quits without rendering.
 ## Candidate assets live in assets/_candidates/ (gitignored, CC0). A -s script compiles before the autoloads exist,
 ## so project scripts are load()ed at run time and used untyped, like capture.gd.
@@ -25,6 +26,11 @@ const SETS := {
 		"label": "C: KayKit Adventurers (+ Quaternius Pig)",
 		"hero": ["c/Barbarian.glb", 1.6], "traveler1": ["c/Rogue.glb", 1.5], "traveler2": ["c/Mage.glb", 1.5],
 		"archer": ["c/Rogue_Hooded.glb", 1.6], "tank": ["c/Knight.glb", 1.6], "boar": ["c/Pig.fbx", 0.95],
+	},
+	"d": {
+		"label": "D: KayKit Adventurers, chef-hat Barbarian cook + Quaternius cute-monster Pig",
+		"hero": ["c/Barbarian.glb", 1.6], "traveler1": ["c/Rogue.glb", 1.5], "traveler2": ["c/Mage.glb", 1.5],
+		"archer": ["c/Rogue_Hooded.glb", 1.6], "tank": ["c/Knight.glb", 1.6], "boar": ["d/Pig.fbx", 0.9],
 	},
 }
 const ROLES := ["hero", "traveler1", "traveler2", "archer", "tank", "boar"]
@@ -56,10 +62,11 @@ func _run() -> void:
 	bal.reset()
 	_build_environment()
 	_build_ground(map_layout)
-	if not _args.has("closeup"):  # the diner would block the low closeup camera
+	if not _args.has("closeup") and not _args.has("boars"):  # the diner would block the low closeup camera
 		_build_diner(map_layout)
-	_build_props(map_layout)
-	var players: Array = _build_lineup(set_id)
+	if not _args.has("boars"):
+		_build_props(map_layout)
+	var players: Array = _build_boars() if _args.has("boars") else _build_lineup(set_id)
 	var cam := Camera3D.new()
 	var vp := root.get_visible_rect().size
 	camera_math.apply_lens(cam, bal.ui, vp.x / vp.y)  # D-145
@@ -67,7 +74,7 @@ func _run() -> void:
 	root.add_child(cam)
 	# Focus: between the lineup (z = -6.8) and the diner (z = 0), as the game camera would frame a hero there.
 	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(Vector2(0.0, -2.6)), bal.ui)
-	if _args.has("closeup"):  # NOT the game camera: a low 3/4 view of the lineup for judging silhouettes (run at 1280x720)
+	if _args.has("closeup") or _args.has("boars"):  # NOT the game camera: a low 3/4 view of the lineup for judging silhouettes (run at 1280x720)
 		cam.keep_aspect = Camera3D.KEEP_HEIGHT
 		cam.fov = 32.0
 		cam.global_transform = Transform3D(Basis(), Vector3(0.0, 3.4, _lineup_z + 9.0)).looking_at(Vector3(0.0, 0.7, _lineup_z), Vector3.UP)
@@ -295,7 +302,9 @@ func _build_lineup(set_id: String) -> Array:
 		holder.position = Vector3((i - 2.5) * 1.5, 0.0, _lineup_z)
 		root.add_child(holder)
 		holder.add_child(wrap)
-		if role == "boar" and set_id != "a":
+		if role == "boar" and set_id == "d":
+			_dress_cute_boar(wrap, holder, info[1], true)
+		elif role == "boar" and set_id != "a":
 			_recolor_pig(wrap)
 			_add_tusks(wrap, info[1])
 		var model: Node = wrap.get_child(0)
@@ -312,6 +321,8 @@ func _build_lineup(set_id: String) -> Array:
 			_fix_skin(wrap)
 			_play_idle(hat_model)
 			wrap.set_meta("fit", chef_fit)
+		if set_id == "d" and role == "hero":
+			_dress_cook(model)
 		if set_id == "c" and role == "archer":
 			if not _attach(model, "handslot.r", "c/crossbow_2handed.gltf"):
 				push_warning("no handslot.r for the crossbow")
@@ -319,6 +330,132 @@ func _build_lineup(set_id: String) -> Array:
 			if not _attach(model, "handslot.l", "c/shield_badge.gltf"):
 				push_warning("no handslot.l for the shield")
 	return players
+
+# --- set D: chef hero, cute-monster Boar -----------------------------------------------------------
+
+const D_BOAR_YAW := 0.0  # degrees about y so the cute-monster Pig faces +z (tuned from the closeup)
+
+## Barbarian -> diner cook: hide the bear hood, cape and every held item, add a procedural chef hat on the head bone,
+## a white apron over the torso (material_overlay: the clothes share one atlas), and a frying pan in handslot.r.
+func _dress_cook(model: Node) -> void:
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.get_parent() is BoneAttachment3D:  # Barbarian_Hat / _Cape / axes / shield / mug: all rest-pose clutter
+			m.visible = false
+	var skel: Skeleton3D = model.find_children("*", "Skeleton3D", true, false)[0]
+	var body := skel.get_node("Barbarian_Body") as MeshInstance3D
+	var apron := StandardMaterial3D.new()
+	apron.albedo_color = Color(1, 1, 1, 0.82)
+	apron.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	body.material_overlay = apron
+	# chef hat: a cylinder band + a puffy sphere, on a BoneAttachment3D at the head bone ("head" in the KayKit rig)
+	var ba := BoneAttachment3D.new()
+	ba.name = "ChefHat"
+	ba.bone_name = "head"
+	skel.add_child(ba)
+	var white := StandardMaterial3D.new()
+	white.albedo_color = Color("fbfbf6")
+	var band := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.40
+	cyl.bottom_radius = 0.37
+	cyl.height = 0.42
+	band.mesh = cyl
+	band.material_override = white
+	band.position = Vector3(0, HAT_Y, 0)
+	ba.add_child(band)
+	var puff := MeshInstance3D.new()
+	var sph := SphereMesh.new()
+	sph.radius = 0.46
+	sph.height = 0.78
+	puff.mesh = sph
+	puff.material_override = white
+	puff.position = Vector3(0, HAT_Y + 0.38, 0)
+	ba.add_child(puff)
+	# pan
+	var hand := skel.get_node("handslot_r") as BoneAttachment3D
+	var pan: Node3D = load(C + "d/pan_A.gltf").instantiate()
+	pan.scale = Vector3.ONE * PAN_S
+	pan.rotation_degrees = PAN_ROT
+	pan.position = PAN_POS
+	hand.add_child(pan)
+
+const HAT_Y := 1.0
+const PAN_S := 0.8
+const PAN_ROT := Vector3(0, 0, 0)
+const PAN_POS := Vector3(0, 0, 0)
+
+## Quaternius cute-monster Pig as a cute-dangerous Boar: dark brown-red albedo tint (texture kept for the eyes),
+## two white cone tusks at the mouth corners, a 3-cone dark-red ridge on the back. `holder` is the lineup node at
+## the boar's feet; decorations are children of it (not of the scaled wrapper) so their sizes are metres.
+func _dress_cute_boar(wrap: Node3D, holder: Node3D, height: float, tinted: bool) -> void:
+	wrap.rotation_degrees.y = D_BOAR_YAW
+	if not tinted:
+		return
+	var tint := Color(0.62, 0.30, 0.25)
+	for mi in wrap.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for i in m.mesh.get_surface_count():
+			var mat := m.get_active_material(i)
+			if mat is BaseMaterial3D:
+				var d := (mat as BaseMaterial3D).duplicate() as BaseMaterial3D
+				d.albedo_color = tint
+				m.set_surface_override_material(i, d)
+	var fit: Dictionary = wrap.get_meta("fit")
+	var s: float = fit.s
+	var bb: AABB = fit.bb
+	var ext := Vector3(bb.size.x, bb.size.y, bb.size.z) * s
+	var half_len := maxf(ext.x, ext.z) * 0.5   # length axis after the yaw fix = z
+	var half_w := minf(ext.x, ext.z) * 0.5
+	var white := StandardMaterial3D.new()
+	white.albedo_color = Color("fff6e0")
+	for sx in [-1.0, 1.0]:
+		var t := _cone(0.045, 0.2, white)
+		t.position = Vector3(sx * half_w * TUSK_X, height * TUSK_Y, half_len * TUSK_Z)
+		t.rotation_degrees = Vector3(-30.0, 0.0, -sx * 18.0)
+		holder.add_child(t)
+	var red := StandardMaterial3D.new()
+	red.albedo_color = Color("5a0f0f")
+	for k in 3:
+		var r := _cone(0.085, 0.26 - 0.04 * k, red)
+		r.position = Vector3(0, height * RIDGE_Y, half_len * (RIDGE_Z0 - 0.5 * k))
+		r.rotation_degrees.x = -12.0  # leaning back (the head faces +z)
+		holder.add_child(r)
+
+const TUSK_X := 0.35
+const TUSK_Y := 0.3
+const TUSK_Z := 0.92
+const RIDGE_Y := 0.92
+const RIDGE_Z0 := 0.1
+
+func _cone(radius: float, h: float, mat: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var c := CylinderMesh.new()
+	c.top_radius = 0.0
+	c.bottom_radius = radius
+	c.height = h
+	mi.mesh = c
+	mi.material_override = mat
+	return mi
+
+## --boars: farm Pig tinted (set C) | cute-monster Pig untinted | cute-monster Pig tinted + tusks + ridge.
+func _build_boars() -> Array:
+	var out: Array = []
+	for i in 3:
+		var file := "c/Pig.fbx" if i == 0 else "d/Pig.fbx"
+		var h := 0.95 if i == 0 else 0.9
+		var wrap := _fit(file, h, "boar%d" % i)
+		var holder := Node3D.new()
+		holder.position = Vector3((i - 1) * 2.0, 0.0, _lineup_z)
+		root.add_child(holder)
+		holder.add_child(wrap)
+		if i == 0:
+			_recolor_pig(wrap)
+			_add_tusks(wrap, h)
+		else:
+			_dress_cute_boar(wrap, holder, h, i == 2)
+		out.append(_play_idle(wrap.get_child(0)))
+	return out
 
 # --- animation inventory -----------------------------------------------------------------------
 
@@ -346,7 +483,7 @@ func _write_anims(path_: String) -> void:
 	var md := "# S4 style board: animation inventory (D-183)\n\nGenerated by `tests/style_board/style_board.gd --anims=...` from each model's AnimationPlayer after import.\n"
 	md += "Role coverage is a name match (idle / run|sprint / attack|punch|shoot|chop|slice|stab|kick|melee / hit|death|die|defeat).\n\n"
 	var detail := ""
-	for set_id in ["a", "b", "c"]:
+	for set_id in ["a", "b", "c", "d"]:
 		var spec: Dictionary = SETS[set_id]
 		md += "## Set %s\n\n| role | model | idle | run | attack | hit | death |\n|---|---|---|---|---|---|---|\n" % spec.label
 		for role in ROLES:
@@ -360,6 +497,7 @@ func _write_anims(path_: String) -> void:
 				_match(names, "death|^die$|defeat", "pose")]
 			detail += "### Set %s, %s (%s)\n%s\n\n" % [set_id.to_upper(), role, file.get_file(), ", ".join(names) if not names.is_empty() else "(none)"]
 		md += "\n"
+	md += "Set D's hero is the Barbarian with a procedural chef hat, apron overlay and a Restaurant Bits pan (animations as set C); its Boar is the Quaternius cute-monster Pig (idle only).\n"
 	md += "Set C has no cook: the hero is the Barbarian. Set C's Quaternius Pig is the same file and animations as set B.\n"
 	md += "Set A's characters share one animation library (character-a..r); the table lists the specific model used.\n\n## Full animation names per model\n\n" + detail
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://").path_join(path_).get_base_dir())

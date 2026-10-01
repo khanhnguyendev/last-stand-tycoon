@@ -36,6 +36,18 @@ Role coverage is a name match (idle / run|sprint / attack|punch|shoot|chop|slice
 | tank | Knight.glb | Idle, Unarmed_Idle | Running_A, Running_B, Running_Strafe_Left, Running_Strafe_Right | 1H_Melee_Attack_Chop, 1H_Melee_Attack_Slice_Diagonal, 1H_Melee_Attack_Slice_Horizontal, 1H_Melee_Attack_Stab | Block_Hit, Hit_A, Hit_B | Death_A, Death_B |
 | boar | Pig.fbx | Idle | NONE | NONE | NONE | NONE |
 
+## Set D: KayKit Adventurers, chef-hat Barbarian cook + Quaternius cute-monster Pig
+
+| role | model | idle | run | attack | hit | death |
+|---|---|---|---|---|---|---|
+| hero | Barbarian.glb | Idle, Unarmed_Idle | Running_A, Running_B, Running_Strafe_Left, Running_Strafe_Right | 1H_Melee_Attack_Chop, 1H_Melee_Attack_Slice_Diagonal, 1H_Melee_Attack_Slice_Horizontal, 1H_Melee_Attack_Stab | Block_Hit, Hit_A, Hit_B | Death_A, Death_B |
+| traveler1 | Rogue.glb | Idle, Unarmed_Idle | Running_A, Running_B, Running_Strafe_Left, Running_Strafe_Right | 1H_Melee_Attack_Chop, 1H_Melee_Attack_Slice_Diagonal, 1H_Melee_Attack_Slice_Horizontal, 1H_Melee_Attack_Stab | Block_Hit, Hit_A, Hit_B | Death_A, Death_B |
+| traveler2 | Mage.glb | Idle, Unarmed_Idle | Running_A, Running_B, Running_Strafe_Left, Running_Strafe_Right | 1H_Melee_Attack_Chop, 1H_Melee_Attack_Slice_Diagonal, 1H_Melee_Attack_Slice_Horizontal, 1H_Melee_Attack_Stab | Block_Hit, Hit_A, Hit_B | Death_A, Death_B |
+| archer | Rogue_Hooded.glb | Idle, Unarmed_Idle | Running_A, Running_B, Running_Strafe_Left, Running_Strafe_Right | 1H_Melee_Attack_Chop, 1H_Melee_Attack_Slice_Diagonal, 1H_Melee_Attack_Slice_Horizontal, 1H_Melee_Attack_Stab | Block_Hit, Hit_A, Hit_B | Death_A, Death_B |
+| tank | Knight.glb | Idle, Unarmed_Idle | Running_A, Running_B, Running_Strafe_Left, Running_Strafe_Right | 1H_Melee_Attack_Chop, 1H_Melee_Attack_Slice_Diagonal, 1H_Melee_Attack_Slice_Horizontal, 1H_Melee_Attack_Stab | Block_Hit, Hit_A, Hit_B | Death_A, Death_B |
+| boar | Pig.fbx | Idle | NONE | NONE | NONE | NONE |
+
+Set D's hero is the Barbarian with a procedural chef hat, apron overlay and a Restaurant Bits pan (animations as set C); its Boar is the Quaternius cute-monster Pig (idle only).
 Set C has no cook: the hero is the Barbarian. Set C's Quaternius Pig is the same file and animations as set B.
 Set A's characters share one animation library (character-a..r); the table lists the specific model used.
 
@@ -43,6 +55,7 @@ Notes (read by hand from the full lists below):
 - Set B has Walk and Walk_Carry but no run; Pig has only Idle and Jump (no walk, attack, hit or death). Set B has a hit (RecieveHit) and Defeat for every character.
 - Set A's hog has idle, walk, run, eat, dance and gesture-negative/positive; no attack, hit or death. Kenney characters have no hit reaction (die only).
 - Set C characters have Hit_A/Hit_B, Death_A/Death_B, Walking_A..C, Running_A/B and many attack variants; "Idle" is the armed idle, "Unarmed_Idle" the bare one.
+- Set D: the cute-monster Pig has one animation, `MonsterArmature|Idle` (no walk, run, attack, hit or death); the hero is the set C Barbarian rig.
 
 ## Full animation names per model
 
@@ -99,4 +112,22 @@ Armature|Idle, Armature|Jump
 
 ### Set C, boar (Pig.fbx)
 Armature|Idle, Armature|Jump
+
+### Set D, hero (Barbarian.glb)
+1H_Melee_Attack_Chop, 1H_Melee_Attack_Slice_Diagonal, 1H_Melee_Attack_Slice_Horizontal, 1H_Melee_Attack_Stab, 1H_Ranged_Aiming, 1H_Ranged_Reload, 1H_Ranged_Shoot, 1H_Ranged_Shooting, 2H_Melee_Attack_Chop, 2H_Melee_Attack_Slice, 2H_Melee_Attack_Spin, 2H_Melee_Attack_Spinning, 2H_Melee_Attack_Stab, 2H_Melee_Idle, 2H_Ranged_Aiming, 2H_Ranged_Reload, 2H_Ranged_Shoot, 2H_Ranged_Shooting, Block, Block_Attack, Block_Hit, Blocking, Cheer, Death_A, Death_A_Pose, Death_B, Death_B_Pose, Dodge_Backward, Dodge_Forward, Dodge_Left, Dodge_Right, Dualwield_Melee_Attack_Chop, Dualwield_Melee_Attack_Slice, Dualwield_Melee_Attack_Stab, Hit_A, Hit_B, Idle, Interact, Jump_Full_Long, Jump_Full_Short, Jump_Idle, Jump_Land, Jump_Start, Lie_Down, Lie_Idle, Lie_Pose, Lie_StandUp, PickUp, Running_A, Running_B, Running_Strafe_Left, Running_Strafe_Right, Sit_Chair_Down, Sit_Chair_Idle, Sit_Chair_Pose, Sit_Chair_StandUp, Sit_Floor_Down, Sit_Floor_Idle, Sit_Floor_Pose, Sit_Floor_StandUp, Spellcast_Long, Spellcast_Raise, Spellcast_Shoot, Spellcasting, T-Pose, Throw, Unarmed_Idle, Unarmed_Melee_Attack_Kick, Unarmed_Melee_Attack_Punch_A, Unarmed_Melee_Attack_Punch_B, Unarmed_Pose, Use_Item, Walking_A, Walking_B, Walking_Backwards, Walking_C
+
+### Set D, traveler1 (Rogue.glb)
+1H_Melee_Attack_Chop, 1H_Melee_Attack_Slice_Diagonal, 1H_Melee_Attack_Slice_Horizontal, 1H_Melee_Attack_Stab, 1H_Ranged_Aiming, 1H_Ranged_Reload, 1H_Ranged_Shoot, 1H_Ranged_Shooting, 2H_Melee_Attack_Chop, 2H_Melee_Attack_Slice, 2H_Melee_Attack_Spin, 2H_Melee_Attack_Spinning, 2H_Melee_Attack_Stab, 2H_Melee_Idle, 2H_Ranged_Aiming, 2H_Ranged_Reload, 2H_Ranged_Shoot, 2H_Ranged_Shooting, Block, Block_Attack, Block_Hit, Blocking, Cheer, Death_A, Death_A_Pose, Death_B, Death_B_Pose, Dodge_Backward, Dodge_Forward, Dodge_Left, Dodge_Right, Dualwield_Melee_Attack_Chop, Dualwield_Melee_Attack_Slice, Dualwield_Melee_Attack_Stab, Hit_A, Hit_B, Idle, Interact, Jump_Full_Long, Jump_Full_Short, Jump_Idle, Jump_Land, Jump_Start, Lie_Down, Lie_Idle, Lie_Pose, Lie_StandUp, PickUp, Running_A, Running_B, Running_Strafe_Left, Running_Strafe_Right, Sit_Chair_Down, Sit_Chair_Idle, Sit_Chair_Pose, Sit_Chair_StandUp, Sit_Floor_Down, Sit_Floor_Idle, Sit_Floor_Pose, Sit_Floor_StandUp, Spellcast_Long, Spellcast_Raise, Spellcast_Shoot, Spellcasting, T-Pose, Throw, Unarmed_Idle, Unarmed_Melee_Attack_Kick, Unarmed_Melee_Attack_Punch_A, Unarmed_Melee_Attack_Punch_B, Unarmed_Pose, Use_Item, Walking_A, Walking_B, Walking_Backwards, Walking_C
+
+### Set D, traveler2 (Mage.glb)
+1H_Melee_Attack_Chop, 1H_Melee_Attack_Slice_Diagonal, 1H_Melee_Attack_Slice_Horizontal, 1H_Melee_Attack_Stab, 1H_Ranged_Aiming, 1H_Ranged_Reload, 1H_Ranged_Shoot, 1H_Ranged_Shooting, 2H_Melee_Attack_Chop, 2H_Melee_Attack_Slice, 2H_Melee_Attack_Spin, 2H_Melee_Attack_Spinning, 2H_Melee_Attack_Stab, 2H_Melee_Idle, 2H_Ranged_Aiming, 2H_Ranged_Reload, 2H_Ranged_Shoot, 2H_Ranged_Shooting, Block, Block_Attack, Block_Hit, Blocking, Cheer, Death_A, Death_A_Pose, Death_B, Death_B_Pose, Dodge_Backward, Dodge_Forward, Dodge_Left, Dodge_Right, Dualwield_Melee_Attack_Chop, Dualwield_Melee_Attack_Slice, Dualwield_Melee_Attack_Stab, Hit_A, Hit_B, Idle, Interact, Jump_Full_Long, Jump_Full_Short, Jump_Idle, Jump_Land, Jump_Start, Lie_Down, Lie_Idle, Lie_Pose, Lie_StandUp, PickUp, Running_A, Running_B, Running_Strafe_Left, Running_Strafe_Right, Sit_Chair_Down, Sit_Chair_Idle, Sit_Chair_Pose, Sit_Chair_StandUp, Sit_Floor_Down, Sit_Floor_Idle, Sit_Floor_Pose, Sit_Floor_StandUp, Spellcast_Long, Spellcast_Raise, Spellcast_Shoot, Spellcasting, T-Pose, Throw, Unarmed_Idle, Unarmed_Melee_Attack_Kick, Unarmed_Melee_Attack_Punch_A, Unarmed_Melee_Attack_Punch_B, Unarmed_Pose, Use_Item, Walking_A, Walking_B, Walking_Backwards, Walking_C
+
+### Set D, archer (Rogue_Hooded.glb)
+1H_Melee_Attack_Chop, 1H_Melee_Attack_Slice_Diagonal, 1H_Melee_Attack_Slice_Horizontal, 1H_Melee_Attack_Stab, 1H_Ranged_Aiming, 1H_Ranged_Reload, 1H_Ranged_Shoot, 1H_Ranged_Shooting, 2H_Melee_Attack_Chop, 2H_Melee_Attack_Slice, 2H_Melee_Attack_Spin, 2H_Melee_Attack_Spinning, 2H_Melee_Attack_Stab, 2H_Melee_Idle, 2H_Ranged_Aiming, 2H_Ranged_Reload, 2H_Ranged_Shoot, 2H_Ranged_Shooting, Block, Block_Attack, Block_Hit, Blocking, Cheer, Death_A, Death_A_Pose, Death_B, Death_B_Pose, Dodge_Backward, Dodge_Forward, Dodge_Left, Dodge_Right, Dualwield_Melee_Attack_Chop, Dualwield_Melee_Attack_Slice, Dualwield_Melee_Attack_Stab, Hit_A, Hit_B, Idle, Interact, Jump_Full_Long, Jump_Full_Short, Jump_Idle, Jump_Land, Jump_Start, Lie_Down, Lie_Idle, Lie_Pose, Lie_StandUp, PickUp, Running_A, Running_B, Running_Strafe_Left, Running_Strafe_Right, Sit_Chair_Down, Sit_Chair_Idle, Sit_Chair_Pose, Sit_Chair_StandUp, Sit_Floor_Down, Sit_Floor_Idle, Sit_Floor_Pose, Sit_Floor_StandUp, Spellcast_Long, Spellcast_Raise, Spellcast_Shoot, Spellcasting, T-Pose, Throw, Unarmed_Idle, Unarmed_Melee_Attack_Kick, Unarmed_Melee_Attack_Punch_A, Unarmed_Melee_Attack_Punch_B, Unarmed_Pose, Use_Item, Walking_A, Walking_B, Walking_Backwards, Walking_C
+
+### Set D, tank (Knight.glb)
+1H_Melee_Attack_Chop, 1H_Melee_Attack_Slice_Diagonal, 1H_Melee_Attack_Slice_Horizontal, 1H_Melee_Attack_Stab, 1H_Ranged_Aiming, 1H_Ranged_Reload, 1H_Ranged_Shoot, 1H_Ranged_Shooting, 2H_Melee_Attack_Chop, 2H_Melee_Attack_Slice, 2H_Melee_Attack_Spin, 2H_Melee_Attack_Spinning, 2H_Melee_Attack_Stab, 2H_Melee_Idle, 2H_Ranged_Aiming, 2H_Ranged_Reload, 2H_Ranged_Shoot, 2H_Ranged_Shooting, Block, Block_Attack, Block_Hit, Blocking, Cheer, Death_A, Death_A_Pose, Death_B, Death_B_Pose, Dodge_Backward, Dodge_Forward, Dodge_Left, Dodge_Right, Dualwield_Melee_Attack_Chop, Dualwield_Melee_Attack_Slice, Dualwield_Melee_Attack_Stab, Hit_A, Hit_B, Idle, Interact, Jump_Full_Long, Jump_Full_Short, Jump_Idle, Jump_Land, Jump_Start, Lie_Down, Lie_Idle, Lie_Pose, Lie_StandUp, PickUp, Running_A, Running_B, Running_Strafe_Left, Running_Strafe_Right, Sit_Chair_Down, Sit_Chair_Idle, Sit_Chair_Pose, Sit_Chair_StandUp, Sit_Floor_Down, Sit_Floor_Idle, Sit_Floor_Pose, Sit_Floor_StandUp, Spellcast_Long, Spellcast_Raise, Spellcast_Shoot, Spellcasting, T-Pose, Throw, Unarmed_Idle, Unarmed_Melee_Attack_Kick, Unarmed_Melee_Attack_Punch_A, Unarmed_Melee_Attack_Punch_B, Unarmed_Pose, Use_Item, Walking_A, Walking_B, Walking_Backwards, Walking_C
+
+### Set D, boar (Pig.fbx)
+MonsterArmature|Idle
 
