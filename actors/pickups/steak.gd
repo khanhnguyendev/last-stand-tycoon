@@ -14,7 +14,7 @@ func place(pos: Vector3) -> void:
 	if field != null:
 		# visual-only spin from a position hash: no rand, no gameplay state
 		var yaw := fposmod(sin(pos.x * 12.9898 + pos.z * 78.233) * 43758.5453, 1.0) * TAU
-		field.set_slot(slot, PickupField.slot_transform(Vector3(pos.x, 0.02, pos.z), yaw, PileMesh.steak_xf()))
+		field.set_slot(slot, PickupField.slot_transform(Vector3(pos.x, 0.02, pos.z), yaw, PileMesh.steak_xf(), Balance.ui.ground_steak_scale))
 
 func on_release() -> void:
 	if field != null:

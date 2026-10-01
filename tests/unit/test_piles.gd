@@ -134,6 +134,23 @@ func test_slot_transform_places_and_turns() -> void:
 	assert_almost_eq(xf.origin.y, 0.02, 1e-4)
 	assert_almost_eq(xf.origin.z, 4.0, 1e-4)  # the item's +x offset is turned 90 degrees about y: x -> -z
 
+func test_slot_transform_scale_applies_on_top_of_the_item() -> void:
+	var item := Transform3D(Basis.from_scale(Vector3(2, 1, 2)), Vector3(1, 0, 0))
+	var xf := PickupField.slot_transform(Vector3(10, 0.02, 5), 0.0, item, 1.6)
+	assert_almost_eq(xf.basis.get_scale().x, 3.2, 1e-4)
+	assert_almost_eq(xf.basis.get_scale().y, 1.6, 1e-4)
+	assert_almost_eq(xf.origin.x, 11.6, 1e-4, "the centring offset scales too")
+	assert_eq(PickupField.slot_transform(Vector3.ZERO, 0.0, item).basis.get_scale(), Vector3(2, 1, 2), "default 1.0")
+
+func test_ground_steak_draws_at_the_tuned_scale_and_piles_do_not() -> void:
+	var m := _main()
+	assert_eq(Balance.ui.ground_steak_scale, 1.6)
+	var s: Steak = m.world.steak_pool.acquire()
+	s.place(Vector3(3, 0, 3))
+	var base := PileMesh.steak_xf().basis.get_scale().x
+	assert_almost_eq(m.world.pickup_field.slot_xf(s.slot).basis.get_scale().x, base * 1.6, 1e-4)
+	assert_almost_eq(PileMesh.steak_xf().basis.get_scale().x, base, 1e-6)
+
 func test_ground_steaks_are_one_field_with_no_mesh_of_their_own() -> void:
 	var m := _main()
 	var field: PickupField = m.world.pickup_field

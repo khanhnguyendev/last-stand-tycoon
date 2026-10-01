@@ -8,9 +8,10 @@ const HIDDEN := Transform3D(Basis(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO), Vec
 var _xf: Array[Transform3D] = []
 
 ## The transform written for a pickup lying at `pos`, turned by `yaw`; `item_xf` is the model's own placement.
-static func slot_transform(pos: Vector3, yaw: float, item_xf: Transform3D) -> Transform3D:
+## `scale` is applied on top of `item_xf` (its centring offset scales with it, so the item still sits on `pos`).
+static func slot_transform(pos: Vector3, yaw: float, item_xf: Transform3D, scale := 1.0) -> Transform3D:
 	var turn := Basis(Vector3.UP, yaw)
-	return Transform3D(turn * item_xf.basis, pos + turn * item_xf.origin)
+	return Transform3D(turn * Basis.from_scale(Vector3.ONE * scale) * item_xf.basis, pos + turn * (item_xf.origin * scale))
 
 func setup(mesh: Mesh, capacity: int) -> void:
 	multimesh = MultiMesh.new()
