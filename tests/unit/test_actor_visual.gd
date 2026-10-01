@@ -1,7 +1,8 @@
 extends GutTest
 ## D-190 contract: every role visual survives the full cycle headless and never touches root scale/visible.
 
-const ROLE_SCENES := []  # Tasks 7–9 append their scenes here, e.g. "res://art/characters/hero_visual.tscn"
+const HERO := "res://art/characters/hero_visual.tscn"
+const ROLE_SCENES := [HERO]  # Tasks 8–9 append their scenes here
 const BASE := "res://art/characters/kaykit_character.tscn"
 
 func _cycle(v: ActorVisual) -> void:
@@ -142,3 +143,77 @@ func test_blob_shadow_scene() -> void:
 	assert_eq(mat.shading_mode, BaseMaterial3D.SHADING_MODE_UNSHADED)
 	assert_eq(mi.cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
 	assert_not_null(mat.albedo_texture)
+
+# --- Hero visual (S4 Task 7b, D-191) ---
+
+func _hero_visual() -> KayKitVisual:
+	var v: KayKitVisual = load(HERO).instantiate()
+	add_child_autofree(v)
+	return v
+
+func test_hero_visual_is_a_cook() -> void:
+	var v := _hero_visual()
+	assert_eq(v.attack_clip, &"Throw")
+	assert_true(v.upper_body_attack)
+	var sk := v.body.get_node("Model/Rig/Skeleton3D") as Skeleton3D
+	var hat := sk.find_child("ChefHat", true, false) as MeshInstance3D
+	assert_not_null(hat, "chef hat")
+	assert_eq((hat.get_parent() as BoneAttachment3D).bone_name, &"head")
+	var pan := sk.find_child("pan_A", true, false)
+	assert_not_null(pan, "pan")
+	assert_eq(((pan.get_parent() as Node3D).get_parent() as BoneAttachment3D).bone_name, &"handslot.r")
+	for gone in ["Barbarian_Hat", "Barbarian_Cape", "1H_Axe", "2H_Axe", "1H_Axe_Offhand", "Barbarian_Round_Shield", "Mug"]:
+		assert_null(sk.find_child(gone, true, false), "%s removed" % gone)
+	var torso := sk.get_node("Barbarian_Body") as MeshInstance3D
+	assert_eq(torso.material_override.resource_path, "res://art/materials/kaykit-adventurers__barbarian_apron.tres")
+	assert_null((sk.get_node("Barbarian_ArmLeft") as MeshInstance3D).material_override, "sleeves keep the default atlas")
+
+func test_hero_visual_within_budget() -> void:
+	var v := _hero_visual()
+	var tris := AssetValidator.count_triangles(v)
+	assert_lte(tris, ArtBudgets.budget_for(HERO), "hero triangles %d" % tris)
+
+func test_chef_hat_is_one_merged_vertex_coloured_surface() -> void:
+	var hat := ChefHat.build()
+	add_child_autofree(hat)
+	assert_eq(hat.mesh.get_surface_count(), 1)
+	var mat := hat.mesh.surface_get_material(0) as StandardMaterial3D
+	assert_true(mat.vertex_color_use_as_albedo)
+	assert_true(mat.vertex_color_is_srgb)
+	var arr := hat.mesh.surface_get_arrays(0)
+	var col: PackedColorArray = arr[Mesh.ARRAY_COLOR]
+	assert_eq(col.size(), (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size())
+	assert_eq(col[0], Palette.color(&"apron_white"))
+	assert_lt(AssetValidator.count_triangles(hat), 500)
+
+func test_apron_atlas_whitens_only_the_torso_column() -> void:
+	var apron := Image.load_from_file(ProjectSettings.globalize_path("res://art/palette/atlas/kaykit-adventurers__barbarian_apron.png"))
+	var base := Image.load_from_file(ProjectSettings.globalize_path("res://art/palette/atlas/kaykit-adventurers__barbarian_texture.png"))
+	apron.convert(Image.FORMAT_RGBA8)
+	base.convert(Image.FORMAT_RGBA8)
+	# the 512 px atlases are the 1024 px source halved: torso column x 0..127 -> 0..63, sleeve column 128..255 -> 64..127
+	assert_eq(apron.get_pixel(25, 150).to_html(false), Palette.HEX[Palette.index_of(&"apron_white")], "apron torso")
+	assert_eq(base.get_pixel(25, 150).to_html(false), Palette.HEX[Palette.index_of(&"cloth_blue")], "default torso column is cloth_blue")
+	assert_eq(apron.get_pixel(85, 150).to_html(false), Palette.HEX[Palette.index_of(&"apron_white")], "the apron atlas is blue-free")
+	assert_eq(base.get_pixel(85, 150).to_html(false), Palette.HEX[Palette.index_of(&"cloth_blue")], "sleeves are cloth_blue")
+	var diff := 0
+	for y in range(0, 128):
+		for x in range(256, 512):  # the fur, belt, boots and skin columns are untouched
+			if apron.get_pixel(x, y) != base.get_pixel(x, y):
+				diff += 1
+	assert_eq(diff, 0, "other swatches identical between the two atlases")
+
+func test_hero_ring_scene() -> void:
+	Balance.reset()
+	var ring: MeshInstance3D = load("res://art/shared/hero_ring.tscn").instantiate()
+	add_child_autofree(ring)
+	var mat := ring.material_override as StandardMaterial3D
+	assert_eq(mat.shading_mode, BaseMaterial3D.SHADING_MODE_UNSHADED)
+	assert_eq(mat.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
+	assert_almost_eq(mat.albedo_color.a, Balance.ui.hero_ring_alpha, 0.0001)
+	assert_eq(Color(mat.albedo_color, 1.0), Palette.color(&"warm_white"))
+	assert_almost_eq(ring.position.y, 0.03, 0.0001)
+	assert_almost_eq(ring.scale.y, 0.05, 0.0001)
+	var t := ring.mesh as TorusMesh
+	assert_almost_eq(t.inner_radius, 0.62, 0.0001)
+	assert_almost_eq(t.outer_radius, 0.7, 0.0001)

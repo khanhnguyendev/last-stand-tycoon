@@ -100,3 +100,35 @@ func test_input_blocked_in_dawn_only() -> void:
 	assert_false(main.hero.input.blocked)
 	main.hero.input.set_move(Vector2.RIGHT)
 	assert_eq(main.hero.input.get_move(), Vector2.RIGHT)
+
+# --- S4 Task 7b: the cook's visual is wired to the gameplay signals (D-190, D-191) ---
+
+func _tree() -> AnimationTree:
+	return (hero.visual as KayKitVisual).anim_tree
+
+func test_visual_and_ring_are_siblings() -> void:
+	assert_true(hero.visual is ActorVisual)
+	assert_eq(hero.visual.name, &"Visual")
+	assert_eq(hero.visual.get_parent(), hero)
+	assert_not_null(hero.find_child("HeroRing", false, false), "ring is a child of Hero, not of Visual")
+	assert_null(hero.visual.find_child("HeroRing", true, false))
+
+func test_visual_follows_motion_and_stands_still() -> void:
+	hero.teleport(Vector2(10, 8))
+	hero.input.set_move(Vector2(1, 0))
+	await _ticks(5)
+	assert_almost_eq(float(_tree().get("parameters/loco/blend_position")), 1.0, 0.01, "full run speed")
+	hero.input.set_move(Vector2.ZERO)
+	await _ticks(2)
+	assert_eq(float(_tree().get("parameters/loco/blend_position")), 0.0)
+
+func test_attack_fires_the_throw_and_dawn_cheers() -> void:
+	var tree := _tree()
+	assert_ne(tree.get("parameters/action/request"), AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+	hero.attacker.fired.emit(null)
+	assert_eq(tree.get("parameters/action/request"), AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+	hero._on_phase_changed(Phase.NIGHT, 1)
+	assert_ne(tree.get("parameters/cheer/request"), AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE, "no cheer at night")
+	hero._on_phase_changed(Phase.DAWN, 1)
+	assert_eq(tree.get("parameters/cheer/request"), AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
+	assert_true(hero.input.blocked, "DAWN still blocks input")

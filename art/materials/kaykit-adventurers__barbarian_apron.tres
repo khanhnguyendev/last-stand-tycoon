@@ -1,0 +1,8 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://art/palette/atlas/kaykit-adventurers__barbarian_apron.png" id="1_apron"]
+
+[resource]
+resource_name = "kaykit-adventurers__barbarian_apron"
+albedo_texture = ExtResource("1_apron")
+texture_filter = 0

@@ -5,4 +5,4 @@
 [node name="Knife" type="Node3D"]
 
 [node name="Model" parent="." instance=ExtResource("1_knife")]
-transform = Transform3D(0.4348, 0, 0, 0, 0, 0.4348, 0, -0.4348, 0, 0, 0, 0.1584)
+transform = Transform3D(0.6087, 0, 0, 0, 0, 0.6087, 0, -0.6087, 0, 0, 0, 0.2218)

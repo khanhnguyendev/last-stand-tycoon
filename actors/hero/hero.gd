@@ -9,6 +9,8 @@ var input: HeroInput
 var magnet: Magnet
 var carry_stack: CarryStack
 var attacker: Attacker
+## The cook's art (S4 Task 7b, D-190, D-191); animation and facing only, never gameplay state.
+var visual: ActorVisual
 var still_time := 0.0
 ## Incremented by teleport(); StationZone disarms when it changes (D-121).
 var teleport_serial := 0
@@ -26,14 +28,9 @@ func _init() -> void:
 	shape.shape = cap
 	shape.position.y = 0.8
 	add_child(shape)
-	var v := Visuals.visual_root()
-	var body := Visuals.capsule(MapLayout.HERO_RADIUS, 1.6, Visuals.COLORS.hero)
-	body.position.y = 0.8
-	v.add_child(body)
-	var hat := Visuals.box(Vector3(0.5, 0.3, 0.5), Visuals.COLORS.hat)
-	hat.position.y = 1.75
-	v.add_child(hat)
-	add_child(v)
+	visual = load("res://art/characters/hero_visual.tscn").instantiate()
+	add_child(visual)
+	add_child(load("res://art/shared/hero_ring.tscn").instantiate())
 	input = HeroInput.new()
 	add_child(input)
 	magnet = Magnet.new()
@@ -42,6 +39,7 @@ func _init() -> void:
 	add_child(carry_stack)
 	attacker = Attacker.new()
 	attacker.projectile_art = &"knife"
+	attacker.fired.connect(func(_target): visual.attack())
 	add_child(attacker)
 
 func _ready() -> void:
@@ -62,6 +60,8 @@ func _physics_process(delta: float) -> void:
 	velocity = Vector3(mv.x, 0.0, mv.y) * move_speed()
 	move_and_slide()
 	position.y = 0.0
+	visual.set_motion(velocity.length() / maxf(move_speed(), 0.01))
+	visual.face(velocity)
 	var speed := Vector2(velocity.x, velocity.z).length()
 	if speed < Balance.data.economy.stand_still_speed:
 		still_time += delta
@@ -96,3 +96,5 @@ func _apply_card_stats() -> void:
 
 func _on_phase_changed(phase: int, _day: int) -> void:
 	input.blocked = phase == Phase.DAWN
+	if phase == Phase.DAWN:
+		visual.cheer()
