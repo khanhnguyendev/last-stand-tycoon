@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://art/characters/kaykit_visual.gd" id="1_vis"]
+[ext_resource type="PackedScene" path="res://assets/kaykit-adventurers/Characters/gltf/Barbarian.glb" id="2_model"]
+[ext_resource type="PackedScene" path="res://art/shared/blob_shadow.tscn" id="3_shadow"]
+
+[node name="Visual" type="Node3D"]
+script = ExtResource("1_vis")
+
+[node name="Body" type="Node3D" parent="."]
+
+[node name="Model" parent="Body" instance=ExtResource("2_model")]
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Body"]
+
+[node name="AnimationTree" type="AnimationTree" parent="Body"]
+
+[node name="Shadow" parent="." instance=ExtResource("3_shadow")]

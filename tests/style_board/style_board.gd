@@ -10,6 +10,8 @@ extends SceneTree
 ## --turnaround (run at --resolution 600x600; set e): the procedural boar from front, 3/4, side and top, each 300 px, side by side in --out.
 ## --remapped (any --set, S4 Task 3): swaps every albedo texture for its palette-remapped atlas in art/palette/atlas/ (matched by
 ## texture path / file name), to judge the D-188 remap on the real scene.
+## --visual=<scene path> (S4 Task 6; run at --resolution 1280x720): that ActorVisual scene alone, side-on (--cam_x=-7 sees the hero's right, throwing, side; --attack_wait=<s> after fire). --out = idle shot,
+## --out_run = the same visual at set_motion(1) with attack() fired. --attack_clip=<name> overrides its attack clip.
 ## --anims=<md path> (any --set) writes the animation inventory for all three sets and quits without rendering.
 ## Candidate assets live in assets/_candidates/ (gitignored, CC0). A -s script compiles before the autoloads exist,
 ## so project scripts are load()ed at run time and used untyped, like capture.gd.
@@ -77,6 +79,9 @@ func _run() -> void:
 	if _args.has("turnaround"):
 		await _turnaround()
 		return
+	if _args.has("visual"):
+		await _visual(String(_args.visual))
+		return
 	if not _args.has("closeup") and not _args.has("boars"):  # the diner would block the low closeup camera
 		_build_diner(map_layout)
 	if not _args.has("boars"):
@@ -108,6 +113,47 @@ func _run() -> void:
 		quit(1)
 		return
 	print("saved ", out, " ", img.get_size(), " idle players: ", players.size())
+	quit(0)
+
+# --- ActorVisual review (S4 Task 6) ---
+
+func _save(img: Image, out: String) -> bool:
+	var path := out if out.is_absolute_path() else ProjectSettings.globalize_path("res://").path_join(out)
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	if img.save_png(path) != OK:
+		push_error("save failed")
+		quit(1)
+		return false
+	print("saved ", out, " ", img.get_size())
+	return true
+
+func _wait(sec: float) -> void:
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < int(sec * 1000.0):
+		await process_frame
+
+func _visual(scene_path: String) -> void:
+	var v = load(scene_path).instantiate()
+	if _args.has("attack_clip"):
+		v.attack_clip = StringName(_args.attack_clip)
+	root.add_child(v)
+	v.position = Vector3(0, 0, _lineup_z)
+	var cam := Camera3D.new()
+	cam.current = true
+	cam.keep_aspect = Camera3D.KEEP_HEIGHT
+	cam.fov = 32.0
+	root.add_child(cam)
+	cam.global_transform = Transform3D(Basis(), Vector3(float(_args.get("cam_x", -7.0)), 1.5, _lineup_z)).looking_at(Vector3(0.0, 0.85, _lineup_z), Vector3.UP)
+	v.face(Vector3(0, 0, 1))
+	await _wait(1.0)
+	if not _save(root.get_texture().get_image(), String(_args.get("out", "docs/review/media/s4/task06/base_idle.png"))):
+		return
+	v.set_motion(1.0)
+	await _wait(0.6)
+	v.attack()
+	await _wait(float(_args.get("attack_wait", 0.45)))
+	if not _save(root.get_texture().get_image(), String(_args.get("out_run", "docs/review/media/s4/task06/base_run_attack.png"))):
+		return
 	quit(0)
 
 # --- remap review (S4 Task 3) ---
