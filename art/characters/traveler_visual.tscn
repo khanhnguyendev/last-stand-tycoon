@@ -1,0 +1,26 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://art/characters/kaykit_visual.gd" id="1_vis"]
+[ext_resource type="PackedScene" path="res://assets/kaykit-adventurers/Characters/gltf/Rogue.glb" id="2_model"]
+[ext_resource type="PackedScene" path="res://assets/kaykit-adventurers/Characters/gltf/Mage.glb" id="3_model"]
+[ext_resource type="PackedScene" path="res://art/shared/blob_shadow.tscn" id="9_shadow"]
+
+[node name="Visual" type="Node3D"]
+script = ExtResource("1_vis")
+role = &"traveler"
+upper_body_attack = false
+
+[node name="Body" type="Node3D" parent="."]
+
+[node name="Model" parent="Body" instance=ExtResource("2_model")]
+transform = Transform3D(0.685, 0, 0, 0, 0.685, 0, 0, 0, 0.685, 0, 0, 0)
+
+[node name="ModelMage" parent="Body" instance=ExtResource("3_model")]
+visible = false
+transform = Transform3D(0.685, 0, 0, 0, 0.685, 0, 0, 0, 0.685, 0, 0, 0)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Body"]
+
+[node name="AnimationTree" type="AnimationTree" parent="Body"]
+
+[node name="Shadow" parent="." instance=ExtResource("9_shadow")]

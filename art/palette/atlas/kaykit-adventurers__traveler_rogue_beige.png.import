@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dy1uihj5aygmc"
-path="res://.godot/imported/kaykit-adventurers__barbarian_apron.png-a9c723f738e166286caf5bc308de081c.ctex"
+uid="uid://dusmmoc3t1aaf"
+path="res://.godot/imported/kaykit-adventurers__traveler_rogue_beige.png-da60a65c6e1682ae507eb9413a6a224f.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/palette/atlas/kaykit-adventurers__barbarian_apron.png"
-dest_files=["res://.godot/imported/kaykit-adventurers__barbarian_apron.png-a9c723f738e166286caf5bc308de081c.ctex"]
+source_file="res://art/palette/atlas/kaykit-adventurers__traveler_rogue_beige.png"
+dest_files=["res://.godot/imported/kaykit-adventurers__traveler_rogue_beige.png-da60a65c6e1682ae507eb9413a6a224f.ctex"]
 
 [params]
 

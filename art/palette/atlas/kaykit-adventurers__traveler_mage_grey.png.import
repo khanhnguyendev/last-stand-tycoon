@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dy1uihj5aygmc"
-path="res://.godot/imported/kaykit-adventurers__barbarian_apron.png-a9c723f738e166286caf5bc308de081c.ctex"
+uid="uid://c2jp06x026l06"
+path="res://.godot/imported/kaykit-adventurers__traveler_mage_grey.png-8a66a7e970c9becbb41880572d74bf6d.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/palette/atlas/kaykit-adventurers__barbarian_apron.png"
-dest_files=["res://.godot/imported/kaykit-adventurers__barbarian_apron.png-a9c723f738e166286caf5bc308de081c.ctex"]
+source_file="res://art/palette/atlas/kaykit-adventurers__traveler_mage_grey.png"
+dest_files=["res://.godot/imported/kaykit-adventurers__traveler_mage_grey.png-8a66a7e970c9becbb41880572d74bf6d.ctex"]
 
 [params]
 

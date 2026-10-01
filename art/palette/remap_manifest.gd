@@ -1,7 +1,8 @@
 class_name RemapManifest
 extends RefCounted
 ## Which source atlas feeds which remapped atlas (D-188). overrides: lowercase source hex -> Palette name.
-## tools/palette_remap.gd writes every `out`. Per-asset variants: the Barbarian apron (Task 7b); muted travelers in Task 8.
+## tools/palette_remap.gd writes every `out`. Per-asset variants: the Barbarian apron (Task 7b); the guard swaps and the six
+## muted traveler atlases (Task 8) are rule-based entries ("guard_swap", "tone"), expanded into hex overrides by `_build()`.
 
 ## The Barbarian atlas has two identical vertical blue gradients (x 0..127 = the torso, x 128..255 = the sleeves, rows
 ## 256..511), so no colour override can tell them apart. Both sets name the same 142 source hexes: the default atlas
@@ -71,7 +72,7 @@ const BARBARIAN_BLUE_TO_APRON := {
 	"658aaa": "apron_white", "658aab": "apron_white",
 }
 
-const ENTRIES: Array[Dictionary] = [
+const BASE_ENTRIES: Array[Dictionary] = [
 	{"src": "res://assets/kenney-tower-defense/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-tower-defense__colormap.png", "overrides": {}},
 	{"src": "res://assets/kenney-castle/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-castle__colormap.png", "overrides": {}},
 	{"src": "res://assets/kenney-fantasy-town/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-fantasy-town__colormap.png", "overrides": {}},
@@ -80,8 +81,78 @@ const ENTRIES: Array[Dictionary] = [
 	{"src": "res://assets/kenney-platformer/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-platformer__colormap.png", "overrides": {}},
 	{"src": "res://assets/kaykit-adventurers/Textures/barbarian_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__barbarian_texture.png", "overrides": BARBARIAN_BLUE_TO_CLOTH},
 	{"src": "res://assets/kaykit-adventurers/Textures/barbarian_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__barbarian_apron.png", "overrides": BARBARIAN_BLUE_TO_APRON},
-	{"src": "res://assets/kaykit-adventurers/Textures/knight_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__knight_texture.png", "overrides": {}},
-	{"src": "res://assets/kaykit-adventurers/Textures/rogue_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__rogue_texture.png", "overrides": {}},
+	{"src": "res://assets/kaykit-adventurers/Textures/knight_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__knight_texture.png", "overrides": {}, "guard_swap": true},
+	{"src": "res://assets/kaykit-adventurers/Textures/rogue_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__rogue_texture.png", "overrides": {}, "guard_swap": true},
 	{"src": "res://assets/kaykit-adventurers/Textures/mage_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__mage_texture.png", "overrides": {}},
 	{"src": "res://assets/kaykit-restaurant/Assets/gltf/restaurantbits_texture.png", "out": "res://art/palette/atlas/kaykit-restaurant__restaurantbits_texture.png", "overrides": {}},
+	{"src": "res://assets/kaykit-adventurers/Textures/rogue_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__traveler_rogue_grey.png", "overrides": {}, "tone": "traveler_grey"},
+	{"src": "res://assets/kaykit-adventurers/Textures/rogue_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__traveler_rogue_beige.png", "overrides": {}, "tone": "traveler_beige"},
+	{"src": "res://assets/kaykit-adventurers/Textures/rogue_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__traveler_rogue_brown.png", "overrides": {}, "tone": "traveler_brown"},
+	{"src": "res://assets/kaykit-adventurers/Textures/mage_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__traveler_mage_grey.png", "overrides": {}, "tone": "traveler_grey"},
+	{"src": "res://assets/kaykit-adventurers/Textures/mage_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__traveler_mage_beige.png", "overrides": {}, "tone": "traveler_beige"},
+	{"src": "res://assets/kaykit-adventurers/Textures/mage_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__traveler_mage_brown.png", "overrides": {}, "tone": "traveler_brown"},
 ]
+
+## R2 / D-191: the hero and rewards own apron_white, warm_white, gold and gold_dark; travelers own traveler_*.
+## A guard atlas moves every swatch whose nearest palette colour is a key here to the value.
+const GUARD_SWAPS := {
+	"apron_white": "steel", "warm_white": "steel", "gold": "steel_dark", "gold_dark": "steel_dark",
+	"traveler_grey": "steel_dark", "traveler_beige": "steel", "traveler_brown": "wood_dark",
+}
+## Swatches a traveler keeps as skin. skin_dark is left out: on these atlases it is the gloves and boots (leather), not skin.
+const SKIN_KEEP: Array[String] = ["skin_light", "skin_mid"]
+const IMAGE_SIZE := 512  # tools/palette_remap.gd resizes the 1024 KayKit atlases to this
+
+## Every entry with its hex overrides expanded. Built when this script loads (only tools/palette_remap.gd loads it).
+static var _default_names := {}
+static var ENTRIES: Array[Dictionary] = _build()
+
+static func _build() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for e in BASE_ENTRIES:
+		var d := e.duplicate()
+		var ov: Dictionary = d.overrides.duplicate()
+		if d.get("guard_swap", false):
+			for hex in default_names(d.src):
+				var n: String = default_names(d.src)[hex]
+				if GUARD_SWAPS.has(n):
+					ov[hex] = GUARD_SWAPS[n]
+		elif d.has("tone"):
+			# Every non-skin swatch goes to the one traveler colour; skin swatches keep their (nearest) skin tones.
+			for hex in default_names(d.src):
+				if not SKIN_KEEP.has(default_names(d.src)[hex]):
+					ov[hex] = d.tone
+		d.overrides = ov
+		d.erase("guard_swap")
+		d.erase("tone")
+		out.append(d)
+	return out
+
+## The palette the tool maps atlases with (ART_BIBLE R4): enemy_* entries are replaced by a far-away sentinel, so
+## nearest() never picks them. Shared by the tool and default_names() so they can't drift.
+static func atlas_colors() -> PackedColorArray:
+	var pal = load("res://art/palette/palette.gd")
+	var colors: PackedColorArray = pal.colors()
+	for n in pal.NAMES:
+		if String(n).begins_with("enemy_"):
+			colors[pal.index_of(n)] = Color(10, 10, 10)
+	return colors
+
+## lowercase source hex (after the tool's resize) -> the palette name the tool maps it to by default (no enemy_*, R4).
+static func default_names(src: String) -> Dictionary:
+	if _default_names.has(src):
+		return _default_names[src]
+	var pal = load("res://art/palette/palette.gd")
+	var pm = load("res://core/palette_math.gd")
+	var colors := atlas_colors()
+	var img := Image.load_from_file(ProjectSettings.globalize_path(src))
+	if img.get_width() > IMAGE_SIZE or img.get_height() > IMAGE_SIZE:
+		img.resize(mini(img.get_width(), IMAGE_SIZE), mini(img.get_height(), IMAGE_SIZE), Image.INTERPOLATE_NEAREST)
+	var names := {}
+	for y in img.get_height():
+		for x in img.get_width():
+			var hex := img.get_pixel(x, y).to_html(false)
+			if not names.has(hex):
+				names[hex] = String(pal.NAMES[pm.nearest(Color(hex), colors)])
+	_default_names[src] = names
+	return names

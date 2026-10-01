@@ -102,6 +102,30 @@ func test_same_seed_gives_the_same_traveler_spawns() -> void:
 	assert_eq(a.size(), Balance.data.economy.queue_max)
 	assert_eq(a, b)
 
+func test_factory_counter_gives_looks_n_mod_6() -> void:
+	var looks := []
+	for t in main.world.traveler_pool.get_children():
+		looks.append((t as Traveler).variant)
+	assert_gt(looks.size(), 6)
+	for i in looks.size():
+		assert_eq(looks[i], i % 6, "traveler %d" % i)
+
+func test_traveler_walks_in_and_idles_at_its_slot() -> void:
+	main.phase_controller.debug_skip_to_day()
+	var e := Balance.data.economy
+	await _ticks(_secs(e.traveler_interval + e.traveler_jitter))
+	assert_gt(sp.queue.size(), 0)
+	var t: Traveler = sp.queue[0]
+	assert_eq(TravelerVariants.signature(t.visual).split("/")[0], ["rogue", "mage"][TravelerVariants.body_index(t.variant)])
+	await _ticks(30)
+	assert_almost_eq(float(t.visual.anim_tree.get("parameters/loco/blend_position")), 0.5, 0.05, "walking: the 0.5 Walking_A blend")
+	for i in _secs(20.0):
+		if t.at_target():
+			break
+		await get_tree().physics_frame
+	await _ticks(2)
+	assert_almost_eq(float(t.visual.anim_tree.get("parameters/loco/blend_position")), 0.0, 1e-4, "waiting: Idle")
+
 func test_gold_pile_visual() -> void:
 	main.phase_controller.debug_skip_to_day()
 	GameState.counter_steaks = 1

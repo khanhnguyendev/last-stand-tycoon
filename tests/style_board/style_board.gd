@@ -12,6 +12,9 @@ extends SceneTree
 ## texture path / file name), to judge the D-188 remap on the real scene.
 ## --visual=<scene path> (S4 Task 6; run at --resolution 1280x720): that ActorVisual scene alone, side-on (--cam_x=-7 sees the hero's right, throwing, side; --attack_wait=<s> after fire). --out = idle shot,
 ## --out_run = the same visual at set_motion(1) with attack() fired. --attack_clip=<name> overrides its attack clip.
+## --variants (with --visual=<traveler_visual.tscn>; S4 Task 8): all six traveler looks in a row, side by side, walking toward the camera; --out = that shot.
+## --no_run (with --visual): --out_run is the attack from standing still (the Archer's attack only plays while standing).
+## --face=x,z turns the visual (default 0,1; --variants default -1,0 = toward the camera).
 ## --anims=<md path> (any --set) writes the animation inventory for all three sets and quits without rendering.
 ## Candidate assets live in assets/_candidates/ (gitignored, CC0). A -s script compiles before the autoloads exist,
 ## so project scripts are load()ed at run time and used untyped, like capture.gd.
@@ -133,6 +136,9 @@ func _wait(sec: float) -> void:
 		await process_frame
 
 func _visual(scene_path: String) -> void:
+	if _args.has("variants"):
+		await _variants(scene_path)
+		return
 	var v = load(scene_path).instantiate()
 	if _args.has("attack_clip"):
 		v.attack_clip = StringName(_args.attack_clip)
@@ -144,17 +150,41 @@ func _visual(scene_path: String) -> void:
 	cam.fov = 32.0
 	root.add_child(cam)
 	cam.global_transform = Transform3D(Basis(), Vector3(float(_args.get("cam_x", -7.0)), 1.5, _lineup_z)).looking_at(Vector3(0.0, 0.85, _lineup_z), Vector3.UP)
-	v.face(Vector3(0, 0, 1))
+	var fd := String(_args.get("face", "0,1")).split(",")
+	v.face(Vector3(float(fd[0]), 0, float(fd[1])))
 	await _wait(1.0)
 	if not _save(root.get_texture().get_image(), String(_args.get("out", "docs/review/media/s4/task06/base_idle.png"))):
 		return
-	v.set_motion(1.0)
+	if not _args.has("no_run"):
+		v.set_motion(1.0)
 	await _wait(0.6)
 	v.attack()
 	await _wait(float(_args.get("attack_wait", 0.45)))
 	if not _save(root.get_texture().get_image(), String(_args.get("out_run", "docs/review/media/s4/task06/base_run_attack.png"))):
 		return
 	quit(0)
+
+## The six traveler looks side by side (S4 Task 8), each walking toward the camera at the Walking_A blend.
+func _variants(scene_path: String) -> void:
+	var tv = load("res://art/characters/traveler_variants.gd")
+	var scene: PackedScene = load(scene_path)
+	for i in 6:
+		var v = scene.instantiate()
+		root.add_child(v)
+		v.position = Vector3(0, 0, _lineup_z + (i - 2.5) * float(_args.get("spacing", 1.15)))
+		tv.apply(v, i)
+		v.set_motion(0.5)
+		var fd := String(_args.get("face", "-1,0")).split(",")
+		v.face(Vector3(float(fd[0]), 0, float(fd[1])))
+	var cam := Camera3D.new()
+	cam.current = true
+	cam.keep_aspect = Camera3D.KEEP_HEIGHT
+	cam.fov = 32.0
+	root.add_child(cam)
+	cam.global_transform = Transform3D(Basis(), Vector3(float(_args.get("cam_x", -9.0)), 1.5, _lineup_z)).looking_at(Vector3(0.0, 0.85, _lineup_z), Vector3.UP)
+	await _wait(1.2)
+	if _save(root.get_texture().get_image(), String(_args.get("out", "docs/review/media/s4/task08/travelers.png"))):
+		quit(0)
 
 # --- remap review (S4 Task 3) ---
 

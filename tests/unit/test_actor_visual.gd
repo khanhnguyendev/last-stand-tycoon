@@ -2,7 +2,10 @@ extends GutTest
 ## D-190 contract: every role visual survives the full cycle headless and never touches root scale/visible.
 
 const HERO := "res://art/characters/hero_visual.tscn"
-const ROLE_SCENES := [HERO]  # Tasks 8–9 append their scenes here
+const ARCHER := "res://art/characters/archer_visual.tscn"
+const TANK := "res://art/characters/tank_visual.tscn"
+const TRAVELER := "res://art/characters/traveler_visual.tscn"
+const ROLE_SCENES := [HERO, ARCHER, TANK, TRAVELER]  # Task 9 appends its scenes here
 const BASE := "res://art/characters/kaykit_character.tscn"
 
 func _cycle(v: ActorVisual) -> void:
@@ -58,7 +61,9 @@ func test_role_scenes_cycle() -> void:
 		pass_test("no role scenes yet")
 	for p in ROLE_SCENES:
 		var v: ActorVisual = load(p).instantiate()
-		add_child_autofree(v)
+		var holder := Node3D.new()  # one parent each: sibling "Visual" nodes would be auto-renamed
+		add_child_autofree(holder)
+		holder.add_child(v)
 		_cycle(v)
 		assert_eq(v.scale, Vector3.ONE, "%s root scale" % p)
 		assert_true(v.visible, "%s root visible" % p)
@@ -222,3 +227,98 @@ func test_hero_ring_scene() -> void:
 	var t := ring.mesh as TorusMesh
 	assert_almost_eq(t.inner_radius, 0.62, 0.0001)
 	assert_almost_eq(t.outer_radius, 0.7, 0.0001)
+
+# --- guards and travelers (S4 Task 8) ---
+
+func _kaykit(path: String) -> KayKitVisual:
+	var v: KayKitVisual = load(path).instantiate()
+	add_child_autofree(v)
+	return v
+
+func _prop_names(v: KayKitVisual) -> Array:
+	var out := []
+	for mi in v.body.get_node("Model").find_children("*", "MeshInstance3D", true, false):
+		if mi.get_parent() is BoneAttachment3D:
+			out.append(String(mi.name))
+	out.sort()
+	return out
+
+func test_archer_and_tank_props_and_clips() -> void:
+	var a := _kaykit(ARCHER)
+	assert_eq(a.attack_clip, &"2H_Ranged_Shoot")
+	assert_false(a.upper_body_attack, "the archer never moves while shooting")
+	assert_eq(_prop_names(a), ["2H_Crossbow"])
+	assert_not_null(a.body.get_node("Model/Rig/Skeleton3D/Rogue_Head_Hooded"), "hooded head")
+	var t := _kaykit(TANK)
+	assert_eq(t.attack_clip, &"1H_Melee_Attack_Slice_Diagonal")
+	assert_eq(_prop_names(t), ["1H_Sword", "Badge_Shield", "Knight_Helmet"])
+
+func test_role_scenes_within_budget() -> void:
+	for p in [ARCHER, TANK, TRAVELER]:
+		var v := _kaykit(p)
+		var tris := AssetValidator.count_triangles(v)
+		assert_lte(tris, ArtBudgets.budget_for(p), "%s triangles %d" % [p, tris])
+		assert_gt(tris, 3000, "%s is a full character" % p)
+
+func test_role_scenes_hold_only_their_own_models() -> void:
+	# A Godot inherited scene can't replace an inherited instance (it adds a sibling), so the role scenes are
+	# standalone: no Barbarian is ever instanced, discarded or left as a second Model.
+	var want := {ARCHER: ["Rogue_Hooded.glb"], TANK: ["Knight.glb"], TRAVELER: ["Rogue.glb", "Mage.glb"]}
+	for p in want:
+		var v := _kaykit(p)
+		var models := []
+		for c in v.body.get_children():
+			if c.scene_file_path != "":
+				models.append(c.scene_file_path.get_file())
+		assert_eq(models, want[p], "%s models" % p)
+		assert_null((load(p).instantiate() as KayKitVisual).model_scene, "%s sets no model_scene" % p)
+
+func _atlas_names(file: String) -> Dictionary:
+	var img := Image.load_from_file(ProjectSettings.globalize_path("res://art/palette/atlas/%s" % file))
+	img.convert(Image.FORMAT_RGBA8)
+	var names := {}
+	var by_hex := {}
+	for i in Palette.HEX.size():
+		by_hex[Palette.HEX[i]] = Palette.NAMES[i]
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.a < 1.0:
+				continue
+			var n: StringName = by_hex.get(c.to_html(false), &"?")
+			names[n] = int(names.get(n, 0)) + 1
+	return names
+
+func test_guard_atlases_keep_the_hero_and_traveler_colours_out() -> void:
+	# ART_BIBLE R2 / colour discipline: apron_white, warm_white, gold, gold_dark and traveler_* are not guard colours.
+	for f in ["kaykit-adventurers__knight_texture.png", "kaykit-adventurers__rogue_texture.png"]:
+		var names := _atlas_names(f)
+		assert_false(names.has(&"?"), "%s is palette-only" % f)
+		for n in [&"apron_white", &"warm_white", &"gold", &"gold_dark", &"traveler_grey", &"traveler_beige", &"traveler_brown"]:
+			assert_false(names.has(n), "%s has no %s" % [f, n])
+		assert_true(names.has(&"steel") and names.has(&"steel_dark") or names.has(&"guard_green"), "%s keeps its steel / green" % f)
+
+func test_tank_is_steel_and_archer_is_green() -> void:
+	var k := _atlas_names("kaykit-adventurers__knight_texture.png")
+	assert_gt(int(k.get(&"steel", 0)) + int(k.get(&"steel_dark", 0)), 20000, "the knight reads as steel")
+	var r := _atlas_names("kaykit-adventurers__rogue_texture.png")
+	assert_gt(int(r.get(&"guard_green", 0)) + int(r.get(&"guard_green_dark", 0)), 5000, "the rogue keeps its guard green")
+
+func test_traveler_visual_swaps_bodies_and_keeps_animating() -> void:
+	var v := _kaykit(TRAVELER)
+	var rogue := v.body.get_node("Model") as Node3D
+	var mage := v.body.get_node("ModelMage") as Node3D
+	assert_true(rogue.visible)
+	assert_false(mage.visible)
+	TravelerVariants.apply(v, 1)  # mage, beige
+	assert_false(rogue.visible)
+	assert_true(mage.visible)
+	var player := v.body.get_node("AnimationPlayer") as AnimationPlayer
+	assert_eq(player.get_node(player.root_node), mage, "the player drives the shown body")
+	assert_lte(AssetValidator.count_triangles(v), ArtBudgets.budget_for(TRAVELER), "only the shown body counts")
+	for mi in mage.find_children("*", "MeshInstance3D", true, false):
+		assert_false(mi.get_parent() is BoneAttachment3D, "the mage carries no hat, cape or book")
+	v.set_motion(0.5)
+	v.face(Vector3(1, 0, 0))
+	await get_tree().process_frame
+	assert_eq(v.anim_tree.get("parameters/loco/blend_position"), 0.5)
