@@ -27,13 +27,44 @@ func test_perf_overlay_stats() -> void:
 	assert_almost_eq(p.worst_ms(), 120.0, 0.01)
 	assert_lt(p.avg_fps(), 60.0)
 
-func test_perf_overlay_window_drops_old_frames() -> void:
+func _perf() -> PerfOverlay:
 	var p := PerfOverlay.new()
 	add_child_autofree(p)
-	p.record(0.5)
-	for i in 4000:
-		p.record(1.0 / 60.0)
-	assert_lt(p.worst_ms(), 100.0, "the 0.5 s frame left the 60 s window")
+	EventBus.phase_changed.emit(Phase.NIGHT, 3)
+	return p
+
+func test_perf_warmup_records_nothing() -> void:
+	var p := _perf()
+	for i in 114:  # 1.9 s
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(p.avg_fps(), 0.0)
+	assert_eq(p.worst_ms(), 0.0)
+
+func test_perf_straddling_frame_is_not_recorded() -> void:
+	var p := _perf()
+	for i in 114:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	p._tick(0.3, 0.3)  # crosses the 2 s edge
+	assert_eq(p.worst_ms(), 0.0, "the straddling frame is not counted")
+	p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_gt(p.avg_fps(), 0.0, "the next frame is")
+
+func test_perf_freezes_one_window_and_ignores_later_phases() -> void:
+	var p := _perf()
+	for i in 114:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	p._tick(0.3, 0.3)
+	for i in 3600:
+		if i == 1800:
+			p._tick(0.25, 0.15)
+		else:
+			p._tick(1.0 / 60.0, 1.0 / 60.0)
+	var text := p.frozen_text()
+	assert_string_contains(text, "phase=NIGHT day=3")
+	assert_string_contains(text, "worst_ms=250")
+	assert_string_contains(text, "delta_worst_ms=150")
+	EventBus.phase_changed.emit(Phase.DAWN, 4)
+	assert_eq(p.frozen_text(), text, "a new phase keeps the frozen line until the next freeze")
 
 func test_debug_overlay_hotkey_gold() -> void:
 	if not OS.is_debug_build():
