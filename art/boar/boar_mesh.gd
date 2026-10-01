@@ -72,8 +72,8 @@ static func _xf(pos: Vector3, rot_deg := Vector3.ZERO, scl := Vector3.ONE) -> Tr
 static func _tusk(acc: Dictionary, head: Transform3D, sx: float, base: Vector3, color: Color) -> void:
 	var b1 := Basis.from_euler(Vector3(deg_to_rad(TUSK_FWD_DEG), 0.0, deg_to_rad(-sx * TUSK_OUT_DEG)))
 	var d1: Vector3 = b1 * Vector3.UP
-	var l1 := 0.28
-	_add(acc, _cone(0.09, 0.06, l1, 6, [false, false]), head * _xf(base + d1 * l1 * 0.5, Vector3(TUSK_FWD_DEG, 0.0, -sx * TUSK_OUT_DEG)), color)
+	var l1 := 0.34
+	_add(acc, _cone(0.11, 0.07, l1, 6, [false, false]), head * _xf(base + d1 * l1 * 0.5, Vector3(TUSK_FWD_DEG, 0.0, -sx * TUSK_OUT_DEG)), color)
 	var tip1 := base + d1 * l1
 	var out2 := TUSK_OUT_DEG - 30.0
 	var b2 := Basis.from_euler(Vector3(deg_to_rad(TUSK_FWD_DEG + 25.0), 0.0, deg_to_rad(-sx * out2)))

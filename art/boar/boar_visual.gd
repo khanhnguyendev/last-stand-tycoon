@@ -9,6 +9,7 @@ const SHADER := preload("res://art/boar/boar.gdshader")
 static var _idle: ShaderMaterial
 static var _run: ShaderMaterial
 static var _flash: ShaderMaterial
+static var _run_flash: ShaderMaterial
 
 var _mesh_node: MeshInstance3D
 var _running := false
@@ -44,6 +45,12 @@ static func flash_material() -> ShaderMaterial:
 		_flash = _make_material(0.0, true)
 	return _flash
 
+## Flashing while running: the legs keep trotting through a hit.
+static func run_flash_material() -> ShaderMaterial:
+	if _run_flash == null:
+		_run_flash = _make_material(1.0, true)
+	return _run_flash
+
 func _ready() -> void:
 	super._ready()
 	_mesh_node = body.get_node_or_null("Mesh") as MeshInstance3D
@@ -59,7 +66,7 @@ func _apply_material() -> void:
 	if _mesh_node == null:
 		return
 	if flash_active:
-		_mesh_node.material_override = flash_material()
+		_mesh_node.material_override = run_flash_material() if _running else flash_material()
 	elif _running:
 		_mesh_node.material_override = run_material()
 	else:

@@ -8,7 +8,7 @@ uniform bool flash = false;
 uniform vec3 flash_color : source_color = vec3(1.0, 0.85, 0.8);   // pale pink-white; never #ffffff (R2)
 void vertex() {
 	vec3 origin = NODE_POSITION_WORLD;
-	float phase = (origin.x + origin.z) * 1.7;
+	float phase = (origin.x + origin.z) * 0.6;
 	float leg = 1.0 - COLOR.a;
 	float side = sign(VERTEX.x) * sign(VERTEX.z);
 	// one leg cycle per two hops (the prototype's 2 Hz swing against the 4 Hz hop)

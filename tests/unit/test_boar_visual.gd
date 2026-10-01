@@ -56,6 +56,9 @@ func test_materials_are_shared() -> void:
 	assert_same(BoarVisual.idle_material(), BoarVisual.idle_material())
 	assert_ne(BoarVisual.idle_material(), BoarVisual.run_material())
 	assert_ne(BoarVisual.run_material(), BoarVisual.flash_material())
+	assert_ne(BoarVisual.run_flash_material(), BoarVisual.flash_material())
+	assert_eq(BoarVisual.run_flash_material().get_shader_parameter("run_amount"), 1.0)
+	assert_true(BoarVisual.run_flash_material().get_shader_parameter("flash"))
 
 func test_motion_and_flash_pick_materials() -> void:
 	var v: BoarVisual = load(SCENE).instantiate()
@@ -65,7 +68,7 @@ func test_motion_and_flash_pick_materials() -> void:
 	v.set_motion(1.0)
 	assert_eq(mi.material_override, BoarVisual.run_material())
 	v.set_flash(true)
-	assert_eq(mi.material_override, BoarVisual.flash_material())
+	assert_eq(mi.material_override, BoarVisual.run_flash_material(), "legs keep trotting through a hit")
 	v.set_flash(false)
 	assert_eq(mi.material_override, BoarVisual.run_material(), "flash ends back on the motion material")
 	v.set_motion(0.0)
@@ -130,8 +133,9 @@ func test_boar_release_then_spawn_is_clean() -> void:
 	b.take_hit(1.0)
 	b.play_death(w.enemy_pool)
 	await get_tree().create_timer(0.05).timeout
-	b.on_release()
-	b.spawn("north", 99, 0.0, 1.0, w.wave_director)
+	w.enemy_pool.release(b)
+	var b2 := w.wave_director.debug_spawn("north", 0.0, 1.0)
+	assert_same(b2, b, "the pooled Boar is reused")
 	assert_eq(b.visual.scale, Vector3.ONE)
 	assert_eq(b.visual.body.transform, Transform3D.IDENTITY)
 	assert_false(b.visual.flash_active)

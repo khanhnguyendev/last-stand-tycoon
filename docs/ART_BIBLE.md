@@ -69,6 +69,8 @@ Each image is answered pass or fail on every rule. Any fail blocks the task.
   never maps an atlas pixel to an `enemy_*` colour (the Boar is procedural; enemy reds come only from code), and the
   asset validator fails on any `enemy_*` pixel in `art/palette/atlas/`. Icons for danger UI (the heart) are the only
   exception.
+- **Palette exception (D-192).** The Boar's upper body is `enemy_maroon` lerped 0.4 toward `enemy_red` (procedural
+  vertex colour, D-192): the only non-swatch colour, for readability under lambert shading.
 - **R5.** Steaks and coins read against the grass and the dirt.
 - **R6.** Night keeps R1–R5.
 - **R7.** Everything in the scale table matches within 10%.
