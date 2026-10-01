@@ -1680,3 +1680,25 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
   need those props (D-183): the chef hat, the Archer's hood and crossbow, the Tank's helmet and shield.
 - **Budget:** hero, Archer, Tank and traveler scenes get 5500. The other budgets are unchanged.
 - **Perf:** draw calls, not triangles, are the main web perf cost here.
+
+**D-199 S4 P1 findings: materials, size, perf protocol.**
+- **Materials:** the shared palette materials keep back-face culling. Pixel diffs from behind on the capes, pennant,
+  awning and selection marker showed no missing faces, while disabling culling adds cape-lining artefacts.
+- **Texture filter:** nearest, with no mipmaps. Mipmaps would blend swatches into off-palette colours.
+- **Atlases stay lossless** (`compress/mode=0`) on purpose. VRAM compression (D-158) is on for any future
+  compressed texture.
+- **Size:** export excludes `tools/`, `export/`, `assets/_candidates/` and the unused source textures. The release
+  pck went from 12.3 MB to 2.16 MB. The `gzip -9` payload is 11.87 MB (wasm 10.05). The D-196 gates (8 MiB pck,
+  16 MiB gzip) leave about 4 MB for art, and `pages.yml` enforces them.
+- **Perf measurement protocol:** the profile overlay resets its window on every phase change. After a 2 s warm-up,
+  which keeps the first-wave spawn inside the window, it freezes one 60 s `PERF phase=… day=…` line, with avg fps,
+  worst, proc ms, physics ms, draw calls and slow %. `export/perf_night3.sh` reads it on the iOS Simulator from
+  injected night-3 and day-3 saves.
+  - Run-to-run spread is about ±1 fps (night 3 read 56.5–58.9 on the same build).
+  - **So the D-159/D-196 gate is the median of 3 runs.**
+- **Baseline (placeholder art, 3 seeds of evidence):**
+  - Night 3: about 58–59 fps, proc 16–18 ms, physics 1.1 ms, 35 draw calls.
+  - Day 3: about 52 fps, proc 22 ms, 59 draw calls.
+  - There is a 280–300 ms stall at the first-wave spawn.
+  - Halving the 3D render scale did not move these numbers, so the cost is not 3D fill. The diagnosis continues
+    (spike 2).
