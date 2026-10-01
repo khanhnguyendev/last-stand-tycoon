@@ -1,0 +1,8 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://art/palette/atlas/kenney-fantasy-town__colormap.png" id="1_p4lj5"]
+
+[resource]
+resource_name = "kenney-fantasy-town__colormap"
+albedo_texture = ExtResource("1_p4lj5")
+texture_filter = 0

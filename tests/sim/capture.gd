@@ -3,6 +3,8 @@ extends SceneTree
 ## "$GODOT" --path . --resolution 720x1280 -s res://tests/sim/capture.gd -- --out=docs/screenshots/s1/x.png --seconds=12
 ## --lane=<west|north|east>: hero parked at that lane's zone, one Boar 2 s before it reaches hero range.
 ## --hero-at=zone_center (with --lane): hero at the centre of that lane's attack zone instead of the lane end.
+## --phase=day|night|fail|build|retry (default night; unknown values fail): day = skip to day + 12 s of travelers queueing; build = hero walking into the NW tower spot with the ring filling; fail = diner destroyed (banner); retry = fail, then banner_time + 1 s so the restore runs and the "monsters look tired" banner shows.
+## --crop-top=N: save only the top N pixels. --debug: keep the DebugOverlay visible (hidden by default).
 ## --cards=id:level,...: grant cards after start_new_game (Tank placed at its post). --scene=cardpick: no bot, emit wave_cleared so the pick opens.
 ## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
 ## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
@@ -41,6 +43,50 @@ func _run() -> void:
 		bot.queue_free()
 		var gs2 = root.get_node("GameState")
 		root.get_node("EventBus").wave_cleared.emit(gs2.lane_plan.size() - 1)
+	var phase_arg: String = _args.get("phase", "night")
+	if not phase_arg in ["day", "night", "fail", "build", "retry"]:
+		push_error("bad --phase %s" % phase_arg)
+		quit(2)
+		return
+	if phase_arg in ["day", "build"]:
+		for i in 60:
+			await physics_frame
+		main.phase_controller.debug_skip_to_day()
+		bot.queue_free()
+		for i in 2:  # the bot still thinks once before it is freed and leaves its last move vector set
+			await physics_frame
+		main.hero.input.set_move(Vector2.ZERO)
+		if phase_arg == "day":
+			main.hero.teleport(map_layout.HOME)  # outside every zone (D-122); the queue slots are in frame
+		for i in (12 * 60 if phase_arg == "day" else 30):  # day: let travelers queue (spec 9.6.1)
+			await physics_frame
+	if phase_arg == "build":
+		var gs3 = root.get_node("GameState")
+		gs3.add_gold(500)
+		# teleport() disarms station zones until the hero walks in (D-121), so start outside and walk in.
+		var spot: Vector2 = map_layout.TOWER_SPOTS.tower_nw
+		main.hero.teleport(spot + Vector2(map_layout.BUILD_RADIUS + 0.8, 0.0))
+		for i in 600:
+			if main.hero.xz().distance_to(spot) < map_layout.BUILD_RADIUS * 0.7:
+				break
+			main.hero.input.set_move(Vector2(-1, 0))
+			await physics_frame
+		main.hero.input.set_move(Vector2.ZERO)
+		for i in int((_bal.data.economy.stand_still_time + 0.3) * 60.0):  # ring fills
+			await physics_frame
+	if phase_arg in ["fail", "retry"]:
+		for i in 8 * 60:
+			await physics_frame
+		root.get_node("GameState").damage_diner(1e9)
+		if phase_arg == "fail":
+			for i in 36:
+				await physics_frame
+		else:  # the restore runs after the fail banner; then the mercy banner shows
+			for i in int((_bal.ui.banner_time + 1.0) * 60.0):
+				await physics_frame
+	var dbg = main.get_node_or_null("DebugOverlay")
+	if dbg != null and not _args.has("debug"):
+		dbg.visible = false
 	var cam := Camera3D.new()
 	var vp := root.get_visible_rect().size
 	camera_math.apply_lens(cam, _bal.ui, vp.x / vp.y)  # D-145
@@ -71,7 +117,7 @@ func _run() -> void:
 		if _args.has("seconds"):  # optional settle time (lets the "monsters return" banner clear)
 			for i in int(float(_args.seconds) * 60.0):
 				await physics_frame
-	else:
+	elif phase_arg == "night":
 		for i in int(float(_args.get("seconds", "12")) * 60.0):
 			await physics_frame
 	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(main.hero.xz()), _bal.ui)
@@ -81,6 +127,8 @@ func _run() -> void:
 	var img := root.get_texture().get_image()
 	if img.get_size() != Vector2i(720, 1280):
 		push_warning("capture size %s" % img.get_size())
+	if _args.has("crop-top"):
+		img = img.get_region(Rect2i(0, 0, img.get_width(), int(_args["crop-top"])))
 	var out: String = _args.get("out", "docs/screenshots/s1/capture.png")
 	var path := out if out.is_absolute_path() else ProjectSettings.globalize_path("res://").path_join(out)
 	DirAccess.make_dir_recursive_absolute(path.get_base_dir())

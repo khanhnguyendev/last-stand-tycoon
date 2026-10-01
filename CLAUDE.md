@@ -11,7 +11,10 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - `world/` main scene, map, stations, build spots, directors, PhaseController
 - `ui/` HUD, joystick, world labels, overlays; `ui/debug/` is debug-only and excluded from release/profile exports
 - `balance/` typed Resource scripts + `balance.tres`, `ui_tuning.tres`
-- `tests/unit/`, `tests/sim/` (GUT); `tests/sim/out/` is gitignored
+- `tests/unit/`, `tests/sim/` (GUT); `tests/sim/out/` is gitignored; `tests/sim/baseline/` is the S4 determinism baseline (never re-recorded in S4)
+- `assets/<pack-id>/` third-party CC0 packs (only used files + `LICENSE.txt`, one row per pack in `docs/ASSET_LICENSES.md`); `assets/_candidates/` is gitignored (D-187)
+- `art/` our art: palette, remapped atlases, shared materials, wrappers, procedural builders, icons (D-187, D-188); rules in `docs/ART_BIBLE.md`
+- `tools/` headless and editor-only scripts (validator, palette remap, KayKit post-import, shots); excluded from every web export
 - Infra only (never game code): `addons/` (GUT), `export/` (web shell), `.github/` (CI), `docs/`
 
 ## Toolchain (pinned, D-129)
@@ -24,6 +27,8 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - `./run_tests.sh unit` · `./run_tests.sh sim` · `./run_tests.sh all` · `./run_tests.sh --quick` (unit + night-1 sims; after Task 20)
 - Sweep: `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/sweep.gd`
 - Web export: see `export/README.md`
+- S4 shots: `tools/shots.sh <out_dir>` (rendered 720x1280 + 40% copies); determinism: `tools/baseline_diff.sh` (must print `baseline identical`)
+- Night-3 perf (iOS Simulator, profile build): `export/perf_night3.sh <web_profile_dir> <out_dir>`; read the frozen `PERF phase=NIGHT` line; the gate is the median of 3 runs (D-199)
 
 ## Architecture
 - Autoloads: EventBus (cross-system signals), GameState (the only mutable game data), Balance (typed tuning).

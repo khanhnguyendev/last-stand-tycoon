@@ -1,0 +1,8 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://art/palette/atlas/kenney-platformer__colormap.png" id="1_g2k1f"]
+
+[resource]
+resource_name = "kenney-platformer__colormap"
+albedo_texture = ExtResource("1_g2k1f")
+texture_filter = 0

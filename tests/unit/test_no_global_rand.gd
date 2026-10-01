@@ -2,7 +2,7 @@ extends GutTest
 ## D-034: randomness only through Rng streams. Global calls are banned outside core/rng.gd.
 
 const SCAN_DIRS := ["res://autoload", "res://core", "res://components", "res://actors",
-	"res://world", "res://ui", "res://balance"]
+	"res://world", "res://ui", "res://balance", "res://art", "res://tools"]
 const ALLOWED := ["res://core/rng.gd"]
 const BAN_RE := "(?<![\\.\\w])(randi|randf|randi_range|randf_range|randomize)\\s*\\(|RandomNumberGenerator\\s*\\.\\s*new\\s*\\(|@GlobalScope\\s*\\.\\s*(randi|randf|randi_range|randf_range|randomize|randfn|seed|rand_from_seed)\\s*\\("
 
@@ -23,6 +23,7 @@ func test_no_global_randomness() -> void:
 	var re := RegEx.new()
 	re.compile(BAN_RE)
 	assert_true(files.has("res://core/rng.gd"), "scan reached core/")
+	assert_true(files.has("res://art/palette/palette.gd"), "scan reached art/")
 	var offenders: Array = []
 	for path in files:
 		if path in ALLOWED:

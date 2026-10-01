@@ -22,3 +22,7 @@ default `~/.cache/lst-playwright`). Both expect `window.LST_BUILD`, which the pa
 `<script>window.LST_BUILD="local";</script>` added before `</head>` of its `index.html`.
 
 Fresh starts (S3): a plain URL resumes a saved run from `localStorage`. Add `?reset=1` to debug URLs for a fresh start. Release URLs can't be reset; use a fresh browser profile. `node export/pw_resume.mjs <debug_url_base> <out_dir> [android|desktop]` is the resume smoke (one browser context: pick, plain-URL resume, reload).
+
+Night-3 perf (S4 Task 5, D-196): `export/perf_night3.sh <web_profile_dir> <out_dir>` (macOS only; modifies <dir> in place) serves a profile build on localhost:8765, injects the `export/fixtures/night3_*.save.json` saves through `export/seed_save.html` and screenshots the perf overlay in the iOS Simulator (`day_peak.png`, `night3_80s.png`).
+`node export/pw_perf.mjs <base_url> <out_dir>` does the same for emulated Pixel 7 (software GL on a desktop, so its fps is only a smoke value; start `python3 export/serve_nocache.py 8765 <build dir>` first (no-store, so no stale pack)) and prints the console `PERF` lines.
+`export/seed_save.html?f=<fixture stem>&to=<game path>` writes a fixture into `localStorage["lst:<path>:save"]` and redirects to the game; regenerate fixtures with `tests/sim/make_save.gd`.

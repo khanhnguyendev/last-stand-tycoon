@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><title>seed save</title>
+<script>
+// Writes the night-3 fixture into the game's localStorage key, then opens the game (S4 spec 9.5).
+// ?to=<game path, e.g. /profile/>. ?f=<fixture stem> (default night3_start).
+// Key = "lst:" + pathname with a trailing index.html trimmed + ":save" (SaveStore.normalize_path, key_prefix_for).
+(async () => {
+  const to = new URLSearchParams(location.search).get('to') || '/';
+  const path = new URL(to, location.href).pathname.replace(/index\.html$/, '');
+  const f = new URLSearchParams(location.search).get('f') || 'night3_start';
+  const r = await fetch('fixtures/' + f + '.save.json', {cache: 'no-store'});
+  if (!r.ok) { document.body.textContent = 'seed_save: fixture ' + f + ' not found (HTTP ' + r.status + ')'; return; }
+  const text = await r.text();
+  localStorage.setItem('lst:' + path + ':save', text);
+  localStorage.removeItem('lst:' + path + ':save_bak');
+  location.replace(to);
+})();
+</script>
