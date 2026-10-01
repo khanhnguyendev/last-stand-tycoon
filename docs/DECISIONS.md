@@ -1671,3 +1671,12 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
 - **Unbuilt marker:** a sibling of Visual, shown at level 0 in DAY.
 - **`World.add_static_box`:** collision-only, plus a visual scene; the sizes are unchanged.
 - **`build_level_scale`:** 1.1 → 1.0, because the model change shows the growth (in REVIEW_QUEUE).
+
+## 2026-10-01: S4 P1 (autonomous)
+
+**D-198 Character triangle budget 5500 (amends D-196).**
+- **Measured:** KayKit bare bodies (head, torso, arms, legs; every prop hidden) are 3921–4263 triangles.
+- **Role kits:** with their hat or hood, cape and weapon, the role kits come to about 4.8k–5.3k. The silhouettes
+  need those props (D-183): the chef hat, the Archer's hood and crossbow, the Tank's helmet and shield.
+- **Budget:** hero, Archer, Tank and traveler scenes get 5500. The other budgets are unchanged.
+- **Perf:** draw calls, not triangles, are the main web perf cost here.
