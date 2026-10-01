@@ -302,6 +302,9 @@ func test_from_dict_alone_rebuilds_every_view() -> void:
 	_assert_views_match(snap)
 
 func test_restore_piles_show_exact_counts() -> void:
+	GameState.freezer_steaks = 5  # test-only setup write
+	EventBus.stocks_changed.emit()
+	assert_eq(main.world.freezer.stack_count(), 5)
 	var snap := GameState.to_dict()
 	snap.counter_steaks = Balance.data.economy.counter_capacity
 	snap.freezer_steaks = 0

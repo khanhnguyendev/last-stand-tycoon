@@ -12,13 +12,21 @@ static func make(mesh: Mesh, slots: PackedVector3Array, item_xf: Transform3D = T
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
 	mm.instance_count = slots.size()
-	for i in slots.size():
-		mm.set_instance_transform(i, Transform3D(item_xf.basis, item_xf.origin + slots[i]))
+	var xfs := slot_transforms(slots, item_xf)
+	for i in xfs.size():
+		mm.set_instance_transform(i, xfs[i])
 	mm.visible_instance_count = 0
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return mmi
+
+## The transform of every slot, in slot order: the item's basis, at the item's own offset plus the slot position.
+static func slot_transforms(slots: PackedVector3Array, item_xf: Transform3D) -> Array[Transform3D]:
+	var out: Array[Transform3D] = []
+	for s in slots:
+		out.append(Transform3D(item_xf.basis, item_xf.origin + s))
+	return out
 
 static func set_count(mmi: MultiMeshInstance3D, n: int) -> void:
 	mmi.multimesh.visible_instance_count = clampi(n, 0, mmi.multimesh.instance_count)

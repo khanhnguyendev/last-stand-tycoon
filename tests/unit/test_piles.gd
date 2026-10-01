@@ -46,6 +46,8 @@ func test_carry_stack_shows_the_max_capacity_exactly() -> void:
 	var m := _main()
 	var cb := Balance.data.cards
 	var cap := CardEffects.carry_capacity(Balance.data.hero.carry_capacity, {&"carry_capacity": cb.max_level}, cb)
+	assert_eq(cap, Balance.data.hero.carry_capacity + cb.carry_step * cb.max_level)
+	assert_eq(m.hero.carry_stack._pile.multimesh.instance_count, cap, "one slot per steak the hero can ever carry")
 	GameState.carried_steaks = cap  # test-only setup write
 	EventBus.stocks_changed.emit()
 	assert_eq(m.hero.carry_stack.visible_count(), cap)
@@ -166,3 +168,39 @@ func test_pool_growth_grows_the_field() -> void:
 	for s in held:
 		assert_false(m.world.pickup_field.is_slot_clear(s.slot), "growth kept every placed steak")
 	assert_push_warning_count(2)
+
+func test_slot_transforms_order_and_offsets() -> void:
+	var item := Transform3D(Basis.from_scale(Vector3(2, 2, 2)), Vector3(0, 0.5, 0))
+	var xs := PileMesh.slot_transforms(_slots(3), item)
+	assert_eq(xs.size(), 3)
+	for i in 3:
+		assert_eq(xs[i].origin, Vector3(i, 0.5, 0), "slot %d keeps its order and the item offset" % i)
+		assert_eq(xs[i].basis, item.basis)
+
+func test_steak_item_sits_on_the_floor_centred() -> void:
+	var box := PileMesh.steak_xf() * PileMesh.steak_mesh().get_aabb()
+	assert_almost_eq(box.position.y, 0.0, 1e-4)
+	assert_almost_eq(box.position.x + box.size.x / 2.0, 0.0, 1e-4)
+	assert_almost_eq(box.position.z + box.size.z / 2.0, 0.0, 1e-4)
+
+func test_coin_item_lies_flat_centred_and_thin() -> void:
+	var box := PileMesh.coin_flat_xf() * PileMesh.coin_mesh().get_aabb()
+	assert_almost_eq(box.position.y, 0.0, 1e-4)
+	assert_almost_eq(box.position.x + box.size.x / 2.0, 0.0, 1e-4)
+	assert_almost_eq(box.position.z + box.size.z / 2.0, 0.0, 1e-4)
+	assert_lt(box.size.y, 0.07, "thinner than the 0.07 stack spacing")
+	assert_almost_eq(box.size.x, 0.3, 0.02)
+
+func test_pickup_meshes_use_the_shared_material_with_no_override() -> void:
+	for mesh in [PileMesh.steak_mesh(), PileMesh.coin_mesh()]:
+		for i in mesh.get_surface_count():
+			var mat: Material = mesh.surface_get_material(i)
+			assert_not_null(mat)
+			assert_true(mat.resource_path.begins_with("res://art/materials/"), "%s" % mat.resource_path)
+	for path in [PileMesh.STEAK_SCENE, PileMesh.COIN_SCENE]:
+		var root: Node = (load(path) as PackedScene).instantiate()
+		for mi in root.find_children("*", "MeshInstance3D", true, false):
+			assert_null((mi as MeshInstance3D).material_override, "no overall override")
+			for i in (mi as MeshInstance3D).mesh.get_surface_count():
+				assert_null((mi as MeshInstance3D).get_surface_override_material(i), "no surface override")
+		root.free()
