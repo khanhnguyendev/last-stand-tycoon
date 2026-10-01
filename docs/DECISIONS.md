@@ -1603,7 +1603,7 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
   - `assets/<pack-id>/` holds third-party files: only the files used, plus the licence normalised to `LICENSE.txt`.
   - `art/` holds the palette, materials, wrappers, builders and icons.
   - `tools/` holds headless and editor-only scripts, including the post-import script and the validator.
-- **Export:** `tools/*` and `assets/_candidates/*` are excluded.
+- **Export:** `tools/*`, `export/*` and `assets/_candidates/*` are excluded.
 - **Licence log:** ASSET_LICENSES moves to one row per pack (licence SHA-256, file count), checked by the validator.
 - **Supersedes:** this replaces the `ASSET_PIPELINE.md` promised in D-024.
 
@@ -1616,6 +1616,7 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
 **D-189 KayKit size.**
 - A post-import script in `tools/` strips the clips and writes one shared AnimationLibrary with 8 clips: Idle,
   Running_A, Walking_A, Throw, 1H_Melee_Attack_Slice_Diagonal, 2H_Ranged_Shoot, Hit_A and Cheer.
+- The library is written only when stale, so CI's `--import` never rewrites it.
 - Fallback: `_subresources` per clip.
 - Each imported character scene is under 500 KB.
 
@@ -1645,7 +1646,7 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
 
 **D-194 World.**
 - **Diner:** a flat roof and parapet (the Archer's perch), a chimney, a rooftop WorldLabel board and an awning.
-  OccluderFade uses the wrapper's AABB and also fades Label3D.
+  OccluderFade uses the wrapper's AABB, also fades Label3D, and ignores aim points on its own roof (the Archer).
 - **Towers and fences:** the model changes per level.
 - **Ground and props:** a position-hash variation and a hand-placed prop list.
 - **Lighting:** a warm day and a readable blue night via `LightingDirector`.
@@ -1659,7 +1660,7 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
 **D-196 Budgets.**
 - **Perf:** iOS Simulator at night 3 on the profile build, at least 58 fps average, reached by save injection and
   checked at P2, P4 and P6. Desktop guide: at most 120 draw calls at the night-3 peak and at most 150 at the day
-  peak.
+  peak (full queue). The perf fixtures are a night-3-start save (resume_phase NIGHT) and a day save.
 - **Size:** `gzip -9` of wasm + pck + js at most 16 MB, and the raw pck at most 8 MB, gated in `pages.yml`.
 - **Textures:** at most 512².
 - **Triangle budgets:** per `art/budgets.gd`, with the KayKit counts measured before they freeze.
