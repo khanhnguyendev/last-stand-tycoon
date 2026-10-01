@@ -13,6 +13,7 @@ var _pool: NodePool
 ## direction and `_spin` the knife's roll. Written only by launch/_physics_process reads and _process; never read by gameplay.
 var _visual: Node3D
 var _art: Node3D
+var _arts := {}
 var _art_kind: StringName = &""
 var _dir := Vector3.FORWARD
 var _spin := 0.0
@@ -27,20 +28,22 @@ func _init() -> void:
 	_visual = Visuals.visual_root()
 	add_child(_visual)
 
-## Chooses the art by the shooter's kind (&"knife" hero, &"arrow" guards/towers). Pooled projectiles are re-acquired on
-## every shot, so an unchanged kind returns at once; a changed kind frees the old art and instances the new one.
+## Chooses the art by the shooter's kind (&"knife" hero, &"arrow" guards/towers). The pool is shared and the kinds
+## alternate all night, so both art scenes are instanced once, on the first set_art; later calls only toggle
+## visibility (an unchanged kind returns at once). The hidden art is skipped by _process.
 func set_art(kind: StringName) -> void:
-	if kind == _art_kind:
+	if kind == _art_kind and not _arts.is_empty():
 		return
-	if _art != null:
-		_visual.remove_child(_art)
-		_art.free()
-		_art = null
+	if _arts.is_empty():
+		for k in ART_SCENES:
+			var n := (load(ART_SCENES[k]) as PackedScene).instantiate() as Node3D
+			n.visible = false
+			_visual.add_child(n)
+			_arts[k] = n
 	_art_kind = kind
-	if not ART_SCENES.has(kind):
-		return
-	_art = (load(ART_SCENES[kind]) as PackedScene).instantiate()
-	_visual.add_child(_art)
+	for k in _arts:
+		(_arts[k] as Node3D).visible = k == kind
+	_art = _arts.get(kind)
 
 func _process(delta: float) -> void:
 	if _art == null:

@@ -14,9 +14,30 @@ func test_art_kind_selects_scene() -> void:
 	add_child_autofree(p)
 	p.set_art(&"knife")
 	assert_not_null(p.find_child("Knife", true, false))
+	assert_true((p.find_child("Knife", true, false) as Node3D).visible)
 	p.set_art(&"arrow")
-	assert_not_null(p.find_child("Arrow", true, false))
-	assert_null(p.find_child("Knife", true, false))
+	assert_true((p.find_child("Arrow", true, false) as Node3D).visible)
+	assert_false((p.find_child("Knife", true, false) as Node3D).visible)
+
+func _visible_arts(p: Projectile) -> int:
+	var n := 0
+	for c in p.find_child("Visual", false, false).get_children():
+		if (c as Node3D).visible:
+			n += 1
+	return n
+
+func test_kind_flips_never_instance_again() -> void:
+	var p := Projectile.new()
+	add_child_autofree(p)
+	p.set_art(&"knife")
+	var vis := p.find_child("Visual", false, false)
+	var kids := vis.get_child_count()
+	var knife := p.find_child("Knife", true, false)
+	for i in 10:
+		p.set_art(&"arrow" if i % 2 == 0 else &"knife")
+		assert_eq(_visible_arts(p), 1, "exactly one art visible")
+		assert_eq(vis.get_child_count(), kids, "child count never grows")
+	assert_same(p.find_child("Knife", true, false), knife, "same knife instance")
 
 func test_same_kind_keeps_the_instance() -> void:
 	var p := Projectile.new()
@@ -25,6 +46,7 @@ func test_same_kind_keeps_the_instance() -> void:
 	var first := p.find_child("Knife", true, false)
 	p.set_art(&"knife")
 	assert_same(p.find_child("Knife", true, false), first, "no re-instancing for an unchanged kind")
+	assert_eq(_visible_arts(p), 1)
 
 func test_attacker_defaults_to_arrow_and_hero_to_knife() -> void:
 	assert_eq(autofree(Attacker.new()).projectile_art, &"arrow")
@@ -37,7 +59,7 @@ func test_art_nose_points_along_minus_z() -> void:
 		var p := Projectile.new()
 		add_child_autofree(p)
 		p.set_art(kind)
-		var mi := p.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+		var mi := p.find_child(String(kind).capitalize(), true, false).find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
 		var bb := mi.get_aabb()
 		var long := (mi.global_transform * bb).size
 		assert_gt(long.z, 0.45, "%s long axis lies along z" % kind)
