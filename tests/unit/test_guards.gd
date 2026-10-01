@@ -117,6 +117,61 @@ func test_knockout_respawn_at_door_then_return() -> void:
 	assert_true(t.visual.visible)
 	assert_almost_eq(t.visual.scale.x, 1.0, 1e-3, "the respawned tank is full size")
 
+func test_knockout_and_revive_restore_visual() -> void:
+	# Review Focus 2: a Tank knocked out and revived repeatedly is never left invisible, half-scaled or stuck in Hit_A.
+	GameState.debug_grant_card(&"tank")
+	await _ticks(60 * 8)
+	var tank: Guard = roster.guards[&"tank"]
+	var poof_ticks := int(ceil(0.15 * 60.0)) + 2  # poof(true) tweens the root from 0.01 over 0.15 s
+	for cycle in 3:
+		tank.visual.hit()
+		GameState.damage_guard(&"tank", 1e6)
+		assert_eq(tank.state, Guard.State.DOWN, "cycle %d" % cycle)
+		await _ticks(poof_ticks)
+		assert_false(tank.visual.visible, "cycle %d: the poof hid it" % cycle)
+		await _ticks(int(ceil(Balance.data.guards.tank.respawn_s * 60.0)) + 2)  # revives, then arrive_from_door
+		assert_eq(tank.state, Guard.State.RETURNING, "cycle %d" % cycle)
+		tank.visual.hit()  # a Hit_A in flight when the walk-in starts must be cut off by reset()
+		tank.arrive_from_door()
+		await _ticks(poof_ticks)
+		assert_true(tank.visual.visible, "cycle %d" % cycle)
+		assert_almost_eq(tank.visual.scale, Vector3.ONE, Vector3.ONE * 1e-3, "cycle %d root scale" % cycle)
+		assert_eq(tank.visual.body.position, Vector3.ZERO)
+		assert_eq(tank.visual.body.scale, Vector3.ONE)
+		assert_false(tank.visual.anim_tree.get("parameters/react/active"), "cycle %d: not stuck in Hit_A" % cycle)
+		tank.place_at_post()
+
+func test_guard_bar_is_palette_boxes_outside_the_visual() -> void:
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	assert_eq(t.visual.name, &"Visual")
+	assert_true(t._bar.get_parent() == t and t._bar_back.get_parent() == t, "the bar is not under Visual")
+	assert_true(t._bar.mesh is BoxMesh and t._bar_back.mesh is BoxMesh)
+	assert_eq((t._bar.material_override as StandardMaterial3D).albedo_color, Palette.color(&"guard_green"))
+	assert_eq((t._bar_back.material_override as StandardMaterial3D).albedo_color, Palette.color(&"ink"))
+	t.place_at_post()
+	GameState.damage_guard(&"tank", GameState.guard_max_hp(&"tank") * 0.5)
+	assert_true(t._bar.visible and t._bar_back.visible)
+
+func test_guard_visual_follows_motion_and_attacks() -> void:
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	assert_eq(t.state, Guard.State.RETURNING)
+	await _ticks(30)
+	assert_gt(float(t.visual.anim_tree.get("parameters/loco/blend_position")), 0.9, "walking in: full motion blend")
+	await _ticks(60 * 8)
+	assert_eq(t.state, Guard.State.POSTED)
+	assert_almost_eq(float(t.visual.anim_tree.get("parameters/loco/blend_position")), 0.0, 1e-4, "posted: idle")
+	var b: Boar = main.world.wave_director.debug_spawn("west")
+	var attacked := false
+	for i in 60 * 20:
+		await get_tree().physics_frame
+		if t.visual.anim_tree.get("parameters/action/active"):
+			attacked = true
+			break
+	assert_true(attacked, "the tank swings when its attacker fires")
+	assert_not_null(b)
+
 func test_hp_bar_follows_signals() -> void:
 	GameState.debug_grant_card(&"tank")
 	var t: Guard = roster.guards[&"tank"]

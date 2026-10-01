@@ -1,0 +1,8 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://art/palette/atlas/kaykit-adventurers__traveler_rogue_beige.png" id="1_tex"]
+
+[resource]
+resource_name = "traveler_rogue_beige"
+albedo_texture = ExtResource("1_tex")
+texture_filter = 0
