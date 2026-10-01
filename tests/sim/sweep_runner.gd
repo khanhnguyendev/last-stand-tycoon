@@ -1,5 +1,6 @@
 extends Node
 ## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1-14 by default -> tests/sim/out/sweep.csv.
+## After the SWEEP line it prints a RETRIES line (days, median, max_before_day8, max, target_ok) for the D-184 retries-per-night target.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
 
 func _ready() -> void:
@@ -22,6 +23,7 @@ func _run() -> void:
 	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked"]
 	var first_fail_day := -1
 	var hard_break_day := -1
+	var retries_per_day: Array = []
 	for day in range(1, int(args.days) + 1):
 		var retries := 0
 		_picked = ""
@@ -44,6 +46,7 @@ func _run() -> void:
 			t0 = h.elapsed
 			_knockouts = 0  # per attempt: the row reports the last attempt's knockouts
 			n = await h.run_night()
+		retries_per_day.append(retries)  # hard-break days count too
 		var night_s := h.elapsed - t0
 		if n.failed:
 			hard_break_day = day
@@ -73,6 +76,18 @@ func _run() -> void:
 	f.close()
 	print("\n".join(rows))
 	print("SWEEP first_fail_day=%d hard_break_day=%d target=%d±%d" % [first_fail_day, hard_break_day, Balance.data.sim.break_day_target, Balance.data.sim.break_day_tolerance])
+	var sorted_r := retries_per_day.duplicate()
+	sorted_r.sort()
+	var median := 0.0
+	var max_r := 0
+	var max_early := 0
+	if not sorted_r.is_empty():
+		var mid := sorted_r.size() / 2
+		median = float(sorted_r[mid]) if sorted_r.size() % 2 == 1 else (sorted_r[mid - 1] + sorted_r[mid]) / 2.0
+		max_r = sorted_r.back()
+	for i in range(mini(7, retries_per_day.size())):
+		max_early = maxi(max_early, retries_per_day[i])
+	print("RETRIES days=%d median=%s max_before_day8=%d max=%d target_ok=%s" % [retries_per_day.size(), median, max_early, max_r, str(median == 0.0 and max_early <= 2).to_lower()])
 	h.finish()
 	get_tree().quit(0)
 

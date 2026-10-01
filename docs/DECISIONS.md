@@ -1509,3 +1509,39 @@ Spec: `docs/superpowers/specs/2026-09-30-s3-save-failure-mercy-design.md`.
   the note adds), the main session applies the patch and amends it into the task commit **before** the reviewer pass.
   Otherwise the reviewer sees a red suite.
 - The reviewer then reviews the task and its wiring together. The main session still owns the hot-file edit.
+
+## 2026-10-01: S4 direction (author)
+
+**D-182 S4 uses free CC0 assets only, without Blender (author; answers the S2–S5 setup batch).**
+- No Blender MCP install for now and no paid AI generation. Free CC0 assets plus Godot-side material and colour work.
+- Ask again only if the style board shows a gap only Blender can close. If so, send the exact one-time install steps.
+
+**D-183 Art cohesion comes before asset choice (author).**
+- Blocky sets (Kenney Blocky Characters, Cube Pets) are not mixed with the rounded kits (Food, Castle, Tower Defense)
+  unless a style board proves they read as one world.
+- **Style board first:** 2–3 candidate character sets, rendered in the real game camera with the diner, a tower, a
+  fence, steaks and coins. Commit to `docs/review/media/s4_style_board/`. The pick is logged with written reasons and
+  added to REVIEW_QUEUE (high impact).
+- **Characters need:** idle, run, attack and hit/death animations (or a clean tween fake).
+  - The hero reads as the diner owner/cook.
+  - Archer and Tank are recognizable at phone size.
+  - The Boar reads as "monster that becomes steak": cute-dangerous, not a cuddly pet.
+- **ART_BIBLE readability rules:**
+  - distinct silhouettes for the hero, travelers, guards and the Boar;
+  - the hero always pops (ring or brighter palette);
+  - travelers are muted;
+  - enemies carry the warm/red accent;
+  - checked at phone size (720×1280 viewed at about 40%).
+- **One palette:** materials are palette-remapped in Godot (a shared palette texture or material overrides), so all
+  packs sit in one palette.
+
+**D-184 Mercy accepted; retries-per-night metric (author; S3 Task 8).**
+- Endless runs fit IDEA ("non-punishing, picks permanent, no roguelite runs"). The REVIEW_QUEUE entry stays.
+- The sweep and the S3 results report retries per night for days 1–14. Target: median 0, and no night before day 8
+  needing more than 2 retries.
+- Measured (seeds 20260930 / 11 / 777): every night before day 8 needed 0 retries; the most on any night through day
+  14 was 3 (day 13 or 14); the median is 0 on every seed. The target holds. If it ever misses, it is tuned as a
+  balance task.
+
+**D-185 Review nits on already-guarded paths may be skipped (author).**
+- Nits that only add cases to already-guarded paths can be skipped. Every skipped nit is listed in the PR body.

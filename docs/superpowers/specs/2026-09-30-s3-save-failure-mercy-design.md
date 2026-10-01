@@ -323,6 +323,7 @@ Phase branches `s3/p<N>-<slug>`, starting after S2 is merged:
 | Tests | unit 449, sim 9 (suite about 6 s, budget 60 s) |
 | Sweep with mercy (seeds 20260930 / 11 / 777) | first_fail_day 10 / 11 / 10 (target 10 ± 1); hard_break_day none within 14 days. Every lost night cleared within 3 retries. |
 | Web resume smoke (preview s3-p4-results /debug/) | Playwright Pixel 7 (emulated): pick overlay resumes after a reload; after picking, DAY at HOME with the card. Saves under `lst:<path>:save` and `save_bak`. 0 page or console errors. iOS Simulator Safari: the reload resumes Day 2 DAWN with the same offer and TK1. |
+| Retries per night (D-184) | Days 1–7: 0 on every seed. Days 8–14: at most 3 (seed 20260930 day 13; seed 11 day 13; seed 777 day 14). Median 0 per seed. Target (median 0, at most 2 before day 8) holds. |
 | Validation | Two review rounds hardened `SaveCodec.validate` (types, ranges, lanes, CARD_PICK soft-lock), so no checksum-valid save can crash `from_dict`. |
 | Save size | about 0.9 KB per key |
 
