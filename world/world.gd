@@ -17,6 +17,9 @@ var telegraph_markers := {}
 var fly_fx: FlyFx
 var occluder_fade: OccluderFade
 var guard_roster: GuardRoster
+## One draw for every blob shadow (S4 D-201). Actors register their Visual with it: the hero and guards in setup(), the
+## travelers in begin() (the factory below hands each one this field).
+var shadow_field: ShadowField
 
 @export var enemy_pool: NodePool
 @export var steak_pool: NodePool
@@ -32,11 +35,14 @@ var _traveler_count := 0
 func _make_traveler() -> Traveler:
 	var t := Traveler.new()
 	t.variant = _traveler_count % 6
+	t.shadow_field = shadow_field
 	_traveler_count += 1
 	return t
 
 func _ready() -> void:
 	_build_environment()
+	shadow_field = ShadowField.new()
+	add_child(shadow_field)
 	_build_ground()
 	_build_diner()
 	_build_lanes()
