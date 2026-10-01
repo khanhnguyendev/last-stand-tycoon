@@ -1,0 +1,22 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/kenney-fantasy-town/fence-broken.glb" id="1_t7aaw"]
+[ext_resource type="Material" path="res://art/materials/kenney-fantasy-town__rubble.tres" id="mat_override"]
+
+[node name="RubbleSrc" type="Node3D" unique_id=1566924732]
+
+[node name="Broken0" type="Node3D" parent="." unique_id=1310037090 instance=ExtResource("1_t7aaw")]
+transform = Transform3D(-6.556708e-08, 0, 1.5, 0, 1.5, 0, -1.5, 0, -6.556708e-08, -0.8, 0, 0)
+
+[node name="Broken1" type="Node3D" parent="." unique_id=325111772 instance=ExtResource("1_t7aaw")]
+transform = Transform3D(1.788732e-08, 0, -1.5, 0, 1.4, 0, 1.5, 0, 1.788732e-08, 0.9, 0, 0.1)
+
+[editable path="Broken0"]
+
+[editable path="Broken1"]
+
+[node name="fence-broken" parent="Broken0" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="fence-broken" parent="Broken1" index="0"]
+material_override = ExtResource("mat_override")

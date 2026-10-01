@@ -2,6 +2,8 @@ class_name TelegraphMarker
 extends Node3D
 ## Day-only threat marker near each lane's fence spot (D-029, D-093). Hidden when threat is 0.
 
+const FLAG_SCENE := preload("res://art/env/telegraph_flag.tscn")
+
 var lane_id := ""
 var target_scale := 0.0
 var _phase := Phase.NIGHT
@@ -10,11 +12,7 @@ func setup(id: String) -> void:
 	lane_id = id
 	name = "Telegraph_" + id
 	position = MapLayout.to3(MapLayout.telegraph_spot(id))
-	var v := Visuals.visual_root()
-	var cone := Visuals.cone(0.5, 1.2, Visuals.COLORS.telegraph)
-	cone.position.y = 0.6
-	v.add_child(cone)
-	add_child(v)
+	add_child(FLAG_SCENE.instantiate())  # root "Visual"; the flag mesh carries the enemy_red override (R4)
 	EventBus.phase_changed.connect(_on_phase_changed)
 	EventBus.state_restored.connect(refresh)
 	refresh()

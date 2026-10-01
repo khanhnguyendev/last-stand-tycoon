@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/kenney-tower-defense/tower-round-bottom-a.glb" id="1_sw75y"]
+[ext_resource type="PackedScene" path="res://assets/kenney-tower-defense/tower-round-middle-a.glb" id="2_1fgkg"]
+[ext_resource type="PackedScene" path="res://assets/kenney-tower-defense/tower-round-top-a.glb" id="3_kysu7"]
+[ext_resource type="PackedScene" path="res://assets/kenney-tower-defense/weapon-ballista.glb" id="4_5lrmq"]
+
+[node name="TowerSrc" type="Node3D" unique_id=185486352]
+
+[node name="bottom" type="Node3D" parent="." unique_id=2086532249 instance=ExtResource("1_sw75y")]
+transform = Transform3D(1.2, 0, 0, 0, 1.2727273, 0, 0, 0, 1.2, 0, 0, 0)
+
+[node name="middle" type="Node3D" parent="." unique_id=409539667 instance=ExtResource("2_1fgkg")]
+transform = Transform3D(1.2, 0, 0, 0, 1.2727273, 0, 0, 0, 1.2, 0, 0.76363635, 0)
+
+[node name="top" type="Node3D" parent="." unique_id=2055914917 instance=ExtResource("3_kysu7")]
+transform = Transform3D(1.2, 0, 0, 0, 1.2727273, 0, 0, 0, 1.2, 0, 1.5272727, 0)
+
+[node name="ballista" type="Node3D" parent="." unique_id=1012170774 instance=ExtResource("4_5lrmq")]
+transform = Transform3D(1.2, 0, 0, 0, 1.2727273, 0, 0, 0, 1.2, 0, 2.1636364, 0)

@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/kenney-castle/gate.glb" id="1_vv886"]
+
+[node name="GateSrc" type="Node3D" unique_id=676912532]
+
+[node name="Gate-1" type="Node3D" parent="." unique_id=691617086 instance=ExtResource("1_vv886")]
+transform = Transform3D(-6.556708e-08, 0, -1.5, 0, 1.5, 0, 1.5, 0, -6.556708e-08, -1.6, 0, 0)
+
+[node name="Gate1" type="Node3D" parent="." unique_id=1601715595 instance=ExtResource("1_vv886")]
+transform = Transform3D(-6.556708e-08, 0, -1.5, 0, 1.5, 0, 1.5, 0, -6.556708e-08, 1.6, 0, 0)

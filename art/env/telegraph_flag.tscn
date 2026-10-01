@@ -1,0 +1,15 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://art/env/baked/telegraph_flag.res" id="1_mesh"]
+
+[sub_resource type="StandardMaterial3D" id="mat_enemy_red"]
+resource_name = "enemy_red"
+albedo_color = Color(0.7843137, 0.2509804, 0.18431373, 1)
+roughness = 1.0
+
+[node name="Visual" type="Node3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_mesh")
+cast_shadow = 0
+material_override = SubResource("mat_enemy_red")
