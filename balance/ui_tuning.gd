@@ -49,3 +49,8 @@ extends Resource
 ## S3: a new banner shortens the one on screen to at most banner_min_s (D-175); autosave throttle (D-173).
 @export var banner_min_s := 0.6
 @export var autosave_interval_s := 3.0
+## S4 Task 6: ActorVisual (D-190). Turn rate of the model toward its facing (rad/s), AnimationTree blend and
+## one-shot fade (s), and the minimum gap between Hit_A reactions (s).
+@export var visual_turn_speed := 14.0
+@export var anim_blend_s := 0.12
+@export var hit_react_cooldown := 1.0
