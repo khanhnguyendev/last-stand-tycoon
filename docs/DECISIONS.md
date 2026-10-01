@@ -1715,3 +1715,14 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
     - an opaque prepass.
   - The 9 labels cost about 2 draw calls each. Removing the outline saves 8 draw calls but hurts readability.
   - The gate is night only, so this goes to S5 perf work and to known issues.
+
+**D-200 Hero art details (S4 Task 7).**
+- **Barbarian atlas:** its two blue gradient columns (torso, sleeves) are pixel-identical, so a hex override can't
+  split them.
+  - The default atlas maps them to `cloth_blue`.
+  - An apron atlas maps them to `apron_white`.
+  - The apron material is only on `Barbarian_Body`, so the sleeves stay blue.
+- **Knife:** the hero's knife projectile is about 0.7 m, not 0.5. At 0.5 m it was 2–4 px wide and invisible from
+  behind (REVIEW_QUEUE).
+- **Projectile art:** each projectile builds its knife and arrow art once and toggles visibility. The shared pool
+  flips kinds constantly at night, so this avoids per-shot instancing.
