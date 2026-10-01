@@ -13,9 +13,11 @@ const UPPER_BODY_PARTS: PackedStringArray = ["spine", "chest", "neck", "head", "
 @export var attack_clip: StringName = &"Throw"
 ## When false (fallback if the bone filter is not honoured), attack() only plays while nearly standing still.
 @export var upper_body_attack := true
-## A KayKit character scene to use instead of the Model already in the scene (subclasses set this).
+## A KayKit character scene to use instead of the Model already in the scene. Prefer overriding the `Model`
+## instance in the subclass's inherited .tscn: setting this costs a discarded Barbarian instance per visual.
 @export var model_scene: PackedScene
-## Hide the props under the model's BoneAttachment3D nodes (axes, shields, hats, capes), except these by name.
+## Free the props under the model's BoneAttachment3D nodes (axes, shields, hats, capes), except these by name.
+## A BoneAttachment3D left with no mesh is freed too.
 @export var hide_props := true
 @export var shown_props: PackedStringArray = []
 
@@ -37,8 +39,14 @@ func _ready() -> void:
 	var model := body.get_node("Model")
 	if hide_props:
 		for mi in model.find_children("*", "MeshInstance3D", true, false):
-			if mi.get_parent() is BoneAttachment3D and not shown_props.has(String(mi.name)):
-				(mi as Node3D).visible = false
+			var att := mi.get_parent() as BoneAttachment3D
+			if att != null and not shown_props.has(String(mi.name)):
+				att.remove_child(mi)
+				mi.free()
+		for att in model.find_children("*", "BoneAttachment3D", true, false):
+			if att.find_children("*", "MeshInstance3D", true, false).is_empty():
+				att.get_parent().remove_child(att)
+				att.free()
 	_build_animation(model)
 
 func _build_animation(model: Node) -> void:

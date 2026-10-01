@@ -53,5 +53,7 @@ func reset() -> void:
 func _process(delta: float) -> void:
 	if not _has_face or body == null:
 		return
+	if is_equal_approx(body.rotation.y, _face_yaw):
+		return
 	var turn: float = Balance.ui.visual_turn_speed * delta
 	body.rotation.y = rotate_toward(body.rotation.y, _face_yaw, turn)

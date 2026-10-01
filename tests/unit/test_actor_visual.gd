@@ -78,6 +78,28 @@ func test_kaykit_tree_and_filter() -> void:
 	for b in ["root", "hips", "upperleg.l", "lowerleg.r", "foot.l", "toes.r"]:
 		assert_false(action.is_path_filtered(NodePath(sk + b)), "%s filtered out" % b)
 
+func _manual_visual() -> KayKitVisual:
+	var v: KayKitVisual = load(BASE).instantiate()
+	add_child_autofree(v)
+	v.anim_tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+	v.set_motion(1.0)
+	return v
+
+func test_kaykit_upper_body_filter_keeps_legs() -> void:
+	var a := _manual_visual()
+	var b := _manual_visual()
+	b.attack()
+	for i in 3:  # the first advance consumes the one-shot request, the rest play it
+		a.anim_tree.advance(0.1)
+		b.anim_tree.advance(0.1)
+	var ska := a.body.get_node("Model/Rig/Skeleton3D") as Skeleton3D
+	var skb := b.body.get_node("Model/Rig/Skeleton3D") as Skeleton3D
+	for bone in ["hips", "upperleg.l"]:
+		var i := ska.find_bone(bone)
+		assert_lt(ska.get_bone_pose_rotation(i).angle_to(skb.get_bone_pose_rotation(i)), 1e-3, "%s unchanged by attack" % bone)
+	var arm := ska.find_bone("upperarm.r")
+	assert_gt(ska.get_bone_pose_rotation(arm).angle_to(skb.get_bone_pose_rotation(arm)), 0.1, "arm throws")
+
 func test_kaykit_motion_blend_clamped() -> void:
 	var v: KayKitVisual = load(BASE).instantiate()
 	add_child_autofree(v)
@@ -91,8 +113,8 @@ func test_kaykit_props_hidden_and_clips_resolve() -> void:
 	add_child_autofree(v)
 	var model := v.body.get_node("Model")
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
-		if mi.get_parent() is BoneAttachment3D:
-			assert_false((mi as Node3D).visible, "%s hidden" % mi.name)
+		assert_false(mi.get_parent() is BoneAttachment3D, "%s prop freed" % mi.name)
+	assert_eq(model.find_children("*", "BoneAttachment3D", true, false).size(), 0, "empty attachments freed")
 	var ap := v.body.get_node("AnimationPlayer") as AnimationPlayer
 	var anim := ap.get_animation(&"Running_A")
 	var t := anim.find_track(NodePath(KayKitClips.SKELETON_PATH + ":hips"), Animation.TYPE_ROTATION_3D)
@@ -103,6 +125,7 @@ func test_kaykit_hit_cooldown() -> void:
 	var v: KayKitVisual = load(BASE).instantiate()
 	add_child_autofree(v)
 	v.hit()
+	assert_eq(v.anim_tree.get("parameters/react/request"), AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 	var first := v._last_hit_ms
 	v.hit()
 	assert_eq(v._last_hit_ms, first, "second hit inside the cooldown is ignored")
