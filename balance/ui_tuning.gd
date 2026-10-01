@@ -27,7 +27,7 @@ extends Resource
 @export var pulse_scale := 1.15
 @export var pulse_hz := 1.0
 ## Visual scale added per built level (spec 8.6).
-@export var build_level_scale := 1.1
+@export var build_level_scale := 1.0
 ## D-151 occlusion fade: diner alpha while it hides an actor, fade time, AABB growth (m).
 @export var occluder_alpha := 0.45
 @export var occluder_fade_s := 0.15
