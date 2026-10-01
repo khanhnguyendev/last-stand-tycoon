@@ -5,7 +5,8 @@ const HERO := "res://art/characters/hero_visual.tscn"
 const ARCHER := "res://art/characters/archer_visual.tscn"
 const TANK := "res://art/characters/tank_visual.tscn"
 const TRAVELER := "res://art/characters/traveler_visual.tscn"
-const ROLE_SCENES := [HERO, ARCHER, TANK, TRAVELER]  # Task 9 appends its scenes here
+const BOAR := "res://art/boar/boar_visual.tscn"
+const ROLE_SCENES := [HERO, ARCHER, TANK, TRAVELER, BOAR]  # Task 9 appends its scenes here
 const BASE := "res://art/characters/kaykit_character.tscn"
 
 func _cycle(v: ActorVisual) -> void:
@@ -338,6 +339,8 @@ func test_exactly_one_visible_mesh_instance_per_role_visual() -> void:
 		if meshes.size() == 1:
 			var mi := meshes[0] as MeshInstance3D
 			assert_eq(mi.mesh.get_surface_count(), 1, "%s surfaces" % p)
+			if p == BOAR:
+				continue  # the procedural Boar has no skeleton: its legs are shader-driven (D-192)
 			assert_eq(mi.skeleton, NodePath(".."), "%s: the mesh is bound to its skeleton (empty draws it unskinned, in T-pose)" % p)
 			assert_not_null(mi.skin, "%s skin" % p)
 			assert_true(mi.get_parent() is Skeleton3D, "%s mesh sits on the skeleton" % p)

@@ -104,22 +104,33 @@ func test_build_pop_overshoots() -> void:
 		await get_tree().process_frame
 	assert_almost_eq(s.visual.scale.x, 1.0, 0.01)
 
+func _boar_material(b: Boar) -> Material:
+	return (b.visual.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).material_override
+
 func test_hit_flash() -> void:
 	main.phase_controller.debug_skip_to_day()
 	var b := main.world.wave_director.debug_spawn("north", 0.0, 10.0)
 	b.take_hit(1.0)
 	assert_true(b.flash_active())
+	assert_true(b.visual.flash_active)
+	assert_eq(_boar_material(b), BoarVisual.flash_material())
 	for i in ceili(Balance.ui.hit_flash_time * 60.0) + 4:
 		await get_tree().physics_frame
 	assert_false(b.flash_active())
-	assert_eq(b._mesh.material_override, Visuals.material(Visuals.COLORS.boar), "boar colour restored")
+	assert_false(b.visual.flash_active, "visual flash ended with the countdown")
+	assert_ne(_boar_material(b), BoarVisual.flash_material(), "boar colour restored")
 
 func test_flash_reset_on_release_and_spawn() -> void:
 	var b := main.world.wave_director.debug_spawn("north", 0.0, 10.0)
 	b.take_hit(1.0)
+	assert_true(b.visual.flash_active, "flashing right after take_hit")
 	main.world.enemy_pool.release(b)
 	assert_false(b.flash_active())
-	assert_eq(b._mesh.material_override, Visuals.material(Visuals.COLORS.boar))
+	assert_false(b.visual.flash_active)
+	assert_ne(_boar_material(b), BoarVisual.flash_material())
+	b.spawn("north", 7, 0.0, 10.0, main.world.wave_director)
+	assert_false(b.visual.flash_active)
+	assert_ne(_boar_material(b), BoarVisual.flash_material())
 
 func test_night_hides_partial_payment_ring() -> void:
 	var s: BuildSpot = main.world.build_spots.fence_n
