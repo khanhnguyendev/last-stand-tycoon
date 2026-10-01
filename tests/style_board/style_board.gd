@@ -4,6 +4,10 @@ extends SceneTree
 ## "$GODOT" --path . --resolution 720x1280 -s res://tests/style_board/style_board.gd -- --set=a --out=docs/review/media/s4_style_board/set_a.png
 ## --closeup (run at --resolution 1280x720): a low 3/4 view of the lineup instead of the game camera, saved to --out.
 ## --boars (run at --resolution 1280x720): three boars side by side (C tinted farm Pig, cute-monster Pig untinted, cute-monster Pig tinted + tusks + ridge).
+## --night (any --set): the same framing under a dim blue-tinted sun and ambient (the game has no night lighting yet; world.gd's sun / ambient are day-only).
+## --focus_z=-6.8 (game camera): follows a hero standing at the lineup (the default -2.6 frames the whole yard, lineup at the top edge).
+## --lineup_z=-9.5: moves the lineup north, out from behind the diner roof, which hides the front (tusks) of anything at the default -6.8.
+## --turnaround (run at --resolution 600x600; set e): the procedural boar from front, 3/4, side and top, each 300 px, side by side in --out.
 ## --anims=<md path> (any --set) writes the animation inventory for all three sets and quits without rendering.
 ## Candidate assets live in assets/_candidates/ (gitignored, CC0). A -s script compiles before the autoloads exist,
 ## so project scripts are load()ed at run time and used untyped, like capture.gd.
@@ -32,6 +36,11 @@ const SETS := {
 		"hero": ["c/Barbarian.glb", 1.6], "traveler1": ["c/Rogue.glb", 1.5], "traveler2": ["c/Mage.glb", 1.5],
 		"archer": ["c/Rogue_Hooded.glb", 1.6], "tank": ["c/Knight.glb", 1.6], "boar": ["d/Pig.fbx", 0.9],
 	},
+	"e": {
+		"label": "E: set D + procedural Boar, muted travelers, hero ring",
+		"hero": ["c/Barbarian.glb", 1.6], "traveler1": ["c/Rogue.glb", 1.5], "traveler2": ["c/Mage.glb", 1.5],
+		"archer": ["c/Rogue_Hooded.glb", 1.6], "tank": ["c/Knight.glb", 1.6], "boar": ["proto", 0.95],
+	},
 }
 const ROLES := ["hero", "traveler1", "traveler2", "archer", "tank", "boar"]
 
@@ -43,6 +52,7 @@ func _initialize() -> void:
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		_args[kv[0]] = kv[1] if kv.size() > 1 else "true"
+	_lineup_z = float(_args.get("lineup_z", _lineup_z))
 	_run.call_deferred()
 
 func _run() -> void:
@@ -60,8 +70,11 @@ func _run() -> void:
 	_vis = load("res://world/visuals.gd").COLORS
 	var bal = root.get_node("Balance")
 	bal.reset()
-	_build_environment()
+	_build_environment(_args.has("night"))
 	_build_ground(map_layout)
+	if _args.has("turnaround"):
+		await _turnaround()
+		return
 	if not _args.has("closeup") and not _args.has("boars"):  # the diner would block the low closeup camera
 		_build_diner(map_layout)
 	if not _args.has("boars"):
@@ -73,7 +86,7 @@ func _run() -> void:
 	cam.current = true
 	root.add_child(cam)
 	# Focus: between the lineup (z = -6.8) and the diner (z = 0), as the game camera would frame a hero there.
-	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(Vector2(0.0, -2.6)), bal.ui)
+	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(Vector2(0.0, float(_args.get("focus_z", -2.6)))), bal.ui)
 	if _args.has("closeup") or _args.has("boars"):  # NOT the game camera: a low 3/4 view of the lineup for judging silhouettes (run at 1280x720)
 		cam.keep_aspect = Camera3D.KEEP_HEIGHT
 		cam.fov = 32.0
@@ -95,9 +108,12 @@ func _run() -> void:
 
 # --- staging -----------------------------------------------------------------------------------
 
-func _build_environment() -> void:  # same sun / ambient / background as world.gd
+func _build_environment(night := false) -> void:  # same sun / ambient / background as world.gd
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, -30, 0)
+	if night:  # approximation: moonlight
+		sun.light_color = Color(0.55, 0.62, 1.0)
+		sun.light_energy = 0.55
 	sun.shadow_enabled = false
 	root.add_child(sun)
 	var env := WorldEnvironment.new()
@@ -106,6 +122,10 @@ func _build_environment() -> void:  # same sun / ambient / background as world.g
 	env.environment.background_color = _vis.ground
 	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.environment.ambient_light_color = Color(0.7, 0.7, 0.7)
+	if night:
+		env.environment.background_color = Color(_vis.ground).darkened(0.65) * Color(0.7, 0.8, 1.2)
+		env.environment.ambient_light_color = Color(0.30, 0.36, 0.62)
+		env.environment.ambient_light_energy = 0.8
 	root.add_child(env)
 
 func _flat(size: Vector3, color: Color, pos: Vector3) -> MeshInstance3D:
@@ -296,11 +316,19 @@ func _build_lineup(set_id: String) -> Array:
 	for i in ROLES.size():
 		var role: String = ROLES[i]
 		var info: Array = spec[role]
-		var wrap := _fit(info[0], info[1], role)
 		var holder := Node3D.new()
 		holder.name = role + "_holder"
 		holder.position = Vector3((i - 2.5) * 1.5, 0.0, _lineup_z)
 		root.add_child(holder)
+		if info[0] == "proto":  # set E's procedural Boar: tween idle, no AnimationPlayer
+			var pb = load("res://tests/style_board/proto_boar.gd")
+			var boar: Node3D = pb.build()
+			holder.add_child(boar)
+			pb.idle(boar)
+			print("proto boar mesh instances: ", pb.mesh_count(boar))
+			players.append(1)
+			continue
+		var wrap := _fit(info[0], info[1], role)
 		holder.add_child(wrap)
 		if role == "boar" and set_id == "d":
 			_dress_cute_boar(wrap, holder, info[1], true)
@@ -321,8 +349,12 @@ func _build_lineup(set_id: String) -> Array:
 			_fix_skin(wrap)
 			_play_idle(hat_model)
 			wrap.set_meta("fit", chef_fit)
-		if set_id == "d" and role == "hero":
+		if (set_id == "d" or set_id == "e") and role == "hero":
 			_dress_cook(model)
+		if set_id == "e" and role == "hero":
+			_hero_ring(holder)
+		if set_id == "e" and role.begins_with("traveler"):
+			_mute_traveler(model)
 		if set_id == "c" and role == "archer":
 			if not _attach(model, "handslot.r", "c/crossbow_2handed.gltf"):
 				push_warning("no handslot.r for the crossbow")
@@ -379,6 +411,75 @@ func _dress_cook(model: Node) -> void:
 	pan.rotation_degrees = PAN_ROT
 	pan.position = PAN_POS
 	hand.add_child(pan)
+
+## Set E: a flat warm-white ring decal under the hero (thin torus, radius 0.7 m, alpha 0.6, unshaded).
+func _hero_ring(holder: Node3D) -> void:
+	var ring := MeshInstance3D.new()
+	var t := TorusMesh.new()
+	t.inner_radius = 0.64
+	t.outer_radius = 0.76   # centre line 0.7 m, 0.12 m wide
+	t.rings = 48
+	ring.mesh = t
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(1.0, 0.953, 0.769, 0.6)  # #fff3c4
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring.material_override = m
+	ring.scale = Vector3(1, 0.04, 1)
+	ring.position.y = 0.04
+	ring.name = "HeroRing"
+	holder.add_child(ring)
+
+## Set E: travelers carry no weapons (every handslot prop hidden; hat and cape kept) and are desaturated toward grey-beige with an
+## unshaded #9a9488 overlay at alpha 0.45, so they read as secondary next to the hero and guards.
+func _mute_traveler(model: Node) -> void:
+	var grey := StandardMaterial3D.new()
+	grey.albedo_color = Color(0.604, 0.580, 0.533, 0.45)
+	grey.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	grey.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		var pa := m.get_parent()
+		if pa is BoneAttachment3D and String((pa as BoneAttachment3D).bone_name).begins_with("handslot"):
+			m.visible = false  # weapons, books, throwables; the hat and cape stay (clothing)
+		else:
+			m.material_overlay = grey
+
+## --turnaround: 4 views of the procedural boar, 300 px each (rendered at 600x600 and halved), joined into one image.
+func _turnaround() -> void:
+	_vis = load("res://world/visuals.gd").COLORS
+	_build_environment()
+	_flat(Vector3(40, 0.02, 40), _vis.ground, Vector3(0, -0.01, 0))
+	var pb = load("res://tests/style_board/proto_boar.gd")
+	var boar: Node3D = pb.build()
+	root.add_child(boar)
+	pb.idle(boar)
+	var cam := Camera3D.new()
+	cam.fov = 30.0
+	cam.current = true
+	root.add_child(cam)
+	var target := Vector3(0, 0.5, 0.05)
+	var views := [
+		[Vector3(0.0, 0.9, 3.6), Vector3.UP],     # front
+		[Vector3(2.2, 1.7, 2.6), Vector3.UP],     # 3/4
+		[Vector3(3.8, 0.6, 0.0), Vector3.UP],     # side
+		[Vector3(0.0, 4.4, 0.8), Vector3(0, 0, -1)],  # top
+	]
+	var sheet := Image.create(1200, 300, false, Image.FORMAT_RGB8)
+	for i in 4:
+		cam.global_transform = Transform3D(Basis(), views[i][0]).looking_at(target, views[i][1])
+		await process_frame
+		await process_frame
+		var img := root.get_texture().get_image()
+		img.resize(300, 300, Image.INTERPOLATE_LANCZOS)
+		img.convert(Image.FORMAT_RGB8)
+		sheet.blit_rect(img, Rect2i(0, 0, 300, 300), Vector2i(i * 300, 0))
+	var out: String = _args.get("out", "docs/review/media/s4_style_board/boar_proto_turnaround.png")
+	var path := out if out.is_absolute_path() else ProjectSettings.globalize_path("res://").path_join(out)
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	sheet.save_png(path)
+	print("saved ", out, " mesh instances: ", pb.mesh_count(boar))
+	quit(0)
 
 const HAT_Y := 1.0
 const PAN_S := 0.8
@@ -483,12 +584,12 @@ func _write_anims(path_: String) -> void:
 	var md := "# S4 style board: animation inventory (D-183)\n\nGenerated by `tests/style_board/style_board.gd --anims=...` from each model's AnimationPlayer after import.\n"
 	md += "Role coverage is a name match (idle / run|sprint / attack|punch|shoot|chop|slice|stab|kick|melee / hit|death|die|defeat).\n\n"
 	var detail := ""
-	for set_id in ["a", "b", "c", "d"]:
+	for set_id in ["a", "b", "c", "d", "e"]:
 		var spec: Dictionary = SETS[set_id]
 		md += "## Set %s\n\n| role | model | idle | run | attack | hit | death |\n|---|---|---|---|---|---|---|\n" % spec.label
 		for role in ROLES:
 			var file: String = spec[role][0]
-			var names := _anim_names(file)
+			var names := ["idle", "run", "attack", "hit", "death"] if file == "proto" else _anim_names(file)
 			md += "| %s | %s | %s | %s | %s | %s | %s |\n" % [role, file.get_file(),
 				_match(names, "^(unarmed_)?idle$|^idle$", "lie|sit|jump|2h|ranged|pose|hold"),
 				_match(names, "run|sprint"),
@@ -497,6 +598,7 @@ func _write_anims(path_: String) -> void:
 				_match(names, "death|^die$|defeat", "pose")]
 			detail += "### Set %s, %s (%s)\n%s\n\n" % [set_id.to_upper(), role, file.get_file(), ", ".join(names) if not names.is_empty() else "(none)"]
 		md += "\n"
+	md += "Set E is set D with a procedural Boar (`proto_boar.gd`, Godot primitive meshes; its idle / run / attack / hit / death are Tweens, not AnimationPlayer clips), travelers with props hidden and a grey overlay, and a hero ring decal.\n"
 	md += "Set D's hero is the Barbarian with a procedural chef hat, apron overlay and a Restaurant Bits pan (animations as set C); its Boar is the Quaternius cute-monster Pig (idle only).\n"
 	md += "Set C has no cook: the hero is the Barbarian. Set C's Quaternius Pig is the same file and animations as set B.\n"
 	md += "Set A's characters share one animation library (character-a..r); the table lists the specific model used.\n\n## Full animation names per model\n\n" + detail
