@@ -31,6 +31,8 @@ func setup(p_id: StringName, world: World) -> void:
 	name = "Guard_%s" % p_id
 	visual = VISUAL_SCENES[p_id].instantiate()
 	add_child(visual)
+	# S4 D-201: the shadow field skips a hidden visual (a knocked-out guard) and follows the poof's scale.
+	world.shadow_field.register(visual, ShadowField.CHARACTER_RADIUS)
 	_bar_back = _bar_box(Vector3(BAR_WIDTH + 0.08, 0.14, 0.06), &"ink")
 	_bar_back.position.y = BAR_Y
 	add_child(_bar_back)

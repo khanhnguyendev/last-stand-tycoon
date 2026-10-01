@@ -8,6 +8,8 @@ var leaving := false
 ## Which of the six muted looks (D-191). Visual only: set by the world.gd factory counter before add_child.
 var variant := 0
 var visual: KayKitVisual
+## The world's shared blob-shadow field (S4 D-201); set by the world.gd factory before add_child. Null in bare tests.
+var shadow_field: ShadowField
 var _target := Vector2.ZERO
 var _last_xz := Vector2.ZERO
 
@@ -25,6 +27,13 @@ func begin(p_want: int) -> void:
 	_last_xz = xz()
 	visual.reset()
 	TravelerVariants.apply(visual, variant)
+	if shadow_field != null:
+		shadow_field.register(visual, ShadowField.CHARACTER_RADIUS)
+
+## NodePool hook: a released traveler leaves the shadow field.
+func on_release() -> void:
+	if shadow_field != null:
+		shadow_field.unregister(visual)
 
 func set_target(p: Vector2) -> void:
 	_target = p
