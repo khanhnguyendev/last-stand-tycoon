@@ -125,7 +125,11 @@ func _atlas_for(tex: Texture2D) -> String:
 	if file.begins_with("colormap"):
 		var rel := path.get_base_dir()  # .../env/<kit>/Textures
 		var kit := rel.get_base_dir().get_file()
-		return ATLAS + KIT_PACK[kit] + "__colormap.png" if KIT_PACK.has(kit) else ""
+		if KIT_PACK.has(kit):
+			return ATLAS + KIT_PACK[kit] + "__colormap.png"
+		if kit.begins_with("kenney-"):  # the real assets/<pack>/Textures layout
+			return ATLAS + kit + "__colormap.png"
+		return ""
 	if file == "restaurantbits_texture.png":
 		return ATLAS + "kaykit-restaurant__restaurantbits_texture.png"
 	var i := file.to_lower().find("_texture")
