@@ -11,6 +11,8 @@ var retarget_interval := 0.2
 var moving_mult := 1.0
 var projectile_speed := 14.0
 var enabled := true
+## Which projectile art this shooter's shots wear (S4 Task 7a, D-191): the hero's is &"knife".
+@export var projectile_art: StringName = &"arrow"
 var candidates: Callable
 var projectile_pool: NodePool
 var is_moving: Callable = func(): return false
@@ -52,6 +54,7 @@ func _physics_process(delta: float) -> void:
 		_cooldown = interval
 		var ref: Object = _target.ref
 		var p: Projectile = projectile_pool.acquire()
+		p.set_art(projectile_art)
 		p.launch(origin + Vector3(0, 1.0, 0), ref, int(_target.spawn_index), damage, projectile_speed, projectile_pool)
 		fired.emit(ref)
 
