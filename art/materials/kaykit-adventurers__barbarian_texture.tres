@@ -5,4 +5,4 @@
 [resource]
 resource_name = "kaykit-adventurers__barbarian_texture"
 albedo_texture = ExtResource("1_d3rmg")
-texture_filter = 2
+texture_filter = 0

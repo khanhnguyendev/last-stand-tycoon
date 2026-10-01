@@ -5,4 +5,4 @@
 [resource]
 resource_name = "kenney-fantasy-town__colormap"
 albedo_texture = ExtResource("1_p4lj5")
-texture_filter = 2
+texture_filter = 0

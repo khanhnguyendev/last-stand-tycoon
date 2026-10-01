@@ -5,4 +5,4 @@
 [resource]
 resource_name = "kenney-tower-defense__colormap"
 albedo_texture = ExtResource("1_ji1j0")
-texture_filter = 2
+texture_filter = 0

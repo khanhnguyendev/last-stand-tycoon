@@ -5,4 +5,4 @@
 [resource]
 resource_name = "kenney-food__colormap"
 albedo_texture = ExtResource("1_uxium")
-texture_filter = 2
+texture_filter = 0

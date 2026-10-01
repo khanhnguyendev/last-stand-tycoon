@@ -173,7 +173,10 @@ static func _visible_chain(n: Node) -> bool:
 ## Triangles of visible MeshInstance3D surfaces only (a hidden ancestor hides the mesh).
 static func count_triangles(node: Node) -> int:
 	var n := 0
-	for mi in node.find_children("*", "MeshInstance3D", true, false):
+	var meshes := node.find_children("*", "MeshInstance3D", true, false)
+	if node is MeshInstance3D:
+		meshes.push_front(node)
+	for mi in meshes:
 		var m := mi as MeshInstance3D
 		if m.mesh == null or not _visible_chain(m):
 			continue
@@ -221,8 +224,10 @@ static func check_no_physics(dirs: PackedStringArray) -> Array[String]:
 			if ps == null:
 				continue
 			var inst := ps.instantiate()
-			if not inst.find_children("*", "CollisionObject3D", true, false).is_empty() \
-					or not inst.find_children("*", "CollisionShape3D", true, false).is_empty():
+			var physics := inst.find_children("*", "CollisionObject3D", true, false)
+			physics.append_array(inst.find_children("*", "CollisionShape3D", true, false))
+			physics.append_array(inst.find_children("*", "CollisionPolygon3D", true, false))
+			if inst is CollisionObject3D or inst is CollisionShape3D or inst is CollisionPolygon3D or not physics.is_empty():
 				out.append("%s: contains physics nodes" % p)
 			inst.free()
 	return out

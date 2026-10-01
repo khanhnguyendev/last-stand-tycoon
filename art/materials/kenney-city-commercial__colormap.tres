@@ -5,4 +5,4 @@
 [resource]
 resource_name = "kenney-city-commercial__colormap"
 albedo_texture = ExtResource("1_pmi8y")
-texture_filter = 2
+texture_filter = 0

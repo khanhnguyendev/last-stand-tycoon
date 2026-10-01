@@ -5,4 +5,4 @@
 [resource]
 resource_name = "kenney-castle__colormap"
 albedo_texture = ExtResource("1_cg1pd")
-texture_filter = 2
+texture_filter = 0

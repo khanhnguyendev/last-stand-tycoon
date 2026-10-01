@@ -5,4 +5,4 @@
 [resource]
 resource_name = "kaykit-restaurant__restaurantbits_texture"
 albedo_texture = ExtResource("1_fisrt")
-texture_filter = 2
+texture_filter = 0

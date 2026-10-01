@@ -5,4 +5,4 @@
 [resource]
 resource_name = "kenney-platformer__colormap"
 albedo_texture = ExtResource("1_g2k1f")
-texture_filter = 2
+texture_filter = 0
