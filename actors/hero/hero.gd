@@ -41,6 +41,7 @@ func _init() -> void:
 	carry_stack = CarryStack.new()
 	add_child(carry_stack)
 	attacker = Attacker.new()
+	attacker.projectile_art = &"knife"
 	add_child(attacker)
 
 func _ready() -> void:
