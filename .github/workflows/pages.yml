@@ -169,6 +169,12 @@ jobs:
               exit 1
             fi
             boot_check release "$OUT/index.pck"
+            # size gate (D-196): raw release pck <= 8 MiB, gzip -9 of wasm + pck + js <= 16 MiB
+            PCK=$(stat -c %s "$OUT/index.pck")
+            GZ=$(cat "$OUT/index.wasm" "$OUT/index.pck" "$OUT/index.js" | gzip -9 | wc -c)
+            echo "release pck ${PCK} B, gzip -9 payload ${GZ} B (budget 8388608 / 16777216, D-196)"
+            [ "$PCK" -le 8388608 ] || { echo "::error::release pck ${PCK} B > 8 MiB (D-196)"; exit 1; }
+            [ "$GZ" -le 16777216 ] || { echo "::error::gzip payload ${GZ} B > 16 MiB (D-196)"; exit 1; }
             if grep -q 'name="web_profile"' export_presets.cfg; then
               mkdir -p "$OUT/profile"
               "$GODOT" --headless --path . --export-release "web_profile" "$OUT/profile/index.html"
