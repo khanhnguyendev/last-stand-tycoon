@@ -1782,3 +1782,21 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
   - The flat roof is grey gravel (`stone`), because a teal roof read as water. Teal stays as the trim.
   - The freezer is `ice_blue`, because the remapped fridge read green on grass.
   - The awning reads as a cream band.
+
+**D-205 Build-spot art details (S4 Task 12; amends D-194/D-197).**
+- **Baked pieces:** every level model, rubble, marker, sign, flag and gate is one baked draw.
+- **Towers:**
+  - L1: bottom, top, ballista.
+  - L2: adds a middle section.
+  - L3: two middle ledges, top, ballista (2.2 / 2.8 / 3.4 m).
+  - The plan's L3 roof and crystals were dropped: the crystal platform clipped the roof, and a max tower must show
+    its weapon.
+- **Fences:** the material tells the level.
+  - L1: a low wood fence.
+  - L2: a heavier wood fence with raised posts.
+  - L3: a grey stone wall.
+  - Rubble: brown boards.
+  - These use castle-atlas variants (wood, stone) and a fantasy-town rubble variant.
+- **Pips:** gold stars, unshaded and tilted to face the camera (ART_BIBLE §4: indicators are unshaded).
+- **Model swaps:** only on a level or rubble change (an int key).
+- **Close-up sign:** built from wall panels, since there is no post piece in `assets/`.
