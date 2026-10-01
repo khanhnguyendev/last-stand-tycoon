@@ -1771,3 +1771,14 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
 - **Carry stack:** it sits behind the hero at 0.09 m spacing `(0, 1.3 + 0.09 i, -0.3)`, so it never covers the
   cook's face (R2). A max stack (16) is still a satisfying tower.
 - **Coins:** coin rims map to `gold`, so stacks read gold, not bronze.
+
+**D-204 Diner art details (S4 Task 11; amends D-194).**
+- **Mesh:** the diner is one baked mesh with 2 surfaces (2976 triangles), plus the rooftop DINER board (a WorldLabel,
+  about 2 draws). The counter and freezer are 1 baked mesh each.
+- **Occluder fade:** it tests per-part boxes from `DinerArt.occluder_boxes` (walls plus parapet to 3.4 m, the
+  chimney, the sign). A single merged box (up to 5.3 m because of the sign) faded the diner when nothing was hidden
+  (the hero at the night-1 start, far north-lane Boars), against D-151. A test keeps every tall vertex inside a box.
+- **Colours:**
+  - The flat roof is grey gravel (`stone`), because a teal roof read as water. Teal stays as the trim.
+  - The freezer is `ice_blue`, because the remapped fridge read green on grass.
+  - The awning reads as a cream band.
