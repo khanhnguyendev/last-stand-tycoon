@@ -54,3 +54,6 @@ extends Resource
 @export var visual_turn_speed := 14.0
 @export var anim_blend_s := 0.12
 @export var hit_react_cooldown := 1.0
+## S4 Task 7 (D-191): the hero's knife roll about its local X (deg/s) and the hero ring's alpha.
+@export var knife_spin_deg_s := 720.0
+@export var hero_ring_alpha := 0.6
