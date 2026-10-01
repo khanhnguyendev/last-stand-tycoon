@@ -13,7 +13,7 @@ dest_files=["res://.godot/imported/Mage.glb-06f588d20f195d3be096367490b279e3.scn
 
 [params]
 
-nodes/root_type=""
+nodes/root_type="Node3D"
 nodes/root_name=""
 nodes/root_script=null
 mesh_library/use_node_names_as_mesh_names=false
@@ -35,7 +35,7 @@ animation/fps=30
 animation/trimming=false
 animation/remove_immutable_tracks=true
 animation/import_rest_as_RESET=false
-import_script/path=""
+import_script/path="res://tools/kaykit_import.gd"
 materials/extract=0
 materials/extract_format=0
 materials/extract_path=""
