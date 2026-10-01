@@ -54,16 +54,24 @@ func test_tower_levels_grow_to_the_scale_table() -> void:
 		assert_almost_eq(h[i], [2.2, 2.8, 3.4][i], [2.2, 2.8, 3.4][i] * 0.1)
 
 func test_fence_height_is_the_scale_table() -> void:
-	for l in [1, 2, 3]:
-		assert_almost_eq(_height(ENV + "fence_l%d.tscn" % l), 0.9, 0.09, "fence L%d" % l)
+	assert_almost_eq(_height(ENV + "fence_l1.tscn"), 0.9, 0.09, "fence L1")
+	assert_almost_eq(_height(ENV + "fence_l3.tscn"), 0.9, 0.09, "fence L3")
+	var l2 := _height(ENV + "fence_l2.tscn")  # raised posts stand above the 0.9 m wall
+	assert_gt(l2, 0.95, "fence L2 posts rise above the wall")
+	assert_lt(l2, 1.15, "and stay under the 1.2 m pip height")
 
 func test_fence_levels_differ() -> void:
 	var t := {}
+	var sizes := []
 	for l in [1, 2, 3]:
 		var n: Node = load(ENV + "fence_l%d.tscn" % l).instantiate()
 		add_child_autofree(n)
 		t[AssetValidator.count_triangles(n)] = true
+		sizes.append((n.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).get_aabb().size)
 	assert_eq(t.size(), 3, "three different fence models")
+	assert_ne(sizes[0], sizes[1], "fence L1 and L2 outlines differ")
+	assert_ne(sizes[1], sizes[2], "fence L2 and L3 outlines differ")
+	assert_ne(sizes[0], sizes[2], "fence L1 and L3 outlines differ")
 
 func test_every_runtime_scene_is_one_mesh_instance_within_its_target() -> void:
 	for name in NAMES:
@@ -193,6 +201,11 @@ func test_pips_sit_above_the_model_top() -> void:
 		for p in f._pips.filter(func(p): return p.visible):
 			assert_almost_eq(p.position.y, 1.2, 0.001)
 			assert_gt(p.position.y, _top(_model(f)), "pip above the fence top")
+
+func test_pips_face_the_camera() -> void:
+	for id in MapLayout.SPOT_IDS:
+		for p in main.world.build_spots[id]._pips:
+			assert_almost_eq(p.rotation.x, deg_to_rad(Balance.ui.camera_pitch), 1e-5, "%s pip pitch" % id)
 
 func test_marker_only_level0_in_day() -> void:
 	main.phase_controller.start_new_game(5)

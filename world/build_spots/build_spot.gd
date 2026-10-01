@@ -13,8 +13,8 @@ var _world: World
 var _pips: Array = []
 var _fx: FlyFx
 var _pop: Tween
-## "level/rubble" of the model shown now. The model is swapped only when this changes (no per-event instancing).
-var _model_key := ""
+## level * 2 + rubble of the model shown now (-1: none yet). The model is swapped only when this changes.
+var _model_key := -1
 
 const MARKER_SCENE := preload("res://art/env/spot_marker.tscn")
 
@@ -38,6 +38,7 @@ func setup(id: String, world: World) -> void:
 		pip.name = "Pip%d" % i
 		pip.mesh = LevelStar.mesh()
 		pip.material_override = LevelStar.material()
+		pip.rotation.x = deg_to_rad(Balance.ui.camera_pitch)  # the star faces the camera
 		pip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		pip.position = Vector3((i - (max_level - 1) * 0.5) * 0.3, _pip_y(1), 0)
 		add_child(pip)
@@ -131,7 +132,7 @@ func _label_y(_level: int) -> float:
 
 ## Swaps the model under `visual` for `scene` (null = nothing) when the "level/rubble" key changes; never otherwise.
 func _show_model(p_level: int, scene: PackedScene) -> void:
-	var key := "%d/%s" % [p_level, is_rubble()]
+	var key := p_level * 2 + int(is_rubble())
 	if key == _model_key:
 		return
 	_model_key = key

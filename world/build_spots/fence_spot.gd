@@ -30,3 +30,6 @@ func is_rubble() -> bool:
 
 func _pip_y(_level: int) -> float:
 	return PIP_Y
+
+func _label_y(p_level: int) -> float:
+	return PIP_Y + 0.55 if p_level >= 1 else super(p_level)
