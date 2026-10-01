@@ -1,0 +1,15 @@
+day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked
+1,0.683,0,18,36,108,tower_nw:0|tower_ne:0|fence_w:0|fence_n:0|fence_e:0,18,77.0,97.0,8,tank:1,0,tank
+2,1.000,0,24,48,144,tower_nw:1|tower_ne:1|fence_w:1|fence_n:0|fence_e:0,24,73.7,125.6,32,attack_speed:1|tank:1,0,attack_speed
+3,0.883,0,31,62,186,tower_nw:1|tower_ne:2|fence_w:1|fence_n:1|fence_e:1,31,83.2,172.5,18,attack_speed:2|tank:1,0,attack_speed
+4,0.917,0,36,72,216,tower_nw:2|tower_ne:2|fence_w:2|fence_n:2|fence_e:1,36,80.2,177.3,14,attack_speed:2|archer:1|tank:1,0,archer
+5,1.000,0,43,86,258,tower_nw:2|tower_ne:3|fence_w:2|fence_n:1|fence_e:2,43,89.0,213.0,12,attack_speed:2|archer:1|tank:2,0,tank
+6,1.000,0,50,100,300,tower_nw:3|tower_ne:3|fence_w:3|fence_n:1|fence_e:1,50,88.5,243.0,52,attack_speed:2|archer:2|tank:2,0,archer
+7,1.000,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,98.0,254.8,388,attack_speed:2|archer:2|tank:3,0,tank
+8,0.850,0,63,126,378,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,63,104.6,298.9,486,attack_speed:2|archer:3|tank:3,0,archer
+9,0.700,0,68,136,408,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,68,108.0,322.4,614,attack_speed:2|archer:3|tank:4,0,tank
+10,0.567,0,72,144,432,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,72,115.0,325.6,766,attack_speed:2|archer:4|tank:4,1,archer
+11,0.787,1,75,150,450,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,75,116.3,349.5,936,attack_speed:2|archer:4|tank:5,0,tank
+12,0.288,2,78,156,468,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,78,113.6,372.4,1264,attack_speed:2|archer:5|tank:5,0,archer
+13,0.771,3,81,162,486,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,81,108.9,368.9,1610,hero_damage:1|attack_speed:2|archer:5|tank:5,0,hero_damage
+14,0.253,2,82,164,492,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,82,121.4,380.0,1822,hero_damage:2|attack_speed:2|archer:5|tank:5,1,hero_damage
