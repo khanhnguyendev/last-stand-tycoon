@@ -1545,3 +1545,129 @@ Spec: `docs/superpowers/specs/2026-09-30-s3-save-failure-mercy-design.md`.
 
 **D-185 Review nits on already-guarded paths may be skipped (author).**
 - Nits that only add cases to already-guarded paths can be skipped. Every skipped nit is listed in the PR body.
+
+## 2026-10-01: S4 style board
+
+**D-186 Art set: KayKit Adventurers cast + Kenney rounded kits + a procedural Boar (style board set E, D-183).**
+- **Board:** `docs/review/media/s4_style_board/`. Five sets were rendered in the real game camera with the diner, a
+  tower, a fence, steaks and coins; closeups, 40% phone-size images and a night render for the winner. See its
+  README.
+- **Rejected:**
+  - (a) Kenney Blocky Characters + Cube Pets hog. Blocky faces and limbs clash with the rounded kits, and the hog
+    reads as a toy pet. Fails the D-183 cohesion rule.
+  - (b) Quaternius Ultimate Animated Characters + tinted farm Pig. Slim, small-headed bodies get lost at game
+    distance. There is no archer mesh, there is no run animation (Walk only), and the faceted Pig is a different
+    style from the rounded kits.
+  - (c) KayKit + farm Pig. The cast is right; the Boar is not.
+  - (d) KayKit + Quaternius cute-monster Pig. That Pig is a head with no body and only one animation.
+- **Picked (set E):**
+  - **Cast: KayKit Character Pack Adventures 1.0 (CC0).**
+    - **Hero:** Barbarian body as the diner cook. The hood, cape and props are hidden; a procedural chef hat sits on
+      the head bone; a white apron overlay; a KayKit Restaurant Bits frying pan as the weapon.
+    - **Archer:** Rogue_Hooded with a crossbow (green).
+    - **Tank:** Knight with a shield (steel).
+    - **Travelers:** Rogue and Mage without props, desaturated toward grey-beige.
+    - **Animation:** all share one rig with 76 animations (idle, running, attacks, hit, death).
+  - **Boar: procedural, built from rounded primitives in Godot.**
+    - **Shape:** a dark red-brown barrel body, a big low head, a pink snout, angry brows, big white flared tusks, a
+      black mohawk ridge, stubby legs.
+    - **Animation:** tweens (idle, run, attack, hit, death).
+    - **Why procedural:** no CC0 rounded, animated boar exists. The only boar models found are CC-BY (Poly by
+      Google), which this project does not use.
+  - **Environment:** Kenney Tower Defense, Castle, Fantasy Town, Food and Platformer (coin) kits, plus KayKit
+    Restaurant Bits for diner props. All CC0.
+- **Why:**
+  - Chunky, big-headed, rounded KayKit bodies match the rounded Kenney kits and read best at game distance.
+  - Each role has a distinct silhouette:
+    - the white chef hat and hero ring;
+    - the green hood and crossbow;
+    - the steel helmet and shield;
+    - muted unarmed travelers;
+    - a red tusked quadruped.
+  - It is the only set with idle, run, attack, hit and death for every humanoid.
+  - At 40% size and at night, the hero is the brightest spot and the Boar still reads by its ridge and tusks.
+- **Deviation:** IDEA.md names Kenney and Quaternius. KayKit is a third CC0 source, and the Boar is procedural (in
+  REVIEW_QUEUE).
+- **Open for the spec:**
+  - The Boar's draw cost: 26 mesh instances per Boar in the prototype.
+  - The KayKit file size: 3.6 MB per character glb, mostly animations.
+  - The diner roof: an 8 m slab dominates the frame.
+  - The tusks are too horizontal (about 70°). Production uses about 55°.
+
+## 2026-10-01: S4 spec (autonomous, D-159; revised after the spec review)
+
+Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
+
+**D-187 Layout and licence log.**
+- **Layout:**
+  - `assets/<pack-id>/` holds third-party files: only the files used, plus the licence normalised to `LICENSE.txt`.
+  - `art/` holds the palette, materials, wrappers, builders and icons.
+  - `tools/` holds headless and editor-only scripts, including the post-import script and the validator.
+- **Export:** `tools/*`, `export/*` and `assets/_candidates/*` are excluded.
+- **Licence log:** ASSET_LICENSES moves to one row per pack (licence SHA-256, file count), checked by the validator.
+- **Supersedes:** this replaces the `ASSET_PIPELINE.md` promised in D-024.
+
+**D-188 One palette.**
+- 32 named colours. Swatch atlases are remapped offline to the nearest colour in Oklab, with per-swatch overrides.
+- Shared external materials.
+- Icons are quantised the same way.
+- The validator enforces palette-only textures.
+
+**D-189 KayKit size.**
+- A post-import script in `tools/` strips the clips and writes one shared AnimationLibrary with 8 clips: Idle,
+  Running_A, Walking_A, Throw, 1H_Melee_Attack_Slice_Diagonal, 2H_Ranged_Shoot, Hit_A and Cheer.
+- The library is written only when stale, so CI's `--import` never rewrites it.
+- Fallback: `_subresources` per clip.
+- Each imported character scene is under 500 KB.
+
+**D-190 ActorVisual contract.**
+- `set_motion`, `face`, `attack`, `hit`, `set_flash`, `die`, `reset`, `flash_active`.
+- **Ownership:** the Visual root's scale and visible stay with today's gameplay tweens; ActorVisual animates only an
+  inner `Body`. The Boar flash timer stays in its physics tick.
+- **Proof:** a determinism baseline recorded on the Mac (3 seeds, run twice), never re-recorded in S4.
+
+**D-191 Characters.**
+- **Hero:** the Barbarian-bodied cook. It throws spinning knives (an upper-body Throw) and cheers at dawn. No
+  hit or death (D-161).
+- **Archer:** Rogue_Hooded with a crossbow (bolts). No hit (D-164).
+- **Tank:** Knight. Hit_A is throttled by `hit_react_cooldown`. The knockout is the existing poof (a tween fake).
+- **Travelers:** 6 muted variants from a visual-only factory counter; no gameplay field and no Rng.
+
+**D-192 Boar.**
+- One merged ArrayMesh, built once.
+- Shader legs; the phase comes from `NODE_POSITION_WORLD` (fallback `MODEL_MATRIX[3]`).
+- 3 shared materials, so one draw call.
+- Tweens on the inner Body finish within 0.15 s.
+
+**D-193 Draw calls.**
+- MultiMesh piles (fallback: per-instance MeshInstance3D).
+- No real-time shadows.
+- Blob shadows under characters and Boars.
+
+**D-194 World.**
+- **Diner:** a flat roof and parapet (the Archer's perch), a chimney, a rooftop WorldLabel board and an awning.
+  OccluderFade uses the wrapper's AABB, also fades Label3D, and ignores aim points on its own roof (the Archer).
+- **Towers and fences:** the model changes per level.
+- **Ground and props:** a position-hash variation and a hand-placed prop list.
+- **Lighting:** a warm day and a readable blue night via `LightingDirector`.
+
+**D-195 UI and cards.**
+- Theme resource.
+- HUD icons and card portraits are rendered from the game's own 3D assets, quantised to the palette.
+- The card strip shows icons + level.
+- The joystick skin is left to S5.
+
+**D-196 Budgets.**
+- **Perf:** iOS Simulator at night 3 on the profile build, at least 58 fps average, reached by save injection and
+  checked at P2, P4 and P6. Desktop guide: at most 120 draw calls at the night-3 peak and at most 150 at the day
+  peak (full queue). The perf fixtures are a night-3-start save (resume_phase NIGHT) and a day save.
+- **Size:** `gzip -9` of wasm + pck + js at most 16 MB, and the raw pck at most 8 MB, gated in `pages.yml`.
+- **Textures:** at most 512².
+- **Triangle budgets:** per `art/budgets.gd`, with the KayKit counts measured before they freeze.
+- **VRAM compression:** ETC2/ASTC is restored (D-158) and counts toward the size.
+
+**D-197 Build spots.**
+- **Level pips:** palette-gold stars, outside Visual.
+- **Unbuilt marker:** a sibling of Visual, shown at level 0 in DAY.
+- **`World.add_static_box`:** collision-only, plus a visual scene; the sizes are unchanged.
+- **`build_level_scale`:** 1.1 → 1.0, because the model change shows the growth (in REVIEW_QUEUE).
