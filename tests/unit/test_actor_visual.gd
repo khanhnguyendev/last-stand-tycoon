@@ -315,7 +315,6 @@ func test_traveler_visual_swaps_bodies_and_keeps_animating() -> void:
 	assert_true(mage.visible)
 	var player := v.body.get_node("AnimationPlayer") as AnimationPlayer
 	assert_eq(player.get_node(player.root_node), mage, "the player drives the shown body")
-	assert_eq(AssetValidator.count_triangles(v), AssetValidator.count_triangles(v), "stable")
 	assert_lte(AssetValidator.count_triangles(v), ArtBudgets.budget_for(TRAVELER), "only the shown body counts")
 	for mi in mage.find_children("*", "MeshInstance3D", true, false):
 		assert_false(mi.get_parent() is BoneAttachment3D, "the mage carries no hat, cape or book")

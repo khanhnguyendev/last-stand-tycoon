@@ -19,11 +19,12 @@ func test_variants_are_muted() -> void:
 			assert_lte(c.s, 0.30, "variant %d saturation" % i)
 			assert_lte(c.v, 0.75, "variant %d value" % i)
 
-func test_travelers_never_brighter_than_the_guard_green() -> void:
+func test_travelers_less_saturated_than_guard_green_and_capped_in_value() -> void:
 	var guard := Palette.color(&"guard_green")
 	for i in 6:
 		for c in TravelerVariants.colors_of(i):
 			assert_lt(c.s, guard.s, "variant %d is less saturated than guard_green" % i)
+			assert_lte(c.v, 0.75, "variant %d value stays under the R3 cap" % i)
 
 func test_variant_wraps_and_neighbours_differ() -> void:
 	for i in 12:

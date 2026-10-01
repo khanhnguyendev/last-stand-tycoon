@@ -131,7 +131,10 @@ func test_knockout_and_revive_restore_visual() -> void:
 		assert_false(tank.visual.visible, "cycle %d: the poof hid it" % cycle)
 		await _ticks(int(ceil(Balance.data.guards.tank.respawn_s * 60.0)) + 2)  # revives, then arrive_from_door
 		assert_eq(tank.state, Guard.State.RETURNING, "cycle %d" % cycle)
+		tank.visual._last_hit_ms = -1000000000  # the throttle is wall-clock: clear it so this hit() really fires
 		tank.visual.hit()  # a Hit_A in flight when the walk-in starts must be cut off by reset()
+		await get_tree().physics_frame
+		assert_true(tank.visual.anim_tree.get("parameters/react/active"), "cycle %d: Hit_A in flight" % cycle)
 		tank.arrive_from_door()
 		await _ticks(poof_ticks)
 		assert_true(tank.visual.visible, "cycle %d" % cycle)

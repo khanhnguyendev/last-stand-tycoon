@@ -104,8 +104,8 @@ const SKIN_KEEP: Array[String] = ["skin_light", "skin_mid"]
 const IMAGE_SIZE := 512  # tools/palette_remap.gd resizes the 1024 KayKit atlases to this
 
 ## Every entry with its hex overrides expanded. Built when this script loads (only tools/palette_remap.gd loads it).
-static var ENTRIES: Array[Dictionary] = _build()
 static var _default_names := {}
+static var ENTRIES: Array[Dictionary] = _build()
 
 static func _build() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
@@ -128,16 +128,23 @@ static func _build() -> Array[Dictionary]:
 		out.append(d)
 	return out
 
+## The palette the tool maps atlases with (ART_BIBLE R4): enemy_* entries are replaced by a far-away sentinel, so
+## nearest() never picks them. Shared by the tool and default_names() so they can't drift.
+static func atlas_colors() -> PackedColorArray:
+	var pal = load("res://art/palette/palette.gd")
+	var colors: PackedColorArray = pal.colors()
+	for n in pal.NAMES:
+		if String(n).begins_with("enemy_"):
+			colors[pal.index_of(n)] = Color(10, 10, 10)
+	return colors
+
 ## lowercase source hex (after the tool's resize) -> the palette name the tool maps it to by default (no enemy_*, R4).
 static func default_names(src: String) -> Dictionary:
 	if _default_names.has(src):
 		return _default_names[src]
 	var pal = load("res://art/palette/palette.gd")
 	var pm = load("res://core/palette_math.gd")
-	var colors: PackedColorArray = pal.colors()
-	for n in pal.NAMES:
-		if String(n).begins_with("enemy_"):
-			colors[pal.index_of(n)] = Color(10, 10, 10)
+	var colors := atlas_colors()
 	var img := Image.load_from_file(ProjectSettings.globalize_path(src))
 	if img.get_width() > IMAGE_SIZE or img.get_height() > IMAGE_SIZE:
 		img.resize(mini(img.get_width(), IMAGE_SIZE), mini(img.get_height(), IMAGE_SIZE), Image.INTERPOLATE_NEAREST)

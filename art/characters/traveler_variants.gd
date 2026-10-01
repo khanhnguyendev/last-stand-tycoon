@@ -9,6 +9,12 @@ extends RefCounted
 const BODIES: Array[StringName] = [&"rogue", &"mage"]
 const TONES: Array[StringName] = [&"grey", &"beige", &"brown"]
 const MODEL_NODES: Array[StringName] = [&"Model", &"ModelMage"]
+## Indexed body * 3 + tone; preloaded so begin() never calls load().
+const MATERIALS: Array[Material] = [
+	preload("res://art/materials/traveler_rogue_grey.tres"), preload("res://art/materials/traveler_rogue_beige.tres"),
+	preload("res://art/materials/traveler_rogue_brown.tres"), preload("res://art/materials/traveler_mage_grey.tres"),
+	preload("res://art/materials/traveler_mage_beige.tres"), preload("res://art/materials/traveler_mage_brown.tres"),
+]
 const MATERIAL_DIR := "res://art/materials/"
 
 static func body_index(variant: int) -> int:
@@ -29,7 +35,7 @@ static func apply(visual: ActorVisual, variant: int) -> void:
 	if body == null:
 		return
 	var chosen := body_index(variant)
-	var mat := load(material_path(variant)) as Material
+	var mat := MATERIALS[body_index(variant) * 3 + tone_index(variant)]
 	for i in MODEL_NODES.size():
 		var model := body.get_node_or_null(NodePath(MODEL_NODES[i])) as Node3D
 		if model == null:
