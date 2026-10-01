@@ -1702,3 +1702,16 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
   - There is a 280–300 ms stall at the first-wave spawn.
   - Halving the 3D render scale did not move these numbers, so the cost is not 3D fill. The diagnosis continues
     (spike 2).
+- **Harness fix:** the perf harness serves with `Cache-Control: no-store` (`export/serve_nocache.py`). A spike found
+  Safari reusing an older build's pack between runs.
+- **Day-phase cost (unresolved, S5):**
+  - Day 3 reads about 52 fps (proc about 22 ms) against about 58 at night.
+  - Spikes ruled out:
+    - 3D render scale (0.5 made no difference);
+    - full viewport stretch (+0.3 fps);
+    - the HUD (+3 fps, noise level);
+    - Label3D text re-layout (0 text sets by day);
+    - MSDF fonts;
+    - an opaque prepass.
+  - The 9 labels cost about 2 draw calls each. Removing the outline saves 8 draw calls but hurts readability.
+  - The gate is night only, so this goes to S5 perf work and to known issues.

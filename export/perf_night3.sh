@@ -12,7 +12,7 @@ cp "$(dirname "$0")/seed_save.html" "$BUILD/"
 mkdir -p "$BUILD/fixtures" && cp "$(dirname "$0")"/fixtures/*.save.json "$BUILD/fixtures/"
 grep -q LST_BUILD "$BUILD/index.html" || sed -i '' 's#</head>#<script>window.LST_BUILD="local";</script></head>#' "$BUILD/index.html"
 if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then echo "port $PORT is busy" >&2; exit 1; fi
-python3 -m http.server "$PORT" --bind 127.0.0.1 --directory "$BUILD" >/dev/null 2>&1 & SRV=$!
+python3 "$(dirname "$0")/serve_nocache.py" "$PORT" "$BUILD" >/dev/null 2>&1 & SRV=$!
 trap 'kill $SRV 2>/dev/null || true' EXIT
 UDID=$(xcrun simctl list devices available | grep -E 'iPhone [0-9]+ Pro \(' | head -1 | grep -oE '[0-9A-F-]{36}' || true)
 [ -n "$UDID" ] || { echo "no available 'iPhone <n> Pro' simulator (xcrun simctl list devices available)" >&2; exit 1; }
