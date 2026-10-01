@@ -1,0 +1,8 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://art/palette/atlas/kaykit-adventurers__mage_texture.png" id="1_v1plh"]
+
+[resource]
+resource_name = "kaykit-adventurers__mage_texture"
+albedo_texture = ExtResource("1_v1plh")
+texture_filter = 2

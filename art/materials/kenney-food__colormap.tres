@@ -1,0 +1,8 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://art/palette/atlas/kenney-food__colormap.png" id="1_uxium"]
+
+[resource]
+resource_name = "kenney-food__colormap"
+albedo_texture = ExtResource("1_uxium")
+texture_filter = 2

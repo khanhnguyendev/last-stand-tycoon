@@ -1,0 +1,8 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://art/palette/atlas/kenney-tower-defense__colormap.png" id="1_ji1j0"]
+
+[resource]
+resource_name = "kenney-tower-defense__colormap"
+albedo_texture = ExtResource("1_ji1j0")
+texture_filter = 2

@@ -132,3 +132,34 @@ func test_placeholder_rule() -> void:
 	var r := AssetValidator.check_no_placeholders(PackedStringArray([ROOT + "/code"]))
 	assert_eq(r.size(), 1)
 	assert_string_contains(r[0], "a.gd")
+
+func test_count_triangles_visible_only() -> void:
+	var root := Node3D.new()
+	var a := MeshInstance3D.new()
+	a.mesh = BoxMesh.new()  # 12 triangles
+	root.add_child(a)
+	var b := MeshInstance3D.new()
+	b.mesh = BoxMesh.new()
+	b.visible = false
+	root.add_child(b)
+	assert_eq(AssetValidator.count_triangles(root), 12)
+	root.free()
+
+func test_no_physics_rule() -> void:
+	DirAccess.make_dir_recursive_absolute(ROOT + "/scenes")
+	var n := Node3D.new()
+	var body := StaticBody3D.new()
+	n.add_child(body)
+	body.owner = n
+	var ps := PackedScene.new()
+	ps.pack(n)
+	ResourceSaver.save(ps, ROOT + "/scenes/bad.tscn")
+	n.free()
+	assert_eq(AssetValidator.check_no_physics(PackedStringArray([ROOT + "/scenes"])).size(), 1)
+
+func test_animation_rule() -> void:
+	var lib := AnimationLibrary.new()
+	lib.add_animation(&"Idle", Animation.new())
+	ResourceSaver.save(lib, ROOT + "/lib.tres")
+	assert_eq(AssetValidator.check_animations(ROOT + "/lib.tres", PackedStringArray(["Idle"])), [])
+	assert_eq(AssetValidator.check_animations(ROOT + "/lib.tres", PackedStringArray(["Idle", "Throw"])).size(), 1)
