@@ -46,3 +46,8 @@ direction, and anything that deviates from IDEA.md. Ranked by impact, highest fi
 2. Did the monsters look dangerous, and did the steaks look like food?
 3. Did the diner and the defenses look like they grew as you upgraded them?
 4. Was anything hard to see at night?
+
+## Known issues (collected for the final review)
+
+1. Day phase runs at about 52 fps in the iOS Simulator (night about 58). Not the gate (night only); cause unresolved after three spikes (D-199); S5 perf work.
+2. There is a 280–300 ms stall when the first wave of a night spawns (first-use shader or pool cost). S5 perf work (warm-up).
