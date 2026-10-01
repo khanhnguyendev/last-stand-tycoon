@@ -26,6 +26,15 @@ var guard_roster: GuardRoster
 @export var traveler_pool: NodePool
 @export var traveler_spawner: TravelerSpawner
 
+## S4 D-191: the n-th traveler the pool creates gets look n % 6. Visual only: no gameplay field, no Rng.
+var _traveler_count := 0
+
+func _make_traveler() -> Traveler:
+	var t := Traveler.new()
+	t.variant = _traveler_count % 6
+	_traveler_count += 1
+	return t
+
 func _ready() -> void:
 	_build_environment()
 	_build_ground()
@@ -139,7 +148,7 @@ func _build_stations() -> void:
 	gold_pile = GoldPile.new()
 	add_child(gold_pile)
 	gold_pile.setup(self)
-	traveler_pool.setup(func(): return Traveler.new(), Balance.data.economy.queue_max * 2)
+	traveler_pool.setup(_make_traveler, Balance.data.economy.queue_max * 2)
 	traveler_spawner.setup(traveler_pool, fly_fx)
 	closeup_sign = CloseUpSign.new()
 	add_child(closeup_sign)
