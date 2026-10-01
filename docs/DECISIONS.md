@@ -1593,3 +1593,67 @@ Spec: `docs/superpowers/specs/2026-09-30-s3-save-failure-mercy-design.md`.
   - The KayKit file size: 3.6 MB per character glb, mostly animations.
   - The diner roof: an 8 m slab dominates the frame.
   - The tusks are too horizontal (about 70°). Production uses about 55°.
+
+## 2026-10-01: S4 spec (autonomous, D-159)
+
+Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
+
+**D-187 Layout.**
+- `assets/<pack-id>/` holds third-party files: only the files used, plus `LICENSE.txt`.
+- `art/` holds our palette, materials, wrappers, procedural builders and icons.
+- `tools/` holds headless tools and the validator, and is excluded from the web exports.
+
+**D-188 One palette.**
+- 32 named colours (`art/palette/`).
+- Kenney and KayKit swatch atlases are remapped offline to the nearest colour in Oklab, with per-swatch overrides
+  (apron, muted travelers).
+- The validator enforces palette-only textures.
+
+**D-189 KayKit size.**
+- One shared AnimationLibrary holds 9 clips: Idle, Running_A, Walking_A, Throw, 1H_Melee_Attack_Slice_Diagonal,
+  2H_Ranged_Shoot, Hit_A, Death_A and Cheer.
+- Characters import without animations.
+- Fallback: a post-import script.
+
+**D-190 ActorVisual contract.**
+- `set_motion`, `face`, `attack`, `hit`, `die`, `reset`, and `flash_active`.
+- Visual only. Gameplay-gating durations keep their values.
+- Proof: the sweep stays byte-identical against a recorded baseline for 3 seeds.
+
+**D-191 Characters.**
+- **Hero:** the Barbarian-bodied cook. Chef hat, apron, pan, ring. It throws spinning knives (Throw on the upper
+  body while running) and cheers at dawn.
+- **Archer:** Rogue_Hooded with a crossbow (bolts).
+- **Tank:** Knight with a sword and shield.
+- **Travelers:** Rogue and Mage bodies in 6 muted variants, chosen by `spawn_index`.
+
+**D-192 Boar.**
+- One merged ArrayMesh, built once.
+- Shader-driven legs.
+- 3 shared materials (idle, run, flash), so one draw call.
+- Tusks at about 55°.
+
+**D-193 Draw calls.**
+- MultiMesh for the counter, freezer, gold pile and carry stack.
+- No real-time shadows.
+- Blob shadows under characters and Boars.
+
+**D-194 World.**
+- **Diner:** a roadside diner with a flat roof and parapet (the Archer's perch), a chimney, a rooftop DINER board
+  and an awning.
+- **Towers and fences:** they change model per level.
+- **Ground and lanes:** dirt lanes with stone edging.
+- **Props:** hand-placed outside the bounds.
+- **Lighting:** a warm day and a readable blue night, via `LightingDirector`.
+
+**D-195 UI and cards.**
+- A Theme resource (StyleBoxFlat in palette colours, Nunito).
+- HUD icons and card portraits are rendered from the game's own 3D assets by `tools/render_icons.gd`.
+- The card strip shows icons + level.
+
+**D-196 Budgets.**
+- **Perf:** iOS Simulator at night 3 on the profile build, at least 58 fps average. Desktop guide: at most 120 draw
+  calls at the night-3 peak.
+- **Size:** the release payload is at most 16 MB and the pck at most 8 MB, gated in `pages.yml`.
+- **Textures:** at most 512².
+- **Triangle budgets per asset:** hero/guard 3k, traveler 3k, Boar 1.5k, tower L3 4k, diner 12k, prop 1.5k.
