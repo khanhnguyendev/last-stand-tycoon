@@ -1726,3 +1726,21 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
   behind (REVIEW_QUEUE).
 - **Projectile art:** each projectile builds its knife and arrow art once and toggles visibility. The shared pool
   flips kinds constantly at night, so this avoids per-shot instancing.
+
+**D-201 Draw-call discipline (S4 P2 perf checkpoint, amends D-193/D-196).**
+- **What the checkpoint found:** with the KayKit cast in, night 3 dropped to 47.4 fps (57 draw calls) and day 3 to
+  30.8 fps (101 draw calls) on the iOS Simulator profile build.
+- **What the spike showed:**
+  - Draw calls and skinned surfaces dominate. Each KayKit character is 6 skinned parts, 1–3 props and a shadow.
+  - Animation CPU does not: animation off gave +2 fps, and 15 Hz updates gave +0.
+  - Merging the skinned parts alone gave night 56.5 and day 43.9 fps.
+- **Rule from now on:**
+  1. **One draw per character.** `tools/bake_characters.gd` bakes each role offline into one skinned ArrayMesh
+     (body plus rigid-bound props, prop UVs retargeted onto the character's palette atlas), committed under
+     `art/characters/baked/`. Travelers have 2 baked bodies × 3 tone materials.
+  2. **One draw for all blob shadows:** a shared `ShadowField` MultiMesh updated per frame from registered actors.
+     The Boars use it too (Task 9).
+  3. **Static environment merged:** the diner and each tower/fence level are merged into as few meshes as their
+     materials allow (Tasks 11–13).
+- **Hero:** the hero bakes entirely onto the apron atlas, so its sleeves turn white (a full chef coat;
+  REVIEW_QUEUE).
