@@ -3,13 +3,20 @@ extends RefCounted
 ## The six muted traveler looks (S4 Task 8, D-191): (Rogue, Mage) x (grey, beige, brown). Variant n is
 ## body n % 2 and tone n % 3, so neighbours in the queue differ in both and all six combinations appear.
 ## Visual-only: the variant comes from the factory counter in world.gd, never from Rng or gameplay state.
-## traveler_visual.tscn holds both models; apply() shows one, gives it the variant's atlas material and points the
-## shared AnimationPlayer at it. Nothing is instanced here.
+## traveler_visual.tscn holds one rig; apply() gives its single baked MeshInstance3D the variant's body (a baked
+## mesh and skin, D-201) and the variant's tone atlas as the material. Nothing is instanced here, and a body or
+## material that is already set is not reassigned.
 
 const BODIES: Array[StringName] = [&"rogue", &"mage"]
 const TONES: Array[StringName] = [&"grey", &"beige", &"brown"]
-const MODEL_NODES: Array[StringName] = [&"Model", &"ModelMage"]
-## Indexed body * 3 + tone; preloaded so begin() never calls load().
+## Indexed by body; preloaded so begin() never calls load().
+const MESHES: Array[Mesh] = [
+	preload("res://art/characters/baked/traveler_rogue.res"), preload("res://art/characters/baked/traveler_mage.res"),
+]
+const SKINS: Array[Skin] = [
+	preload("res://art/characters/baked/traveler_rogue_skin.res"), preload("res://art/characters/baked/traveler_mage_skin.res"),
+]
+## Indexed body * 3 + tone.
 const MATERIALS: Array[Material] = [
 	preload("res://art/materials/traveler_rogue_grey.tres"), preload("res://art/materials/traveler_rogue_beige.tres"),
 	preload("res://art/materials/traveler_rogue_brown.tres"), preload("res://art/materials/traveler_mage_grey.tres"),
@@ -31,49 +38,21 @@ static func colors_of(variant: int) -> PackedColorArray:
 	return PackedColorArray([Palette.color(StringName("traveler_%s" % TONES[tone_index(variant)]))])
 
 static func apply(visual: ActorVisual, variant: int) -> void:
-	var body := visual.body
-	if body == null:
+	var baked := (visual as KayKitVisual).baked if visual is KayKitVisual else null
+	if baked == null:
 		return
-	var chosen := body_index(variant)
-	var mat := MATERIALS[body_index(variant) * 3 + tone_index(variant)]
-	for i in MODEL_NODES.size():
-		var model := body.get_node_or_null(NodePath(MODEL_NODES[i])) as Node3D
-		if model == null:
-			continue
-		model.visible = i == chosen
-		if i != chosen:
-			continue
-		_free_props(model)
-		for mi in model.find_children("*", "MeshInstance3D", true, false):
-			(mi as MeshInstance3D).material_override = mat
-		var player := body.get_node_or_null("AnimationPlayer") as AnimationPlayer
-		if player != null:
-			var path := player.get_path_to(model)
-			if player.root_node != path:
-				player.root_node = path
+	var b := body_index(variant)
+	if baked.mesh != MESHES[b]:
+		baked.mesh = MESHES[b]
+		baked.skin = SKINS[b]
+	var mat := MATERIALS[b * 3 + tone_index(variant)]
+	if baked.material_override != mat:
+		baked.material_override = mat
 
-## Travelers carry nothing: free the model's hat, cape and hand props (KayKitVisual does this for "Model" only).
-static func _free_props(model: Node) -> void:
-	for mi in model.find_children("*", "MeshInstance3D", true, false):
-		var att := mi.get_parent() as BoneAttachment3D
-		if att != null:
-			att.remove_child(mi)
-			mi.free()
-	for att in model.find_children("*", "BoneAttachment3D", true, false):
-		if att.find_children("*", "MeshInstance3D", true, false).is_empty():
-			att.get_parent().remove_child(att)
-			att.free()
-
-## "body/material path" of the shown model.
+## "body/material path" of the shown variant.
 static func signature(visual: ActorVisual) -> String:
-	for i in MODEL_NODES.size():
-		var model := visual.body.get_node_or_null(NodePath(MODEL_NODES[i])) as Node3D
-		if model == null or not model.visible:
-			continue
-		var meshes := model.find_children("*", "MeshInstance3D", true, false)
-		var path := ""
-		if not meshes.is_empty():
-			var m := (meshes[0] as MeshInstance3D).material_override
-			path = m.resource_path if m != null else ""
-		return "%s/%s" % [BODIES[i], path]
-	return ""
+	var baked := (visual as KayKitVisual).baked if visual is KayKitVisual else null
+	if baked == null:
+		return ""
+	var m := baked.material_override
+	return "%s/%s" % [BODIES[MESHES.find(baked.mesh)], m.resource_path if m != null else ""]

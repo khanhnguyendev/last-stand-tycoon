@@ -156,22 +156,21 @@ func _hero_visual() -> KayKitVisual:
 	add_child_autofree(v)
 	return v
 
+func _baked_props(v: KayKitVisual) -> Array:
+	return (v.baked.mesh.get_meta("props") as Array).map(func(p): return p.name)
+
 func test_hero_visual_is_a_cook() -> void:
 	var v := _hero_visual()
 	assert_eq(v.attack_clip, &"Throw")
 	assert_true(v.upper_body_attack)
 	var sk := v.body.get_node("Model/Rig/Skeleton3D") as Skeleton3D
-	var hat := sk.find_child("ChefHat", true, false) as MeshInstance3D
-	assert_not_null(hat, "chef hat")
-	assert_eq((hat.get_parent() as BoneAttachment3D).bone_name, &"head")
-	var pan := sk.find_child("pan_A", true, false)
-	assert_not_null(pan, "pan")
-	assert_eq(((pan.get_parent() as Node3D).get_parent() as BoneAttachment3D).bone_name, &"handslot.r")
-	for gone in ["Barbarian_Hat", "Barbarian_Cape", "1H_Axe", "2H_Axe", "1H_Axe_Offhand", "Barbarian_Round_Shield", "Mug"]:
+	assert_eq(_baked_props(v), ["pan_A", "ChefHat"], "the pan and the hat are baked in")
+	assert_eq(sk.find_children("*", "BoneAttachment3D", true, false).size(), 0, "no attachments: the props are in the mesh")
+	for gone in ["Barbarian_Hat", "Barbarian_Cape", "1H_Axe", "2H_Axe", "1H_Axe_Offhand", "Barbarian_Round_Shield", "Mug",
+			"Barbarian_Body", "Barbarian_ArmLeft"]:
 		assert_null(sk.find_child(gone, true, false), "%s removed" % gone)
-	var torso := sk.get_node("Barbarian_Body") as MeshInstance3D
-	assert_eq(torso.material_override.resource_path, "res://art/materials/kaykit-adventurers__barbarian_apron.tres")
-	assert_null((sk.get_node("Barbarian_ArmLeft") as MeshInstance3D).material_override, "sleeves keep the default atlas")
+	assert_eq(v.baked.mesh.surface_get_material(0).resource_path, "res://art/materials/kaykit-adventurers__barbarian_apron.tres",
+		"the whole body is on the apron atlas (D-201: white sleeves)")
 
 func test_hero_visual_within_budget() -> void:
 	var v := _hero_visual()
@@ -236,10 +235,7 @@ func _kaykit(path: String) -> KayKitVisual:
 	return v
 
 func _prop_names(v: KayKitVisual) -> Array:
-	var out := []
-	for mi in v.body.get_node("Model").find_children("*", "MeshInstance3D", true, false):
-		if mi.get_parent() is BoneAttachment3D:
-			out.append(String(mi.name))
+	var out := _baked_props(v)
 	out.sort()
 	return out
 
@@ -248,10 +244,11 @@ func test_archer_and_tank_props_and_clips() -> void:
 	assert_eq(a.attack_clip, &"2H_Ranged_Shoot")
 	assert_false(a.upper_body_attack, "the archer never moves while shooting")
 	assert_eq(_prop_names(a), ["2H_Crossbow"])
-	assert_not_null(a.body.get_node("Model/Rig/Skeleton3D/Rogue_Head_Hooded"), "hooded head")
+	assert_eq(a.baked.mesh.surface_get_material(0).resource_path, "res://art/materials/kaykit-adventurers__rogue_texture.tres")
 	var t := _kaykit(TANK)
 	assert_eq(t.attack_clip, &"1H_Melee_Attack_Slice_Diagonal")
 	assert_eq(_prop_names(t), ["1H_Sword", "Badge_Shield", "Knight_Helmet"])
+	assert_eq(t.baked.mesh.surface_get_material(0).resource_path, "res://art/materials/kaykit-adventurers__knight_texture.tres")
 
 func test_role_scenes_within_budget() -> void:
 	for p in [ARCHER, TANK, TRAVELER]:
@@ -263,7 +260,7 @@ func test_role_scenes_within_budget() -> void:
 func test_role_scenes_hold_only_their_own_models() -> void:
 	# A Godot inherited scene can't replace an inherited instance (it adds a sibling), so the role scenes are
 	# standalone: no Barbarian is ever instanced, discarded or left as a second Model.
-	var want := {ARCHER: ["Rogue_Hooded.glb"], TANK: ["Knight.glb"], TRAVELER: ["Rogue.glb", "Mage.glb"]}
+	var want := {ARCHER: ["Rogue_Hooded.glb"], TANK: ["Knight.glb"], TRAVELER: ["Rogue.glb"]}
 	for p in want:
 		var v := _kaykit(p)
 		var models := []
@@ -306,19 +303,46 @@ func test_tank_is_steel_and_archer_is_green() -> void:
 
 func test_traveler_visual_swaps_bodies_and_keeps_animating() -> void:
 	var v := _kaykit(TRAVELER)
-	var rogue := v.body.get_node("Model") as Node3D
-	var mage := v.body.get_node("ModelMage") as Node3D
-	assert_true(rogue.visible)
-	assert_false(mage.visible)
+	var rogue := TravelerVariants.MESHES[0]
+	var mage := TravelerVariants.MESHES[1]
+	assert_eq(v.baked.mesh, rogue)
 	TravelerVariants.apply(v, 1)  # mage, beige
-	assert_false(rogue.visible)
-	assert_true(mage.visible)
+	assert_eq(v.baked.mesh, mage)
+	assert_eq(v.baked.skin, TravelerVariants.SKINS[1])
+	assert_eq(v.baked.material_override, TravelerVariants.MATERIALS[4])
+	TravelerVariants.apply(v, 2)  # rogue, brown
+	assert_eq(v.baked.mesh, rogue)
+	assert_eq(v.baked.material_override, TravelerVariants.MATERIALS[2])
 	var player := v.body.get_node("AnimationPlayer") as AnimationPlayer
-	assert_eq(player.get_node(player.root_node), mage, "the player drives the shown body")
-	assert_lte(AssetValidator.count_triangles(v), ArtBudgets.budget_for(TRAVELER), "only the shown body counts")
-	for mi in mage.find_children("*", "MeshInstance3D", true, false):
-		assert_false(mi.get_parent() is BoneAttachment3D, "the mage carries no hat, cape or book")
+	assert_eq(player.get_node(player.root_node), v.body.get_node("Model"), "the player drives the one rig")
+	assert_eq(v.body.find_children("Model*", "Node3D", false, false).size(), 1, "no hidden second model")
+	assert_lte(AssetValidator.count_triangles(v), ArtBudgets.budget_for(TRAVELER), "one baked body")
 	v.set_motion(0.5)
 	v.face(Vector3(1, 0, 0))
 	await get_tree().process_frame
 	assert_eq(v.anim_tree.get("parameters/loco/blend_position"), 0.5)
+
+# --- one draw per character (S4 Task 8b, D-201) ---
+
+func _visible_meshes(root: Node) -> Array:
+	return root.find_children("*", "MeshInstance3D", true, false).filter(func(m): return m.is_visible_in_tree())
+
+func test_exactly_one_visible_mesh_instance_per_role_visual() -> void:
+	for p in ROLE_SCENES:
+		var holder := Node3D.new()
+		add_child_autofree(holder)
+		var v: ActorVisual = load(p).instantiate()
+		holder.add_child(v)
+		var meshes := _visible_meshes(v)
+		assert_eq(meshes.size(), 1, "%s visible MeshInstance3D" % p)
+		if meshes.size() == 1:
+			var mi := meshes[0] as MeshInstance3D
+			assert_eq(mi.mesh.get_surface_count(), 1, "%s surfaces" % p)
+			assert_eq(mi.skeleton, NodePath(".."), "%s: the mesh is bound to its skeleton (empty draws it unskinned, in T-pose)" % p)
+			assert_not_null(mi.skin, "%s skin" % p)
+			assert_true(mi.get_parent() is Skeleton3D, "%s mesh sits on the skeleton" % p)
+	var t := _kaykit(TRAVELER)
+	for variant in 6:
+		TravelerVariants.apply(t, variant)
+		assert_eq(_visible_meshes(t).size(), 1, "traveler variant %d" % variant)
+		assert_eq(t.find_children("*", "MeshInstance3D", true, false).size(), 1, "traveler variant %d has no hidden meshes" % variant)

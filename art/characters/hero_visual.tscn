@@ -1,13 +1,17 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="PackedScene" path="res://art/characters/kaykit_character.tscn" id="1_base"]
 [ext_resource type="Script" path="res://art/characters/hero_visual.gd" id="2_hero"]
+[ext_resource type="ArrayMesh" path="res://art/characters/baked/hero.res" id="3_mesh"]
+[ext_resource type="Skin" path="res://art/characters/baked/hero_skin.res" id="4_skin"]
 
 [node name="Visual" instance=ExtResource("1_base")]
 script = ExtResource("2_hero")
 role = &"hero"
 attack_clip = &"Throw"
 upper_body_attack = true
+baked_mesh = ExtResource("3_mesh")
+baked_skin = ExtResource("4_skin")
 
 [node name="Model" parent="Body" index="0"]
 transform = Transform3D(0.732, 0, 0, 0, 0.732, 0, 0, 0, 0.732, 0, 0, 0)

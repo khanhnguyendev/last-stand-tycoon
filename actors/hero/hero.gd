@@ -50,6 +50,7 @@ func _ready() -> void:
 
 func setup(world: World) -> void:
 	magnet.setup(world.steak_pool, world.fly_fx)
+	world.shadow_field.register(visual, ShadowField.CHARACTER_RADIUS)  # S4 D-201: one draw for every blob shadow
 	_apply_card_stats()
 	attacker.candidates = world.wave_director.enemy_candidates
 	attacker.projectile_pool = world.projectile_pool

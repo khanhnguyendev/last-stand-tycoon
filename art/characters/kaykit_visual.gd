@@ -4,6 +4,8 @@ extends ActorVisual
 ## AnimationPlayer holding the shared clip library and an AnimationTree built here in code:
 ##   loco (BlendSpace1D Idle/Walking_A/Running_A) -> action (OneShot, upper body only) -> react (OneShot, Hit_A)
 ##   -> cheer (OneShot, Cheer) -> output.
+## One draw per character (D-201): when `baked_mesh` is set, _ready frees the glb's own skinned parts and props and
+## puts one MeshInstance3D (the offline bake from tools/bake_characters.gd, props bound in) on the skeleton.
 ## Visual-only: uses Time for the hit cooldown, never Rng, never touches gameplay nodes.
 
 const LIBRARY := preload("res://art/characters/kaykit_anims.tres")
@@ -16,11 +18,17 @@ const UPPER_BODY_PARTS: PackedStringArray = ["spine", "chest", "neck", "head", "
 ## A KayKit character scene to use instead of the Model already in the scene. Prefer overriding the `Model`
 ## instance in the subclass's inherited .tscn: setting this costs a discarded Barbarian instance per visual.
 @export var model_scene: PackedScene
-## Free the props under the model's BoneAttachment3D nodes (axes, shields, hats, capes), except these by name.
+## The role's baked mesh (one surface) and its Skin (art/characters/baked/). Unset = the unbaked glb as imported,
+## with `hide_props` / `shown_props` applied (the kaykit_character.tscn base, and the unbaked reference in tests).
+@export var baked_mesh: Mesh
+@export var baked_skin: Skin
+## Unbaked only: free the props under the model's BoneAttachment3D nodes (axes, shields, hats, capes), except these by name.
 ## A BoneAttachment3D left with no mesh is freed too.
 @export var hide_props := true
 @export var shown_props: PackedStringArray = []
 
+## The one MeshInstance3D a baked visual draws (null when unbaked).
+var baked: MeshInstance3D
 var anim_tree: AnimationTree
 var _player: AnimationPlayer
 var _last_hit_ms := -1000000000
@@ -37,7 +45,9 @@ func _ready() -> void:
 		body.add_child(m)
 		body.move_child(m, 0)
 	var model := body.get_node("Model")
-	if hide_props:
+	if baked_mesh != null:
+		_install_baked(model)
+	elif hide_props:
 		for mi in model.find_children("*", "MeshInstance3D", true, false):
 			var att := mi.get_parent() as BoneAttachment3D
 			if att != null and not shown_props.has(String(mi.name)):
@@ -48,6 +58,22 @@ func _ready() -> void:
 				att.get_parent().remove_child(att)
 				att.free()
 	_build_animation(model)
+
+func _install_baked(model: Node) -> void:
+	var sk := model.get_node_or_null(KayKitClips.SKELETON_PATH) as Skeleton3D
+	if sk == null:
+		push_warning("KayKitVisual: no skeleton at %s" % KayKitClips.SKELETON_PATH)
+		return
+	for c in sk.get_children():
+		if c is MeshInstance3D or c is BoneAttachment3D:
+			sk.remove_child(c)
+			c.free()
+	baked = MeshInstance3D.new()
+	baked.name = "Baked"
+	baked.mesh = baked_mesh
+	baked.skin = baked_skin
+	baked.skeleton = NodePath("..")  # the default is empty: without it the mesh is drawn unskinned (T-pose)
+	sk.add_child(baked)
 
 func _build_animation(model: Node) -> void:
 	_player = body.get_node_or_null("AnimationPlayer") as AnimationPlayer
