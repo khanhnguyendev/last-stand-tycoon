@@ -1594,66 +1594,79 @@ Spec: `docs/superpowers/specs/2026-09-30-s3-save-failure-mercy-design.md`.
   - The diner roof: an 8 m slab dominates the frame.
   - The tusks are too horizontal (about 70°). Production uses about 55°.
 
-## 2026-10-01: S4 spec (autonomous, D-159)
+## 2026-10-01: S4 spec (autonomous, D-159; revised after the spec review)
 
 Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
 
-**D-187 Layout.**
-- `assets/<pack-id>/` holds third-party files: only the files used, plus `LICENSE.txt`.
-- `art/` holds our palette, materials, wrappers, procedural builders and icons.
-- `tools/` holds headless tools and the validator, and is excluded from the web exports.
+**D-187 Layout and licence log.**
+- **Layout:**
+  - `assets/<pack-id>/` holds third-party files: only the files used, plus the licence normalised to `LICENSE.txt`.
+  - `art/` holds the palette, materials, wrappers, builders and icons.
+  - `tools/` holds headless and editor-only scripts, including the post-import script and the validator.
+- **Export:** `tools/*` and `assets/_candidates/*` are excluded.
+- **Licence log:** ASSET_LICENSES moves to one row per pack (licence SHA-256, file count), checked by the validator.
+- **Supersedes:** this replaces the `ASSET_PIPELINE.md` promised in D-024.
 
 **D-188 One palette.**
-- 32 named colours (`art/palette/`).
-- Kenney and KayKit swatch atlases are remapped offline to the nearest colour in Oklab, with per-swatch overrides
-  (apron, muted travelers).
+- 32 named colours. Swatch atlases are remapped offline to the nearest colour in Oklab, with per-swatch overrides.
+- Shared external materials.
+- Icons are quantised the same way.
 - The validator enforces palette-only textures.
 
 **D-189 KayKit size.**
-- One shared AnimationLibrary holds 9 clips: Idle, Running_A, Walking_A, Throw, 1H_Melee_Attack_Slice_Diagonal,
-  2H_Ranged_Shoot, Hit_A, Death_A and Cheer.
-- Characters import without animations.
-- Fallback: a post-import script.
+- A post-import script in `tools/` strips the clips and writes one shared AnimationLibrary with 8 clips: Idle,
+  Running_A, Walking_A, Throw, 1H_Melee_Attack_Slice_Diagonal, 2H_Ranged_Shoot, Hit_A and Cheer.
+- Fallback: `_subresources` per clip.
+- Each imported character scene is under 500 KB.
 
 **D-190 ActorVisual contract.**
-- `set_motion`, `face`, `attack`, `hit`, `die`, `reset`, and `flash_active`.
-- Visual only. Gameplay-gating durations keep their values.
-- Proof: the sweep stays byte-identical against a recorded baseline for 3 seeds.
+- `set_motion`, `face`, `attack`, `hit`, `set_flash`, `die`, `reset`, `flash_active`.
+- **Ownership:** the Visual root's scale and visible stay with today's gameplay tweens; ActorVisual animates only an
+  inner `Body`. The Boar flash timer stays in its physics tick.
+- **Proof:** a determinism baseline recorded on the Mac (3 seeds, run twice), never re-recorded in S4.
 
 **D-191 Characters.**
-- **Hero:** the Barbarian-bodied cook. Chef hat, apron, pan, ring. It throws spinning knives (Throw on the upper
-  body while running) and cheers at dawn.
-- **Archer:** Rogue_Hooded with a crossbow (bolts).
-- **Tank:** Knight with a sword and shield.
-- **Travelers:** Rogue and Mage bodies in 6 muted variants, chosen by `spawn_index`.
+- **Hero:** the Barbarian-bodied cook. It throws spinning knives (an upper-body Throw) and cheers at dawn. No
+  hit or death (D-161).
+- **Archer:** Rogue_Hooded with a crossbow (bolts). No hit (D-164).
+- **Tank:** Knight. Hit_A is throttled by `hit_react_cooldown`. The knockout is the existing poof (a tween fake).
+- **Travelers:** 6 muted variants from a visual-only factory counter; no gameplay field and no Rng.
 
 **D-192 Boar.**
 - One merged ArrayMesh, built once.
-- Shader-driven legs.
-- 3 shared materials (idle, run, flash), so one draw call.
-- Tusks at about 55°.
+- Shader legs; the phase comes from `NODE_POSITION_WORLD` (fallback `MODEL_MATRIX[3]`).
+- 3 shared materials, so one draw call.
+- Tweens on the inner Body finish within 0.15 s.
 
 **D-193 Draw calls.**
-- MultiMesh for the counter, freezer, gold pile and carry stack.
+- MultiMesh piles (fallback: per-instance MeshInstance3D).
 - No real-time shadows.
 - Blob shadows under characters and Boars.
 
 **D-194 World.**
-- **Diner:** a roadside diner with a flat roof and parapet (the Archer's perch), a chimney, a rooftop DINER board
-  and an awning.
-- **Towers and fences:** they change model per level.
-- **Ground and lanes:** dirt lanes with stone edging.
-- **Props:** hand-placed outside the bounds.
-- **Lighting:** a warm day and a readable blue night, via `LightingDirector`.
+- **Diner:** a flat roof and parapet (the Archer's perch), a chimney, a rooftop WorldLabel board and an awning.
+  OccluderFade uses the wrapper's AABB and also fades Label3D.
+- **Towers and fences:** the model changes per level.
+- **Ground and props:** a position-hash variation and a hand-placed prop list.
+- **Lighting:** a warm day and a readable blue night via `LightingDirector`.
 
 **D-195 UI and cards.**
-- A Theme resource (StyleBoxFlat in palette colours, Nunito).
-- HUD icons and card portraits are rendered from the game's own 3D assets by `tools/render_icons.gd`.
+- Theme resource.
+- HUD icons and card portraits are rendered from the game's own 3D assets, quantised to the palette.
 - The card strip shows icons + level.
+- The joystick skin is left to S5.
 
 **D-196 Budgets.**
-- **Perf:** iOS Simulator at night 3 on the profile build, at least 58 fps average. Desktop guide: at most 120 draw
-  calls at the night-3 peak.
-- **Size:** the release payload is at most 16 MB and the pck at most 8 MB, gated in `pages.yml`.
+- **Perf:** iOS Simulator at night 3 on the profile build, at least 58 fps average, reached by save injection and
+  checked at P2, P4 and P6. Desktop guide: at most 120 draw calls at the night-3 peak and at most 150 at the day
+  peak.
+- **Size:** `gzip -9` of wasm + pck + js at most 16 MB, and the raw pck at most 8 MB, gated in `pages.yml`.
 - **Textures:** at most 512².
-- **Triangle budgets per asset:** hero/guard 3k, traveler 3k, Boar 1.5k, tower L3 4k, diner 12k, prop 1.5k.
+- **Triangle budgets:** per `art/budgets.gd`, with the KayKit counts measured before they freeze.
+- **VRAM compression:** ETC2/ASTC is restored (D-158) and counts toward the size.
+
+**D-197 Build spots.**
+- **Level pips:** palette-gold stars, outside Visual.
+- **Unbuilt marker:** a sibling of Visual, shown at level 0 in DAY.
+- **`World.add_static_box`:** collision-only, plus a visual scene; the sizes are unchanged.
+- **`build_level_scale`:** 1.1 → 1.0, because the model change shows the growth (in REVIEW_QUEUE).
