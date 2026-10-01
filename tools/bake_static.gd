@@ -4,7 +4,10 @@ extends SceneTree
 ##   "$GODOT" --headless --path . -s res://tools/bake_static.gd -- --all      (every entry of art/env/bake_manifest.gd)
 ## Merges every visible MeshInstance3D under a source node (any depth, instanced glb pieces included) into ONE ArrayMesh
 ## with ONE surface per unique material, in the source node's local space. Normals use the inverse transpose, the
-## winding flips under a negative determinant, UVs and vertex colours are kept. Tangents and UV2 are dropped.
+## winding flips under a negative determinant, UVs and vertex colours are kept. Tangents, UV2, bones and blend shapes
+## are dropped (so a grouped material with normal map, heightmap or anisotropy is an error). A mesh without normals
+## gets flat face normals. Not baked, with a warning: GeometryInstance3D nodes that are not MeshInstance3D,
+## material_overlay, and top_level children (they ignore their parent's transform).
 ## Deterministic: surfaces are ordered by the first appearance of their material in a depth-first walk in child order,
 ## so the same input gives the same bytes. Editor/test only (tools/ is excluded from every web export).
 
@@ -60,6 +63,8 @@ func _bake_entry(in_path: String, out_path: String) -> bool:
 	var tris := 0
 	for i in mesh.get_surface_count():
 		tris += (mesh.surface_get_arrays(i)[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
+		var m := mesh.surface_get_material(i)
+		print("  surface %d: %s" % [i, m.resource_path if m != null else "<no material>"])
 	print("BAKED %s: %d surfaces, %d triangles -> %s" % [in_path, mesh.get_surface_count(), tris, out_path])
 	return true
 
@@ -90,8 +95,14 @@ static func _walk(node: Node, xf: Transform3D, groups: Dictionary, order: Array)
 			continue
 		if not n3.visible:
 			continue
+		if n3.top_level:
+			push_warning("bake_static: %s is top_level; its parent transform is ignored by the engine but applied here" % n3.name)
 		var cxf := xf * n3.transform
 		var mi := n3 as MeshInstance3D
+		if mi == null and n3 is GeometryInstance3D:
+			push_warning("bake_static: %s (%s) is not a MeshInstance3D; not baked" % [n3.name, n3.get_class()])
+		if mi != null and mi.material_overlay != null:
+			push_warning("bake_static: %s has a material_overlay; not baked" % mi.name)
 		if mi != null and mi.mesh != null:
 			for s in mi.mesh.get_surface_count():
 				_add_surface(mi, s, cxf, groups, order)
@@ -107,6 +118,9 @@ static func _add_surface(mi: MeshInstance3D, s: int, xf: Transform3D, groups: Di
 		groups[mat] = {"verts": PackedVector3Array(), "normals": PackedVector3Array(), "uvs": PackedVector2Array(),
 			"colors": PackedColorArray(), "has_colors": false, "indices": PackedInt32Array()}
 		order.append(mat)
+		var bm := mat as BaseMaterial3D
+		if bm != null and (bm.normal_enabled or bm.heightmap_enabled or bm.anisotropy_enabled):
+			push_error("bake_static: material %s needs tangents (normal map, heightmap or anisotropy), which the bake drops" % mat.resource_path)
 	var g: Dictionary = groups[mat]
 	var arr := mi.mesh.surface_get_arrays(s)
 	var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
@@ -114,20 +128,24 @@ static func _add_surface(mi: MeshInstance3D, s: int, xf: Transform3D, groups: Di
 	var uv: Variant = arr[Mesh.ARRAY_TEX_UV]
 	var col: Variant = arr[Mesh.ARRAY_COLOR]
 	var idx: Variant = arr[Mesh.ARRAY_INDEX]
+	if idx != null and (idx as PackedInt32Array).is_empty():
+		idx = null  # an empty index array means non-indexed
+	var tri_count: int = (idx.size() if idx != null else v.size()) / 3
+	if n == null:
+		n = _flat_normals(v, idx, tri_count)
 	var nb := xf.basis.inverse().transposed()
 	var flip := xf.basis.determinant() < 0.0
 	var base: int = (g.verts as PackedVector3Array).size()
 	if col != null and not g.has_colors:
 		g.has_colors = true
-		(g.colors as PackedColorArray).resize(base)
-		(g.colors as PackedColorArray).fill(Color.WHITE)
+		g.colors.resize(base)
+		g.colors.fill(Color.WHITE)
 	for i in v.size():
 		g.verts.append(xf * v[i])
-		g.normals.append((nb * n[i]).normalized() if n != null else Vector3.UP)
+		g.normals.append((nb * n[i]).normalized())
 		g.uvs.append(uv[i] if uv != null else Vector2.ZERO)
 		if g.has_colors:
 			g.colors.append(col[i] if col != null else Color.WHITE)
-	var tri_count: int = (idx.size() if idx != null else v.size()) / 3
 	for t in tri_count:
 		var a: int = idx[t * 3] if idx != null else t * 3
 		var b: int = idx[t * 3 + 1] if idx != null else t * 3 + 1
@@ -136,3 +154,17 @@ static func _add_surface(mi: MeshInstance3D, s: int, xf: Transform3D, groups: Di
 			g.indices.append_array(PackedInt32Array([base + a, base + c, base + b]))
 		else:
 			g.indices.append_array(PackedInt32Array([base + a, base + b, base + c]))
+
+## Face normals for a mesh that has none (Godot's front faces are clockwise); a shared vertex keeps its last face's.
+static func _flat_normals(v: PackedVector3Array, idx: Variant, tri_count: int) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	out.resize(v.size())
+	for t in tri_count:
+		var a: int = idx[t * 3] if idx != null else t * 3
+		var b: int = idx[t * 3 + 1] if idx != null else t * 3 + 1
+		var c: int = idx[t * 3 + 2] if idx != null else t * 3 + 2
+		var fn := (v[c] - v[a]).cross(v[b] - v[a]).normalized()
+		out[a] = fn
+		out[b] = fn
+		out[c] = fn
+	return out
