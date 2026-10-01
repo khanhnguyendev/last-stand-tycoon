@@ -1696,7 +1696,7 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
   injected night-3 and day-3 saves.
   - Run-to-run spread is about ±1 fps (night 3 read 56.5–58.9 on the same build).
   - **So the D-159/D-196 gate is the median of 3 runs.**
-- **Baseline (placeholder art, 3 seeds of evidence):**
+- **Baseline (placeholder art, fixture seed 20260930):**
   - Night 3: about 58–59 fps, proc 16–18 ms, physics 1.1 ms, 35 draw calls.
   - Day 3: about 52 fps, proc 22 ms, 59 draw calls.
   - There is a 280–300 ms stall at the first-wave spawn.
