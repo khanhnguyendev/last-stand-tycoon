@@ -5,6 +5,8 @@ extends Node3D
 ## Ground margin past MapLayout bounds. The projection test proves it covers every camera view for
 ## window aspects 9:21..21:9 (CameraMath clamps beyond that) at every focus corner (D-152, D-153).
 const GROUND_MARGIN := 80.0
+## S4 art (D-194, D-201): the diner is one baked mesh plus its rooftop board; instanced once.
+const DINER_ART := preload("res://art/env/diner.tscn")
 
 var lanes := {}
 var diner_body: StaticBody3D
@@ -105,15 +107,13 @@ func _build_ground() -> void:
 	add_child(road)
 
 func _build_diner() -> void:
-	diner_body = add_static_box("Diner", Vector3(8, MapLayout.DINER_HEIGHT, 8), Vector2.ZERO, Visuals.COLORS.diner)
+	diner_body = add_static_box("Diner", Vector3(8, MapLayout.DINER_HEIGHT, 8), Vector2.ZERO, DINER_ART)
 	# D-151: the diner fades while it hides the hero or a Boar from the camera.
 	occluder_fade = OccluderFade.new()
 	occluder_fade.name = "OccluderFade"
 	diner_body.get_node("Visual").add_child(occluder_fade)
-	occluder_fade.setup(
-		AABB(Vector3(-MapLayout.DINER_HALF, 0.0, -MapLayout.DINER_HALF),
-			Vector3(MapLayout.DINER_HALF * 2.0, MapLayout.DINER_HEIGHT, MapLayout.DINER_HALF * 2.0)),
-		get_viewport().get_camera_3d, _occluder_targets)
+	# S4: the box comes from the art's merged bounds (walls, parapet, chimney, board), so no box is passed.
+	occluder_fade.setup(AABB(), get_viewport().get_camera_3d, _occluder_targets)
 
 ## Aim points (feet + the actor's AIM_HEIGHT) of everything the diner must not hide: the hero and every alive Boar.
 func _occluder_targets() -> Array:
@@ -135,8 +135,9 @@ func _build_lanes() -> void:
 		add_child(lane)
 		lanes[id] = lane
 
-## Static collider + visual box on layer 1, standing on the ground at xz.
-func add_static_box(node_name: String, size: Vector3, xz: Vector2, color: Color) -> StaticBody3D:
+## Static collider on layer 1, standing on the ground at xz. The art (S4) is `visual_scene`, instanced once under a
+## "Visual" Node3D (no primitives: collision shapes and sizes are the gameplay truth).
+func add_static_box(node_name: String, size: Vector3, xz: Vector2, visual_scene: PackedScene = null) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.name = node_name
 	body.collision_layer = 1
@@ -148,9 +149,8 @@ func add_static_box(node_name: String, size: Vector3, xz: Vector2, color: Color)
 	shape.position.y = size.y * 0.5
 	body.add_child(shape)
 	var vis := Visuals.visual_root()
-	var mesh := Visuals.box(size, color)
-	mesh.position.y = size.y * 0.5
-	vis.add_child(mesh)
+	if visual_scene != null:
+		vis.add_child(visual_scene.instantiate())
 	body.add_child(vis)
 	body.position = MapLayout.to3(xz)
 	add_child(body)
