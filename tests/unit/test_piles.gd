@@ -144,12 +144,11 @@ func test_slot_transform_scale_applies_on_top_of_the_item() -> void:
 
 func test_ground_steak_draws_at_the_tuned_scale_and_piles_do_not() -> void:
 	var m := _main()
-	assert_eq(Balance.ui.ground_steak_scale, 1.6)
 	var s: Steak = m.world.steak_pool.acquire()
 	s.place(Vector3(3, 0, 3))
 	var base := PileMesh.steak_xf().basis.get_scale().x
-	assert_almost_eq(m.world.pickup_field.slot_xf(s.slot).basis.get_scale().x, base * 1.6, 1e-4)
-	assert_almost_eq(PileMesh.steak_xf().basis.get_scale().x, base, 1e-6)
+	assert_almost_eq(m.world.pickup_field.slot_xf(s.slot).basis.get_scale().x, base * Balance.ui.ground_steak_scale, 1e-4)
+	assert_almost_eq(PileMesh.slot_transforms(PackedVector3Array([Vector3.ZERO]), PileMesh.steak_xf())[0].basis.get_scale().x, base, 1e-6, "pile steaks stay at 1.0")
 
 func test_ground_steaks_are_one_field_with_no_mesh_of_their_own() -> void:
 	var m := _main()
@@ -169,6 +168,7 @@ func test_steak_slots_are_stable_and_unique() -> void:
 	var seen := {}
 	for n in m.world.steak_pool.get_children():
 		assert_false(seen.has(n.slot))
+		assert_lt(n.slot, m.world.pickup_field.capacity())
 		seen[n.slot] = true
 	assert_eq(seen.size(), m.world.steak_pool.size)
 
