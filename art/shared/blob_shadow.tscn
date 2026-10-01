@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Texture2D" path="res://art/shared/blob_shadow.png" id="1_tex"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_blob"]
+size = Vector2(1, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_blob"]
+transparency = 1
+shading_mode = 0
+no_depth_test = false
+albedo_texture = ExtResource("1_tex")
+
+[node name="BlobShadow" type="MeshInstance3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.04, 0)
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_blob")
+material_override = SubResource("StandardMaterial3D_blob")

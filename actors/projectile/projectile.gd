@@ -9,12 +9,51 @@ var _target_generation := 0
 var _damage := 0.0
 var _speed := 0.0
 var _pool: NodePool
+## Art side (S4 Task 7a, D-191): `_art` is a knife or arrow scene under the "Visual" node; `_dir` is the last flight
+## direction and `_spin` the knife's roll. Written only by launch/_physics_process reads and _process; never read by gameplay.
+var _visual: Node3D
+var _art: Node3D
+var _arts := {}
+var _art_kind: StringName = &""
+var _dir := Vector3.FORWARD
+var _spin := 0.0
+
+const ART_SCENES := {
+	&"knife": "res://art/pickups/knife_projectile.tscn",
+	&"arrow": "res://art/pickups/arrow_projectile.tscn",
+}
 
 func _init() -> void:
 	name = "Projectile"
-	var v := Visuals.visual_root()
-	v.add_child(Visuals.box(Vector3(0.25, 0.08, 0.35), Visuals.COLORS.hat))
-	add_child(v)
+	_visual = Visuals.visual_root()
+	add_child(_visual)
+
+## Chooses the art by the shooter's kind (&"knife" hero, &"arrow" guards/towers). The pool is shared and the kinds
+## alternate all night, so both art scenes are instanced once, on the first set_art; later calls only toggle
+## visibility (an unchanged kind returns at once). The hidden art is skipped by _process.
+func set_art(kind: StringName) -> void:
+	if kind == _art_kind and not _arts.is_empty():
+		return
+	if _arts.is_empty():
+		for k in ART_SCENES:
+			var n := (load(ART_SCENES[k]) as PackedScene).instantiate() as Node3D
+			n.visible = false
+			_visual.add_child(n)
+			_arts[k] = n
+	_art_kind = kind
+	for k in _arts:
+		(_arts[k] as Node3D).visible = k == kind
+	_art = _arts.get(kind)
+
+func _process(delta: float) -> void:
+	if _art == null:
+		return
+	var up := Vector3.UP if absf(_dir.y) < 0.99 else Vector3.RIGHT
+	var b := Basis.looking_at(_dir, up)
+	if _art_kind == &"knife":
+		_spin = fposmod(_spin + deg_to_rad(Balance.ui.knife_spin_deg_s) * delta, TAU)
+		b = b * Basis(Vector3.RIGHT, _spin)
+	_visual.basis = b
 
 func launch(from: Vector3, target: Object, target_index: int, damage: float, speed: float, pool: NodePool) -> void:
 	global_position = from
@@ -24,6 +63,10 @@ func launch(from: Vector3, target: Object, target_index: int, damage: float, spe
 	_damage = damage
 	_speed = speed
 	_pool = pool
+	if target is Node3D:
+		var d: Vector3 = (target as Node3D).global_position + Vector3(0, 0.5, 0) - from
+		if d.length() > 0.001:
+			_dir = d.normalized()
 
 ## Pool-reuse counter of a target; 0 when the target has none.
 static func generation_of(target: Object) -> int:
@@ -46,7 +89,8 @@ func _physics_process(delta: float) -> void:
 		_target.take_hit(_damage)
 		_finish()
 	else:
-		global_position += to.normalized() * step
+		_dir = to.normalized()
+		global_position += _dir * step
 
 func on_release() -> void:
 	_pool = null

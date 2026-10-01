@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/kaykit-adventurers/Assets/gltf/arrow.gltf" id="1_arrow"]
+
+[node name="Arrow" type="Node3D"]
+
+[node name="Model" parent="." instance=ExtResource("1_arrow")]
+transform = Transform3D(0.8016, 0, 0, 0, 0, -0.8016, 0, 0.8016, 0, 0, 0, 0.0069)

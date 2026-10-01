@@ -1,0 +1,22 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://art/characters/kaykit_visual.gd" id="1_vis"]
+[ext_resource type="PackedScene" path="res://assets/kaykit-adventurers/Characters/gltf/Rogue.glb" id="2_model"]
+[ext_resource type="ArrayMesh" path="res://art/characters/baked/traveler_rogue.res" id="3_mesh"]
+[ext_resource type="Skin" path="res://art/characters/baked/traveler_rogue_skin.res" id="4_skin"]
+
+[node name="Visual" type="Node3D"]
+script = ExtResource("1_vis")
+role = &"traveler"
+upper_body_attack = false
+baked_mesh = ExtResource("3_mesh")
+baked_skin = ExtResource("4_skin")
+
+[node name="Body" type="Node3D" parent="."]
+
+[node name="Model" parent="Body" instance=ExtResource("2_model")]
+transform = Transform3D(0.685, 0, 0, 0, 0.685, 0, 0, 0, 0.685, 0, 0, 0)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Body"]
+
+[node name="AnimationTree" type="AnimationTree" parent="Body"]

@@ -5,15 +5,18 @@ extends Node3D
 var want := 1
 var service_timer := 0.0
 var leaving := false
+## Which of the six muted looks (D-191). Visual only: set by the world.gd factory counter before add_child.
+var variant := 0
+var visual: KayKitVisual
+## The world's shared blob-shadow field (S4 D-201); set by the world.gd factory before add_child. Null in bare tests.
+var shadow_field: ShadowField
 var _target := Vector2.ZERO
+var _last_xz := Vector2.ZERO
 
 func _init() -> void:
 	name = "Traveler"
-	var v := Visuals.visual_root()
-	var m := Visuals.capsule(0.35, 1.4, Visuals.COLORS.traveler)
-	m.position.y = 0.7
-	v.add_child(m)
-	add_child(v)
+	visual = preload("res://art/characters/traveler_visual.tscn").instantiate()
+	add_child(visual)
 
 func begin(p_want: int) -> void:
 	want = p_want
@@ -21,6 +24,16 @@ func begin(p_want: int) -> void:
 	leaving = false
 	position = MapLayout.to3(MapLayout.TRAVELER_ENTER)
 	_target = MapLayout.TRAVELER_ENTER
+	_last_xz = xz()
+	visual.reset()
+	TravelerVariants.apply(visual, variant)
+	if shadow_field != null:
+		shadow_field.register(visual, ShadowField.CHARACTER_RADIUS)
+
+## NodePool hook: a released traveler leaves the shadow field.
+func on_release() -> void:
+	if shadow_field != null:
+		shadow_field.unregister(visual)
 
 func set_target(p: Vector2) -> void:
 	_target = p
@@ -39,4 +52,11 @@ func gone() -> bool:
 	return leaving and at_target()
 
 func _physics_process(delta: float) -> void:
-	position = MapLayout.to3(xz().move_toward(_target, Balance.data.economy.traveler_speed * delta))
+	var before := xz()
+	var speed: float = Balance.data.economy.traveler_speed
+	position = MapLayout.to3(before.move_toward(_target, speed * delta))
+	# Art only (D-190): motion and facing from this tick's position delta; walking speed is the 0.5 blend (Walking_A).
+	var d := xz() - _last_xz
+	_last_xz = xz()
+	visual.set_motion(0.5 * d.length() / (speed * delta))
+	visual.face(Vector3(d.x, 0.0, d.y))
