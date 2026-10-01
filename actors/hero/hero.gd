@@ -57,10 +57,11 @@ func setup(world: World) -> void:
 
 func _physics_process(delta: float) -> void:
 	var mv := input.get_move()
-	velocity = Vector3(mv.x, 0.0, mv.y) * move_speed()
+	var spd := move_speed()
+	velocity = Vector3(mv.x, 0.0, mv.y) * spd
 	move_and_slide()
 	position.y = 0.0
-	visual.set_motion(velocity.length() / maxf(move_speed(), 0.01))
+	visual.set_motion(velocity.length() / maxf(spd, 0.01))
 	visual.face(velocity)
 	var speed := Vector2(velocity.x, velocity.z).length()
 	if speed < Balance.data.economy.stand_still_speed:

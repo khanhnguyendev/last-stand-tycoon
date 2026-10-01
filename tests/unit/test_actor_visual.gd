@@ -196,12 +196,17 @@ func test_apron_atlas_whitens_only_the_torso_column() -> void:
 	assert_eq(base.get_pixel(25, 150).to_html(false), Palette.HEX[Palette.index_of(&"cloth_blue")], "default torso column is cloth_blue")
 	assert_eq(apron.get_pixel(85, 150).to_html(false), Palette.HEX[Palette.index_of(&"apron_white")], "the apron atlas is blue-free")
 	assert_eq(base.get_pixel(85, 150).to_html(false), Palette.HEX[Palette.index_of(&"cloth_blue")], "sleeves are cloth_blue")
-	var diff := 0
-	for y in range(0, 128):
-		for x in range(256, 512):  # the fur, belt, boots and skin columns are untouched
-			if apron.get_pixel(x, y) != base.get_pixel(x, y):
-				diff += 1
-	assert_eq(diff, 0, "other swatches identical between the two atlases")
+	# every pixel that differs is apron_white in the apron atlas and cloth_blue in the base atlas
+	var aw := Palette.HEX[Palette.index_of(&"apron_white")]
+	var cb := Palette.HEX[Palette.index_of(&"cloth_blue")]
+	var bad := 0
+	for y in apron.get_height():
+		for x in apron.get_width():
+			var pa := apron.get_pixel(x, y)
+			var pb := base.get_pixel(x, y)
+			if pa != pb and not (pa.to_html(false) == aw and pb.to_html(false) == cb):
+				bad += 1
+	assert_eq(bad, 0, "the atlases differ only where blue became apron white")
 
 func test_hero_ring_scene() -> void:
 	Balance.reset()

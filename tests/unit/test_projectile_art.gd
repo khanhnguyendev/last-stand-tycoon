@@ -107,3 +107,5 @@ func test_flight_unchanged_by_art() -> void:
 			p._physics_process(1.0 / 60.0)
 		ends.append(p.global_position)
 	assert_eq(ends[0], ends[1], "same flight for both art kinds")
+	# the S1 flight math, independent of the art: 10 ticks of 12 m/s toward the aim point (target + 0.5 y)
+	assert_almost_eq(ends[0], Vector3(0, 1, 0) + 2.0 * Vector3(6, -0.5, 0).normalized(), Vector3.ONE * 1e-5, "analytic flight")
