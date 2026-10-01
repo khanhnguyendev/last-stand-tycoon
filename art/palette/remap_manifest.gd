@@ -57,6 +57,58 @@ const FRIDGE_TEAL_TO_ICE := {
 	"41e5af": "ice_blue", "41e6b0": "ice_blue", "41e7b0": "ice_blue", "42e7b1": "ice_blue", "42e8b1": "ice_blue",
 }
 
+## The Fantasy Town roof-flat swatches (teal gradient, used by no other piece in assets/) read as water from the game
+## camera; the diner roof becomes grey gravel. The parapet, walls and awning keep their colours (S4 Task 11 review).
+const ROOF_TO_STONE := {"45a087": "stone", "61c3ae": "stone", "56b59e": "stone"}
+
+## The city-kit awning samples a green gradient (every source hex that remapped to grass or grass_dark, plus the six flat
+## stripe shades): g >= 0xa4 goes to diner_cream, the rest to diner_teal, so it reads as a striped awning. Only
+## detail-awning-wide uses this atlas.
+const AWNING_STRIPES := {
+	"198268": "diner_teal", "1a8268": "diner_teal", "1a8368": "diner_teal", "1b8469": "diner_teal",
+	"1c8569": "diner_teal", "1c856a": "diner_teal", "1d866a": "diner_teal", "1e866a": "diner_teal",
+	"1e876a": "diner_teal", "1f886b": "diner_teal", "20896b": "diner_teal", "218a6c": "diner_teal",
+	"228a6c": "diner_teal", "228b6c": "diner_teal", "238c6d": "diner_teal", "248d6d": "diner_teal",
+	"258e6e": "diner_teal", "268f6e": "diner_teal", "27906e": "diner_teal", "27906f": "diner_teal",
+	"28916f": "diner_teal", "299270": "diner_teal", "2a9370": "diner_teal", "2b9470": "diner_teal",
+	"2b9471": "diner_teal", "2c9571": "diner_teal", "2d9671": "diner_teal", "2d9672": "diner_teal",
+	"2e9772": "diner_teal", "2e9872": "diner_teal", "2f9873": "diner_teal", "309973": "diner_teal",
+	"319a73": "diner_teal", "319a74": "diner_teal", "329b74": "diner_teal", "329c74": "diner_teal",
+	"339c75": "diner_teal", "349d75": "diner_teal", "359e75": "diner_teal", "359e76": "diner_teal",
+	"369f76": "diner_teal", "36a076": "diner_teal", "37a076": "diner_teal", "37a177": "diner_teal",
+	"38a177": "diner_teal", "39a277": "diner_teal", "39a278": "diner_teal", "3aa378": "diner_teal",
+	"3aa478": "diner_cream", "3ba478": "diner_cream", "3ba579": "diner_cream", "3ca579": "diner_cream",
+	"3da679": "diner_cream", "3ea77a": "diner_cream", "3ea87a": "diner_cream", "3fa87a": "diner_cream",
+	"3fa97b": "diner_cream", "40a97b": "diner_cream", "40aa7b": "diner_cream", "41aa7b": "diner_cream",
+	"42ab7c": "diner_cream", "42ac7c": "diner_cream", "43ac7c": "diner_cream", "43ad7c": "diner_cream",
+	"44ad7d": "diner_cream", "44ae7d": "diner_cream", "45ae7d": "diner_cream", "45af7e": "diner_cream",
+	"46b07e": "diner_cream", "47b07e": "diner_cream", "47b17e": "diner_cream", "48b17f": "diner_cream",
+	"48b27f": "diner_cream", "49b27f": "diner_cream", "49b37f": "diner_cream", "4ab480": "diner_cream",
+	"4bb480": "diner_cream", "4bb580": "diner_cream", "4cb581": "diner_cream", "4cb681": "diner_cream",
+	"4db681": "diner_cream", "4db781": "diner_cream", "4eb882": "diner_cream", "4fb982": "diner_cream",
+	"50b982": "diner_cream", "50ba83": "diner_cream", "51ba83": "diner_cream", "51bb83": "diner_cream",
+	"52bc84": "diner_cream", "53bd84": "diner_cream", "54bd84": "diner_cream", "54be85": "diner_cream",
+	"55be85": "diner_cream", "55bf85": "diner_cream", "56c086": "diner_cream", "57c186": "diner_cream",
+	"58c287": "diner_cream", "59c287": "diner_cream", "59c387": "diner_cream", "5ac487": "diner_cream",
+	"5ac488": "diner_cream", "5bc588": "diner_cream", "5cc689": "diner_cream", "5dc689": "diner_cream",
+	"5dc789": "diner_cream", "5ec889": "diner_cream", "5ec88a": "diner_cream", "5fc98a": "diner_cream",
+	"60ca8a": "diner_cream", "60ca8b": "diner_cream", "61cb8b": "diner_cream", "c7e1fc": "diner_cream",
+	"c8e1fc": "diner_cream", "c9e2fc": "diner_cream", "c9e3fd": "diner_cream", "cae3fd": "diner_cream",
+	"d7d7e6": "diner_cream", "d8d8e6": "diner_cream", "d9d9e7": "diner_cream", "dadae7": "diner_cream",
+	"dadae8": "diner_cream", "dbdbe8": "diner_cream", "dcdce9": "diner_cream", "dddde9": "diner_cream",
+	"ddddea": "diner_cream", "dedeea": "diner_cream", "dfdfeb": "diner_cream", "e0e0eb": "diner_cream",
+	"e1e1ec": "diner_cream", "e2e2ec": "diner_cream", "e2e2ed": "diner_cream", "e3e3ed": "diner_cream",
+	"e4e4ee": "diner_cream", "e5e5ee": "diner_cream", "f8d7af": "diner_cream", "f8d7b0": "diner_cream",
+	"f8d8b1": "diner_cream", "f9d8b1": "diner_cream", "f9d8b2": "diner_cream", "f9d9b3": "diner_cream",
+	"f9d9b4": "diner_cream", "f9dab5": "diner_cream", "f9dab6": "diner_cream", "fadbb6": "diner_cream",
+	"fadbb7": "diner_cream", "fadbb8": "diner_cream", "fadcb8": "diner_cream", "fadcb9": "diner_cream",
+	"fadcba": "diner_cream", "faddba": "diner_cream", "faddbb": "diner_cream", "fbddbb": "diner_cream",
+	"fbdebc": "diner_cream", "fbdebd": "diner_cream", "fbdfbd": "diner_cream", "fbdfbe": "diner_cream",
+	"fbdfbf": "diner_cream", "fbe0bf": "diner_cream", "fce0c0": "diner_cream", "fce0c1": "diner_cream",
+	"fce1c1": "diner_cream", "fce1c2": "diner_cream", "fce2c3": "diner_cream", "fce2c4": "diner_cream",
+	"fde3c5": "diner_cream", "fde3c6": "diner_cream", "fde4c6": "diner_cream", "fde4c7": "diner_cream",
+}
+
 const BARBARIAN_BLUE_TO_CLOTH := {
 	"354e5a": "cloth_blue", "354e5b": "cloth_blue", "364f5b": "cloth_blue", "364f5c": "cloth_blue", "36505c": "cloth_blue",
 	"37505d": "cloth_blue", "37515d": "cloth_blue", "37515e": "cloth_blue", "38515e": "cloth_blue", "38525f": "cloth_blue",
@@ -124,8 +176,8 @@ const BARBARIAN_BLUE_TO_APRON := {
 const BASE_ENTRIES: Array[Dictionary] = [
 	{"src": "res://assets/kenney-tower-defense/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-tower-defense__colormap.png", "overrides": {}},
 	{"src": "res://assets/kenney-castle/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-castle__colormap.png", "overrides": {}},
-	{"src": "res://assets/kenney-fantasy-town/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-fantasy-town__colormap.png", "overrides": {}},
-	{"src": "res://assets/kenney-city-commercial/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-city-commercial__colormap.png", "overrides": {}},
+	{"src": "res://assets/kenney-fantasy-town/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-fantasy-town__colormap.png", "overrides": ROOF_TO_STONE},
+	{"src": "res://assets/kenney-city-commercial/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-city-commercial__colormap.png", "overrides": AWNING_STRIPES},
 	{"src": "res://assets/kenney-food/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-food__colormap.png", "overrides": {}},
 	{"src": "res://assets/kenney-platformer/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-platformer__colormap.png", "overrides": COIN_RIM_TO_GOLD},
 	{"src": "res://assets/kaykit-adventurers/Textures/barbarian_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__barbarian_texture.png", "overrides": BARBARIAN_BLUE_TO_CLOTH},

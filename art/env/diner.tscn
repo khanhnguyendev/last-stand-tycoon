@@ -1,9 +1,11 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="ArrayMesh" path="res://art/env/baked/diner.res" id="1_mesh"]
 [ext_resource type="Script" path="res://ui/world_label/world_label.gd" id="2_label"]
+[ext_resource type="Script" path="res://art/env/diner_art.gd" id="3_art"]
 
 [node name="DinerArt" type="Node3D"]
+script = ExtResource("3_art")
 
 [node name="Body" type="MeshInstance3D" parent="."]
 mesh = ExtResource("1_mesh")

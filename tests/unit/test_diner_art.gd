@@ -112,6 +112,7 @@ func test_committed_bake_is_current() -> void:
 			var b := committed.surface_get_arrays(s)
 			assert_true(a[Mesh.ARRAY_INDEX] == b[Mesh.ARRAY_INDEX], "%s surface %d indices are current: rerun tools/bake_static.gd --all" % [path, s])
 			assert_true(a[Mesh.ARRAY_TEX_UV] == b[Mesh.ARRAY_TEX_UV], "%s surface %d UVs" % [path, s])
+			assert_true(a[Mesh.ARRAY_COLOR] == b[Mesh.ARRAY_COLOR], "%s surface %d vertex colours" % [path, s])
 			for k in [Mesh.ARRAY_VERTEX, Mesh.ARRAY_NORMAL]:
 				var fa: PackedVector3Array = a[k]
 				var fb: PackedVector3Array = b[k]
