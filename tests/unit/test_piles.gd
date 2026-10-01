@@ -94,12 +94,75 @@ func test_fly_items_prebuild_both_kinds_and_never_instance() -> void:
 	assert_true((it.find_child("SteakArt", true, false) as Node3D).visible)
 	assert_false((it.find_child("CoinArt", true, false) as Node3D).visible)
 
-func test_ground_steak_uses_the_shared_mesh_and_material() -> void:
-	var a := Steak.new()
-	var b := Steak.new()
-	add_child_autofree(a)
-	add_child_autofree(b)
-	var ma := a.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
-	var mb := b.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
-	assert_same(ma.mesh, mb.mesh)
-	assert_same(ma.mesh, PileMesh.steak_mesh())
+func _field(cap: int) -> PickupField:
+	var f := PickupField.new()
+	f.setup(BoxMesh.new(), cap)
+	add_child_autofree(f)
+	return f
+
+func test_pickup_field_set_and_clear_slot() -> void:
+	var f := _field(3)
+	assert_eq(f.capacity(), 3)
+	assert_true(f.is_slot_clear(1), "slots start cleared")
+	var xf := Transform3D(Basis.IDENTITY, Vector3(1, 2, 3))
+	f.set_slot(1, xf)
+	assert_eq(f.slot_xf(1), xf)
+	assert_false(f.is_slot_clear(1))
+	f.clear_slot(1)
+	assert_true(f.is_slot_clear(1))
+	assert_eq(f.slot_xf(1).basis.get_scale(), Vector3.ZERO)
+
+func test_pickup_field_grow_keeps_slots() -> void:
+	var f := _field(2)
+	var xf := Transform3D(Basis.IDENTITY, Vector3(4, 0, 4))
+	f.set_slot(0, xf)
+	f.grow(5)
+	assert_eq(f.capacity(), 5)
+	assert_eq(f.slot_xf(0), xf)
+	assert_true(f.is_slot_clear(1))
+	assert_true(f.is_slot_clear(4))
+	f.grow(3)
+	assert_eq(f.capacity(), 5, "grow never shrinks")
+
+func test_slot_transform_places_and_turns() -> void:
+	var item := Transform3D(Basis.from_scale(Vector3(2, 1, 2)), Vector3(1, 0, 0))
+	var xf := PickupField.slot_transform(Vector3(10, 0.02, 5), PI / 2.0, item)
+	assert_eq(xf.basis.get_scale(), Vector3(2, 1, 2))
+	assert_almost_eq(xf.origin.x, 10.0, 1e-4)
+	assert_almost_eq(xf.origin.y, 0.02, 1e-4)
+	assert_almost_eq(xf.origin.z, 4.0, 1e-4)  # the item's +x offset is turned 90 degrees about y: x -> -z
+
+func test_ground_steaks_are_one_field_with_no_mesh_of_their_own() -> void:
+	var m := _main()
+	var field: PickupField = m.world.pickup_field
+	assert_eq(field.capacity(), m.world.steak_pool.size)
+	var s: Steak = m.world.steak_pool.acquire()
+	assert_eq(s.find_children("*", "MeshInstance3D", true, false).size(), 0)
+	assert_true(field.is_slot_clear(s.slot), "not drawn until placed")
+	s.place(Vector3(7, 0, 3))
+	assert_false(field.is_slot_clear(s.slot))
+	assert_almost_eq(field.slot_xf(s.slot).origin.x, 7.0, 0.5)
+	m.world.steak_pool.release(s)
+	assert_true(field.is_slot_clear(s.slot), "a released steak's slot is zero-scale")
+
+func test_steak_slots_are_stable_and_unique() -> void:
+	var m := _main()
+	var seen := {}
+	for n in m.world.steak_pool.get_children():
+		assert_false(seen.has(n.slot))
+		seen[n.slot] = true
+	assert_eq(seen.size(), m.world.steak_pool.size)
+
+func test_pool_growth_grows_the_field() -> void:
+	var m := _main()
+	var pool: NodePool = m.world.steak_pool
+	var n := pool.size
+	var held: Array = []
+	for i in n + 2:
+		var s: Steak = pool.acquire()
+		s.place(Vector3(i, 0, 0))
+		held.append(s)
+	assert_eq(m.world.pickup_field.capacity(), n + 2)
+	for s in held:
+		assert_false(m.world.pickup_field.is_slot_clear(s.slot), "growth kept every placed steak")
+	assert_push_warning_count(2)
