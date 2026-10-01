@@ -1545,3 +1545,51 @@ Spec: `docs/superpowers/specs/2026-09-30-s3-save-failure-mercy-design.md`.
 
 **D-185 Review nits on already-guarded paths may be skipped (author).**
 - Nits that only add cases to already-guarded paths can be skipped. Every skipped nit is listed in the PR body.
+
+## 2026-10-01: S4 style board
+
+**D-186 Art set: KayKit Adventurers cast + Kenney rounded kits + a procedural Boar (style board set E, D-183).**
+- **Board:** `docs/review/media/s4_style_board/`. Five sets were rendered in the real game camera with the diner, a
+  tower, a fence, steaks and coins; closeups, 40% phone-size images and a night render for the winner. See its
+  README.
+- **Rejected:**
+  - (a) Kenney Blocky Characters + Cube Pets hog. Blocky faces and limbs clash with the rounded kits, and the hog
+    reads as a toy pet. Fails the D-183 cohesion rule.
+  - (b) Quaternius Ultimate Animated Characters + tinted farm Pig. Slim, small-headed bodies get lost at game
+    distance. There is no archer mesh, there is no run animation (Walk only), and the faceted Pig is a different
+    style from the rounded kits.
+  - (c) KayKit + farm Pig. The cast is right; the Boar is not.
+  - (d) KayKit + Quaternius cute-monster Pig. That Pig is a head with no body and only one animation.
+- **Picked (set E):**
+  - **Cast: KayKit Character Pack Adventures 1.0 (CC0).**
+    - **Hero:** Barbarian body as the diner cook. The hood, cape and props are hidden; a procedural chef hat sits on
+      the head bone; a white apron overlay; a KayKit Restaurant Bits frying pan as the weapon.
+    - **Archer:** Rogue_Hooded with a crossbow (green).
+    - **Tank:** Knight with a shield (steel).
+    - **Travelers:** Rogue and Mage without props, desaturated toward grey-beige.
+    - **Animation:** all share one rig with 76 animations (idle, running, attacks, hit, death).
+  - **Boar: procedural, built from rounded primitives in Godot.**
+    - **Shape:** a dark red-brown barrel body, a big low head, a pink snout, angry brows, big white flared tusks, a
+      black mohawk ridge, stubby legs.
+    - **Animation:** tweens (idle, run, attack, hit, death).
+    - **Why procedural:** no CC0 rounded, animated boar exists. The only boar models found are CC-BY (Poly by
+      Google), which this project does not use.
+  - **Environment:** Kenney Tower Defense, Castle, Fantasy Town, Food and Platformer (coin) kits, plus KayKit
+    Restaurant Bits for diner props. All CC0.
+- **Why:**
+  - Chunky, big-headed, rounded KayKit bodies match the rounded Kenney kits and read best at game distance.
+  - Each role has a distinct silhouette:
+    - the white chef hat and hero ring;
+    - the green hood and crossbow;
+    - the steel helmet and shield;
+    - muted unarmed travelers;
+    - a red tusked quadruped.
+  - It is the only set with idle, run, attack, hit and death for every humanoid.
+  - At 40% size and at night, the hero is the brightest spot and the Boar still reads by its ridge and tusks.
+- **Deviation:** IDEA.md names Kenney and Quaternius. KayKit is a third CC0 source, and the Boar is procedural (in
+  REVIEW_QUEUE).
+- **Open for the spec:**
+  - The Boar's draw cost: 26 mesh instances per Boar in the prototype.
+  - The KayKit file size: 3.6 MB per character glb, mostly animations.
+  - The diner roof: an 8 m slab dominates the frame.
+  - The tusks are too horizontal (about 70°). Production uses about 55°.
