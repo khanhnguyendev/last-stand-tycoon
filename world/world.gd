@@ -39,6 +39,12 @@ func _make_traveler() -> Traveler:
 	_traveler_count += 1
 	return t
 
+## S4 D-201: each pooled Boar registers its Visual with the shared shadow field in spawn().
+func _make_boar() -> Boar:
+	var b := Boar.new()
+	b.shadow_field = shadow_field
+	return b
+
 func _ready() -> void:
 	_build_environment()
 	shadow_field = ShadowField.new()
@@ -178,7 +184,7 @@ static func pool_sizes(bd: BalanceData) -> Dictionary:
 
 func _setup_pools() -> void:
 	var sizes := World.pool_sizes(Balance.data)
-	enemy_pool.setup(func(): return Boar.new(), sizes.enemy)
+	enemy_pool.setup(_make_boar, sizes.enemy)
 	steak_pool.setup(func(): return Steak.new(), sizes.steak)
 	projectile_pool.setup(func(): return Projectile.new(), sizes.projectile)
 	fx_pool.setup(func(): return FlyFx.make_item(), sizes.fx)

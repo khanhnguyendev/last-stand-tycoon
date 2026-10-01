@@ -54,6 +54,14 @@ extends Resource
 @export var visual_turn_speed := 14.0
 @export var anim_blend_s := 0.12
 @export var hit_react_cooldown := 1.0
+## S4 Task 9: Boar tweens (ART_BIBLE §6, D-192): idle bob (m, s), run hop (m, Hz), attack lunge (m), hit and death squash on y.
+@export var boar_idle_bob := 0.03
+@export var boar_idle_period := 0.8
+@export var boar_hop_height := 0.08
+@export var boar_hop_hz := 4.0
+@export var boar_lunge := 0.3
+@export var boar_squash := 0.92
+@export var boar_death_squash := 0.6
 ## S4 Task 7 (D-191): the hero's knife roll about its local X (deg/s) and the hero ring's alpha.
 @export var knife_spin_deg_s := 720.0
 @export var hero_ring_alpha := 0.6
