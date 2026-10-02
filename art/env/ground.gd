@@ -26,8 +26,10 @@ static func hash01(x: float, z: float) -> float:
 static func grass_at(x: float, z: float) -> Color:
 	return Palette.color(&"grass").lerp(Palette.color(&"grass_dark"), hash01(x, z))
 
-## A flat grid over `rect` (xz), `cell` metres per cell, at y = 0, vertex-coloured by `grass_at`.
-static func ground_mesh(rect: Rect2, cell := CELL) -> ArrayMesh:
+static var _cache := {}
+
+## Vertex arrays {v, n, c, i} of a flat grid over `rect` (xz), `cell` metres per cell, at y = 0, coloured by `grass_at`.
+static func ground_arrays(rect: Rect2, cell := CELL) -> Dictionary:
 	var nx := ceili(rect.size.x / cell)
 	var nz := ceili(rect.size.y / cell)
 	var verts := PackedVector3Array()
@@ -51,30 +53,61 @@ static func ground_mesh(rect: Rect2, cell := CELL) -> ArrayMesh:
 			var b := a + 1
 			var c := a + nx + 1
 			var d := c + 1
-			idx.append_array([a, b, c, b, d, c])  # counter-clockwise seen from above (+y)
-	return _mesh(verts, normals, colors, idx)
+			idx.append_array([a, b, c, b, d, c])  # clockwise seen from above (+y): Godot's front face
+	return {"v": verts, "n": normals, "c": colors, "i": idx}
 
-## The road: one flat stone quad of `size` (x, z), centred on the origin at y = ROAD_Y.
-static func road_mesh(size: Vector2) -> ArrayMesh:
+## Vertex arrays of the road: one flat stone quad of `size` (x, z) centred on (0, `z`) at y = ROAD_Y.
+static func road_arrays(size: Vector2, z: float) -> Dictionary:
 	var hx := size.x * 0.5
 	var hz := size.y * 0.5
-	var verts := PackedVector3Array([Vector3(-hx, ROAD_Y, -hz), Vector3(hx, ROAD_Y, -hz), Vector3(-hx, ROAD_Y, hz), Vector3(hx, ROAD_Y, hz)])
+	var verts := PackedVector3Array([Vector3(-hx, ROAD_Y, z - hz), Vector3(hx, ROAD_Y, z - hz), Vector3(-hx, ROAD_Y, z + hz), Vector3(hx, ROAD_Y, z + hz)])
 	var normals := PackedVector3Array([Vector3.UP, Vector3.UP, Vector3.UP, Vector3.UP])
 	var c := Palette.color(&"stone")
-	var colors := PackedColorArray([c, c, c, c])
-	return _mesh(verts, normals, colors, PackedInt32Array([0, 1, 2, 1, 3, 2]))
+	return {"v": verts, "n": normals, "c": PackedColorArray([c, c, c, c]), "i": PackedInt32Array([0, 1, 2, 1, 3, 2])}
 
-static func _mesh(verts: PackedVector3Array, normals: PackedVector3Array, colors: PackedColorArray, idx: PackedInt32Array) -> ArrayMesh:
+## Appends the parts' arrays into one set (indices re-based).
+static func merge_arrays(parts: Array) -> Dictionary:
+	var v := PackedVector3Array()
+	var n := PackedVector3Array()
+	var c := PackedColorArray()
+	var idx := PackedInt32Array()
+	for p in parts:
+		var base := v.size()
+		v.append_array(p.v)
+		n.append_array(p.n)
+		c.append_array(p.c)
+		for k in p.i:
+			idx.append(k + base)
+	return {"v": v, "n": n, "c": c, "i": idx}
+
+static func mesh_from(a: Dictionary) -> ArrayMesh:
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_COLOR] = colors
-	arrays[Mesh.ARRAY_INDEX] = idx
+	arrays[Mesh.ARRAY_VERTEX] = a.v
+	arrays[Mesh.ARRAY_NORMAL] = a.n
+	arrays[Mesh.ARRAY_COLOR] = a.c
+	arrays[Mesh.ARRAY_INDEX] = a.i
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	mesh.surface_set_material(0, material())
 	return mesh
+
+## The ground alone (cached per rect).
+static func ground_mesh(rect: Rect2) -> ArrayMesh:
+	var key := "g%s" % [rect]
+	if not _cache.has(key):
+		_cache[key] = mesh_from(ground_arrays(rect))
+	return _cache[key]
+
+## ONE mesh, ONE surface, ONE draw for the ground, the road and every lane strip (D-201). Cached per rect.
+static func terrain_mesh(rect: Rect2) -> ArrayMesh:
+	var key := "t%s" % [rect]
+	if not _cache.has(key):
+		var parts := [ground_arrays(rect), road_arrays(Vector2(MapLayout.BOUNDS_MAX.x - MapLayout.BOUNDS_MIN.x, 2.0), MapLayout.ROAD_Z)]
+		for id in MapLayout.LANE_PATHS:
+			parts.append(LaneStrip.strip_arrays(MapLayout.LANE_PATHS[id]))
+		_cache[key] = mesh_from(merge_arrays(parts))
+	return _cache[key]
 
 ## A MeshInstance3D for `mesh`, no shadows.
 static func instance(mesh: Mesh, node_name: String) -> MeshInstance3D:

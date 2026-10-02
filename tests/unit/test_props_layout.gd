@@ -31,15 +31,16 @@ func test_off_every_lane_path() -> void:
 				var q := Geometry2D.get_closest_point_to_segment(it.pos, pts[i - 1], pts[i])
 				assert_gt(q.distance_to(it.pos), 3.0, "%s is off lane %s" % [it.pos, id])
 
-func test_off_stations_roads_and_traveler_path() -> void:
+func test_off_stations_roads_and_spots() -> void:
+	var points: Array = [MapLayout.COUNTER, MapLayout.FREEZER, MapLayout.GOLD_PILE, MapLayout.SIGN, MapLayout.HOME, MapLayout.DINER_DOOR]
+	points.append_array(MapLayout.QUEUE_SLOTS)
+	for id in MapLayout.SPOT_IDS:
+		points.append(MapLayout.spot_position(id))
 	for it in PropsLayout.ITEMS:
 		var p: Vector2 = it.pos
 		assert_gt(absf(p.y - MapLayout.ROAD_Z), 2.5, "%s clear of the road" % p)
-		for s in [MapLayout.COUNTER, MapLayout.FREEZER, MapLayout.GOLD_PILE, MapLayout.SIGN, MapLayout.HOME]:
-			assert_gt(p.distance_to(s), 3.0, "%s clear of the stations" % p)
-		for id in MapLayout.SPOT_IDS:
-			var q: Vector2 = MapLayout.TOWER_SPOTS.get(id, Vector2(1e6, 1e6))
-			assert_gt(p.distance_to(q), 3.0)
+		for s in points:
+			assert_gt(p.distance_to(s), 3.0, "%s clear of %s" % [p, s])
 
 func test_every_model_exists_and_is_a_mesh() -> void:
 	for it in PropsLayout.ITEMS:
@@ -52,14 +53,22 @@ func test_item_fields() -> void:
 		assert_gt(float(it.scale), 0.0)
 		assert_true(it.rot is float)
 
-func test_props_node_draws_one_multimesh_per_model() -> void:
+func test_props_node_is_two_static_meshes_without_collision() -> void:
 	var props := Props.new()
 	add_child_autofree(props)
 	props.build()
-	var mms := props.find_children("*", "MultiMeshInstance3D", true, false)
-	assert_eq(mms.size(), PropsLayout.models().size())
-	var total := 0
-	for m in mms:
-		total += (m as MultiMeshInstance3D).multimesh.instance_count
-		assert_eq((m as MultiMeshInstance3D).find_children("*", "CollisionObject3D", true, false).size(), 0)
-	assert_eq(total, PropsLayout.ITEMS.size())
+	var meshes := props.find_children("*", "MeshInstance3D", true, false)
+	assert_eq(meshes.size(), 2, "castle atlas + tower-defense atlas")
+	assert_eq(props.find_children("*", "CollisionObject3D", true, false).size(), 0, "no collision")
+	assert_eq(props.find_children("*", "MultiMeshInstance3D", true, false).size(), 0)
+	var tris := 0
+	for m in meshes:
+		assert_true((m as MeshInstance3D).mesh is ArrayMesh)
+		assert_eq((m as MeshInstance3D).mesh.get_surface_count(), 1)
+		tris += ((m as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
+	var expect := 0
+	for it in PropsLayout.ITEMS:
+		var mesh := load(it.model) as ArrayMesh
+		for i in mesh.get_surface_count():
+			expect += (mesh.surface_get_arrays(i)[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
+	assert_eq(tris, expect, "every item is in the merge")

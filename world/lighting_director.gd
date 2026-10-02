@@ -2,11 +2,13 @@ class_name LightingDirector
 extends Node
 ## Day and night lighting (S4 Task 13, D-194): a warm day and a readable blue night. On `phase_changed` it tweens the
 ## sun's colour and energy, the ambient colour and the background over `lighting_tween_s`. DAWN equals DAY (the card
-## pick is a DAWN sub-state). Visual only: it never touches gameplay state. Values live in `Balance.ui`.
+## pick is a DAWN sub-state). The first phase_changed after setup snaps (no tween): a new game or a resume starts in
+## its phase's light. Visual only: it never touches gameplay state. Values live in `Balance.ui`.
 
 var _light: DirectionalLight3D
 var _env: Environment
 var _tween: Tween
+var _first := true
 
 func setup(light: DirectionalLight3D, env: Environment) -> void:
 	_light = light
@@ -31,6 +33,10 @@ func _on_phase_changed(phase: int, _day: int) -> void:
 	if _light == null or not is_inside_tree():
 		return
 	var t := target_for(phase)
+	if _first:
+		_first = false
+		_apply(t)
+		return
 	if _tween != null:
 		_tween.kill()
 	_tween = create_tween().set_parallel(true)

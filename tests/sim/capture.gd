@@ -6,6 +6,7 @@ extends SceneTree
 ## --phase=day|night|fail|build|retry (default night; unknown values fail): day = skip to day + 12 s of travelers queueing; build = hero walking into the NW tower spot with the ring filling; fail = diner destroyed (banner); retry = fail, then banner_time + 1 s so the restore runs and the "monsters look tired" banner shows.
 ## --crop-top=N: save only the top N pixels. --debug: keep the DebugOverlay visible (hidden by default).
 ## --save=<fixture path>: decode it with SaveCodec.decode and resume_from it instead of start_new_game (no phase staging; waits --seconds, default 12). --drawcalls: print "DRAWCALLS n" once a second while waiting and "DRAWCALLS_MAX n" at the end.
+## --steaks=N: bot freed, N steaks lie on the ground 2.5-5 m around the night-1 start (grass and dirt), for the R5 shot.
 ## --cards=id:level,...: grant cards after start_new_game (Tank placed at its post). --scene=cardpick: no bot, emit wave_cleared so the pick opens.
 ## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
 ## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
@@ -101,6 +102,15 @@ func _run() -> void:
 		else:  # the restore runs after the fail banner; then the mercy banner shows
 			for i in int((_bal.ui.banner_time + 1.0) * 60.0):
 				await physics_frame
+	if _args.has("steaks"):
+		bot.queue_free()
+		await physics_frame
+		main.hero.input.set_move(Vector2.ZERO)
+		var spots := [Vector2(-5, -8), Vector2(-4.5, -10.5), Vector2(-1.2, -9.5), Vector2(0.4, -11.5), Vector2(1.4, -8.8),
+			Vector2(2.8, -10.5), Vector2(-3.2, -12.5), Vector2(4.5, -9.0)]
+		for i in mini(int(_args.steaks), spots.size()):
+			var st = main.world.steak_pool.acquire()
+			st.place(map_layout.to3(spots[i]))
 	var dbg = main.get_node_or_null("DebugOverlay")
 	if dbg != null and not _args.has("debug"):
 		dbg.visible = false

@@ -54,26 +54,30 @@ func test_edge_stones_flank_the_strip() -> void:
 	for id in MapLayout.LANE_PATHS:
 		var xfs := LaneStrip.edge_transforms(MapLayout.LANE_PATHS[id])
 		assert_gt(xfs.size(), 10)
-		assert_eq(xfs.size() % 2, 0, "both sides")
 		var pts: Array = MapLayout.LANE_PATHS[id]
 		for xf in xfs:
 			var p := Vector2(xf.origin.x, xf.origin.z)
+			assert_false(LaneStrip.STONE_SKIP.has_point(p), "%s: no stone inside the diner rect" % p)
 			var best := 1e9
 			for i in range(1, pts.size()):
 				best = minf(best, Geometry2D.get_closest_point_to_segment(p, pts[i - 1], pts[i]).distance_to(p))
 			assert_between(best, 1.5, 2.0, "outside the 3 m strip, next to it")
 
-func test_world_draws_ground_road_lanes_and_props_as_few_nodes() -> void:
+func test_ground_cache_returns_the_same_mesh() -> void:
+	assert_same(GroundArt.terrain_mesh(World.ground_rect()), GroundArt.terrain_mesh(World.ground_rect()))
+
+func test_world_static_draws() -> void:
 	Balance.reset()
 	var main: Main = Main.create()
 	add_child_autofree(main)
 	var w := main.world
-	assert_eq(w.get_node("Ground").get_class(), "MeshInstance3D")
-	assert_eq((w.get_node("Ground") as MeshInstance3D).mesh.get_surface_count(), 1)
-	assert_eq((w.get_node("Road") as MeshInstance3D).mesh.get_surface_count(), 1)
+	var terrain := w.get_node("Ground") as MeshInstance3D
+	assert_eq(terrain.mesh.get_surface_count(), 1, "ground + road + lane strips: one surface")
+	assert_null(w.get_node_or_null("Road"), "the road is part of the ground mesh")
+	var stones := w.get_node("EdgeStones") as MultiMeshInstance3D
+	assert_gt(stones.multimesh.instance_count, 30)
 	for id in w.lanes:
-		var lane: Node3D = w.lanes[id]
-		assert_eq(lane.find_children("*", "MeshInstance3D", false, false).filter(func(n): return n.name == &"Strip").size(), 1, "one strip mesh per lane")
-		assert_eq(lane.find_children("*", "MultiMeshInstance3D", false, false).size(), 1, "one MultiMesh of edge stones")
-	assert_eq(w.props.find_children("*", "MultiMeshInstance3D", false, false).size(), PropsLayout.models().size())
+		assert_eq((w.lanes[id] as Node3D).find_children("*", "MeshInstance3D", false, false).size(), 0, "lanes draw nothing themselves")
+		assert_eq((w.lanes[id] as Node3D).find_children("*", "MultiMeshInstance3D", false, false).size(), 0)
+	assert_eq(w.props.find_children("*", "MeshInstance3D", false, false).size(), 2)
 	assert_eq(w.lighting.get_class(), "Node")
