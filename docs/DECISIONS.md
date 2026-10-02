@@ -1895,21 +1895,31 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 
 **D-212 Web unlock, playback type and mute.**
 - Nothing plays before the audio context runs; music starts at unlock with the current phase's track.
-- **Probe:** the web shell wraps `AudioContext` and keeps each context in `window.LST_AUDIO`; `unlocked` is "some
-  context is running". Off web it is true at once. Fallback: "an input release was seen".
+- **Probe:** the web shell subclasses `AudioContext` and keeps each context in `window.LST_AUDIO`; `unlocked` is
+  "some context is running, or an input release was seen". Off web it is true at once.
 - **Playback:** sample playback, with every manifest stream registered at boot behind the boot fade. Fallback for
-  music: stream playback.
-- A Task 3 spike proves the probe and the registration cost on the iOS Simulator and Chromium first.
+  music (a boot freeze over 0.5 s, an error, or more than 48 MB added): stream playback.
+- A Task 3 spike checks the probe on Chromium (before and after a tap) and the iOS Simulator (before a gesture
+  only: the harness has no input), and records the registration time and memory. The after-gesture check on a
+  real iPhone is a final-review item.
 - One toggle mutes the Master bus and is saved at once.
 
 **D-213 Onboarding is one pointer.**
 - A `Guide` shows one pointer with at most three words, from an ordered list of pure state predicates.
-- Night 1 (`day == 1`): move, fight, grab. First day (`day == 2`): build, collect, stock, take, close.
-- `build` shows while any spot is affordable; `close` shows only while `Pulse.should_pulse()` is true.
-- An off-screen target gets an arrow clamped to the safe rect's edge, using the HUD lane-arrow maths.
-- Its two counters reset on `state_restored`. It never pauses or blocks input.
+- Night 1 (`day == 1`): move, fight, grab. First day (`day == 2`): build, collect, take, stock, close.
+- `fight` is true whenever a Boar is alive and none is in the hero's range; `grab` whenever no Boar is alive and
+  a ground steak can be carried. Neither turns off after the first kill or pickup: a one-shot rule left a
+  pointer-following player standing still while later waves took another lane (second spec review).
+- `build` shows while a spot is affordable (`0 < remaining_cost ≤ gold`; a maxed spot never is). `close` shows
+  only while `Pulse.should_pulse()` is true.
+- `take` waits for counter room for a full load (`min(carry_capacity, freezer, counter_capacity)`), and holds
+  while the hero fills up in the freezer zone. This stops one-steak trips after each sale.
+- An off-screen target gets an arrow clamped to the HUD's arrow rect (inset 40 px more), using the lane-arrow
+  maths, now in `core/edge_clamp.gd`.
+- Its one counter (walked distance) resets on `state_restored`. It never pauses or blocks input.
 - It ends on the first `phase_changed(NIGHT, day ≥ 2)`; `guide_done` is saved per device.
-- A sim proves it: a bot that only follows the pointer reaches night 2 with at least one build.
+- A sim proves it on two seeds: a bot that only follows the pointer clears night 1 with 0 fails and reaches
+  night 2 with at least one build.
 
 **D-214 Juice is one draw; two request signals.**
 - An `FxField` MultiMesh of 192 CPU-animated quads draws every poof, spark, sparkle and dust. When full, the
@@ -1917,14 +1927,19 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 - No GPUParticles and no Label3D pop-ups.
 - `EventBus.sfx_requested(id)` and `EventBus.fx_requested(kind, position)` carry local events (a throw, a hit, a
   payment tick, a UI press) to `AudioDirector` and `FxField`. No gameplay code listens to them.
-- Screen shake replaces the existing one in `camera_rig.gd`; it stays a camera offset from a fixed table, keeps
-  its cooldown, and can be turned off with `Balance.ui.shake_enabled`.
+- Screen shake replaces the existing one in `camera_rig.gd`; it stays a camera offset from a fixed table and can
+  be turned off with `Balance.ui.shake_enabled`. The cooldown gates `diner_damaged` only; `diner_fell` always
+  shakes, because both are emitted in one `damage_diner` call.
 - No randomness and no gameplay timing.
 
 **D-215 Warm-up.**
+- Task 7 first attributes the first-wave stall with an A/B on the profile build; the cause was never proven.
 - `Main._boot` awaits a warm-up that draws one of each visual inside the camera frustum, under an opaque boot-fade
-  layer, for two rendered frames, then frees them. Off-screen drawing would be culled and compile nothing.
+  layer, for three frames, then frees them. Off-screen drawing would be culled and compile nothing.
+- `_boot()` awaits only when a Warmup node exists, so tests that call it stay synchronous.
 - It uses temporary nodes only: no pools, no PickupField slot, no GameState, no Rng.
+- If `worst_ms` stays at or above 60 with every first-use item warmed, the measured cause becomes a known issue
+  for the final review.
 
 **D-216 HUD pass.**
 - Positions only: safe-area placement, the card strip clear of the diner bar, world labels dimmed (snapped to
@@ -1934,13 +1949,15 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 
 **D-217 New game.**
 - Settings panel → "New game" → a second tap after `card_input_guard_s` and within 3 s.
-- It calls `Main.fresh_start()`: wipe the save, `start_new_game()`, close the panel, unpause. The debug R key
-  calls the same function.
+- The panel emits `new_game_requested`; Main calls `fresh_start()`: wipe the save, `start_new_game()`, close the
+  panel, remove the `settings` pause reason. The debug R key calls the same function.
+- The panel hit-tests touches itself, because `emulate_mouse_from_touch` is off.
 
 **D-218 One pause owner.**
 - Main owns a set of pause reasons (`focus`, `settings`); the tree is paused while the set is not empty.
-- FocusPause and the settings panel add and remove their reason. FocusPause's private flag goes.
-- FocusPause emits `changed(paused)`; `AudioDirector.set_suspended()` pauses its players while the tab is hidden.
+- FocusPause only emits `changed(paused)` and no longer touches the tree. Main maps it to `focus` and clears the
+  reason when FocusPause leaves the tree. The settings panel adds and removes `settings`.
+- `AudioDirector.set_suspended()` pauses its players while the tab is hidden (wired in Task 3).
 
 **D-219 S5 gates.**
 - Baseline identical; validator green including audio.

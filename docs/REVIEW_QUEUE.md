@@ -70,5 +70,5 @@ direction, and anything that deviates from IDEA.md. Ranked by impact, highest fi
 ## Known issues (collected for the final review)
 
 1. Day phase runs at about 52 fps in the iOS Simulator (night about 58). Not the gate (night only); cause unresolved after three spikes (D-199); S5 perf work.
-2. There is a 280–300 ms stall when the first wave of a night spawns (first-use shader or pool cost). S5 perf work (warm-up).
+2. There is a stall of about 115–140 ms when the first wave of a night spawns (S4 final; 280–300 ms before the S4 bake). The cause is unproven (first-use shader or pool cost); S5 Task 7 attributes it, then warms up.
 3. One-time WebGL warnings (`bindBuffer: element array buffers can not be bound to a different target`, `bufferSubData: no buffer`) appear about 15–45 s into night 1 on Chromium; pre-existing on S3 main, nothing visibly wrong. S5 check.
