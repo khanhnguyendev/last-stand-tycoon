@@ -263,3 +263,12 @@ func test_queued_banner_shown_late_plays_min_time() -> void:
 	assert_true(saw_y, "Y was shown")
 	assert_eq(hud.banner.text, "Z")
 	assert_almost_eq(hud._banner_left, Balance.ui.banner_time, 3.0 / 60.0)
+
+func test_moon_tint_lit_and_unlit_after_a_wave_clears() -> void:
+	EventBus.phase_changed.emit(Phase.NIGHT, 1)
+	EventBus.wave_cleared.emit(0)
+	assert_gte(hud.moons.size(), 2)
+	assert_eq(hud.moons[0].modulate, Hud.MOON_LIT)
+	assert_eq(hud.moons[1].modulate, Palette.color(&"ink_soft"))
+	assert_ne(hud.moons[0].modulate, hud.moons[1].modulate)
+	assert_true(hud.moons[0].get_parent().get_child(0).visible, "the ink disc shows with its moon")

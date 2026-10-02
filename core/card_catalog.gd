@@ -14,6 +14,13 @@ const GLYPHS := {
 	&"hero_damage": "DM", &"attack_speed": "AS", &"move_speed": "MV", &"carry_capacity": "CA",
 	&"gold_per_steak": "GO", &"archer": "AR", &"tank": "TK",
 }
+## The rendered card icons (S4 Task 15, tools/render_icons.gd): 256x256, on the palette.
+const ICONS := {
+	&"hero_damage": "res://art/icons/card_hero_damage.png", &"attack_speed": "res://art/icons/card_attack_speed.png",
+	&"move_speed": "res://art/icons/card_move_speed.png", &"carry_capacity": "res://art/icons/card_carry_capacity.png",
+	&"gold_per_steak": "res://art/icons/card_gold_per_steak.png", &"archer": "res://art/icons/card_archer.png",
+	&"tank": "res://art/icons/card_tank.png",
+}
 
 static func kind(id: StringName) -> StringName:
 	assert(id in IDS, "unknown card %s" % id)

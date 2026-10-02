@@ -24,6 +24,6 @@ cap retry --phase=retry "$@"
 cap cardpick --scene=cardpick --seconds=3 "$@"
 for l in west north east; do cap "lane_$l" --lane=$l --seconds=2 "$@"; done
 cap hud --phase=day --crop-top=360 "$@"
-for f in "$OUT"/*.png; do case "$f" in *_40.png|*/hud.png) continue;; esac; sips -z 512 288 "$f" --out "${f%.png}_40.png" >/dev/null; done
+for f in "$OUT"/*.png; do case "$f" in *_40.png|*/hud.png|*/icons_sheet.png|*/moons.png) continue;; esac; sips -z 512 288 "$f" --out "${f%.png}_40.png" >/dev/null; done
 rm -f "$OUT"/.*.log
 ls "$OUT"

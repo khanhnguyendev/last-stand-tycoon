@@ -97,13 +97,22 @@ static func check_palette(dirs: PackedStringArray, hexes: Dictionary) -> Array[S
 				out.append("%s: %d opaque pixels off-palette" % [p, bad])
 	return out
 
-## ART_BIBLE R4: no enemy_* colour in any remapped atlas.
-static func check_no_enemy_colors(dir: String, enemy_hexes: Dictionary) -> Array[String]:
+## The enemy_* palette hexes (lowercase, no '#'), as a set.
+static func enemy_hexes() -> Dictionary:
+	var d := {}
+	for n in Palette.NAMES:
+		if String(n).begins_with("enemy_"):
+			d[Palette.HEX[Palette.index_of(n)]] = true
+	return d
+
+## ART_BIBLE R4: no enemy_* colour in any remapped atlas or icon. `skip` lists file names exempt from the rule (the
+## HUD heart is the allowed danger/health exception).
+static func check_no_enemy_colors(dir: String, enemy_hexes: Dictionary, skip: PackedStringArray = PackedStringArray()) -> Array[String]:
 	var out: Array[String] = []
 	var files: Array = []
 	_files(dir, files)
 	for p in files:
-		if not String(p).ends_with(".png"):
+		if not String(p).ends_with(".png") or skip.has(String(p).get_file()):
 			continue
 		var img := _load_png(p)
 		if img == null:
@@ -237,11 +246,9 @@ static func validate_project(host: Node = null) -> Dictionary:
 	var warnings: Array[String] = []
 	errors.append_array(check_licenses("res://assets", "res://docs/ASSET_LICENSES.md"))
 	errors.append_array(check_palette(PackedStringArray(["res://art/palette/atlas", "res://art/icons"]), Palette.hex_set()))
-	var enemy := {}
-	for n in Palette.NAMES:
-		if String(n).begins_with("enemy_"):
-			enemy[Palette.HEX[Palette.index_of(n)]] = true
+	var enemy := enemy_hexes()
 	errors.append_array(check_no_enemy_colors("res://art/palette/atlas", enemy))
+	errors.append_array(check_no_enemy_colors("res://art/icons", enemy, PackedStringArray(["heart.png"])))
 	errors.append_array(check_texture_sizes("res://art", 512))
 	errors.append_array(check_texture_sizes("res://art/icons", 256))
 	errors.append_array(check_stray_models("res://", PackedStringArray(STRAY_ALLOWED)))

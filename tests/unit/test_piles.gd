@@ -209,11 +209,12 @@ func test_coin_item_lies_flat_centred_and_thin() -> void:
 	assert_almost_eq(box.size.x, 0.3, 0.02)
 
 func test_pickup_meshes_use_the_shared_material_with_no_override() -> void:
-	for mesh in [PileMesh.steak_mesh(), PileMesh.coin_mesh()]:
-		for i in mesh.get_surface_count():
-			var mat: Material = mesh.surface_get_material(i)
-			assert_not_null(mat)
-			assert_true(mat.resource_path.begins_with("res://art/materials/"), "%s" % mat.resource_path)
+	for i in PileMesh.steak_mesh().get_surface_count():
+		var mat: Material = PileMesh.steak_mesh().surface_get_material(i)
+		assert_not_null(mat)
+		assert_true(mat.resource_path.begins_with("res://art/materials/"), "%s" % mat.resource_path)
+	assert_same(PileMesh.coin_mesh(), CoinMesh.get_mesh(), "the coin is the procedural CoinMesh (its material is in the mesh)")
+	assert_not_null(PileMesh.coin_mesh().surface_get_material(0))
 	for path in [PileMesh.STEAK_SCENE, PileMesh.COIN_SCENE]:
 		var root: Node = (load(path) as PackedScene).instantiate()
 		for mi in root.find_children("*", "MeshInstance3D", true, false):
