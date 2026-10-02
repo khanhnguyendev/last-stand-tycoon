@@ -2,6 +2,9 @@ extends GutTest
 ## S4 Task 8b, D-201: the baked characters (tools/bake_characters.gd) are one surface each, their props sit where the
 ## unbaked BoneAttachment3D props sit, and the retargeted prop UVs keep the prop's colours.
 
+## A stale bake moves vertices by cm; cross-platform float noise is < 1e-5..1e-4.
+const BAKE_TOL := 1e-4
+
 const BAKE := preload("res://tools/bake_characters.gd")
 const SKELETON := "Rig/Skeleton3D"
 const SCENES := {
@@ -51,7 +54,7 @@ func test_committed_bake_is_current() -> void:
 			assert_eq(fa.size(), fb.size(), "%s array %d size" % [role, k])
 			var off := 0
 			for i in mini(fa.size(), fb.size()):
-				if not fa[i].is_equal_approx(fb[i]):
+				if fa[i].distance_to(fb[i]) > BAKE_TOL:  # macOS arm64 vs Linux x86 float noise in the normal transform
 					off += 1
 			assert_eq(off, 0, "%s array %d: vertices that differ from the fresh bake" % [role, k])
 		assert_eq(fresh.mesh.get_meta("props"), _mesh(role).get_meta("props"), "%s prop ranges" % role)

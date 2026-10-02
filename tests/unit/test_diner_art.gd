@@ -2,6 +2,9 @@ extends GutTest
 ## S4 Task 11 (D-194, D-201): the diner, counter and freezer art. One baked mesh each, within budget, no physics, the
 ## roof top where the Archer stands, and the committed bake equals a fresh bake of its source scene.
 
+## A stale bake moves vertices by cm; cross-platform float noise is < 1e-5..1e-4.
+const BAKE_TOL := 1e-4
+
 const Bake := preload("res://tools/bake_static.gd")
 const SCENES := {
 	"res://art/env/diner.tscn": ["res://art/env/src/diner_src.tscn", "res://art/env/baked/diner.res", 3],
@@ -119,7 +122,7 @@ func test_committed_bake_is_current() -> void:
 				assert_eq(fa.size(), fb.size(), "%s surface %d array %d size" % [path, s, k])
 				var off := 0
 				for i in mini(fa.size(), fb.size()):
-					if not fa[i].is_equal_approx(fb[i]):
+					if fa[i].distance_to(fb[i]) > BAKE_TOL:  # macOS arm64 vs Linux x86 float noise in the normal transform
 						off += 1
 				assert_eq(off, 0, "%s surface %d array %d: vertices that differ from the fresh bake" % [path, s, k])
 			assert_eq(fresh.surface_get_material(s), committed.surface_get_material(s), "%s surface %d material" % [path, s])
