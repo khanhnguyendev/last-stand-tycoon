@@ -15,7 +15,9 @@ func test_nunito_has_all_glyphs() -> void:
 
 func test_world_label_uses_nunito() -> void:
 	var l := WorldLabel.make("x")
-	assert_eq(l.font.resource_path, WorldLabel.FONT_PATH)
+	assert_eq(l.font.resource_path, WorldLabel.BOLD_PATH)
+	assert_eq((l.font as FontVariation).base_font.resource_path, WorldLabel.FONT_PATH)
+	assert_eq(l.outline_size, 8)
 	l.free()
 
 func test_theme_font_wired() -> void:

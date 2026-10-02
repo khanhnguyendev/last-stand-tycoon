@@ -5,7 +5,7 @@ extends SceneTree
 ## The banner alpha is read from balance/ui_tuning.tres (banner_panel_alpha), so every number stays in balance/.
 
 const OUT := "res://ui/theme/game_theme.tres"
-const FONT := "res://ui/fonts/Nunito.ttf"
+const FONT := "res://ui/fonts/nunito_bold.tres"
 
 var _pal: GDScript
 

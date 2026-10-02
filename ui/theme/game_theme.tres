@@ -1,6 +1,6 @@
 [gd_resource type="Theme" format=3]
 
-[ext_resource type="FontFile" path="res://ui/fonts/Nunito.ttf" id="1_v71op"]
+[ext_resource type="FontVariation" path="res://ui/fonts/nunito_bold.tres" id="1_v71op"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_v71op"]
 content_margin_left = 20.0

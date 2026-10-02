@@ -33,11 +33,13 @@ var _delta_worst := 0.0
 func _ready() -> void:
 	layer = 20
 	_label = Label.new()
+	_label.theme_type_variation = &"HudLabel"
 	_label.position = Vector2(12, 1130)
 	_label.add_theme_font_size_override("font_size", 22)
 	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_label)
 	_frozen_label = Label.new()
+	_frozen_label.theme_type_variation = &"HudLabel"
 	_frozen_label.position = Vector2(12, 1215)
 	_frozen_label.add_theme_font_size_override("font_size", 13)
 	_frozen_label.mouse_filter = Control.MOUSE_FILTER_IGNORE

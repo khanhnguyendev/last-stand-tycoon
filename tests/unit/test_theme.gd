@@ -25,9 +25,10 @@ func _styleboxes() -> Array:
 
 func test_theme_loads_with_nunito_default_font() -> void:
 	assert_not_null(theme)
-	var f := theme.default_font as FontFile
+	var f := theme.default_font as FontVariation
 	assert_not_null(f)
-	assert_eq(f.resource_path, WorldLabel.FONT_PATH)
+	assert_eq(f.resource_path, WorldLabel.BOLD_PATH)
+	assert_eq(f.base_font.resource_path, WorldLabel.FONT_PATH)
 
 func test_every_stylebox_uses_only_palette_colours() -> void:
 	var pal := _palette_rgb()
