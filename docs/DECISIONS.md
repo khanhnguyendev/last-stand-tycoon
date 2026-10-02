@@ -1865,5 +1865,7 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
     The same build read 59.5 idle and 51.9 with an editor at 53% CPU.
   - Stale agent processes are killed first.
   - Readings taken with other Godot jobs running are invalid.
-- **Capture rule:** `tests/sim/capture.gd` fails unless the camera is in place and at least 5 frames were drawn
-  after it. A loaded machine produced stale and origin-camera shots twice.
+- **Capture rule:** the bad shots came from `FocusPause` (D-147). It pauses the tree when the capture window loses
+  focus, while rendering and `physics_frame` carry on, so a shot shows a frozen game: wrong banners, no Boars, or
+  the camera before it moved. `tests/sim/capture.gd` now removes FocusPause and fails if the tree is paused, the
+  camera is not in place, or fewer than 5 frames were drawn after the camera was set.

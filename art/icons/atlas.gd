@@ -1,6 +1,6 @@
 class_name IconAtlas
 extends RefCounted
-## The icon atlas (S4 Task 16b, D-201 applied to the HUD): all 11 icons at 128 px in one 4x3 grid, so a Control that draws
+## The icon atlas (S4 Task 16b, D-201 applied to the HUD): all 11 icons at 128 px in one 4x4 grid (512x512), so a Control that draws
 ## several icons issues one batched draw. Written by tools/render_icons.gd (`--atlas-only` rebuilds it from the committed
 ## per-icon PNGs, which stay the checked source and what the card overlay shows). NAMES is the grid order, row-major,
 ## followed by SHAPES: two solid UI shapes baked as cells (the card backing, an ink disc), so a Control that draws

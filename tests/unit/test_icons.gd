@@ -105,3 +105,12 @@ func test_atlas_only_uses_the_enemy_colours_in_the_heart_cell() -> void:
 				if c.a8 == 255 and enemy.has(c.to_html(false)):
 					found = true
 		assert_eq(found, n == &"heart", "%s: enemy colours only in the heart cell" % n)
+	for shape in IconAtlas.SHAPES:
+		var r := IconAtlas.region(shape)
+		var bad := 0
+		for y in range(int(r.position.y), int(r.end.y)):
+			for x in range(int(r.position.x), int(r.end.x)):
+				var c := atlas.get_pixel(x, y)
+				if c.a8 == 255 and enemy.has(c.to_html(false)):
+					bad += 1
+		assert_eq(bad, 0, "shape cell %s has no enemy colour" % shape)
