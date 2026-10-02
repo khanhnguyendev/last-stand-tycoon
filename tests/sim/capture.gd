@@ -147,6 +147,7 @@ func _run() -> void:
 	elif phase_arg == "night" and not _args.has("save"):
 		await _wait(float(_args.get("seconds", "12")))
 	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(main.hero.xz()), _bal.ui)
+	var frames_at_cam := Engine.get_frames_drawn()
 	var t0 := Time.get_ticks_msec()  # let the diner's occlusion fade (D-151) settle: 3x its fade time
 	while Time.get_ticks_msec() - t0 < int(_bal.ui.occluder_fade_s * 1000.0) * 3:
 		await process_frame
@@ -156,6 +157,16 @@ func _run() -> void:
 		push_error("capture: camera not in place (current=%s pos=%s want=%s)" % [cam.current, cam.global_position, want.origin])
 		quit(1)
 		return
+	# Guard 2: under load rendering can stall and get_image() returns an old frame. Require 5 frames drawn since the camera
+	# was set (10 s wall clock), then grab right after a frame is presented.
+	var t1 := Time.get_ticks_msec()
+	while Engine.get_frames_drawn() - frames_at_cam < 5 and Time.get_ticks_msec() - t1 < 10000:
+		await process_frame
+	if Engine.get_frames_drawn() - frames_at_cam < 5:
+		push_error("capture: only %d frames drawn since the camera was set (stalled renderer)" % (Engine.get_frames_drawn() - frames_at_cam))
+		quit(1)
+		return
+	await RenderingServer.frame_post_draw
 	var img := root.get_texture().get_image()
 	if img.get_size() != Vector2i(720, 1280):
 		push_warning("capture size %s" % img.get_size())

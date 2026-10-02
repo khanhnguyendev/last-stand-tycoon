@@ -76,7 +76,7 @@ func test_atlas_is_a_grid_of_every_icon() -> void:
 
 func test_atlas_cell_matches_its_icon_file() -> void:
 	var atlas := _image(IconAtlas.PATH)
-	for n in [&"coin", &"heart", &"card_tank"]:
+	for n in IconAtlas.NAMES:
 		var src := _image("res://art/icons/%s.png" % n)
 		src.convert(Image.FORMAT_RGBA8)
 		src.resize(IconAtlas.CELL, IconAtlas.CELL, Image.INTERPOLATE_BILINEAR)

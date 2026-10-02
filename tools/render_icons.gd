@@ -10,7 +10,7 @@ extends SceneTree
 ## every other icon drops the enemy_* and traveler_* names, so steel shades land on steel, steel_dark or stone.
 ## Byte-identical output holds on the same GPU and driver (the render is hardware-dependent); the committed PNGs are the
 ## product, and CI never re-renders them.
-## `--atlas-only` skips the rendering and only rebuilds art/icons/atlas.png (Task 16b).
+## `--atlas-only` skips the rendering and only rebuilds art/icons/atlas.png (Task 16b); it needs the committed atlas.png to exist (import) and the per-icon PNGs.
 ## Editor/test only (tools/ is excluded from every web export).
 
 const OUT_DIR := "res://art/icons/"

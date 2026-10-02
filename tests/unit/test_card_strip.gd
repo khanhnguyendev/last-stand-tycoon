@@ -45,6 +45,8 @@ func test_hud_icons_are_present() -> void:
 	assert_lt(hud.icons.coin_rect().end.x, hud.gold_label.get_global_rect().position.x + 1.0, "the coin sits left of the gold label")
 	assert_lt(hud.icons.heart_rect().end.x, hud.diner_bar.get_global_rect().position.x + 1.0, "the heart sits left of the bar")
 	assert_eq(hud.moons.size(), GameState.lane_plan.size())
+	assert_eq(hud.icons.coin_rect().position, hud.root.global_position + Vector2(24, 22))
+	assert_eq(hud.icons.heart_rect().position, hud.diner_bar.get_parent().get_global_rect().position + Vector2(-56, -18))
 
 func test_strip_after_restore_with_cards() -> void:
 	GameState.debug_grant_card(&"archer")
@@ -58,5 +60,5 @@ func test_strip_after_restore_with_cards() -> void:
 
 func test_every_card_has_an_atlas_cell() -> void:
 	for id in CardCatalog.IDS:
-		var r := IconAtlas.region(CardStrip._icon_name(id))
-		assert_eq(r.size, Vector2(IconAtlas.CELL, IconAtlas.CELL))
+		assert_true(IconAtlas.NAMES.has(CardStrip._icon_name(id)), "%s has an atlas icon" % id)
+	assert_eq(CardStrip._icon_name(&"tank"), &"card_tank")

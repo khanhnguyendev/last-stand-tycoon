@@ -10,8 +10,8 @@ const CELL := 128
 const COLS := 4
 const NAMES: Array[StringName] = [
 	&"card_hero_damage", &"card_attack_speed", &"card_move_speed", &"card_carry_capacity",
-	&"card_gold_per_steak", &"card_archer", &"card_tank", &"coin",
-	&"steak", &"heart", &"moon",
+	&"card_gold_per_steak", &"coin", &"steak", &"heart",
+	&"moon", &"card_archer", &"card_tank",
 ]
 ## Baked shapes: the card backing (the theme's Panel look: cream at 0.95, 4 px ink border, 20 px radius on a 56 px cell,
 ## scaled to the cell) and an ink disc. Both are inset PAD px inside their cell so mip filtering never reads a neighbour.

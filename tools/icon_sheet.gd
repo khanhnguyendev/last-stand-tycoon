@@ -10,7 +10,7 @@ func _initialize() -> void:
 			out = a.trim_prefix("--out=")
 	var files: Array[String] = []
 	for f in DirAccess.get_files_at("res://art/icons"):
-		if f.ends_with(".png"):
+		if f.ends_with(".png") and f != "atlas.png":
 			files.append(f)
 	files.sort()
 	var cols := 4
