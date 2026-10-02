@@ -4,10 +4,25 @@ extends Node3D
 ## atlas material (castle atlas, tower-defense atlas): 2 draws for all of them. No collision. Visual only: no Rng, no
 ## gameplay state. The merge runs once at build() (62 small meshes, a few ms).
 
+## The merged meshes are built once per run and shared by every Props node (tests create Main many times).
+static var _merged: Array[ArrayMesh] = []
+
 ## Builds the MeshInstance3D children once (idempotent).
 func build() -> void:
 	if get_child_count() > 0:
 		return
+	if _merged.is_empty():
+		_merged = _merge_all()
+	for merged in _merged:
+		var mat := merged.surface_get_material(0)
+		var mi := MeshInstance3D.new()
+		mi.name = "Props_" + (mat.resource_path.get_file().get_basename() if mat != null and mat.resource_path != "" else str(get_child_count()))
+		mi.mesh = merged
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+
+static func _merge_all() -> Array[ArrayMesh]:
+	var out: Array[ArrayMesh] = []
 	var groups := {}  # Material -> {v, n, uv, i}
 	var order: Array[Material] = []
 	for it in PropsLayout.ITEMS:
@@ -31,11 +46,8 @@ func build() -> void:
 		var merged := ArrayMesh.new()
 		merged.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 		merged.surface_set_material(0, mat)
-		var mi := MeshInstance3D.new()
-		mi.name = "Props_" + (mat.resource_path.get_file().get_basename() if mat.resource_path != "" else str(get_child_count()))
-		mi.mesh = merged
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mi)
+		out.append(merged)
+	return out
 
 static func _append(g: Dictionary, arrays: Array, xf: Transform3D) -> void:
 	var v: PackedVector3Array = g.v
