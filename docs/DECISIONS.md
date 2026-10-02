@@ -1869,3 +1869,55 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
   focus, while rendering and `physics_frame` carry on, so a shot shows a frozen game: wrong banners, no Boars, or
   the camera before it moved. `tests/sim/capture.gd` now removes FocusPause and fails if the tree is paused, the
   camera is not in place, or fewer than 5 frames were drawn after the camera was set.
+
+## 2026-10-02: S5 spec (autonomous, D-159)
+
+Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-design.md` §3.
+
+**D-210 Settings live outside the save.**
+- A `SettingsStore` keeps `{v, muted, guide_done}` under `lst:<pathname>:settings` (a `user://` file off web).
+- A corrupt or missing value means defaults. New game does not reset it.
+
+**D-211 Audio sources and size.**
+- **SFX:** Kenney CC0 audio packs.
+- **Music:** two OpenGameArt CC0 tracks: day "Happy Adventure Loop" (tinyworlds), night "Chiptune Adventures:
+  Stage 2" (Juhani Junkala). They are re-encoded with ffmpeg to mono Ogg at about 64 kbps.
+- **Budget:** all audio at most 2.5 MB; the validator enforces it.
+- **Chosen without listening:** the agent cannot hear. Every choice is one line in
+  `art/audio/audio_manifest.gd`, listed in `docs/review/AUDIO.md` (REVIEW_QUEUE, high).
+
+**D-212 Web unlock and mute.**
+- Nothing plays before the first user gesture; music starts at unlock.
+- One toggle mutes the Master bus and is saved at once.
+
+**D-213 Onboarding is one pointer.**
+- A `Guide` shows one bouncing arrow with at most three words, from an ordered rule list over the game state.
+- It covers night 1 and day 1: move, fight, grab, take, stock, collect, build, close.
+- It never pauses or blocks input.
+- It ends when night 2 starts; `guide_done` is saved per device.
+
+**D-214 Juice is one draw.**
+- An `FxField` MultiMesh of CPU-animated quads draws every poof, spark, sparkle and dust.
+- No GPUParticles and no Label3D pop-ups.
+- Screen shake is a camera-rig offset from a fixed table.
+- No randomness and no gameplay timing.
+
+**D-215 Warm-up.**
+- A boot step draws one of each visual off-screen for two frames behind a 0.3 s boot fade, to remove the
+  first-wave stall.
+- It uses no pools, no GameState and no Rng.
+
+**D-216 HUD pass.**
+- Positions only: safe-area placement, the card strip clear of the diner bar, world labels fading under HUD
+  blocks, a settings gear top-right.
+- The joystick gets palette colours.
+
+**D-217 New game.**
+- Settings panel → "New game" → a second tap within 3 s. It wipes the save and calls `fresh_start`.
+- The panel pauses the tree.
+
+**D-218 S5 gates.**
+- Baseline identical; validator green including audio.
+- Night-3 median ≥ 58 fps on an idle Mac; first-wave worst frame < 60 ms.
+- D-196 size gates.
+- Audio is verified by state on web (unlock, no console errors, mute persists), not by ear.
