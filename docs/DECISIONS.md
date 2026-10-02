@@ -1831,3 +1831,19 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
   variation (`wght` 800, `ui/fonts/nunito_bold.tres`). The world-label outline is 8, down from 12, so digits read
   solid at phone size.
 - **Lane arrows** use `enemy_red`.
+
+**D-208 Icons, card art, coin (S4 Task 15; amends D-195, D-203).**
+- **Icons:** `tools/render_icons.gd` renders 11 icons from the game's own 3D art at 256 px. Each is quantised to a
+  per-subject palette:
+  - no enemy reds, except the heart;
+  - no traveler tones, so steel reads as steel;
+  - no gold on food.
+- **HUD:** a coin icon beside the gold counter (the label moved right to fit it), a heart beside the diner bar, and
+  moons on ink discs (lit warm white, unlit dim).
+- **Cards:** each card shows its portrait leading the text row; the card size is unchanged. The card strip shows
+  backed icons with level badges.
+- **Coin:** a procedural solid gold coin (`art/pickups/coin_mesh.gd`, 288 triangles) replaces the Kenney Platformer
+  coin, which was a hollow octagon that read as a nut. The Platformer pack is removed.
+- **Not in the HUD:** there is no steak counter; `steak.png` is rendered but unused until S5 decides.
+- **Tooling:** `tests/sim/capture.gd` now fails if the camera is not in place at grab time. One glitched shot was
+  found and retaken.

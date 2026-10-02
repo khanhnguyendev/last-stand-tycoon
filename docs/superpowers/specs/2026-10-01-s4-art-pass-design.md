@@ -304,7 +304,7 @@ No test is dropped or weakened (D-132 spirit).
 | Travelers | Rogue / Mage, no props, three muted variants each | Variant from the factory counter (D-191). |
 | Boar | Production procedural mesh (D-192) | Tusks at about 55°, ridge of 5. |
 | Steak | kenney-food `meat-cooked` (fallback `meat-ribs`) | Same model on the ground, in stacks and in fly FX. |
-| Coin | kenney-platformer `coin-gold` | Pile, fly FX and icon source. |
+| Coin | Procedural gold disc (`art/pickups/coin_mesh.gd`, D-208) | Pile, fly FX and icon source. |
 | Carry stack | MultiMesh of steaks above the hero's hands | Up to the carry cap. |
 | Counter | kk-restaurant `kitchencounter_straight_*` ×3 + a steak MultiMesh grid | On the existing 3×1 body. |
 | Freezer | kk-restaurant `fridge_A` + a steak MultiMesh stack beside it | On the existing 1.5×1.5 body. |
