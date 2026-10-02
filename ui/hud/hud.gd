@@ -99,7 +99,7 @@ func _ready() -> void:
 	for key in ["main", "side"]:
 		var p := Polygon2D.new()
 		p.polygon = PackedVector2Array([Vector2(-20, -16), Vector2(20, -16), Vector2(0, 20)])
-		p.color = Color("e03030")
+		p.color = Palette.color(&"enemy_red")
 		p.scale = Vector2.ONE if key == "main" else Vector2.ONE * Balance.ui.arrow_side_scale
 		p.visible = false
 		root.add_child(p)

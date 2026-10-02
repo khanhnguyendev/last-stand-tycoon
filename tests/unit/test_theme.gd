@@ -16,6 +16,11 @@ func _palette_rgb() -> Dictionary:
 		d[Color(c.r, c.g, c.b, 1.0).to_html(false)] = true
 	return d
 
+func _sorted(a: PackedStringArray) -> Array:
+	var l := Array(a)
+	l.sort()
+	return l
+
 func _styleboxes() -> Array:
 	var out: Array = []
 	for t in theme.get_stylebox_type_list():
@@ -79,3 +84,47 @@ func test_banner_and_label_variations() -> void:
 func test_project_applies_the_theme_and_keeps_the_font() -> void:
 	assert_eq(ProjectSettings.get_setting("gui/theme/custom", ""), THEME_PATH)
 	assert_eq(ProjectSettings.get_setting("gui/theme/custom_font", ""), WorldLabel.FONT_PATH)
+
+func test_default_font_is_nunito_at_weight_800() -> void:
+	var tag: int = TextServerManager.get_primary_interface().name_to_tag("wght")
+	var f := theme.default_font as FontVariation
+	assert_eq(int(f.variation_opentype.get(tag, -1)), 800)
+	var axes: Dictionary = (f.base_font as FontFile).get_supported_variation_list()
+	assert_true(axes.has(tag), "the base font supports wght")
+	assert_between(800, axes[tag].x, axes[tag].y)
+
+func test_every_theme_colour_is_a_palette_colour() -> void:
+	var pal := _palette_rgb()
+	var n := 0
+	for t in theme.get_color_type_list():
+		for name in theme.get_color_list(t):
+			var c := theme.get_color(name, t)
+			assert_true(pal.has(Color(c.r, c.g, c.b, 1.0).to_html(false)), "%s/%s" % [t, name])
+			n += 1
+	assert_gt(n, 10)
+
+func test_committed_theme_matches_the_builder() -> void:
+	var built: Theme = load(BUILDER).build()
+	assert_eq(_sorted(built.get_stylebox_type_list()), _sorted(theme.get_stylebox_type_list()))
+	assert_eq(_sorted(built.get_color_type_list()), _sorted(theme.get_color_type_list()))
+	assert_eq(_sorted(built.get_constant_type_list()), _sorted(theme.get_constant_type_list()))
+	assert_eq(built.default_font.resource_path, theme.default_font.resource_path)
+	for t in built.get_stylebox_type_list():
+		assert_eq(_sorted(built.get_stylebox_list(t)), _sorted(theme.get_stylebox_list(t)), t)
+		for n in built.get_stylebox_list(t):
+			var a := built.get_stylebox(n, t) as StyleBoxFlat
+			var b := theme.get_stylebox(n, t) as StyleBoxFlat
+			var id := "%s/%s" % [t, n]
+			assert_eq(a.bg_color, b.bg_color, id)
+			assert_eq(a.border_color, b.border_color, id)
+			assert_eq(a.border_width_left, b.border_width_left, id)
+			assert_eq(a.get_corner_radius(CORNER_TOP_LEFT), b.get_corner_radius(CORNER_TOP_LEFT), id)
+			assert_eq(a.content_margin_left, b.content_margin_left, id)
+	for t in built.get_color_type_list():
+		for n in built.get_color_list(t):
+			assert_eq(built.get_color(n, t), theme.get_color(n, t), "%s/%s" % [t, n])
+	for t in built.get_constant_type_list():
+		for n in built.get_constant_list(t):
+			assert_eq(built.get_constant(n, t), theme.get_constant(n, t), "%s/%s" % [t, n])
+	for v in [&"BannerPanel", &"CardPanelAdventurer", &"CardPanelUpgrade", &"HudLabel", &"HudCounter", &"BannerLabel"]:
+		assert_eq(built.get_type_variation_base(v), theme.get_type_variation_base(v), str(v))

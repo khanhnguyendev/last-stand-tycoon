@@ -7,13 +7,13 @@ extends SceneTree
 const OUT := "res://ui/theme/game_theme.tres"
 const FONT := "res://ui/fonts/nunito_bold.tres"
 
-var _pal: GDScript
+static var _pal: GDScript
 
-func _c(n: StringName, a: float = 1.0) -> Color:
+static func _c(n: StringName, a: float = 1.0) -> Color:
 	var c: Color = _pal.color(n)
 	return Color(c.r, c.g, c.b, a)
 
-func _box(bg: Color, border: Color, border_w: int, radius: int, margin: int = 0) -> StyleBoxFlat:
+static func _box(bg: Color, border: Color, border_w: int, radius: int, margin: int = 0) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	s.bg_color = bg
 	s.border_color = border
@@ -23,25 +23,26 @@ func _box(bg: Color, border: Color, border_w: int, radius: int, margin: int = 0)
 	s.anti_aliasing = true
 	return s
 
-func _card(band: Color) -> StyleBoxFlat:
+static func _card(band: Color) -> StyleBoxFlat:
 	var s := _box(_c(&"diner_cream", 0.95), band, 0, 20)
 	s.border_width_left = 16
 	return s
 
-func _variation(t: Theme, name: StringName, base: StringName) -> void:
+static func _variation(t: Theme, name: StringName, base: StringName) -> void:
 	t.set_type_variation(name, base)
 
-func _label_look(t: Theme, type: StringName, font: Color, outline: Color, outline_size: int) -> void:
+static func _label_look(t: Theme, type: StringName, font: Color, outline: Color, outline_size: int) -> void:
 	t.set_color("font_color", type, font)
 	t.set_color("font_outline_color", type, outline)
 	t.set_constant("outline_size", type, outline_size)
 
-func build() -> Theme:
+## The whole theme, built from the palette. Static so tests can compare it with the committed .tres.
+static func build() -> Theme:
 	_pal = load("res://art/palette/palette.gd")
 	var ui = load("res://balance/ui_tuning.tres")
 	var t := Theme.new()
 	t.default_font = load(FONT)
-	var panel := _box(_c(&"diner_cream", 0.95), _c(&"ink"), 4, 20)
+	var panel := _box(_c(&"diner_cream", 0.95), _c(&"ink"), 4, 20, 8)  # margin 8 clears the 4 px border
 	t.set_stylebox("panel", "Panel", panel)
 	t.set_stylebox("panel", "PanelContainer", panel.duplicate())
 	# Banner: night sky backing, light text (BannerLabel).
@@ -55,10 +56,10 @@ func build() -> Theme:
 	# ProgressBar: ink track, guard-green fill.
 	t.set_stylebox("background", "ProgressBar", _box(_c(&"ink"), _c(&"ink"), 2, 8))
 	t.set_stylebox("fill", "ProgressBar", _box(_c(&"guard_green"), _c(&"ink"), 2, 8))
-	# Button: cream, ink outline; gold when pressed.
+	# Button: cream; the border carries the state (ink, warm_white on hover, gold pressed: gold is an accent only).
 	t.set_stylebox("normal", "Button", _box(_c(&"diner_cream"), _c(&"ink"), 4, 16, 12))
-	t.set_stylebox("hover", "Button", _box(_c(&"warm_white"), _c(&"ink"), 4, 16, 12))
-	t.set_stylebox("pressed", "Button", _box(_c(&"gold"), _c(&"ink"), 4, 16, 12))
+	t.set_stylebox("hover", "Button", _box(_c(&"diner_cream"), _c(&"warm_white"), 4, 16, 12))
+	t.set_stylebox("pressed", "Button", _box(_c(&"diner_cream"), _c(&"gold"), 4, 16, 12))
 	t.set_stylebox("disabled", "Button", _box(_c(&"traveler_beige"), _c(&"ink_soft"), 4, 16, 12))
 	t.set_stylebox("focus", "Button", _box(_c(&"diner_cream", 0.0), _c(&"gold"), 4, 16))
 	t.set_color("font_color", "Button", _c(&"ink"))
