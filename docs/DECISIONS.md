@@ -1876,48 +1876,77 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 
 **D-210 Settings live outside the save.**
 - A `SettingsStore` keeps `{v, muted, guide_done}` under `lst:<pathname>:settings` (a `user://` file off web).
-- A corrupt or missing value means defaults. New game does not reset it.
+- A corrupt or missing value means defaults. `SaveStore.wipe()` and New game do not reset it.
+- It is built only in the `auto_start` boot path; tests inject it.
 
 **D-211 Audio sources and size.**
-- **SFX:** Kenney CC0 audio packs.
+- **SFX:** Kenney CC0 audio packs, one file per event.
 - **Music:** two OpenGameArt CC0 tracks: day "Happy Adventure Loop" (tinyworlds), night "Chiptune Adventures:
-  Stage 2" (Juhani Junkala). They are re-encoded with ffmpeg to mono Ogg at about 64 kbps.
-- **Budget:** all audio at most 2.5 MB; the validator enforces it.
-- **Chosen without listening:** the agent cannot hear. Every choice is one line in
-  `art/audio/audio_manifest.gd`, listed in `docs/review/AUDIO.md` (REVIEW_QUEUE, high).
+  Stage 2" (Juhani Junkala). Each lives in `assets/oga-<slug>/` with a `LICENSE.txt` that records the page URL,
+  the retrieval date, the licence field verbatim, the uploader-is-author check, the source SHA-256 and the ffmpeg
+  command.
+- **Encoding:** MP3 (libmp3lame), mono, 32 kHz, 64 kbps, at most 60 s. The installed ffmpeg has no libvorbis. An
+  MP3 loop may have a small gap at the loop point; `docs/review/AUDIO.md` says so.
+- **Budget:** all audio at most 2.5 MB. The validator enforces it and fails on any audio file the manifest does
+  not name.
+- **Chosen without listening:** the agent cannot hear. Sounds are picked by measured length, peak and mean level
+  (±3 dB of a class target). Every choice is one line in `art/audio/audio_manifest.gd`, listed in
+  `docs/review/AUDIO.md` (REVIEW_QUEUE, high).
 
-**D-212 Web unlock and mute.**
-- Nothing plays before the first user gesture; music starts at unlock.
+**D-212 Web unlock, playback type and mute.**
+- Nothing plays before the audio context runs; music starts at unlock with the current phase's track.
+- **Probe:** the web shell wraps `AudioContext` and keeps each context in `window.LST_AUDIO`; `unlocked` is "some
+  context is running". Off web it is true at once. Fallback: "an input release was seen".
+- **Playback:** sample playback, with every manifest stream registered at boot behind the boot fade. Fallback for
+  music: stream playback.
+- A Task 3 spike proves the probe and the registration cost on the iOS Simulator and Chromium first.
 - One toggle mutes the Master bus and is saved at once.
 
 **D-213 Onboarding is one pointer.**
-- A `Guide` shows one bouncing arrow with at most three words, from an ordered rule list over the game state.
-- It covers night 1 and day 1: move, fight, grab, take, stock, collect, build, close.
-- It never pauses or blocks input.
-- It ends when night 2 starts; `guide_done` is saved per device.
+- A `Guide` shows one pointer with at most three words, from an ordered list of pure state predicates.
+- Night 1 (`day == 1`): move, fight, grab. First day (`day == 2`): build, collect, stock, take, close.
+- `build` shows while any spot is affordable; `close` shows only while `Pulse.should_pulse()` is true.
+- An off-screen target gets an arrow clamped to the safe rect's edge, using the HUD lane-arrow maths.
+- Its two counters reset on `state_restored`. It never pauses or blocks input.
+- It ends on the first `phase_changed(NIGHT, day ≥ 2)`; `guide_done` is saved per device.
+- A sim proves it: a bot that only follows the pointer reaches night 2 with at least one build.
 
-**D-214 Juice is one draw.**
-- An `FxField` MultiMesh of CPU-animated quads draws every poof, spark, sparkle and dust.
+**D-214 Juice is one draw; two request signals.**
+- An `FxField` MultiMesh of 192 CPU-animated quads draws every poof, spark, sparkle and dust. When full, the
+  oldest quads are replaced.
 - No GPUParticles and no Label3D pop-ups.
-- Screen shake is a camera-rig offset from a fixed table.
+- `EventBus.sfx_requested(id)` and `EventBus.fx_requested(kind, position)` carry local events (a throw, a hit, a
+  payment tick, a UI press) to `AudioDirector` and `FxField`. No gameplay code listens to them.
+- Screen shake replaces the existing one in `camera_rig.gd`; it stays a camera offset from a fixed table, keeps
+  its cooldown, and can be turned off with `Balance.ui.shake_enabled`.
 - No randomness and no gameplay timing.
 
 **D-215 Warm-up.**
-- A boot step draws one of each visual off-screen for two frames behind a 0.3 s boot fade, to remove the
-  first-wave stall.
-- It uses no pools, no GameState and no Rng.
+- `Main._boot` awaits a warm-up that draws one of each visual inside the camera frustum, under an opaque boot-fade
+  layer, for two rendered frames, then frees them. Off-screen drawing would be culled and compile nothing.
+- It uses temporary nodes only: no pools, no PickupField slot, no GameState, no Rng.
 
 **D-216 HUD pass.**
-- Positions only: safe-area placement, the card strip clear of the diner bar, world labels fading under HUD
-  blocks, a settings gear top-right.
-- The joystick gets palette colours.
+- Positions only: safe-area placement, the card strip clear of the diner bar, world labels dimmed (snapped to
+  alpha 0.15) under HUD blocks, a settings gear top-right.
+- The gear, the joystick ring and the knob are icon-atlas cells.
+- The unused `steak` icon is removed; v0.1 has no steak counter.
 
 **D-217 New game.**
-- Settings panel → "New game" → a second tap within 3 s. It wipes the save and calls `fresh_start`.
-- The panel pauses the tree.
+- Settings panel → "New game" → a second tap after `card_input_guard_s` and within 3 s.
+- It calls `Main.fresh_start()`: wipe the save, `start_new_game()`, close the panel, unpause. The debug R key
+  calls the same function.
 
-**D-218 S5 gates.**
+**D-218 One pause owner.**
+- Main owns a set of pause reasons (`focus`, `settings`); the tree is paused while the set is not empty.
+- FocusPause and the settings panel add and remove their reason. FocusPause's private flag goes.
+- FocusPause emits `changed(paused)`; `AudioDirector.set_suspended()` pauses its players while the tab is hidden.
+
+**D-219 S5 gates.**
 - Baseline identical; validator green including audio.
-- Night-3 median ≥ 58 fps on an idle Mac; first-wave worst frame < 60 ms.
+- Perf, median of 3 on an idle Mac: night-3 `avg_fps` ≥ 58; night-3 `worst_ms` < 60; day-3 `avg_fps` no lower
+  than the S4 `main` build read in the same session, minus 1.
 - D-196 size gates.
-- Audio is verified by state on web (unlock, no console errors, mute persists), not by ear.
+- Web console: no new error or warning against a baseline recorded from `main`.
+- Audio is verified by state on web (suspended before a gesture, running after, mute persists), not by ear. Its
+  CPU cost is reported from a Chromium A/B and is not gated.
