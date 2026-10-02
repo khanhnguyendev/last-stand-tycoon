@@ -10,6 +10,7 @@ extends SceneTree
 ## every other icon drops the enemy_* and traveler_* names, so steel shades land on steel, steel_dark or stone.
 ## Byte-identical output holds on the same GPU and driver (the render is hardware-dependent); the committed PNGs are the
 ## product, and CI never re-renders them.
+## `--atlas-only` skips the rendering and only rebuilds art/icons/atlas.png (Task 16b); it needs the committed atlas.png to exist (import) and the per-icon PNGs.
 ## Editor/test only (tools/ is excluded from every web export).
 
 const OUT_DIR := "res://art/icons/"
@@ -36,6 +37,9 @@ func _initialize() -> void:
 	_run()
 
 func _run() -> void:
+	if "--atlas-only" in OS.get_cmdline_user_args():
+		quit(0 if _write_atlas() else 1)
+		return
 	var ui: UiTuning = load("res://balance/ui_tuning.tres")
 	HERO = load("res://art/characters/hero_visual.tscn")
 	ARCHER = load("res://art/characters/archer_visual.tscn")
@@ -69,7 +73,89 @@ func _run() -> void:
 
 	for s in _subjects():
 		await _render(s, _palette_for(s.name))
+	if not _write_atlas():
+		_failed = true
 	quit(1 if _failed else 0)
+
+## art/icons/atlas.png: every icon halved to IconAtlas.CELL (2x2 box, alpha-weighted colour), remapped to the icon's own
+## palette (so the atlas is on-palette, and R4 holds per cell), in IconAtlas.NAMES order. Rebuild alone with
+## `-s res://tools/render_icons.gd -- --atlas-only` (needs no rendering). Deterministic.
+func _write_atlas() -> bool:
+	var sheet := Image.create_empty(IconAtlas.COLS * IconAtlas.CELL, IconAtlas.rows() * IconAtlas.CELL, false, Image.FORMAT_RGBA8)
+	for i in IconAtlas.NAMES.size():
+		var n := String(IconAtlas.NAMES[i])
+		var src := Image.load_from_file(ProjectSettings.globalize_path(OUT_DIR + n + ".png"))
+		if src == null:
+			push_error("atlas: cannot read %s" % n)
+			return false
+		src.convert(Image.FORMAT_RGBA8)
+		var half := _box_half(src)
+		half = PaletteMath.remap_image(half, _palette_for(n), {})
+		sheet.blit_rect(half, Rect2i(0, 0, IconAtlas.CELL, IconAtlas.CELL), Vector2i((i % IconAtlas.COLS) * IconAtlas.CELL, (i / IconAtlas.COLS) * IconAtlas.CELL))
+	for j in IconAtlas.SHAPES.size():
+		var k := IconAtlas.NAMES.size() + j
+		var shape := _shape(IconAtlas.SHAPES[j])
+		shape = PaletteMath.remap_image(shape, _palette_of([&"diner_cream", &"ink"] if IconAtlas.SHAPES[j] == &"backing" else [&"ink"]), {})
+		sheet.blit_rect(shape, Rect2i(0, 0, IconAtlas.CELL, IconAtlas.CELL), Vector2i((k % IconAtlas.COLS) * IconAtlas.CELL, (k / IconAtlas.COLS) * IconAtlas.CELL))
+	var err := sheet.save_png(ProjectSettings.globalize_path(IconAtlas.PATH))
+	if err != OK:
+		push_error("save atlas: %s" % error_string(err))
+		return false
+	print("RENDERED ", IconAtlas.PATH)
+	return true
+
+## A solid shape cell, analytic with 4x4 supersampling: "disc" is an ink circle; "backing" is the theme's Panel box
+## (diner_cream at alpha 0.95, ink border, rounded) scaled from its 56 px cell to the atlas cell.
+static func _shape(shape: StringName) -> Image:
+	var cell := IconAtlas.CELL
+	var out := Image.create_empty(cell, cell, false, Image.FORMAT_RGBA8)
+	var half := float(cell - 2 * IconAtlas.PAD) * 0.5
+	var scale := float(cell - 2 * IconAtlas.PAD) / 56.0
+	var border := 4.0 * scale
+	var radius := 20.0 * scale if shape == &"backing" else half
+	var cream := Palette.color(&"diner_cream")
+	var ink := Palette.color(&"ink")
+	for y in cell:
+		for x in cell:
+			var a := 0.0
+			var rgb := Vector3.ZERO
+			for sy in 4:
+				for sx in 4:
+					var p := Vector2(float(x) + (float(sx) + 0.5) / 4.0, float(y) + (float(sy) + 0.5) / 4.0) - Vector2(cell, cell) * 0.5
+					var q := p.abs() - Vector2(half - radius, half - radius)
+					var d := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length() + minf(maxf(q.x, q.y), 0.0) - radius
+					if d > 0.0:
+						continue
+					var col := ink
+					var al := 1.0
+					if shape == &"backing" and d < -border:
+						col = cream
+						al = 0.95
+					a += al
+					rgb += Vector3(col.r, col.g, col.b) * al
+			if a > 0.0:
+				rgb /= a
+				out.set_pixel(x, y, Color(rgb.x, rgb.y, rgb.z, a / 16.0))
+	return out
+
+static func _box_half(src: Image) -> Image:
+	var w := src.get_width() / 2
+	var h := src.get_height() / 2
+	var out := Image.create_empty(w, h, false, Image.FORMAT_RGBA8)
+	for y in h:
+		for x in w:
+			var rgb := Vector3.ZERO
+			var asum := 0.0
+			for d in 4:
+				var c := src.get_pixel(x * 2 + (d & 1), y * 2 + (d >> 1))
+				rgb += Vector3(c.r, c.g, c.b) * c.a
+				asum += c.a
+			if asum <= 0.0:
+				out.set_pixel(x, y, Color(0, 0, 0, 0))
+			else:
+				rgb /= asum
+				out.set_pixel(x, y, Color(rgb.x, rgb.y, rgb.z, asum / 4.0))
+	return out
 
 static func _palette_of(names: Array) -> PackedColorArray:
 	var out := PackedColorArray()

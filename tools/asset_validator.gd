@@ -131,11 +131,13 @@ static func check_no_enemy_colors(dir: String, enemy_hexes: Dictionary, skip: Pa
 			out.append("%s: enemy colour %s in an atlas (R4)" % [p, found])
 	return out
 
-static func check_texture_sizes(dir: String, max_px: int) -> Array[String]:
+static func check_texture_sizes(dir: String, max_px: int, skip: PackedStringArray = PackedStringArray()) -> Array[String]:
 	var out: Array[String] = []
 	var files: Array = []
 	_files(dir, files)
 	for p in files:
+		if skip.has(String(p).get_file()):
+			continue
 		if String(p).get_extension() in ["png", "jpg", "jpeg"]:
 			var img := Image.load_from_file(ProjectSettings.globalize_path(p))
 			if img != null and (img.get_width() > max_px or img.get_height() > max_px):
@@ -248,9 +250,10 @@ static func validate_project(host: Node = null) -> Dictionary:
 	errors.append_array(check_palette(PackedStringArray(["res://art/palette/atlas", "res://art/icons"]), Palette.hex_set()))
 	var enemy := enemy_hexes()
 	errors.append_array(check_no_enemy_colors("res://art/palette/atlas", enemy))
-	errors.append_array(check_no_enemy_colors("res://art/icons", enemy, PackedStringArray(["heart.png"])))
+	# The atlas holds the heart, so the R4 check skips it; the per-icon PNGs stay the checked source (Task 16b).
+	errors.append_array(check_no_enemy_colors("res://art/icons", enemy, PackedStringArray(["heart.png", "atlas.png"])))
 	errors.append_array(check_texture_sizes("res://art", 512))
-	errors.append_array(check_texture_sizes("res://art/icons", 256))
+	errors.append_array(check_texture_sizes("res://art/icons", 256, PackedStringArray(["atlas.png"])))
 	errors.append_array(check_stray_models("res://", PackedStringArray(STRAY_ALLOWED)))
 	errors.append_array(check_animations("res://art/characters/kaykit_anims.tres", KayKitClips.NAMES))
 	errors.append_array(check_no_physics(PackedStringArray(["res://art", "res://assets"])))

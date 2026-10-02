@@ -1,5 +1,5 @@
 extends GutTest
-## Task 15: the card strip shows one 56 px icon plus a level badge per owned card, in catalog order.
+## Task 15: the card strip shows one 56 px icon plus a level badge, drawn by one Control (16b) per owned card, in catalog order.
 
 var main: Main
 var strip: CardStrip
@@ -12,50 +12,41 @@ func before_each() -> void:
 	main.phase_controller.start_new_game(82)
 	strip = main.hud.card_strip
 
-func _wait_free() -> void:
-	await get_tree().process_frame  # refresh() queue_frees the old entries
-
 func test_empty_at_start() -> void:
-	await _wait_free()
 	assert_eq(strip.shown(), [])
-	assert_eq(strip.get_child_count(), 0)
+	assert_eq(strip.size, Vector2.ZERO)
 	assert_eq(strip.text, "")
 
 func test_icons_and_levels_in_catalog_order() -> void:
 	GameState.debug_grant_card(&"tank")
 	GameState.debug_grant_card(&"hero_damage")
 	GameState.debug_grant_card(&"tank")
-	await _wait_free()
 	assert_eq(strip.shown(), [[&"hero_damage", 1], [&"tank", 2]])
 	assert_eq(strip.text, "DM1  TK2", "glyph summary kept for debug")
-	assert_eq(strip.get_child_count(), 2)
-	var first := strip.get_child(0)
-	var second := strip.get_child(1)
-	assert_eq(first.name, &"hero_damage")
-	assert_eq(second.name, &"tank")
-	assert_eq(first.get_node("Badge/Level").text, "1")
-	assert_eq(second.get_node("Badge/Level").text, "2")
-	var icon := second.get_node("Icon") as TextureRect
-	assert_eq(icon.texture.resource_path, CardCatalog.ICONS[&"tank"])
-	assert_eq(second.custom_minimum_size, Vector2(CardStrip.ICON_PX, CardStrip.ICON_PX))
+	assert_eq(strip.get_child_count(), 0, "one custom-draw Control, no per-card nodes")
+	assert_eq(strip.cell_rect(0), Rect2(0, 0, CardStrip.ICON_PX, CardStrip.ICON_PX))
+	assert_eq(strip.cell_rect(1), Rect2(CardStrip.ICON_PX + CardStrip.GAP, 0, CardStrip.ICON_PX, CardStrip.ICON_PX))
+	assert_eq(strip.size, Vector2(2.0 * CardStrip.ICON_PX + CardStrip.GAP, CardStrip.ICON_PX))
+	assert_eq(strip.position, Vector2(24, 84), "same place as before")
 
 func test_clears_on_new_game() -> void:
 	GameState.debug_grant_card(&"archer")
-	await _wait_free()
-	assert_eq(strip.get_child_count(), 1)
+	assert_eq(strip.shown().size(), 1)
 	GameState.new_game(2)
-	await _wait_free()
-	assert_eq(strip.get_child_count(), 0)
 	assert_eq(strip.shown(), [])
+	assert_eq(strip.size, Vector2.ZERO)
 
 func test_hud_icons_are_present() -> void:
 	var hud := main.hud
-	assert_not_null(hud.gold_icon.texture)
-	assert_not_null(hud.heart_icon.texture)
-	assert_eq(hud.gold_icon.size, Vector2(Hud.ICON_PX, Hud.ICON_PX))
-	assert_lt(hud.gold_icon.get_global_rect().end.x, hud.gold_label.get_global_rect().position.x + 1.0, "the coin sits left of the gold label")
-	for m in hud.moons:
-		assert_true(m is TextureRect)
+	assert_not_null(hud.icons)
+	assert_not_null(IconAtlas.texture())
+	assert_eq(hud.icons.coin_rect().size, Vector2(Hud.ICON_PX, Hud.ICON_PX))
+	assert_eq(hud.icons.heart_rect().size, Vector2(Hud.ICON_PX, Hud.ICON_PX))
+	assert_lt(hud.icons.coin_rect().end.x, hud.gold_label.get_global_rect().position.x + 1.0, "the coin sits left of the gold label")
+	assert_lt(hud.icons.heart_rect().end.x, hud.diner_bar.get_global_rect().position.x + 1.0, "the heart sits left of the bar")
+	assert_eq(hud.moons.size(), GameState.lane_plan.size())
+	assert_eq(hud.icons.coin_rect().position, hud.root.global_position + Vector2(24, 22))
+	assert_eq(hud.icons.heart_rect().position, hud.diner_bar.get_parent().get_global_rect().position + Vector2(-56, -18))
 
 func test_strip_after_restore_with_cards() -> void:
 	GameState.debug_grant_card(&"archer")
@@ -63,18 +54,11 @@ func test_strip_after_restore_with_cards() -> void:
 	GameState.debug_grant_card(&"hero_damage")
 	var snap := GameState.to_dict()
 	GameState.new_game(3)
-	await _wait_free()
-	assert_eq(strip.get_child_count(), 0)
+	assert_eq(strip.shown(), [])
 	GameState.from_dict(snap)
-	await _wait_free()
-	assert_eq(strip.get_child_count(), 2)
-	assert_eq(strip.get_child(0).name, &"hero_damage")
-	assert_eq(strip.get_child(0).get_node("Badge/Level").text, "2")
-	assert_eq(strip.get_child(1).name, &"archer")
-	assert_eq(strip.get_child(1).get_node("Badge/Level").text, "1")
 	assert_eq(strip.shown(), [[&"hero_damage", 2], [&"archer", 1]])
 
-func test_cells_have_a_cream_backing() -> void:
-	GameState.debug_grant_card(&"tank")
-	await _wait_free()
-	assert_true(strip.get_child(0).has_node("Backing"))
+func test_every_card_has_an_atlas_cell() -> void:
+	for id in CardCatalog.IDS:
+		assert_true(IconAtlas.NAMES.has(CardStrip._icon_name(id)), "%s has an atlas icon" % id)
+	assert_eq(CardStrip._icon_name(&"tank"), &"card_tank")

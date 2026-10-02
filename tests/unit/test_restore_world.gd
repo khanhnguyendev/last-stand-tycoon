@@ -186,13 +186,11 @@ func _assert_hud_camera_fx(snap: Dictionary, day: bool, hero_pos: Vector2) -> vo
 		assert_false(hud.arrows.main.visible, "hud main arrow")
 		assert_false(hud.arrows.side.visible, "hud side arrow")
 		assert_true(hud.day_label.visible, "hud day label visible in DAY")
-		for m in hud.moons:
-			assert_false(m.visible, "moons are night-only")
+		assert_false(hud.moons_shown(), "moons are night-only")
 	else:
 		assert_eq(hud.moons.size(), GameState.lane_plan.size(), "one moon per planned wave")
 		assert_eq(hud.filled_moons(), 0, "no moon filled at night 1 start")
-		for m in hud.moons:
-			assert_true(m.visible, "moons are shown at night")
+		assert_true(hud.moons_shown(), "moons are shown at night")
 		# night 1 restarts with its first wave announced (start_night -> wave_incoming)
 		var first: Dictionary = GameState.lane_plan[0]
 		assert_eq(hud._arrow_lane.main, String(first.main), "main arrow lane")

@@ -1847,3 +1847,25 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
 - **Not in the HUD:** there is no steak counter; `steak.png` is rendered but unused until S5 decides.
 - **Tooling:** `tests/sim/capture.gd` now fails if the camera is not in place at grab time. One glitched shot was
   found and retaken.
+
+**D-209 S4 final perf, UI draw diet, measurement rules (Task 16/16b).**
+- **UI draw diet:**
+  - One icon atlas (`art/icons/atlas.png`): 11 icons plus a baked card backing and an ink disc.
+  - The card strip and the HUD icons are single custom-drawn controls.
+  - Polygons (`draw_style_box`, `draw_circle`) do not batch in the Compatibility renderer, so shapes are atlas
+    cells.
+  - Night-3 desktop draws: 67 → 48 with 2 cards, and 81 → 48 with 7.
+  - The validator skips `atlas.png` for the enemy-colour and 256 px rules. The per-icon files are the checked
+    source, and a test checks that only the heart cell is red.
+- **Final perf** (iOS Simulator, profile build): night 3 reads 59.3 / 55.8 / 59.0, median **59.0** (gate ≥ 58),
+  at 36 draw calls. Day 3 reads 49.6.
+- **Final size:** pck 4,398,040 B; gzip payload 12,787,266 B.
+- **Measurement rules:**
+  - `export/perf_night3.sh` waits for the Mac to be at least 75% idle and prints the idle figure before and after.
+    The same build read 59.5 idle and 51.9 with an editor at 53% CPU.
+  - Stale agent processes are killed first.
+  - Readings taken with other Godot jobs running are invalid.
+- **Capture rule:** the bad shots came from `FocusPause` (D-147). It pauses the tree when the capture window loses
+  focus, while rendering and `physics_frame` carry on, so a shot shows a frozen game: wrong banners, no Boars, or
+  the camera before it moved. `tests/sim/capture.gd` now removes FocusPause and fails if the tree is paused, the
+  camera is not in place, or fewer than 5 frames were drawn after the camera was set.
