@@ -8,8 +8,8 @@ extends RefCounted
 const MODEL_EXT := ["glb", "gltf", "fbx", "obj", "png", "jpg", "jpeg"]
 const STRAY_ALLOWED := ["assets", "art", "ui/fonts", "export", "docs", "addons", "tests", ".godot", "build"]
 const PLACEHOLDER_RE := "Visuals\\s*\\.\\s*(box|capsule|cylinder|cone|plane)\\s*\\("
-## Flipped to true in Task 13, once the last placeholder is gone.
-const PLACEHOLDERS_ARE_ERRORS := false
+## True since Task 13: the last placeholder primitive is gone, so any new one is an error.
+const PLACEHOLDERS_ARE_ERRORS := true
 
 static func _files(dir: String, out: Array) -> void:
 	var d := DirAccess.open(dir)

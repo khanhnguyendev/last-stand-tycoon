@@ -2,6 +2,11 @@ extends GutTest
 ## S4 Task 8b, D-201: the baked characters (tools/bake_characters.gd) are one surface each, their props sit where the
 ## unbaked BoneAttachment3D props sit, and the retargeted prop UVs keep the prop's colours.
 
+## A stale bake moves vertices by cm. Cross-platform noise: positions < 1e-4; normals ~1.2e-4 (compressed normal
+## encoding differs between macOS arm64 and Linux x86), so normals get 2e-3.
+const BAKE_TOL := 1e-4
+const BAKE_NORMAL_TOL := 2e-3
+
 const BAKE := preload("res://tools/bake_characters.gd")
 const SKELETON := "Rig/Skeleton3D"
 const SCENES := {
@@ -51,7 +56,7 @@ func test_committed_bake_is_current() -> void:
 			assert_eq(fa.size(), fb.size(), "%s array %d size" % [role, k])
 			var off := 0
 			for i in mini(fa.size(), fb.size()):
-				if not fa[i].is_equal_approx(fb[i]):
+				if fa[i].distance_to(fb[i]) > (BAKE_NORMAL_TOL if k == Mesh.ARRAY_NORMAL else BAKE_TOL):
 					off += 1
 			assert_eq(off, 0, "%s array %d: vertices that differ from the fresh bake" % [role, k])
 		assert_eq(fresh.mesh.get_meta("props"), _mesh(role).get_meta("props"), "%s prop ranges" % role)

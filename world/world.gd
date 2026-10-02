@@ -5,8 +5,12 @@ extends Node3D
 ## Ground margin past MapLayout bounds. The projection test proves it covers every camera view for
 ## window aspects 9:21..21:9 (CameraMath clamps beyond that) at every focus corner (D-152, D-153).
 const GROUND_MARGIN := 80.0
+## S4 art (D-194, D-201): the diner is one baked mesh plus its rooftop board; instanced once.
+const DINER_ART := preload("res://art/env/diner.tscn")
 
 var lanes := {}
+var lighting: LightingDirector
+var props: Props
 var diner_body: StaticBody3D
 var build_spots := {}
 var freezer: Freezer
@@ -81,11 +85,14 @@ func _build_environment() -> void:
 	add_child(sun)
 	var env := WorldEnvironment.new()
 	env.environment = Environment.new()
-	env.environment.background_mode = Environment.BG_COLOR
-	env.environment.background_color = Visuals.COLORS.ground  # fallback: anything past the ground reads as ground (D-153)
+	env.environment.background_mode = Environment.BG_COLOR  # day_bg is the grass: anything past the ground reads as ground (D-153)
 	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.environment.ambient_light_color = Color(0.7, 0.7, 0.7)
 	add_child(env)
+	# S4 Task 13: the colours, energies and the day/night tween come from the LightingDirector.
+	lighting = LightingDirector.new()
+	lighting.name = "LightingDirector"
+	add_child(lighting)
+	lighting.setup(sun, env.environment)
 
 ## The area the single ground plane covers, in xz.
 static func ground_rect() -> Rect2:
@@ -95,25 +102,22 @@ static func ground_rect() -> Rect2:
 
 func _build_ground() -> void:
 	var rect := ground_rect()
-	var ground := Visuals.plane(rect.size, Visuals.COLORS.ground)
-	ground.name = "Ground"
-	ground.position = MapLayout.to3(rect.get_center())
-	add_child(ground)
-	var road := Visuals.box(Vector3(MapLayout.BOUNDS_MAX.x - MapLayout.BOUNDS_MIN.x, 0.02, 2.0), Visuals.COLORS.road)
-	road.name = "Road"
-	road.position = Vector3(0, 0.01, MapLayout.ROAD_Z)
-	add_child(road)
+	# S4 D-201: ground + road + lane strips are ONE mesh, the edge stones ONE MultiMesh, the props 2 meshes.
+	add_child(GroundArt.instance(GroundArt.terrain_mesh(rect), "Ground"))
+	add_child(LaneStrip.edge_stones())
+	props = Props.new()
+	props.name = "Props"
+	add_child(props)
+	props.build()
 
 func _build_diner() -> void:
-	diner_body = add_static_box("Diner", Vector3(8, MapLayout.DINER_HEIGHT, 8), Vector2.ZERO, Visuals.COLORS.diner)
+	diner_body = add_static_box("Diner", Vector3(8, MapLayout.DINER_HEIGHT, 8), Vector2.ZERO, DINER_ART)
 	# D-151: the diner fades while it hides the hero or a Boar from the camera.
 	occluder_fade = OccluderFade.new()
 	occluder_fade.name = "OccluderFade"
 	diner_body.get_node("Visual").add_child(occluder_fade)
-	occluder_fade.setup(
-		AABB(Vector3(-MapLayout.DINER_HALF, 0.0, -MapLayout.DINER_HALF),
-			Vector3(MapLayout.DINER_HALF * 2.0, MapLayout.DINER_HEIGHT, MapLayout.DINER_HALF * 2.0)),
-		get_viewport().get_camera_3d, _occluder_targets)
+	# S4: the box comes from the art's merged bounds (walls, parapet, chimney, board), so no box is passed.
+	occluder_fade.setup(AABB(), get_viewport().get_camera_3d, _occluder_targets)
 
 ## Aim points (feet + the actor's AIM_HEIGHT) of everything the diner must not hide: the hero and every alive Boar.
 func _occluder_targets() -> Array:
@@ -135,8 +139,9 @@ func _build_lanes() -> void:
 		add_child(lane)
 		lanes[id] = lane
 
-## Static collider + visual box on layer 1, standing on the ground at xz.
-func add_static_box(node_name: String, size: Vector3, xz: Vector2, color: Color) -> StaticBody3D:
+## Static collider on layer 1, standing on the ground at xz. The art (S4) is `visual_scene`, instanced once under a
+## "Visual" Node3D (no primitives: collision shapes and sizes are the gameplay truth).
+func add_static_box(node_name: String, size: Vector3, xz: Vector2, visual_scene: PackedScene = null) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.name = node_name
 	body.collision_layer = 1
@@ -148,9 +153,8 @@ func add_static_box(node_name: String, size: Vector3, xz: Vector2, color: Color)
 	shape.position.y = size.y * 0.5
 	body.add_child(shape)
 	var vis := Visuals.visual_root()
-	var mesh := Visuals.box(size, color)
-	mesh.position.y = size.y * 0.5
-	vis.add_child(mesh)
+	if visual_scene != null:
+		vis.add_child(visual_scene.instantiate())
 	body.add_child(vis)
 	body.position = MapLayout.to3(xz)
 	add_child(body)

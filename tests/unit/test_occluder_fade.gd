@@ -17,7 +17,7 @@ func before_each() -> void:
 	_visual = Visuals.visual_root()
 	add_child_autofree(_visual)
 	for part in [Vector3(0, 1.5, 0), Vector3(0, 3.1, 0)]:  # walls + roof: separate meshes (S4 note)
-		var m := Visuals.box(Vector3(8, 3, 8) if part.y < 3.0 else Vector3(8.4, 0.2, 8.4), Visuals.COLORS.diner)
+		var m := FixtureBox.box(Vector3(8, 3, 8) if part.y < 3.0 else Vector3(8.4, 0.2, 8.4), FixtureBox.COLORS.diner)
 		m.position = part
 		_visual.add_child(m)
 	_cam = Camera3D.new()
@@ -122,7 +122,7 @@ func test_fades_back_and_restores_opaque_material() -> void:
 		assert_eq(mat.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)
 
 func test_faded_material_does_not_leak_into_shared_cache() -> void:
-	var shared := Visuals.material(Visuals.COLORS.diner)
+	var shared := FixtureBox.material(FixtureBox.COLORS.diner)
 	var hero := _hero_at_north_center()
 	_aim_camera_at(Vector2(hero.x, hero.z))
 	_targets = [_hero_aim(hero)]
@@ -214,3 +214,124 @@ func test_wired_hero_at_north_zone_center_fades_world_diner() -> void:
 	for i in 30:
 		await get_tree().process_frame
 	assert_true(fade.is_faded(), "wired: a Boar behind the diner (hero at HOME) fades it, with per-actor aim heights")
+
+# ---- S4 Task 11: the real diner art (occluder boxes, Label3D fade, Archer roof skip) ----
+
+## Builds the diner the way world.gd does: Visual(Node3D) > DinerArt + OccluderFade, setup() with AABB().
+func _real_diner() -> OccluderFade:
+	var visual := Visuals.visual_root()
+	add_child_autofree(visual)
+	visual.add_child(load("res://art/env/diner.tscn").instantiate())
+	var fade := OccluderFade.new()
+	fade.name = "RealFade"
+	visual.add_child(fade)
+	fade.setup(AABB(), func(): return _cam, func(): return _targets)
+	return fade
+
+func _real_meshes(fade: OccluderFade) -> Array:
+	return fade.get_parent().find_children("*", "MeshInstance3D", true, false)
+
+func _real_board(fade: OccluderFade) -> Label3D:
+	return fade.get_parent().find_child("Board", true, false) as Label3D
+
+func _run_fade(fade: OccluderFade, seconds: float) -> void:
+	for i in ceili(seconds / DT):
+		fade._process(DT)
+
+## True when any of the fade's grown boxes is hit by the camera -> aim segment.
+func _hits(fade: OccluderFade, aim: Vector3) -> bool:
+	for b in fade.boxes():
+		if b.grow(Balance.ui.occluder_grow).intersects_segment(_cam.global_position, aim) != null:
+			return true
+	return false
+
+const WALLS := AABB(Vector3(-4, 0, -4), Vector3(8, 3.4, 8))  # walls + parapet, as DinerArt reports them
+const CHIMNEY_POINT := Vector3(3.2, 4.6, -3.3)               # inside the chimney box
+
+func test_real_diner_bounds_cover_roof_parts_and_board_fades() -> void:
+	var fade := _real_diner()
+	assert_gte(fade.bounds.end.y, MapLayout.DINER_HEIGHT + 0.8, "the bounds reach the board and chimney")
+	# A Boar north of the diner whose line to the camera passes through the chimney and clears the walls and
+	# parapet (the camera is placed on that line, so this is geometry, not the game camera).
+	var aim := _boar_aim(MapLayout.to3(Vector2(3.2, -9.0)))
+	_cam.global_position = aim + (CHIMNEY_POINT - aim).normalized() * 20.0
+	assert_null(_diner.grow(Balance.ui.occluder_grow).intersects_segment(_cam.global_position, aim),
+		"precondition: the old 3 m box alone would not fade")
+	assert_null(WALLS.grow(Balance.ui.occluder_grow).intersects_segment(_cam.global_position, aim),
+		"precondition: neither would the walls + parapet box")
+	assert_true(_hits(fade, aim), "precondition: the chimney box is in the way")
+	_targets = [aim]
+	_run_fade(fade, Balance.ui.occluder_fade_s * 3.0)
+	assert_true(fade.is_faded(), "the chimney hides it, so the diner fades")
+	var board := _real_board(fade)
+	assert_not_null(board)
+	assert_almost_eq(board.modulate.a, Balance.ui.occluder_alpha, 1e-3, "the Board's text fades with the walls")
+	for m in _real_meshes(fade):
+		assert_almost_eq(((m as MeshInstance3D).get_surface_override_material(0) as BaseMaterial3D).albedo_color.a, Balance.ui.occluder_alpha, 1e-3)
+	_targets = []
+	_run_fade(fade, 1.0)
+	assert_eq(board.modulate.a, 1.0, "the text is back at full alpha")
+
+func test_board_box_hides_a_target_and_fades_the_label() -> void:
+	var fade := _real_diner()
+	var board_center := Vector3(0, 4.2, 3.6)
+	var aim := Vector3(0, 0.5, 9.0)  # south of the diner; the camera sits north of the board, looking down the line
+	_cam.global_position = board_center + (board_center - aim).normalized() * 12.0
+	assert_null(WALLS.grow(Balance.ui.occluder_grow).intersects_segment(_cam.global_position, aim), "precondition: not the walls")
+	assert_true(_hits(fade, aim), "precondition: the sign box is in the way")
+	_targets = [aim]
+	_run_fade(fade, Balance.ui.occluder_fade_s * 3.0)
+	assert_true(fade.is_faded())
+	assert_almost_eq(_real_board(fade).modulate.a, Balance.ui.occluder_alpha, 1e-3)
+
+func test_archer_on_roof_never_fades_the_diner() -> void:
+	var fade := _real_diner()
+	var archer_aim := MapLayout.to3(MapLayout.guard_post(&"archer"), 4.0)  # guard_roster.gd reports y 4.0
+	# The camera sits on the line from the Archer through the chimney, so the chimney box is between them.
+	_cam.global_position = archer_aim + (Vector3(3.2, 3.9, -3.3) - archer_aim).normalized() * 25.0
+	assert_true(_hits(fade, archer_aim), "precondition: without the roof skip a box WOULD hide the Archer")
+	_targets = [archer_aim]
+	_run_fade(fade, Balance.ui.occluder_fade_s * 3.0)
+	assert_false(fade.is_faded())
+	for m in _real_meshes(fade):
+		assert_null((m as MeshInstance3D).get_surface_override_material(0), "back at its opaque material")
+	assert_eq(_real_board(fade).modulate.a, 1.0)
+
+func test_hero_at_night1_start_leaves_the_diner_opaque() -> void:
+	var fade := _real_diner()
+	_aim_camera_at(MapLayout.NIGHT1_START)
+	var aim := _hero_aim(MapLayout.to3(MapLayout.NIGHT1_START))
+	assert_false(_hits(fade, aim), "precondition: no box is between the camera and the hero")
+	_targets = [aim]
+	_run_fade(fade, Balance.ui.occluder_fade_s * 3.0)
+	assert_false(fade.is_faded(), "nothing is hidden, so nothing fades (the sign plank must not fade the whole footprint)")
+
+func test_far_north_boar_with_hero_home_leaves_the_diner_opaque() -> void:
+	var fade := _real_diner()
+	_aim_camera_at(MapLayout.HOME)
+	var boar := _boar_aim(Vector3(0, 0, -14))
+	_targets = [_hero_aim(MapLayout.to3(MapLayout.HOME)), boar]
+	assert_false(_hits(fade, boar), "precondition: the line to the Boar clears every box")
+	_run_fade(fade, Balance.ui.occluder_fade_s * 3.0)
+	assert_false(fade.is_faded())
+
+func test_hero_serving_at_the_counter_does_not_fade_the_diner() -> void:
+	var fade := _real_diner()
+	_aim_camera_at(MapLayout.COUNTER_DROP)
+	_targets = [_hero_aim(MapLayout.to3(MapLayout.COUNTER_DROP))]
+	_run_fade(fade, Balance.ui.occluder_fade_s * 3.0)
+	assert_false(fade.is_faded(), "the awning and board must not widen the box over the counter")
+
+func test_south_face_stays_clear_of_where_the_hero_can_stand() -> void:
+	var fade := _real_diner()
+	assert_lt(fade.bounds.end.z + Balance.ui.occluder_grow, MapLayout.DINER_HALF + MapLayout.HERO_RADIUS,
+		"the grown south face never passes the hero's reach (counter and awning are not occluders)")
+
+func test_setup_merges_a_passed_box_and_empty_box_is_ignored() -> void:
+	var fade := _real_diner()
+	var without := fade.bounds
+	var big := AABB(Vector3(-20, 0, -20), Vector3(40, 10, 40))
+	fade.setup(big, func(): return _cam, func(): return _targets)
+	assert_true(fade.bounds.encloses(big) and fade.bounds.encloses(without))
+	fade.setup(AABB(), func(): return _cam, func(): return _targets)
+	assert_eq(fade.bounds, without)

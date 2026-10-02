@@ -2,6 +2,8 @@ class_name Freezer
 extends Node3D
 ## Freezer → carry, 1 steak per tick (spec 8.2). Visual stack up to 10 plus a count label.
 
+const FREEZER_ART := preload("res://art/env/freezer_visual.tscn")
+
 var zone: StationZone
 var label: WorldLabel
 var _pile: MultiMeshInstance3D
@@ -11,7 +13,7 @@ const _stack_cap := 10
 func setup(world: World) -> void:
 	name = "Freezer"
 	_fx = world.fly_fx
-	world.add_static_box("FreezerBody", Vector3(MapLayout.FREEZER_SIZE.x, 1.4, MapLayout.FREEZER_SIZE.y), MapLayout.FREEZER, Visuals.COLORS.freezer)
+	world.add_static_box("FreezerBody", Vector3(MapLayout.FREEZER_SIZE.x, 1.4, MapLayout.FREEZER_SIZE.y), MapLayout.FREEZER, FREEZER_ART)
 	position = MapLayout.to3(MapLayout.FREEZER_ZONE)
 	zone = StationZone.new()
 	zone.radius = MapLayout.STATION_RADIUS

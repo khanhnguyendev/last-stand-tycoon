@@ -83,6 +83,7 @@ Each image is answered pass or fail on every rule. Any fail blocks the task.
 - No PBR textures (no normal, roughness or metallic maps).
 - Blob shadows under characters and Boars. No real-time shadows (D-193).
 - Vertex colours from `Palette` are sRGB; materials set `vertex_color_is_srgb = true`.
+- Indicators (hero ring, blob shadows, level pips) are unshaded.
 
 ## 5. Scale table
 

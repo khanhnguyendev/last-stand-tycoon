@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/kenney-fantasy-town/wall-wood.glb" id="1_8x8oe"]
+
+[node name="SignSrc" type="Node3D" unique_id=1102870241]
+
+[node name="Post-1" type="Node3D" parent="." unique_id=1961992573 instance=ExtResource("1_8x8oe")]
+transform = Transform3D(1.4, 0, 0, 0, 1.55, 0, 0, 0, 0.14, -1.38, 0, 0)
+
+[node name="Post1" type="Node3D" parent="." unique_id=975932443 instance=ExtResource("1_8x8oe")]
+transform = Transform3D(1.4, 0, 0, 0, 1.55, 0, 0, 0, 0.14, 0.120000005, 0, 0)
+
+[node name="Board" type="Node3D" parent="." unique_id=2073914109 instance=ExtResource("1_8x8oe")]
+transform = Transform3D(-5.2453668e-08, 0, 1.8, 0, 0.6, 0, -1.2, 0, -7.86805e-08, 2.360415e-08, 0.95, 0.54)

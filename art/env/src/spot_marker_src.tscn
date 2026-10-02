@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/kenney-tower-defense/selection-a.glb" id="1_c0abw"]
+
+[node name="MarkerSrc" type="Node3D" unique_id=999452889]
+
+[node name="Selection" type="Node3D" parent="." unique_id=83888014 instance=ExtResource("1_c0abw")]
+transform = Transform3D(1.6, 0, 0, 0, 1.6, 0, 0, 0, 1.6, 0, 0.02, 0)

@@ -142,7 +142,7 @@ func test_diner_bar_is_visible_with_real_size_and_styles() -> void:
 	assert_true(hud.diner_bar.has_theme_stylebox_override("fill"))
 	assert_true(hud.diner_bar.has_theme_stylebox_override("background"))
 	var fill := hud.diner_bar.get_theme_stylebox("fill") as StyleBoxFlat
-	assert_eq(fill.bg_color, Visuals.COLORS.diner_hp)
+	assert_eq(fill.bg_color, Palette.color(&"guard_green"))
 	main.phase_controller.debug_skip_to_night()
 	await get_tree().process_frame
 	assert_true(hud.diner_bar.is_visible_in_tree(), "still visible at night")

@@ -2,6 +2,8 @@ class_name Counter
 extends Node3D
 ## Carry → counter, 1 steak per tick up to counter_capacity (spec 8.3). Travelers buy from it.
 
+const COUNTER_ART := preload("res://art/env/counter_visual.tscn")
+
 var zone: StationZone
 var label: WorldLabel
 var _pile: MultiMeshInstance3D
@@ -10,7 +12,7 @@ var _fx: FlyFx
 func setup(world: World) -> void:
 	name = "Counter"
 	_fx = world.fly_fx
-	world.add_static_box("CounterBody", Vector3(MapLayout.COUNTER_SIZE.x, 1.0, MapLayout.COUNTER_SIZE.y), MapLayout.COUNTER, Visuals.COLORS.counter)
+	world.add_static_box("CounterBody", Vector3(MapLayout.COUNTER_SIZE.x, 1.0, MapLayout.COUNTER_SIZE.y), MapLayout.COUNTER, COUNTER_ART)
 	position = MapLayout.to3(MapLayout.COUNTER_DROP)
 	zone = StationZone.new()
 	zone.radius = MapLayout.STATION_RADIUS

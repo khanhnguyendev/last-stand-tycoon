@@ -1,0 +1,63 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/kenney-castle/wall-narrow-wood-fence.glb" id="1_pdrxl"]
+[ext_resource type="PackedScene" path="res://assets/kenney-castle/wall-narrow.glb" id="2_3d23w"]
+[ext_resource type="Material" path="res://art/materials/kenney-castle__wood.tres" id="mat_override"]
+
+[node name="FenceSrc" type="Node3D" unique_id=677966815]
+
+[node name="Rail0" type="Node3D" parent="." unique_id=829357188 instance=ExtResource("1_pdrxl")]
+transform = Transform3D(-3.059797e-08, 0, 1.5, 0, 0.62, 0, -0.7, 0, -6.556708e-08, -0.75, 0, 0.2)
+
+[node name="Back0" type="Node3D" parent="." unique_id=1375983078 instance=ExtResource("2_3d23w")]
+transform = Transform3D(-3.059797e-08, 0, 1.5, 0, 0.62, 0, -0.7, 0, -6.556708e-08, -0.75, 0, -0.2)
+
+[node name="Rail1" type="Node3D" parent="." unique_id=478578281 instance=ExtResource("1_pdrxl")]
+transform = Transform3D(-3.059797e-08, 0, 1.5, 0, 0.62, 0, -0.7, 0, -6.556708e-08, 0.75, 0, 0.2)
+
+[node name="Back1" type="Node3D" parent="." unique_id=707398484 instance=ExtResource("2_3d23w")]
+transform = Transform3D(-3.059797e-08, 0, 1.5, 0, 0.62, 0, -0.7, 0, -6.556708e-08, 0.75, 0, -0.2)
+
+[node name="Post0" type="Node3D" parent="." unique_id=575179038 instance=ExtResource("2_3d23w")]
+transform = Transform3D(0.6, 0, 0, 0, 0.84, 0, 0, 0, 0.3, -1.35, 0, 0)
+
+[node name="Post1" type="Node3D" parent="." unique_id=260703901 instance=ExtResource("2_3d23w")]
+transform = Transform3D(0.6, 0, 0, 0, 0.84, 0, 0, 0, 0.3, 0.15, 0, 0)
+
+[node name="Post2" type="Node3D" parent="." unique_id=209085555 instance=ExtResource("2_3d23w")]
+transform = Transform3D(0.6, 0, 0, 0, 0.84, 0, 0, 0, 0.3, 1.65, 0, 0)
+
+[editable path="Rail0"]
+
+[editable path="Back0"]
+
+[editable path="Rail1"]
+
+[editable path="Back1"]
+
+[editable path="Post0"]
+
+[editable path="Post1"]
+
+[editable path="Post2"]
+
+[node name="wall-narrow-wood-fence" parent="Rail0" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow" parent="Back0" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow-wood-fence" parent="Rail1" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow" parent="Back1" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow" parent="Post0" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow" parent="Post1" index="0"]
+material_override = ExtResource("mat_override")
+
+[node name="wall-narrow" parent="Post2" index="0"]
+material_override = ExtResource("mat_override")
