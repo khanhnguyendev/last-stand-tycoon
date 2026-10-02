@@ -95,6 +95,8 @@ func _relayout() -> void:
 	for i in _panels.size():
 		_panels[i].position = _rects[i].position
 		_panels[i].size = _rects[i].size
+		var px := minf(PORTRAIT_PX, _rects[i].size.y - 32.0)
+		(_panels[i].get_node("Row/Portrait") as TextureRect).custom_minimum_size = Vector2(px, px)
 	_heading.size = Vector2(vp.x, HEADING_H)
 	_heading.position = Vector2(0, _rects[0].position.y - HEADING_H - Balance.ui.card_panel_gap)
 
@@ -105,6 +107,7 @@ func _make_panel(id: StringName) -> Control:
 	_root.add_child(panel)
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.name = "Row"
 	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	row.offset_left = 20
 	row.offset_top = 16
@@ -112,11 +115,12 @@ func _make_panel(id: StringName) -> Control:
 	row.offset_bottom = -16
 	row.add_theme_constant_override("separation", 16)
 	panel.add_child(row)
-	# The portrait (Task 15): the panel is fixed at card_panel_size (560x220), so 160 px does not fit above the
-	# text; it leads the row, top-aligned.
+	# The portrait (Task 15) leads the row: a 160 px portrait above three text lines does not fit the 220 px card.
+	# _relayout shrinks it to the panel height minus the 32 px margins when the layout squeezes the panel.
 	var portrait := TextureRect.new()
 	portrait.name = "Portrait"
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	portrait.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	portrait.texture = load(CardCatalog.ICONS[id])
 	portrait.custom_minimum_size = Vector2(PORTRAIT_PX, PORTRAIT_PX)
 	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE

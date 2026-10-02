@@ -35,7 +35,10 @@ const ARROW_EXTENT := 26.0
 ## Task 15: HUD icons (rendered by tools/render_icons.gd).
 const ICON_PX := 48.0
 const ICON_GAP := 8.0
-const MOON_PX := 28.0
+const MOON_PX := 26.0
+const MOON_CELL_PX := 32.0
+## Lit moons show the icon as rendered (warm_white); unlit ones are tinted ink_soft, on an ink disc.
+const MOON_LIT := Color.WHITE
 const COIN_ICON := preload("res://art/icons/coin.png")
 const HEART_ICON := preload("res://art/icons/heart.png")
 const MOON_ICON := preload("res://art/icons/moon.png")
@@ -143,17 +146,36 @@ func _apply_safe_area() -> void:
 ## One moon per planned wave (spec 7.9); created hidden, shown only at night.
 func _set_moon_count(n: int) -> void:
 	while moons.size() > n:
-		moons.pop_back().queue_free()
+		moons.pop_back().get_parent().queue_free()  # the cell: disc + moon
 	while moons.size() < n:
-		var m := _icon(MOON_ICON, MOON_PX, null)
+		# A cell holds an ink disc (so an unlit moon still reads at 40%) and the moon icon; the icon carries the
+		# lit/unlit tint and the visibility, the disc follows its visibility.
+		var cell := Control.new()
+		cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cell.custom_minimum_size = Vector2(MOON_CELL_PX, MOON_CELL_PX)
+		cell.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var disc := Panel.new()
+		disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Palette.color(&"ink")
+		sb.set_corner_radius_all(int(MOON_CELL_PX / 2.0))
+		sb.anti_aliasing = true
+		disc.add_theme_stylebox_override("panel", sb)
+		disc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		cell.add_child(disc)
+		var m := _icon(MOON_ICON, MOON_PX, cell)
+		m.position = Vector2.ONE * ((MOON_CELL_PX - MOON_PX) * 0.5)
 		m.visible = false
-		_moon_row.add_child(m)
+		disc.visible = false
+		m.visibility_changed.connect(func(): disc.visible = m.visible)
+		_moon_row.add_child(cell)
 		moons.append(m)
 
 ## A fixed-size icon TextureRect (a 2D batch item); added to `parent` when given.
 func _icon(tex: Texture2D, px: float, parent: Control) -> TextureRect:
 	var t := TextureRect.new()
 	t.texture = tex
+	t.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	t.custom_minimum_size = Vector2(px, px)
@@ -216,7 +238,7 @@ func _on_wave_cleared(w: int) -> void:
 
 func _paint_moons() -> void:
 	for i in moons.size():
-		moons[i].modulate = Color.WHITE if i < _filled else Palette.color(&"steel_dark")
+		moons[i].modulate = MOON_LIT if i < _filled else Palette.color(&"ink_soft")
 
 func _on_wave_incoming(_w: int, main_lane: StringName, side_lane: StringName) -> void:
 	_arrow_lane.main = String(main_lane)

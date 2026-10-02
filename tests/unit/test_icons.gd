@@ -34,18 +34,20 @@ func test_icons_are_loadable_textures() -> void:
 func test_icons_are_on_the_palette() -> void:
 	assert_eq(AssetValidator.check_palette(PackedStringArray(["res://art/icons"]), Palette.hex_set()), [] as Array[String])
 
-func test_only_the_heart_uses_enemy_red() -> void:
-	var enemy := {}
-	for n in ["enemy_red", "enemy_maroon", "enemy_snout"]:
-		enemy[Palette.HEX[Palette.index_of(StringName(n))]] = true
+func test_only_the_heart_uses_enemy_colours() -> void:
+	var errs := AssetValidator.check_no_enemy_colors("res://art/icons", AssetValidator.enemy_hexes(), PackedStringArray(["heart.png"]))
+	assert_eq(errs, [] as Array[String])
+	var with_heart := AssetValidator.check_no_enemy_colors("res://art/icons", AssetValidator.enemy_hexes())
+	assert_eq(with_heart.size(), 1, "the heart is the one exception, and it does use enemy_red")
+
+func test_every_icon_is_substantial() -> void:
 	for f in DirAccess.get_files_at("res://art/icons"):
-		if not f.ends_with(".png") or f == "heart.png":
+		if not f.ends_with(".png"):
 			continue
 		var img := _image("res://art/icons/" + f)
-		var hit := 0
+		var opaque := 0
 		for y in img.get_height():
 			for x in img.get_width():
-				var c := img.get_pixel(x, y)
-				if c.a8 == 255 and enemy.has(c.to_html(false)):
-					hit += 1
-		assert_eq(hit, 0, "%s has no enemy colours (R4)" % f)
+				if img.get_pixel(x, y).a8 == 255:
+					opaque += 1
+		assert_gt(opaque, 256 * 256 / 10, "%s has more than 10%% opaque pixels" % f)

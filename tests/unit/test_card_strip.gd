@@ -56,3 +56,25 @@ func test_hud_icons_are_present() -> void:
 	assert_lt(hud.gold_icon.get_global_rect().end.x, hud.gold_label.get_global_rect().position.x + 1.0, "the coin sits left of the gold label")
 	for m in hud.moons:
 		assert_true(m is TextureRect)
+
+func test_strip_after_restore_with_cards() -> void:
+	GameState.debug_grant_card(&"archer")
+	GameState.debug_grant_card(&"hero_damage")
+	GameState.debug_grant_card(&"hero_damage")
+	var snap := GameState.to_dict()
+	GameState.new_game(3)
+	await _wait_free()
+	assert_eq(strip.get_child_count(), 0)
+	GameState.from_dict(snap)
+	await _wait_free()
+	assert_eq(strip.get_child_count(), 2)
+	assert_eq(strip.get_child(0).name, &"hero_damage")
+	assert_eq(strip.get_child(0).get_node("Badge/Level").text, "2")
+	assert_eq(strip.get_child(1).name, &"archer")
+	assert_eq(strip.get_child(1).get_node("Badge/Level").text, "1")
+	assert_eq(strip.shown(), [[&"hero_damage", 2], [&"archer", 1]])
+
+func test_cells_have_a_cream_backing() -> void:
+	GameState.debug_grant_card(&"tank")
+	await _wait_free()
+	assert_true(strip.get_child(0).has_node("Backing"))

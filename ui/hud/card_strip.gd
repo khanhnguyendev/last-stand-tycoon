@@ -1,8 +1,8 @@
 class_name CardStrip
 extends HBoxContainer
-## Owned hero cards under the gold label (S4 Task 15): one 56 px icon per card with a small level badge, in
-## CardCatalog.IDS order. Listener only. `text` keeps the S2 glyph summary ("DM1  TK2", "" when empty) for tests
-## and debug; `shown()` is the cards and levels on display.
+## Owned hero cards under the gold label (S4 Task 15): one 56 px icon per card on a cream backing, with a small level
+## badge, in CardCatalog.IDS order. Listener only. `text` keeps the S2 glyph summary ("DM1  TK2", "" when empty) for
+## tests and debug; `shown()` reads what is on display (the cells), not GameState.
 
 const ICON_PX := 56.0
 const BADGE_PX := 24.0
@@ -16,13 +16,11 @@ func _ready() -> void:
 	EventBus.state_restored.connect(refresh)
 	refresh()
 
-## [[id, level], ...] for every owned card, in catalog order.
+## [[id, level], ...] for every cell on display (the cell's name and its badge text), in order.
 func shown() -> Array:
 	var out := []
-	for id in CardCatalog.IDS:
-		var l := GameState.card_level(id)
-		if l > 0:
-			out.append([id, l])
+	for cell in get_children():
+		out.append([StringName(cell.name), int(cell.get_node("Badge/Level").text)])
 	return out
 
 func refresh() -> void:
@@ -30,9 +28,11 @@ func refresh() -> void:
 		remove_child(c)
 		c.queue_free()
 	var parts: Array[String] = []
-	for e in shown():
-		parts.append("%s%d" % [CardCatalog.GLYPHS[e[0]], e[1]])
-		add_child(_entry(e[0], e[1]))
+	for id in CardCatalog.IDS:
+		var l := GameState.card_level(id)
+		if l > 0:
+			parts.append("%s%d" % [CardCatalog.GLYPHS[id], l])
+			add_child(_entry(id, l))
 	text = "  ".join(parts)
 
 func _entry(id: StringName, level: int) -> Control:
@@ -40,10 +40,16 @@ func _entry(id: StringName, level: int) -> Control:
 	cell.name = String(id)
 	cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cell.custom_minimum_size = Vector2(ICON_PX, ICON_PX)
+	var backing := Panel.new()  # the theme's default Panel: diner_cream with an ink border
+	backing.name = "Backing"
+	backing.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	backing.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	cell.add_child(backing)
 	var icon := TextureRect.new()
 	icon.name = "Icon"
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	icon.texture = load(CardCatalog.ICONS[id])
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

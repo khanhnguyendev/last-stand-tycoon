@@ -18,7 +18,7 @@ static func outline() -> PackedVector2Array:
 			best = p
 	for i in best.size():
 		best[i] -= Vector2(-0.12, 0.0)
-	return IconExtrude.rounded(best, 0.05)
+	return IconExtrude.rounded(best, 0.09)
 
 static func build() -> ArrayMesh:
 	return IconExtrude.build(outline(), 0.6, 0.12)

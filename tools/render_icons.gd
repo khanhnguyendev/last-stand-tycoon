@@ -5,7 +5,11 @@ extends SceneTree
 ## ambient from Balance.ui), rendered at 512, scaled to 256 with nearest-neighbour, remapped to the palette
 ## (PaletteMath.remap_image, alpha kept) and saved to art/icons/<name>.png. Poses use AnimationPlayer.seek + advance(0),
 ## so there is no animation time drift. Deterministic: re-running writes byte-identical PNGs.
-## R4: only the heart may use enemy_* colours, so every other icon remaps against the palette without them.
+## Palettes (R2, R4): the heart remaps against enemy_red, enemy_maroon and ink only; the moon against warm_white,
+## diner_cream and traveler_beige; the steaks drop gold and gold_dark (a steak rim must read as food, not reward);
+## every other icon drops the enemy_* and traveler_* names, so steel shades land on steel, steel_dark or stone.
+## Byte-identical output holds on the same GPU and driver (the render is hardware-dependent); the committed PNGs are the
+## product, and CI never re-renders them.
 ## Editor/test only (tools/ is excluded from every web export).
 
 const OUT_DIR := "res://art/icons/"
@@ -63,14 +67,31 @@ func _run() -> void:
 	_stage = Node3D.new()
 	_vp.add_child(_stage)
 
-	var full := Palette.colors()
-	var no_enemy := PackedColorArray()
-	for n in Palette.NAMES:
-		if not String(n).begins_with("enemy_"):
-			no_enemy.append(Palette.color(n))
 	for s in _subjects():
-		await _render(s, full if s.name == "heart" else no_enemy)
+		await _render(s, _palette_for(s.name))
 	quit(1 if _failed else 0)
+
+static func _palette_of(names: Array) -> PackedColorArray:
+	var out := PackedColorArray()
+	for n in names:
+		out.append(Palette.color(n))
+	return out
+
+static func _palette_for(icon: String) -> PackedColorArray:
+	match icon:
+		"heart":
+			return _palette_of([&"enemy_red", &"enemy_maroon", &"ink"])
+		"moon":
+			return _palette_of([&"warm_white", &"diner_cream", &"traveler_beige"])
+	var names: Array = []
+	for n in Palette.NAMES:
+		var t := String(n)
+		if t.begins_with("enemy_") or t.begins_with("traveler_"):
+			continue
+		if icon in ["steak", "card_carry_capacity"] and t.begins_with("gold"):
+			continue
+		names.append(n)
+	return _palette_of(names)
 
 ## name, a builder returning the subject root (added to the stage by _render), the view centre, the ortho size.
 func _subjects() -> Array:
@@ -80,8 +101,8 @@ func _subjects() -> Array:
 		{"name": "card_move_speed", "build": _runner, "center": Vector3(0, 0.95, 0), "size": 2.1},
 		{"name": "card_carry_capacity", "fit": true, "build": _steak_stack, "center": Vector3(0, 0.3, 0), "size": 1.6},
 		{"name": "card_gold_per_steak", "fit": true, "build": _menu, "center": Vector3(0, 0.0, 0), "size": 2.0},
-		{"name": "card_archer", "build": _portrait.bind(ARCHER), "center": Vector3(0, 1.3, 0), "size": 1.9},
-		{"name": "card_tank", "build": _portrait.bind(TANK), "center": Vector3(0, 1.35, 0), "size": 2.0},
+		{"name": "card_archer", "build": _portrait.bind(ARCHER), "center": Vector3(0, 1.15, 0), "size": 1.4},
+		{"name": "card_tank", "build": _portrait.bind(TANK), "center": Vector3(0, 1.15, 0), "size": 1.4},
 		{"name": "coin", "fit": true, "build": _coin, "center": Vector3(0, 0.0, 0), "size": 1.2},
 		{"name": "steak", "fit": true, "build": _steak, "center": Vector3(0, 0.0, 0), "size": 1.2},
 		{"name": "heart", "fit": true, "build": _heart, "center": Vector3.ZERO, "size": 2.6},

@@ -172,3 +172,14 @@ func test_cancelled_touch_does_not_pick() -> void:
 	_touch(0, c, true)
 	_touch(0, c, false)
 	assert_eq(pc.phase, Phase.DAY, "the cancelled finger was freed, so a normal tap picks")
+
+func test_each_panel_has_a_portrait_of_its_card() -> void:
+	_dawn()
+	var panels: Array = ov._panels
+	assert_eq(panels.size(), ov.offer.size())
+	for i in panels.size():
+		var portrait := panels[i].find_child("Portrait", true, false) as TextureRect
+		assert_not_null(portrait, "panel %d" % i)
+		assert_eq(portrait.texture.resource_path, CardCatalog.ICONS[ov.offer[i]])
+		assert_eq(portrait.mouse_filter, Control.MOUSE_FILTER_IGNORE)
+		assert_lte(portrait.custom_minimum_size.y, ov.panel_rects()[i].size.y - 32.0 + 0.01, "fits the panel")
