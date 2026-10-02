@@ -8,13 +8,6 @@ extends RefCounted
 ## 256..511), so no colour override can tell them apart. Both sets name the same 142 source hexes: the default atlas
 ## turns the gradient into cloth_blue (the sleeves), the apron variant into apron_white. hero_visual.tscn puts the apron
 ## material on Barbarian_Body only (S4 Task 7b, D-191).
-## The platformer coin's rim and emboss hexes (orange, source ff9f38..d07c57) would land on skin_mid (pink); they go to
-## gold_dark so a stack of coins reads gold (S4 Task 10 review). Only coin-gold.glb uses this atlas.
-const COIN_RIM_TO_GOLD := {
-	"ff9f38": "gold", "ff9832": "gold", "ffa139": "gold", "e48c63": "gold", "ea9168": "gold",
-	"e08861": "gold", "dc855e": "gold", "d07c57": "gold",
-}
-
 ## The Restaurant Bits fridge body is a teal-green gradient (source r < 0x50, g > 0x70, g >= b; 180 hexes) that remapped to a
 ## grass-like green on the grass (S4 Task 11). It is used by fridge_A only (the counter, stove, menu, pan and knife sample
 ## no hex in this set), so the whole atlas maps it to ice_blue and the Freezer reads as a freezer (ART_BIBLE §2).
@@ -189,7 +182,6 @@ const BASE_ENTRIES: Array[Dictionary] = [
 	{"src": "res://assets/kenney-fantasy-town/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-fantasy-town__rubble.png", "overrides": {}, "swap": RUBBLE_WOOD_SWAP},
 	{"src": "res://assets/kenney-city-commercial/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-city-commercial__colormap.png", "overrides": AWNING_STRIPES},
 	{"src": "res://assets/kenney-food/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-food__colormap.png", "overrides": {}},
-	{"src": "res://assets/kenney-platformer/Textures/colormap.png", "out": "res://art/palette/atlas/kenney-platformer__colormap.png", "overrides": COIN_RIM_TO_GOLD},
 	{"src": "res://assets/kaykit-adventurers/Textures/barbarian_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__barbarian_texture.png", "overrides": BARBARIAN_BLUE_TO_CLOTH},
 	{"src": "res://assets/kaykit-adventurers/Textures/barbarian_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__barbarian_apron.png", "overrides": BARBARIAN_BLUE_TO_APRON},
 	{"src": "res://assets/kaykit-adventurers/Textures/knight_texture.png", "out": "res://art/palette/atlas/kaykit-adventurers__knight_texture.png", "overrides": {}, "guard_swap": true},
