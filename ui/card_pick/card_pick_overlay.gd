@@ -14,6 +14,8 @@ var _owned := {}
 var _guard_left := 0.0
 
 const HEADING_H := 70.0
+## Card portrait size in 720-base units (Task 15).
+const PORTRAIT_PX := 160.0
 
 func _init() -> void:
 	name = "CardPickOverlay"
@@ -101,15 +103,31 @@ func _make_panel(id: StringName) -> Control:
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.theme_type_variation = &"CardPanelAdventurer" if CardCatalog.kind(id) == &"adventurer" else &"CardPanelUpgrade"
 	_root.add_child(panel)
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 20
+	row.offset_top = 16
+	row.offset_right = -20
+	row.offset_bottom = -16
+	row.add_theme_constant_override("separation", 16)
+	panel.add_child(row)
+	# The portrait (Task 15): the panel is fixed at card_panel_size (560x220), so 160 px does not fit above the
+	# text; it leads the row, top-aligned.
+	var portrait := TextureRect.new()
+	portrait.name = "Portrait"
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	portrait.texture = load(CardCatalog.ICONS[id])
+	portrait.custom_minimum_size = Vector2(PORTRAIT_PX, PORTRAIT_PX)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(portrait)
 	var box := VBoxContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	box.offset_left = 36
-	box.offset_top = 16
-	box.offset_right = -20
-	box.offset_bottom = -16
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	panel.add_child(box)
+	row.add_child(box)
 	_label(40, box, &"").text = CardCatalog.display_name(id)
 	_label(28, box, &"").text = CardCatalog.effect_text(id, Balance.data.cards)
 	_label(26, box, &"").text = CardCatalog.level_text(GameState.card_level(id))
