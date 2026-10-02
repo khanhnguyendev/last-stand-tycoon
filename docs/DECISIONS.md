@@ -1896,12 +1896,14 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 **D-212 Web unlock, playback type and mute.**
 - Nothing plays before the audio context runs; music starts at unlock with the current phase's track.
 - **Probe:** the web shell subclasses `AudioContext` and keeps each context in `window.LST_AUDIO`; `unlocked` is
-  "some context is running, or an input release was seen". Off web it is true at once.
-- **Playback:** sample playback, with every manifest stream registered at boot behind the boot fade. Fallback for
-  music (a boot freeze over 0.5 s, an error, or more than 48 MB added): stream playback.
-- A Task 3 spike checks the probe on Chromium (before and after a tap) and the iOS Simulator (before a gesture
-  only: the harness has no input), and records the registration time and memory. The after-gesture check on a
-  real iPhone is a final-review item.
+  "some context is running". Only if the hook found no context is it "an input release was seen". Off web it is
+  true at once.
+- **Playback:** SFX are samples, registered at boot behind the boot fade. Music's mode is picked by the Task 3
+  spike, first option that passes: (1) samples, both tracks at boot (registration under 0.5 s, decoded size at
+  most 48 MB); (2) stream playback (no underrun, at most +1 ms mean `proc_ms`); (3) samples, one track at a time,
+  swapped at `phase_changed`. The result is appended here by Task 3.
+- The spike checks the probe on Chromium (before and after a tap) and the iOS Simulator (before a gesture only:
+  the harness has no input). The after-gesture check on a real iPhone is a final-review item.
 - One toggle mutes the Master bus and is saved at once.
 
 **D-213 Onboarding is one pointer.**
@@ -1910,8 +1912,8 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 - `fight` is true whenever a Boar is alive and none is in the hero's range; `grab` whenever no Boar is alive and
   a ground steak can be carried. Neither turns off after the first kill or pickup: a one-shot rule left a
   pointer-following player standing still while later waves took another lane (second spec review).
-- `build` shows while a spot is affordable (`0 < remaining_cost ≤ gold`; a maxed spot never is). `close` shows
-  only while `Pulse.should_pulse()` is true.
+- `build` shows while a spot is affordable (`0 < remaining_cost ≤ gold`; a maxed spot never is) and points at
+  the affordable spot with the lowest `next_level_cost`. `close` shows only while `Pulse.should_pulse()` is true.
 - `take` waits for counter room for a full load (`min(carry_capacity, freezer, counter_capacity)`), and holds
   while the hero fills up in the freezer zone. This stops one-steak trips after each sale.
 - An off-screen target gets an arrow clamped to the HUD's arrow rect (inset 40 px more), using the lane-arrow
@@ -1954,7 +1956,8 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 - The panel hit-tests touches itself, because `emulate_mouse_from_touch` is off.
 
 **D-218 One pause owner.**
-- Main owns a set of pause reasons (`focus`, `settings`); the tree is paused while the set is not empty.
+- Main owns a set of pause reasons (`focus`, `settings`); the tree is paused while the set is not empty. Main
+  writes `tree.paused` only when the set changes between empty and not empty.
 - FocusPause only emits `changed(paused)` and no longer touches the tree. Main maps it to `focus` and clears the
   reason when FocusPause leaves the tree. The settings panel adds and removes `settings`.
 - `AudioDirector.set_suspended()` pauses its players while the tab is hidden (wired in Task 3).
