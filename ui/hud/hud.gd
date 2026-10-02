@@ -80,7 +80,7 @@ func _ready() -> void:
 	diner_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	# Explicit styles: the bar must read over the ground by day and night.
 	var fill := StyleBoxFlat.new()
-	fill.bg_color = Visuals.COLORS.diner_hp
+	fill.bg_color = Palette.color(&"guard_green")
 	fill.set_corner_radius_all(6)
 	fill.set_border_width_all(2)
 	fill.border_color = Color(0, 0, 0, 0.8)

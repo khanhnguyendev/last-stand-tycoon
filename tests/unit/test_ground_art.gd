@@ -1,0 +1,79 @@
+extends GutTest
+## S4 Task 13 (D-194, D-201): the ground, road and lane strips are single meshes with palette vertex colours; the edge
+## stones and props are MultiMeshes; the position hash is deterministic and varies.
+
+func test_hash_is_deterministic_and_varies() -> void:
+	assert_eq(GroundArt.hash01(3.0, 4.0), GroundArt.hash01(3.0, 4.0))
+	var seen := {}
+	for i in 20:
+		var h := GroundArt.hash01(i * 2.0, 6.0)
+		assert_between(h, 0.0, 1.0)
+		seen[snappedf(h, 0.01)] = true
+	assert_gt(seen.size(), 10, "the hash varies cell to cell")
+
+func test_ground_colours_stay_between_grass_and_grass_dark() -> void:
+	var lo := Palette.color(&"grass_dark")
+	var hi := Palette.color(&"grass")
+	for i in 30:
+		var c := GroundArt.grass_at(i * 2.0, -i * 2.0)
+		assert_between(c.g, lo.g - 0.001, hi.g + 0.001)
+		assert_between(c.r, lo.r - 0.001, hi.r + 0.001)
+
+func test_ground_mesh_covers_the_rect_in_one_surface() -> void:
+	var rect := World.ground_rect()
+	var m := GroundArt.ground_mesh(rect)
+	assert_eq(m.get_surface_count(), 1)
+	var a := m.get_aabb()
+	assert_almost_eq(a.position.x, rect.position.x, 0.01)
+	assert_almost_eq(a.end.x, rect.end.x, 0.01)
+	assert_almost_eq(a.position.z, rect.position.y, 0.01)
+	assert_almost_eq(a.end.z, rect.end.y, 0.01)
+	assert_true(GroundArt.material().vertex_color_is_srgb)
+
+func test_ground_faces_up_in_godot_winding() -> void:
+	var m := GroundArt.ground_mesh(Rect2(0, 0, 4, 4))
+	var arrays := m.surface_get_arrays(0)
+	var v: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	for t in idx.size() / 3:
+		var a := v[idx[t * 3]]
+		assert_lt((v[idx[t * 3 + 1]] - a).cross(v[idx[t * 3 + 2]] - a).y, 0.0, "clockwise from above is front-facing")
+
+func test_lane_strip_faces_up_for_every_lane() -> void:
+	for id in MapLayout.LANE_PATHS:
+		var m := LaneStrip.build_mesh(MapLayout.LANE_PATHS[id])
+		assert_eq(m.get_surface_count(), 1)
+		var arrays := m.surface_get_arrays(0)
+		var v: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		for t in idx.size() / 3:
+			var a := v[idx[t * 3]]
+			assert_lt((v[idx[t * 3 + 1]] - a).cross(v[idx[t * 3 + 2]] - a).y, 0.0, "%s faces up" % id)
+
+func test_edge_stones_flank_the_strip() -> void:
+	for id in MapLayout.LANE_PATHS:
+		var xfs := LaneStrip.edge_transforms(MapLayout.LANE_PATHS[id])
+		assert_gt(xfs.size(), 10)
+		assert_eq(xfs.size() % 2, 0, "both sides")
+		var pts: Array = MapLayout.LANE_PATHS[id]
+		for xf in xfs:
+			var p := Vector2(xf.origin.x, xf.origin.z)
+			var best := 1e9
+			for i in range(1, pts.size()):
+				best = minf(best, Geometry2D.get_closest_point_to_segment(p, pts[i - 1], pts[i]).distance_to(p))
+			assert_between(best, 1.5, 2.0, "outside the 3 m strip, next to it")
+
+func test_world_draws_ground_road_lanes_and_props_as_few_nodes() -> void:
+	Balance.reset()
+	var main: Main = Main.create()
+	add_child_autofree(main)
+	var w := main.world
+	assert_eq(w.get_node("Ground").get_class(), "MeshInstance3D")
+	assert_eq((w.get_node("Ground") as MeshInstance3D).mesh.get_surface_count(), 1)
+	assert_eq((w.get_node("Road") as MeshInstance3D).mesh.get_surface_count(), 1)
+	for id in w.lanes:
+		var lane: Node3D = w.lanes[id]
+		assert_eq(lane.find_children("*", "MeshInstance3D", false, false).filter(func(n): return n.name == &"Strip").size(), 1, "one strip mesh per lane")
+		assert_eq(lane.find_children("*", "MultiMeshInstance3D", false, false).size(), 1, "one MultiMesh of edge stones")
+	assert_eq(w.props.find_children("*", "MultiMeshInstance3D", false, false).size(), PropsLayout.models().size())
+	assert_eq(w.lighting.get_class(), "Node")

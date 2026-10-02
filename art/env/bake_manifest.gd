@@ -17,4 +17,12 @@ const ENTRIES := [
 	{"in": "res://art/env/src/closeup_sign_src.tscn", "out": "res://art/env/baked/closeup_sign.res"},
 	{"in": "res://art/env/src/telegraph_flag_src.tscn", "out": "res://art/env/baked/telegraph_flag.res"},
 	{"in": "res://art/env/src/lane_gate_src.tscn", "out": "res://art/env/baked/lane_gate.res"},
+	# Task 13: prop models (one MultiMesh each), the rocks-small one also lines the lane edges.
+	{"in": "res://art/env/src/prop_tree_large_src.tscn", "out": "res://art/env/baked/prop_tree_large.res"},
+	{"in": "res://art/env/src/prop_tree_small_src.tscn", "out": "res://art/env/baked/prop_tree_small.res"},
+	{"in": "res://art/env/src/prop_rocks_large_src.tscn", "out": "res://art/env/baked/prop_rocks_large.res"},
+	{"in": "res://art/env/src/prop_rocks_small_src.tscn", "out": "res://art/env/baked/prop_rocks_small.res"},
+	{"in": "res://art/env/src/prop_td_tree_src.tscn", "out": "res://art/env/baked/prop_td_tree.res"},
+	{"in": "res://art/env/src/prop_td_tree_large_src.tscn", "out": "res://art/env/baked/prop_td_tree_large.res"},
+	{"in": "res://art/env/src/prop_td_rocks_src.tscn", "out": "res://art/env/baked/prop_td_rocks.res"},
 ]

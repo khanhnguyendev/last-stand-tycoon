@@ -5,12 +5,14 @@ extends SceneTree
 ## --hero-at=zone_center (with --lane): hero at the centre of that lane's attack zone instead of the lane end.
 ## --phase=day|night|fail|build|retry (default night; unknown values fail): day = skip to day + 12 s of travelers queueing; build = hero walking into the NW tower spot with the ring filling; fail = diner destroyed (banner); retry = fail, then banner_time + 1 s so the restore runs and the "monsters look tired" banner shows.
 ## --crop-top=N: save only the top N pixels. --debug: keep the DebugOverlay visible (hidden by default).
+## --save=<fixture path>: decode it with SaveCodec.decode and resume_from it instead of start_new_game (no phase staging; waits --seconds, default 12). --drawcalls: print "DRAWCALLS n" once a second while waiting and "DRAWCALLS_MAX n" at the end.
 ## --cards=id:level,...: grant cards after start_new_game (Tank placed at its post). --scene=cardpick: no bot, emit wave_cleared so the pick opens.
 ## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
 ## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
 
 var _args := {}
 var _bal: Node
+var _dc_max := 0
 
 func _initialize() -> void:
 	for a in OS.get_cmdline_user_args():
@@ -29,7 +31,17 @@ func _run() -> void:
 	var bot = load("res://actors/bots/parked_bot.gd" if _args.has("lane") else "res://actors/bots/naive_bot.gd").new()
 	main.add_child(bot)
 	bot.setup(main)
-	main.phase_controller.start_new_game(int(_args.get("seed", "20260930")))
+	if _args.has("save"):
+		var codec = load("res://core/save_codec.gd")
+		var text := FileAccess.get_file_as_string(String(_args.save))
+		var decoded: Dictionary = codec.decode(text, root.get_node("GameState").SCHEMA_VERSION, _bal.data)
+		if not decoded.ok:
+			push_error("bad --save %s: %s" % [_args.save, decoded.reason])
+			quit(2)
+			return
+		main.phase_controller.resume_from(decoded.state)
+	else:
+		main.phase_controller.start_new_game(int(_args.get("seed", "20260930")))
 	if _args.has("cards"):
 		var gs = root.get_node("GameState")
 		for pair in String(_args.cards).split(",", false):
@@ -48,7 +60,9 @@ func _run() -> void:
 		push_error("bad --phase %s" % phase_arg)
 		quit(2)
 		return
-	if phase_arg in ["day", "build"]:
+	if _args.has("save"):
+		await _wait(float(_args.get("seconds", "12")))
+	elif phase_arg in ["day", "build"]:
 		for i in 60:
 			await physics_frame
 		main.phase_controller.debug_skip_to_day()
@@ -58,8 +72,11 @@ func _run() -> void:
 		main.hero.input.set_move(Vector2.ZERO)
 		if phase_arg == "day":
 			main.hero.teleport(map_layout.HOME)  # outside every zone (D-122); the queue slots are in frame
-		for i in (12 * 60 if phase_arg == "day" else 30):  # day: let travelers queue (spec 9.6.1)
-			await physics_frame
+		if phase_arg == "day":  # let travelers queue (spec 9.6.1)
+			await _wait(12.0)
+		else:
+			for i in 30:
+				await physics_frame
 	if phase_arg == "build":
 		var gs3 = root.get_node("GameState")
 		gs3.add_gold(500)
@@ -117,9 +134,8 @@ func _run() -> void:
 		if _args.has("seconds"):  # optional settle time (lets the "monsters return" banner clear)
 			for i in int(float(_args.seconds) * 60.0):
 				await physics_frame
-	elif phase_arg == "night":
-		for i in int(float(_args.get("seconds", "12")) * 60.0):
-			await physics_frame
+	elif phase_arg == "night" and not _args.has("save"):
+		await _wait(float(_args.get("seconds", "12")))
 	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(main.hero.xz()), _bal.ui)
 	var t0 := Time.get_ticks_msec()  # let the diner's occlusion fade (D-151) settle: 3x its fade time
 	while Time.get_ticks_msec() - t0 < int(_bal.ui.occluder_fade_s * 1000.0) * 3:
@@ -138,4 +154,16 @@ func _run() -> void:
 		quit(1)
 		return
 	print("saved ", out, " ", img.get_size())
+	if _args.has("drawcalls"):
+		print("DRAWCALLS_MAX %d" % _dc_max)
 	quit(0)
+
+## Waits `seconds` of physics frames; with --drawcalls, samples the render draw calls once a second.
+func _wait(seconds: float) -> void:
+	var frames := int(seconds * 60.0)
+	for i in frames:
+		await physics_frame
+		if _args.has("drawcalls") and i % 60 == 59:
+			var dc := int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+			_dc_max = maxi(_dc_max, dc)
+			print("DRAWCALLS %d" % dc)
