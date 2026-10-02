@@ -150,6 +150,12 @@ func _run() -> void:
 	var t0 := Time.get_ticks_msec()  # let the diner's occlusion fade (D-151) settle: 3x its fade time
 	while Time.get_ticks_msec() - t0 < int(_bal.ui.occluder_fade_s * 1000.0) * 3:
 		await process_frame
+	# Guard: a grab with the camera not in place gives a ground-level shot from the origin (seen once in S4 Task 15).
+	var want: Transform3D = camera_math.camera_transform(camera_math.focus_for(main.hero.xz()), _bal.ui)
+	if not cam.current or cam.global_position.distance_to(want.origin) > 0.05:
+		push_error("capture: camera not in place (current=%s pos=%s want=%s)" % [cam.current, cam.global_position, want.origin])
+		quit(1)
+		return
 	var img := root.get_texture().get_image()
 	if img.get_size() != Vector2i(720, 1280):
 		push_warning("capture size %s" % img.get_size())

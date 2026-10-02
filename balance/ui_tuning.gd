@@ -38,8 +38,8 @@ extends Resource
 @export var arrow_edge_margin := 48.0
 @export var arrow_hover_px := 40.0
 @export var arrow_side_scale := 0.6
-## Banner backing panel alpha (CP1 review: banners must stay readable over world labels).
-@export var banner_panel_alpha := 0.55
+## Banner backing panel alpha (CP1 review: banners must stay readable over world labels). Baked into ui/theme/game_theme.tres; re-run tools/build_theme.gd after changing.
+@export var banner_panel_alpha := 0.85
 ## Gap between the top HUD block and an edge arrow (CP1 review).
 @export var arrow_hud_gap := 8.0
 ## S2 card pick overlay (D-162): early taps are ignored for card_input_guard_s; panel size, gap, and the

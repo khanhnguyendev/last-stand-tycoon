@@ -10,6 +10,8 @@ var card_strip: CardStrip
 var day_label: Label
 var moons: Array = []
 var diner_bar: ProgressBar
+var gold_icon: TextureRect
+var heart_icon: TextureRect
 var banner: Label
 var banner_panel: PanelContainer
 var arrows := {}
@@ -30,6 +32,16 @@ const BAR_SIZE := Vector2(220, 12)
 const BANNER_SIDE_MARGIN := 40.0
 ## Half the arrow's height (its polygon spans -16..20 at scale 1, rounded up for the big one).
 const ARROW_EXTENT := 26.0
+## Task 15: HUD icons (rendered by tools/render_icons.gd).
+const ICON_PX := 48.0
+const ICON_GAP := 8.0
+const MOON_PX := 26.0
+const MOON_CELL_PX := 32.0
+## Lit moons show the icon as rendered (warm_white); unlit ones are tinted ink_soft, on an ink disc.
+const MOON_LIT := Color.WHITE
+const COIN_ICON := preload("res://art/icons/coin.png")
+const HEART_ICON := preload("res://art/icons/heart.png")
+const MOON_ICON := preload("res://art/icons/moon.png")
 
 func setup(main: Main) -> void:
 	_camera = main.camera_rig.camera
@@ -43,7 +55,10 @@ func _ready() -> void:
 	add_child(root)
 	_apply_safe_area()
 	get_viewport().size_changed.connect(_apply_safe_area)
-	gold_label = _label(48, Vector2(24, 16))
+	# The coin icon takes the old label slot (24, 16); the label moves right by one icon (the 24 px margin cannot hold it).
+	gold_icon = _icon(COIN_ICON, ICON_PX, root)
+	gold_icon.position = Vector2(24, 22)
+	gold_label = _label(48, Vector2(24 + ICON_PX + ICON_GAP, 16), null, &"HudCounter")
 	gold_label.pivot_offset = Vector2(0, 30)
 	card_strip = CardStrip.new()
 	card_strip.position = Vector2(24, 84)
@@ -62,7 +77,7 @@ func _ready() -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.custom_minimum_size = Vector2(0, 54)
 	column.add_child(row)
-	day_label = _label(40, Vector2.ZERO, row)
+	day_label = _label(40, Vector2.ZERO, row, &"HudCounter")
 	_moon_row = HBoxContainer.new()
 	_moon_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_moon_row.add_theme_constant_override("separation", 12)
@@ -78,27 +93,14 @@ func _ready() -> void:
 	diner_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar_slot.add_child(diner_bar)
 	diner_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# Explicit styles: the bar must read over the ground by day and night.
-	var fill := StyleBoxFlat.new()
-	fill.bg_color = Palette.color(&"guard_green")
-	fill.set_corner_radius_all(6)
-	fill.set_border_width_all(2)
-	fill.border_color = Color(0, 0, 0, 0.8)
-	var back := StyleBoxFlat.new()
-	back.bg_color = Color(0, 0, 0, Balance.ui.banner_panel_alpha)
-	back.set_corner_radius_all(6)
-	back.set_border_width_all(2)
-	back.border_color = Color(0, 0, 0, 0.8)
-	diner_bar.add_theme_stylebox_override("fill", fill)
-	diner_bar.add_theme_stylebox_override("background", back)
+	# The heart sits left of the bar, centred on it, outside the layout slot (no layout shift).
+	heart_icon = _icon(HEART_ICON, ICON_PX, bar_slot)
+	heart_icon.position = Vector2(-(ICON_PX + ICON_GAP), (BAR_SIZE.y - ICON_PX) * 0.5)
+	# Fill and background come from the theme (ProgressBar: guard_green on ink).
 	# Dark backing so the banner reads over the world (mouse-transparent, hides with the banner).
 	banner_panel = PanelContainer.new()
 	banner_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color(0, 0, 0, Balance.ui.banner_panel_alpha)
-	panel_style.set_corner_radius_all(24)
-	panel_style.set_content_margin_all(20)
-	banner_panel.add_theme_stylebox_override("panel", panel_style)
+	banner_panel.theme_type_variation = &"BannerPanel"
 	banner_panel.set_anchors_preset(Control.PRESET_HCENTER_WIDE)
 	banner_panel.anchor_top = 0.4
 	banner_panel.anchor_bottom = 0.4
@@ -107,7 +109,7 @@ func _ready() -> void:
 	banner_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	banner_panel.visible = false
 	root.add_child(banner_panel)
-	banner = _label(64, Vector2.ZERO, banner_panel)
+	banner = _label(64, Vector2.ZERO, banner_panel, &"BannerLabel")
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -115,7 +117,7 @@ func _ready() -> void:
 	for key in ["main", "side"]:
 		var p := Polygon2D.new()
 		p.polygon = PackedVector2Array([Vector2(-20, -16), Vector2(20, -16), Vector2(0, 20)])
-		p.color = Color("e03030")
+		p.color = Palette.color(&"enemy_red")
 		p.scale = Vector2.ONE if key == "main" else Vector2.ONE * Balance.ui.arrow_side_scale
 		p.visible = false
 		root.add_child(p)
@@ -144,20 +146,49 @@ func _apply_safe_area() -> void:
 ## One moon per planned wave (spec 7.9); created hidden, shown only at night.
 func _set_moon_count(n: int) -> void:
 	while moons.size() > n:
-		moons.pop_back().queue_free()
+		moons.pop_back().get_parent().queue_free()  # the cell: disc + moon
 	while moons.size() < n:
-		var m := ColorRect.new()
-		m.custom_minimum_size = Vector2(28, 28)
-		m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# A cell holds an ink disc (so an unlit moon still reads at 40%) and the moon icon; the icon carries the
+		# lit/unlit tint and the visibility, the disc follows its visibility.
+		var cell := Control.new()
+		cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cell.custom_minimum_size = Vector2(MOON_CELL_PX, MOON_CELL_PX)
+		cell.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var disc := Panel.new()
+		disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Palette.color(&"ink")
+		sb.set_corner_radius_all(int(MOON_CELL_PX / 2.0))
+		sb.anti_aliasing = true
+		disc.add_theme_stylebox_override("panel", sb)
+		disc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		cell.add_child(disc)
+		var m := _icon(MOON_ICON, MOON_PX, cell)
+		m.position = Vector2.ONE * ((MOON_CELL_PX - MOON_PX) * 0.5)
 		m.visible = false
-		_moon_row.add_child(m)
+		disc.visible = false
+		m.visibility_changed.connect(func(): disc.visible = m.visible)
+		_moon_row.add_child(cell)
 		moons.append(m)
 
-func _label(size: int, pos: Vector2, parent: Control = null) -> Label:
+## A fixed-size icon TextureRect (a 2D batch item); added to `parent` when given.
+func _icon(tex: Texture2D, px: float, parent: Control) -> TextureRect:
+	var t := TextureRect.new()
+	t.texture = tex
+	t.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	t.custom_minimum_size = Vector2(px, px)
+	t.size = Vector2(px, px)
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if parent != null:
+		parent.add_child(t)
+	return t
+
+func _label(size: int, pos: Vector2, parent: Control, variation: StringName) -> Label:
 	var l := Label.new()
+	l.theme_type_variation = variation
 	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_constant_override("outline_size", 8)
-	l.add_theme_color_override("font_outline_color", Color.BLACK)
 	l.position = pos
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	(parent if parent != null else root).add_child(l)
@@ -207,7 +238,7 @@ func _on_wave_cleared(w: int) -> void:
 
 func _paint_moons() -> void:
 	for i in moons.size():
-		moons[i].color = Color("ffe066") if i < _filled else Color(0.25, 0.25, 0.35)
+		moons[i].modulate = MOON_LIT if i < _filled else Palette.color(&"ink_soft")
 
 func _on_wave_incoming(_w: int, main_lane: StringName, side_lane: StringName) -> void:
 	_arrow_lane.main = String(main_lane)

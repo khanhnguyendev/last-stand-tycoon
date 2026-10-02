@@ -24,6 +24,7 @@ func setup(main: Main) -> void:
 	name = "DebugOverlay"
 	layer = 30
 	_label = Label.new()
+	_label.theme_type_variation = &"HudLabel"
 	_label.position = Vector2(420, 110)
 	_label.add_theme_font_size_override("font_size", 20)
 	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE

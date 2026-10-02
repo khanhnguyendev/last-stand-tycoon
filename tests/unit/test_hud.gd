@@ -139,8 +139,8 @@ func test_diner_bar_is_visible_with_real_size_and_styles() -> void:
 	assert_gte(r.size.x, Hud.BAR_SIZE.x, "fills its slot, not the 4px default")
 	assert_gte(r.size.y, Hud.BAR_SIZE.y)
 	assert_not_null(hud.diner_bar.get_theme_stylebox("fill"))
-	assert_true(hud.diner_bar.has_theme_stylebox_override("fill"))
-	assert_true(hud.diner_bar.has_theme_stylebox_override("background"))
+	assert_false(hud.diner_bar.has_theme_stylebox_override("fill"), "the style comes from the theme (S4 Task 14)")
+	assert_eq((hud.diner_bar.get_theme_stylebox("background") as StyleBoxFlat).bg_color, Palette.color(&"ink"))
 	var fill := hud.diner_bar.get_theme_stylebox("fill") as StyleBoxFlat
 	assert_eq(fill.bg_color, Palette.color(&"guard_green"))
 	main.phase_controller.debug_skip_to_night()
@@ -263,3 +263,12 @@ func test_queued_banner_shown_late_plays_min_time() -> void:
 	assert_true(saw_y, "Y was shown")
 	assert_eq(hud.banner.text, "Z")
 	assert_almost_eq(hud._banner_left, Balance.ui.banner_time, 3.0 / 60.0)
+
+func test_moon_tint_lit_and_unlit_after_a_wave_clears() -> void:
+	EventBus.phase_changed.emit(Phase.NIGHT, 1)
+	EventBus.wave_cleared.emit(0)
+	assert_gte(hud.moons.size(), 2)
+	assert_eq(hud.moons[0].modulate, Hud.MOON_LIT)
+	assert_eq(hud.moons[1].modulate, Palette.color(&"ink_soft"))
+	assert_ne(hud.moons[0].modulate, hud.moons[1].modulate)
+	assert_true(hud.moons[0].get_parent().get_child(0).visible, "the ink disc shows with its moon")

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ctj83re6x3oml"
-path="res://.godot/imported/kenney-platformer__colormap.png-af4994da55f591541281bd1d9766e63e.ctex"
+uid="uid://cfixjhukiexi5"
+path="res://.godot/imported/heart.png-832e4c630540266c4b519a8cab592e42.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/palette/atlas/kenney-platformer__colormap.png"
-dest_files=["res://.godot/imported/kenney-platformer__colormap.png-af4994da55f591541281bd1d9766e63e.ctex"]
+source_file="res://art/icons/heart.png"
+dest_files=["res://.godot/imported/heart.png-832e4c630540266c4b519a8cab592e42.ctex"]
 
 [params]
 
@@ -23,7 +23,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=false
+mipmaps/generate=true
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""
