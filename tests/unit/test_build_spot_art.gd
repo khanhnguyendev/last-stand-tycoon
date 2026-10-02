@@ -2,8 +2,10 @@ extends GutTest
 ## S4 Task 12 (D-194/D-197, D-201): the level changes the model; resume into DAY shows the saved level; the marker shows
 ## only at level 0 in DAY; every runtime scene is one baked mesh and the committed bakes match their sources.
 
-## A stale bake moves vertices by cm; cross-platform float noise is < 1e-5..1e-4.
+## A stale bake moves vertices by cm. Cross-platform noise: positions < 1e-4; normals ~1.2e-4 (compressed normal
+## encoding differs between macOS arm64 and Linux x86), so normals get 2e-3.
 const BAKE_TOL := 1e-4
+const BAKE_NORMAL_TOL := 2e-3
 
 const Bake := preload("res://tools/bake_static.gd")
 const ENV := "res://art/env/"
@@ -126,7 +128,7 @@ func test_committed_bakes_match_their_sources() -> void:
 				var off := 0
 				var detail := ""
 				for i in mini(fa.size(), fb.size()):
-					if fa[i].distance_to(fb[i]) > BAKE_TOL:  # macOS arm64 vs Linux x86 float noise in the normal transform
+					if fa[i].distance_to(fb[i]) > (BAKE_NORMAL_TOL if k == Mesh.ARRAY_NORMAL else BAKE_TOL):
 						off += 1
 						if off <= 4:
 							detail += " [%d fresh %s committed %s pos %s]" % [i, fa[i], fb[i], (a[Mesh.ARRAY_VERTEX] as PackedVector3Array)[i]]
