@@ -21,7 +21,7 @@ func test_size_and_material() -> void:
 	assert_not_null(mat)
 	assert_true(mat.vertex_color_use_as_albedo)
 	assert_true(mat.vertex_color_is_srgb)
-	assert_almost_eq(mat.roughness, 0.5, 0.2)
+	assert_eq(mat.roughness, 1.0)
 
 func test_vertex_colours_are_only_gold_and_gold_dark() -> void:
 	var cols: PackedColorArray = CoinMesh.get_mesh().surface_get_arrays(0)[Mesh.ARRAY_COLOR]

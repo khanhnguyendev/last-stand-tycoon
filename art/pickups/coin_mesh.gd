@@ -52,7 +52,7 @@ static func _build() -> ArrayMesh:
 	var m := StandardMaterial3D.new()
 	m.vertex_color_use_as_albedo = true
 	m.vertex_color_is_srgb = true
-	m.roughness = 0.5
+	m.roughness = 1.0  # ART_BIBLE §4: one shading model
 	st.set_material(m)
 	return st.commit()
 
