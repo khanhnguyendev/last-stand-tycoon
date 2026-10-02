@@ -6,7 +6,7 @@ direction, and anything that deviates from IDEA.md. Ranked by impact, highest fi
 1. Art direction: KayKit Adventurers cast (chef-hatted Barbarian as the hero), Kenney rounded kits, and a procedural tusked Boar. Quaternius characters (named in IDEA.md) were rejected on the style board — [D-186](DECISIONS.md), [board](review/media/s4_style_board/README.md)
 2. The hero is a cook who throws spinning kitchen knives (IDEA doesn't say how the hero attacks; a pan is held for the look) — [D-191](DECISIONS.md)
 3. Boar: red-brown procedural tusked boar; tusks only small white flares at phone size (bigger tusks cost readability of the face) — [D-202](DECISIONS.md)
-4. Night look: a blue moonlight tint at night (art choice, not in IDEA) — [D-194](DECISIONS.md)
+4. Night look: darker blue moonlight (about half the day's light); the grey diner roof reads slate-blue at night; the hero's white stays white — [D-194](DECISIONS.md), [D-206](DECISIONS.md)
 5. The diner has a flat roof with a parapet so the Archer can stand on it (a gabled roof reads more 'diner', but hides the Archer) — [D-194](DECISIONS.md)
 6. Diner look: grey gravel flat roof with teal trim, rooftop DINER board, cream awning band, ice-blue freezer — [D-204](DECISIONS.md)
 7. Towers and fences grow by changing model per level; the old 10% size-up per level is off (`build_level_scale` 1.0) — [D-197](DECISIONS.md)

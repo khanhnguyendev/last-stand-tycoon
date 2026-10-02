@@ -1800,3 +1800,22 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
 - **Pips:** gold stars, unshaded and tilted to face the camera (ART_BIBLE §4: indicators are unshaded).
 - **Model swaps:** only on a level or rubble change (an int key).
 - **Close-up sign:** built from wall panels, since there is no post piece in `assets/`.
+
+**D-206 Ground, lanes, props, lighting (S4 Task 13; amends D-194); P4 perf checkpoint.**
+- **Static world: 4 draws** (it was 7 placeholders):
+  - one terrain mesh (ground, road, lane strips);
+  - one edge-stone MultiMesh;
+  - props baked at runtime into one mesh per atlas (2).
+  - The placeholder primitives are banned (validator), and `world/visuals.gd` keeps only `visual_root()`.
+- **Lighting:**
+  - Day: warm sun `fff3c4` 0.85, ambient 0.55.
+  - Night: sun `d8e2ff` 0.55, ambient (0.36, 0.40, 0.58), background dark grass.
+  - Night lit luminance is about half the day's. White stays the hero's colour; a bluer night sun made the chef hat
+    read like the Tank's steel.
+  - The first phase after boot or resume snaps, with no 1.5 s fade from day.
+- **P4 perf checkpoint** (iOS Simulator, profile build, idle machine, 3 runs):
+  - Night 3: 59.8 / 59.8 / 59.6, median 59.8 (gate ≥ 58), 32 draw calls, proc 13 ms.
+  - Day 3: 57.3 fps, 59 draw calls.
+  - Both beat the placeholder baseline (58.3 / 52), because the baked art draws less than the primitives did.
+  - One reading taken while other Godot jobs ran was invalid (proc 48 ms). **Perf is only measured on an idle
+    machine.**
