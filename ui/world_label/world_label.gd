@@ -15,5 +15,6 @@ func _init() -> void:
 	billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	pixel_size = 0.01
 	outline_size = 12
+	outline_modulate = Palette.color(&"ink")
 	no_depth_test = true
-	modulate = Color.WHITE
+	modulate = Palette.color(&"apron_white")

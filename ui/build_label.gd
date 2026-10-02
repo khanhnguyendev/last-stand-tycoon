@@ -7,6 +7,7 @@ var _label: Label
 func _ready() -> void:
 	layer = 100
 	_label = Label.new()
+	_label.theme_type_variation = &"HudLabel"
 	_label.text = build_id()
 	_label.add_theme_font_size_override("font_size", 14)
 	_label.modulate.a = 0.5
