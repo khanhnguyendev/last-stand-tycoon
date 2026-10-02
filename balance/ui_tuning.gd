@@ -67,3 +67,14 @@ extends Resource
 ## S4 Task 7 (D-191): the hero's knife roll about its local X (deg/s) and the hero ring's alpha.
 @export var knife_spin_deg_s := 720.0
 @export var hero_ring_alpha := 0.6
+## S4 Task 13 (D-194): day and night lighting, tweened over lighting_tween_s on phase_changed. The night is a blue
+## moonlight, not dark: the hero, the Boar and the steaks keep R1-R5 (R6).
+@export var lighting_tween_s := 1.5
+@export var day_sun_color := Color("fff3c4")
+@export var day_sun_energy := 0.85
+@export var day_ambient := Color(0.55, 0.55, 0.55)
+@export var day_bg := Color("7fbf5a")
+@export var night_sun_color := Color("d8e2ff")
+@export var night_sun_energy := 0.55
+@export var night_ambient := Color(0.36, 0.40, 0.58)
+@export var night_bg := Color("2a4a35")

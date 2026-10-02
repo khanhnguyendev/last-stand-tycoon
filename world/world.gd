@@ -9,6 +9,8 @@ const GROUND_MARGIN := 80.0
 const DINER_ART := preload("res://art/env/diner.tscn")
 
 var lanes := {}
+var lighting: LightingDirector
+var props: Props
 var diner_body: StaticBody3D
 var build_spots := {}
 var freezer: Freezer
@@ -83,11 +85,14 @@ func _build_environment() -> void:
 	add_child(sun)
 	var env := WorldEnvironment.new()
 	env.environment = Environment.new()
-	env.environment.background_mode = Environment.BG_COLOR
-	env.environment.background_color = Visuals.COLORS.ground  # fallback: anything past the ground reads as ground (D-153)
+	env.environment.background_mode = Environment.BG_COLOR  # day_bg is the grass: anything past the ground reads as ground (D-153)
 	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.environment.ambient_light_color = Color(0.7, 0.7, 0.7)
 	add_child(env)
+	# S4 Task 13: the colours, energies and the day/night tween come from the LightingDirector.
+	lighting = LightingDirector.new()
+	lighting.name = "LightingDirector"
+	add_child(lighting)
+	lighting.setup(sun, env.environment)
 
 ## The area the single ground plane covers, in xz.
 static func ground_rect() -> Rect2:
@@ -97,14 +102,13 @@ static func ground_rect() -> Rect2:
 
 func _build_ground() -> void:
 	var rect := ground_rect()
-	var ground := Visuals.plane(rect.size, Visuals.COLORS.ground)
-	ground.name = "Ground"
-	ground.position = MapLayout.to3(rect.get_center())
-	add_child(ground)
-	var road := Visuals.box(Vector3(MapLayout.BOUNDS_MAX.x - MapLayout.BOUNDS_MIN.x, 0.02, 2.0), Visuals.COLORS.road)
-	road.name = "Road"
-	road.position = Vector3(0, 0.01, MapLayout.ROAD_Z)
-	add_child(road)
+	# S4 D-201: ground + road + lane strips are ONE mesh, the edge stones ONE MultiMesh, the props 2 meshes.
+	add_child(GroundArt.instance(GroundArt.terrain_mesh(rect), "Ground"))
+	add_child(LaneStrip.edge_stones())
+	props = Props.new()
+	props.name = "Props"
+	add_child(props)
+	props.build()
 
 func _build_diner() -> void:
 	diner_body = add_static_box("Diner", Vector3(8, MapLayout.DINER_HEIGHT, 8), Vector2.ZERO, DINER_ART)
