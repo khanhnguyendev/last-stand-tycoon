@@ -124,10 +124,13 @@ func test_committed_bakes_match_their_sources() -> void:
 				var fb: PackedVector3Array = b[k]
 				assert_eq(fa.size(), fb.size(), "%s array %d size" % [name, k])
 				var off := 0
+				var detail := ""
 				for i in mini(fa.size(), fb.size()):
 					if fa[i].distance_to(fb[i]) > BAKE_TOL:  # macOS arm64 vs Linux x86 float noise in the normal transform
 						off += 1
-				assert_eq(off, 0, "%s array %d: vertices that differ from the fresh bake" % [name, k])
+						if off <= 4:
+							detail += " [%d fresh %s committed %s pos %s]" % [i, fa[i], fb[i], (a[Mesh.ARRAY_VERTEX] as PackedVector3Array)[i]]
+				assert_eq(off, 0, "%s array %d: vertices that differ from the fresh bake%s" % [name, k, detail])
 			assert_eq(fresh.surface_get_material(s), cur.surface_get_material(s), "%s material" % name)
 
 func test_star_is_one_gold_mesh() -> void:
