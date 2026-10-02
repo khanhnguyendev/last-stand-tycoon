@@ -17,7 +17,7 @@ func before_each() -> void:
 	_visual = Visuals.visual_root()
 	add_child_autofree(_visual)
 	for part in [Vector3(0, 1.5, 0), Vector3(0, 3.1, 0)]:  # walls + roof: separate meshes (S4 note)
-		var m := Visuals.box(Vector3(8, 3, 8) if part.y < 3.0 else Vector3(8.4, 0.2, 8.4), Visuals.COLORS.diner)
+		var m := FixtureBox.box(Vector3(8, 3, 8) if part.y < 3.0 else Vector3(8.4, 0.2, 8.4), FixtureBox.COLORS.diner)
 		m.position = part
 		_visual.add_child(m)
 	_cam = Camera3D.new()
@@ -122,7 +122,7 @@ func test_fades_back_and_restores_opaque_material() -> void:
 		assert_eq(mat.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)
 
 func test_faded_material_does_not_leak_into_shared_cache() -> void:
-	var shared := Visuals.material(Visuals.COLORS.diner)
+	var shared := FixtureBox.material(FixtureBox.COLORS.diner)
 	var hero := _hero_at_north_center()
 	_aim_camera_at(Vector2(hero.x, hero.z))
 	_targets = [_hero_aim(hero)]

@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/kenney-castle/tree-small.glb" id="1_m"]
+
+[node name="PropSrc" type="Node3D"]
+
+[node name="Model" parent="." instance=ExtResource("1_m")]
