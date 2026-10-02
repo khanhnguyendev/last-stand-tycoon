@@ -8,10 +8,10 @@ var root: Control
 var gold_label: Label
 var card_strip: CardStrip
 var day_label: Label
+## The moon layout cells (one per planned wave); the moons themselves are drawn by `icons`.
 var moons: Array = []
 var diner_bar: ProgressBar
-var gold_icon: TextureRect
-var heart_icon: TextureRect
+var icons: HudIcons
 var banner: Label
 var banner_panel: PanelContainer
 var arrows := {}
@@ -33,15 +33,10 @@ const BANNER_SIDE_MARGIN := 40.0
 ## Half the arrow's height (its polygon spans -16..20 at scale 1, rounded up for the big one).
 const ARROW_EXTENT := 26.0
 ## Task 15: HUD icons (rendered by tools/render_icons.gd).
-const ICON_PX := 48.0
-const ICON_GAP := 8.0
-const MOON_PX := 26.0
-const MOON_CELL_PX := 32.0
-## Lit moons show the icon as rendered (warm_white); unlit ones are tinted ink_soft, on an ink disc.
-const MOON_LIT := Color.WHITE
-const COIN_ICON := preload("res://art/icons/coin.png")
-const HEART_ICON := preload("res://art/icons/heart.png")
-const MOON_ICON := preload("res://art/icons/moon.png")
+const ICON_PX := HudIcons.ICON_PX
+const ICON_GAP := HudIcons.ICON_GAP
+const MOON_CELL_PX := HudIcons.MOON_CELL_PX
+const MOON_LIT := HudIcons.MOON_LIT
 
 func setup(main: Main) -> void:
 	_camera = main.camera_rig.camera
@@ -56,8 +51,8 @@ func _ready() -> void:
 	_apply_safe_area()
 	get_viewport().size_changed.connect(_apply_safe_area)
 	# The coin icon takes the old label slot (24, 16); the label moves right by one icon (the 24 px margin cannot hold it).
-	gold_icon = _icon(COIN_ICON, ICON_PX, root)
-	gold_icon.position = Vector2(24, 22)
+	icons = HudIcons.new()  # coin, heart and moons in one custom draw (Task 16b)
+	root.add_child(icons)
 	gold_label = _label(48, Vector2(24 + ICON_PX + ICON_GAP, 16), null, &"HudCounter")
 	gold_label.pivot_offset = Vector2(0, 30)
 	card_strip = CardStrip.new()
@@ -93,9 +88,10 @@ func _ready() -> void:
 	diner_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar_slot.add_child(diner_bar)
 	diner_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# The heart sits left of the bar, centred on it, outside the layout slot (no layout shift).
-	heart_icon = _icon(HEART_ICON, ICON_PX, bar_slot)
-	heart_icon.position = Vector2(-(ICON_PX + ICON_GAP), (BAR_SIZE.y - ICON_PX) * 0.5)
+	# The heart is drawn by `icons` left of the bar, centred on it, outside the layout slot (no layout shift).
+	icons.heart_anchor = bar_slot
+	for c in [column, _moon_row, bar_slot, root]:
+		c.item_rect_changed.connect(icons.queue_redraw)
 	# Fill and background come from the theme (ProgressBar: guard_green on ink).
 	# Dark backing so the banner reads over the world (mouse-transparent, hides with the banner).
 	banner_panel = PanelContainer.new()
@@ -143,47 +139,31 @@ func _apply_safe_area() -> void:
 	root.offset_left = ins.left
 	root.offset_right = -ins.right
 
-## One moon per planned wave (spec 7.9); created hidden, shown only at night.
+## One moon per planned wave (spec 7.9): an empty layout cell each, so the row keeps its width; `icons` draws them,
+## and only at night.
 func _set_moon_count(n: int) -> void:
 	while moons.size() > n:
-		moons.pop_back().get_parent().queue_free()  # the cell: disc + moon
+		moons.pop_back().queue_free()
 	while moons.size() < n:
-		# A cell holds an ink disc (so an unlit moon still reads at 40%) and the moon icon; the icon carries the
-		# lit/unlit tint and the visibility, the disc follows its visibility.
 		var cell := Control.new()
 		cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		cell.custom_minimum_size = Vector2(MOON_CELL_PX, MOON_CELL_PX)
 		cell.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		var disc := Panel.new()
-		disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Palette.color(&"ink")
-		sb.set_corner_radius_all(int(MOON_CELL_PX / 2.0))
-		sb.anti_aliasing = true
-		disc.add_theme_stylebox_override("panel", sb)
-		disc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		cell.add_child(disc)
-		var m := _icon(MOON_ICON, MOON_PX, cell)
-		m.position = Vector2.ONE * ((MOON_CELL_PX - MOON_PX) * 0.5)
-		m.visible = false
-		disc.visible = false
-		m.visibility_changed.connect(func(): disc.visible = m.visible)
+		cell.item_rect_changed.connect(icons.queue_redraw)
 		_moon_row.add_child(cell)
-		moons.append(m)
+		moons.append(cell)
+	icons.moon_cells = moons
+	icons.queue_redraw()
 
-## A fixed-size icon TextureRect (a 2D batch item); added to `parent` when given.
-func _icon(tex: Texture2D, px: float, parent: Control) -> TextureRect:
-	var t := TextureRect.new()
-	t.texture = tex
-	t.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	t.custom_minimum_size = Vector2(px, px)
-	t.size = Vector2(px, px)
-	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if parent != null:
-		parent.add_child(t)
-	return t
+func moon_lit(i: int) -> bool:
+	return icons.moon_lit(i)
+
+func moon_color(i: int) -> Color:
+	return icons.moon_color(i)
+
+## True while the moons are drawn (night only).
+func moons_shown() -> bool:
+	return icons.night
 
 func _label(size: int, pos: Vector2, parent: Control, variation: StringName) -> Label:
 	var l := Label.new()
@@ -219,8 +199,8 @@ func _on_phase_changed(phase: int, day: int) -> void:
 		_arrow_lane.side = ""
 		arrows.main.visible = false
 		arrows.side.visible = false
-	for m in moons:
-		m.visible = night
+	icons.night = night
+	icons.queue_redraw()
 	day_label.visible = not night
 	day_label.text = tr("Day %d") % day
 	diner_bar.value = GameState.diner_hp
@@ -237,8 +217,8 @@ func _on_wave_cleared(w: int) -> void:
 	_paint_moons()
 
 func _paint_moons() -> void:
-	for i in moons.size():
-		moons[i].modulate = MOON_LIT if i < _filled else Palette.color(&"ink_soft")
+	icons.filled = _filled
+	icons.queue_redraw()
 
 func _on_wave_incoming(_w: int, main_lane: StringName, side_lane: StringName) -> void:
 	_arrow_lane.main = String(main_lane)
