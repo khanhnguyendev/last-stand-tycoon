@@ -473,4 +473,64 @@ Tasks in one phase with disjoint files may run in parallel (D-136), at most 3 at
 - Animated travelers eating at tables.
 - A Blender kitbash pass on the Boar for a skinned rig.
 
-## 13. Results (S4, filled in at the end of S4)
+## 13. Results (S4)
+
+**What shipped.** Every placeholder primitive is gone; the validator bans them. The game now has a cohesive CC0
+look:
+- **Cast:** KayKit Adventurers. The hero is a cook with a chef hat, apron and pan who throws knives. The Archer is
+  hooded with a crossbow, the Tank has a helmet, sword and shield, and travelers come in six muted looks.
+- **Boar:** a procedural tusked Boar.
+- **World:** Kenney kits. A roadside diner with a flat gravel roof and a DINER board, towers and fences whose model
+  changes per level, dirt lanes with stone edging, and trees and rocks.
+- **Pickups:** Kenney steaks and a procedural gold coin.
+- **UI:** a palette theme with bold Nunito, rendered icons and card portraits.
+- **Lighting:** day and night.
+
+All of it sits in one 32-colour palette (D-188). Gameplay is unchanged: the determinism baseline was identical
+after every task in P1–P6.
+
+**How it was kept fast (D-201).** Draw calls, not triangles or animation, set the frame rate on web. So:
+- each character is baked offline into one skinned mesh with its props;
+- every blob shadow is one MultiMesh;
+- ground steaks are one MultiMesh;
+- each pile is one MultiMesh;
+- the diner, each tower and fence level, and the terrain are baked or merged per material;
+- the card strip and HUD icons draw from one atlas.
+
+| Result | Value |
+|---|---|
+| Unit / sim tests | 688 unit, 9 sim (sim suite 8–9 s of 60 s) |
+| Determinism baseline | Identical after every task (seeds 20260930, 11, 777) |
+| Asset validator | Green in CI: licences, palette, enemy colours, sizes, triangles, animations, no physics in art, no placeholders |
+| Licences | 7 CC0 packs (Kenney ×5, KayKit ×2), one row each in ASSET_LICENSES; procedural Boar, coin, icons and palette made in the repo. The Platformer pack was removed. |
+| Night-3 fps, iOS Simulator, profile build (gate ≥ 58, median of 3) | **59.0** (runs 59.3 / 55.8 / 59.0; the 55.8 run had the Mac drop to 39% idle mid-run). Earlier checkpoints: placeholder baseline 58.3; P2 after the character bake 58.2; P4 59.8. |
+| Day-3 fps, same harness | 49.6 on a busy machine; 57.3 at the P4 checkpoint on an idle one. Not the gate; in known issues. |
+| Draw calls at night 3 | Simulator: 36 (placeholder baseline 35). Desktop capture: 48 with 2 or with 7 cards owned (guide ≤ 120). |
+| Worst frame at night 3 | About 115–140 ms once per night, at the first wave spawn (known issue, S5). |
+| Emulated Pixel 7 (Playwright, software GL) | 6.1 fps, 0 page errors: a smoke check only, not a device figure (D-141). |
+| Release size | pck 4,398,040 B raw (gate 8 MiB); `gzip -9` of wasm + pck + js 12,787,266 B (gate 16 MiB). Before S4 the payload was 10.3 MB. |
+| Load time | Deferred to the final review on a real phone (D-159). Localhost Simulator load is not comparable. |
+
+**Fallbacks from §11 that were used:** none of the animation fallbacks; turning animation off was worth only +2
+fps. Instead, D-201 added three things the spec did not plan: the offline character bake, the shared shadow and
+pickup fields, and the UI atlas.
+
+**Deviations from the spec, all logged:**
+- KayKit is a third CC0 source (D-186).
+- Characters are baked, not wrapped (D-201).
+- The hero wears a full white coat (D-201).
+- Tower L3 has no roof or crystals (D-205).
+- The coin is procedural and the Platformer pack is dropped (D-208).
+- The character triangle budget is 5500 (D-198).
+- The perf gate is the median of 3 runs on an idle machine (D-199, D-209).
+
+**Skipped nits (D-185):** the coin back-face ridge normal sign (cosmetic).
+
+**Open risks carried to S5 and the final review:**
+1. The fps gate is measured in the iOS Simulator on the author's Mac, and it moves by several fps with whatever
+   else the Mac is doing. A real mid-range phone has not been measured.
+2. Day-phase fps is lower than night.
+3. The first-wave stall.
+4. The Boar's tusks are small at phone size.
+5. Fence L1 and L2 differ mainly by posts.
+

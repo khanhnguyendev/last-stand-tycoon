@@ -6,6 +6,12 @@
 # 2. f=night3_start (resumes straight into night 3) -> night3_80s.png after 100 s (the overlay freezes its reading once 60 s of frames are counted, after a 2 s warm-up).
 set -euo pipefail
 BUILD="$1"; OUT="$2"; PORT=8765
+# The reading depends on what else the Mac is doing (S4: 59.5 fps idle vs 51.9 with an editor at 53% CPU), so wait
+# for an idle machine (PERF_MIN_IDLE, default 75%) and print the idle figure next to the reading (D-209).
+cpu_idle() { top -l 2 -n 0 | awk '/CPU usage/ {v=$7} END {gsub("%","",v); print int(v)}'; }
+MIN_IDLE="${PERF_MIN_IDLE:-75}"
+for _ in $(seq 1 40); do IDLE=$(cpu_idle); [ "$IDLE" -ge "$MIN_IDLE" ] && break; echo "cpu idle ${IDLE}% < ${MIN_IDLE}%, waiting"; sleep 15; done
+echo "cpu_idle_before=${IDLE}%"
 mkdir -p "$OUT"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 cp "$(dirname "$0")/seed_save.html" "$BUILD/"
@@ -25,3 +31,4 @@ xcrun simctl terminate "$UDID" com.apple.mobilesafari 2>/dev/null || true   # no
 xcrun simctl openurl "$UDID" "http://localhost:$PORT/seed_save.html?f=night3_start&to=/"
 sleep 100; xcrun simctl io "$UDID" screenshot "$OUT/night3_80s.png" >/dev/null
 echo "ios: $OUT/night3_80s.png"
+echo "cpu_idle_after=$(cpu_idle)%"
