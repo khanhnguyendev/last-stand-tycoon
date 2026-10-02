@@ -14,8 +14,6 @@ var _owned := {}
 var _guard_left := 0.0
 
 const HEADING_H := 70.0
-const ADVENTURER_BAND := Color("f2c230")
-const UPGRADE_BAND := Color("3cc6b8")
 
 func _init() -> void:
 	name = "CardPickOverlay"
@@ -27,11 +25,12 @@ func _ready() -> void:
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.45)
+	var dim_c := Palette.color(&"night_sky")
+	dim.color = Color(dim_c.r, dim_c.g, dim_c.b, 0.45)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(dim)
-	_heading = _label(44, _root)
+	_heading = _label(44, _root, &"HudCounter")
 	_heading.text = tr("Pick a card")
 	_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	visible = false
@@ -100,12 +99,7 @@ func _relayout() -> void:
 func _make_panel(id: StringName) -> Control:
 	var panel := Panel.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.12, 0.16, 0.95)
-	style.set_corner_radius_all(20)
-	style.border_color = ADVENTURER_BAND if CardCatalog.kind(id) == &"adventurer" else UPGRADE_BAND
-	style.border_width_left = 16
-	panel.add_theme_stylebox_override("panel", style)
+	panel.theme_type_variation = &"CardPanelAdventurer" if CardCatalog.kind(id) == &"adventurer" else &"CardPanelUpgrade"
 	_root.add_child(panel)
 	var box := VBoxContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -116,16 +110,15 @@ func _make_panel(id: StringName) -> Control:
 	box.offset_bottom = -16
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	panel.add_child(box)
-	_label(40, box).text = CardCatalog.display_name(id)
-	_label(28, box).text = CardCatalog.effect_text(id, Balance.data.cards)
-	_label(26, box).text = CardCatalog.level_text(GameState.card_level(id))
+	_label(40, box, &"").text = CardCatalog.display_name(id)
+	_label(28, box, &"").text = CardCatalog.effect_text(id, Balance.data.cards)
+	_label(26, box, &"").text = CardCatalog.level_text(GameState.card_level(id))
 	return panel
 
-func _label(size: int, parent: Control) -> Label:
+func _label(size: int, parent: Control, variation: StringName) -> Label:
 	var l := Label.new()
+	l.theme_type_variation = variation
 	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_constant_override("outline_size", 6)
-	l.add_theme_color_override("font_outline_color", Color.BLACK)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(l)

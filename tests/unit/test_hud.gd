@@ -139,8 +139,8 @@ func test_diner_bar_is_visible_with_real_size_and_styles() -> void:
 	assert_gte(r.size.x, Hud.BAR_SIZE.x, "fills its slot, not the 4px default")
 	assert_gte(r.size.y, Hud.BAR_SIZE.y)
 	assert_not_null(hud.diner_bar.get_theme_stylebox("fill"))
-	assert_true(hud.diner_bar.has_theme_stylebox_override("fill"))
-	assert_true(hud.diner_bar.has_theme_stylebox_override("background"))
+	assert_false(hud.diner_bar.has_theme_stylebox_override("fill"), "the style comes from the theme (S4 Task 14)")
+	assert_eq((hud.diner_bar.get_theme_stylebox("background") as StyleBoxFlat).bg_color, Palette.color(&"ink"))
 	var fill := hud.diner_bar.get_theme_stylebox("fill") as StyleBoxFlat
 	assert_eq(fill.bg_color, Palette.color(&"guard_green"))
 	main.phase_controller.debug_skip_to_night()
