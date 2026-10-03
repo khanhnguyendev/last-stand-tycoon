@@ -1,9 +1,12 @@
 // Usage: node export/pw_audio_spike.mjs <url> [out_prefix] [android|desktop]   (S5 Task 3a, D-212; reused by Task 11)
-// Loads the page, prints window.LST_AUDIO states before any input (expect "suspended"), taps the canvas centre
-// (page.mouse.click is a real user gesture), waits 1 s, prints the states again (expect "running"), screenshots
-// <out_prefix>_before.png and <out_prefix>_after.png, then waits RUN_S seconds (default 0) and prints every console
-// line containing SPIKE, underrun or Audio (case-insensitive). Exit 1 on a page error or when no state reads "running"
-// after the tap. Chromium with software WebGL; Playwright comes from $LST_PW_DIR (default ~/.cache/lst-playwright).
+// Loads the page and never evaluates anything in it before the tap (Playwright's evaluate / waitForFunction carry a user
+// gesture, which would unlock audio and hide the real autoplay rule). An init script logs "LST_STATE <ms> ctx<i>=<state>"
+// to the console when an AudioContext is created and on every statechange; the "before" states come from those lines.
+// Then taps the canvas centre (page.mouse.click is a real user gesture), waits 1 s, evaluates the states, screenshots
+// <out_prefix>_before.png and <out_prefix>_after.png, waits RUN_S seconds (default 0) and prints every console line
+// containing SPIKE, underrun or Audio (case-insensitive). Exit 1 on a page error, when no context was seen before the
+// tap, when any context was "running" before the tap, or when none is "running" 1 s after the tap.
+// Chromium with software WebGL; Playwright comes from $LST_PW_DIR (default ~/.cache/lst-playwright).
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import os from 'node:os';
@@ -18,33 +21,40 @@ let failed = false;
 const lines = [];
 try {
   const page = await (await browser.newContext(ctxOpts)).newPage();
-  page.on('console', m => { if (/spike|underrun|audio/i.test(m.text())) { lines.push(m.text()); console.log('[console] ' + m.text()); } });
+  const seen = new Map();   // ctx index -> latest state, from the LST_STATE console lines
+  page.on('console', m => {
+    const t = m.text();
+    const st = /^LST_STATE \d+ ctx(\d+)=(\w+)/.exec(t);
+    if (st) { seen.set(Number(st[1]), st[2]); console.log('[console] ' + t); }
+    else if (/spike|underrun|audio/i.test(t)) { lines.push(t); console.log('[console] ' + t); }
+  });
   page.on('pageerror', e => { failed = true; console.log('[pageerror] ' + e.message); });
-  // Playwright runs page.evaluate / waitForFunction with a user gesture, which would give the page sticky activation and
-  // hide the real autoplay rule. So nothing is evaluated before the tap except an init script that logs state changes
-  // from inside the page (timestamps are ms since load).
   await page.addInitScript(() => {
-    window.LST_LOG = [];
-    const seen = new Map();
+    const known = new Set();
+    const log = (c, i) => console.log('LST_STATE ' + Math.round(performance.now()) + ' ctx' + i + '=' + c.state);
     setInterval(() => {
       (window.LST_AUDIO || []).forEach((c, i) => {
-        if (seen.get(i) !== c.state) { seen.set(i, c.state); window.LST_LOG.push(`${Math.round(performance.now())}ms ctx${i}=${c.state}`); }
+        if (known.has(c)) return;
+        known.add(c); log(c, i);
+        c.addEventListener('statechange', () => log(c, i));
       });
-    }, 20);
+    }, 10);
   });
   await page.goto(url, { waitUntil: 'load', timeout: 60000 });
   await page.waitForTimeout(Number(process.env.WAIT_S || 12) * 1000);
-  const states = () => page.evaluate(() => (window.LST_AUDIO || []).map(c => c.state));
-  const before = await states();
-  console.log('before tap: ' + JSON.stringify(before) + ' log=' + JSON.stringify(await page.evaluate(() => window.LST_LOG)));
+  const before = [...seen.entries()].sort((a, b) => a[0] - b[0]).map(e => e[1]);
+  console.log('before tap (from console): ' + JSON.stringify(before));
+  if (before.length === 0) { failed = true; console.log('FAIL: no AudioContext seen before the tap'); }
+  if (before.includes('running')) { failed = true; console.log('FAIL: an AudioContext was running before the tap'); }
   await page.screenshot({ path: `${outPrefix}_before.png` });
   const vp = page.viewportSize();
   await page.mouse.click(vp.width / 2, vp.height / 2);
   await page.waitForTimeout(1000);
+  const states = () => page.evaluate(() => (window.LST_AUDIO || []).map(c => c.state));
   const after = await states();
-  console.log('after tap: ' + JSON.stringify(after) + ' log=' + JSON.stringify(await page.evaluate(() => window.LST_LOG)));
+  console.log('after tap (1 s): ' + JSON.stringify(after));
   await page.screenshot({ path: `${outPrefix}_after.png` });
-  if (!after.includes('running')) { failed = true; console.log('FAIL: no AudioContext is running after the tap'); }
+  if (!after.includes('running')) { failed = true; console.log('FAIL: no AudioContext is running 1 s after the tap'); }
   const runS = Number(process.env.RUN_S || 0);
   if (runS > 0) await page.waitForTimeout(runS * 1000);
   console.log('final: ' + JSON.stringify(await states()));

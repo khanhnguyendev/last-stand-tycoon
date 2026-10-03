@@ -82,14 +82,15 @@ decoded size = mix rate x 2 channels x 4 bytes x length; `export/pw_audio_spike.
 
 | Measure | Result |
 |---|---|
-| Chromium (Playwright 153, desktop 720x1280) AudioContext before any input | `suspended` (from 2-4 s after load) |
-| Same, 1 s after `page.mouse.click` on the canvas centre | `running` (change logged at about 13.4 s, the tap) |
+| Chromium 153.0.8010.12 (Playwright), desktop 720x1280, AudioContext before any input | `suspended` (created at about 3.0 s, 10 s with no input) |
+| Same, 1 s after `page.mouse.click` on the canvas centre | `running` (statechange logged at 13.5 s, the tap) |
 | iOS Simulator (iPhone 17 Pro, Safari), 25 s, no input | `interrupted` (not `suspended`; treat any state other than `running` as locked) |
 | Registration time, both tracks | 115-124 ms on Chromium (5 runs), 121 ms on the iOS Simulator |
-| Decoded size per track | day 15.7 MB (46.8 s), night 18.9 MB (56.1 s) at 44.1 kHz; 17.1 MB and 20.5 MB at 48 kHz |
-| Decoded total | 34.6 MB at 44.1 kHz (Chromium), 37.7 MB at 48 kHz (iOS); budget 48 MB |
+| Decoded size per track | day 15.7 MiB (46.8 s), night 18.9 MiB (56.1 s) at 44.1 kHz; 17.1 MiB and 20.5 MiB at 48 kHz |
+| Decoded total | 34.6 MiB at 44.1 kHz (Chromium), 37.7 MiB at 48 kHz (iOS); budget 48 MiB |
 | Mix rate | 44100 (Chromium), 48000 (iOS Simulator) |
-| Wasm heap before/after | not readable: `HEAP8`, `Module.HEAP8`, `wasmMemory` are all undefined in the 4.7.2 shell; `performance.memory` is quantised (60.3 MB, unchanged) |
+| Wasm heap (JS side) | not readable: `HEAP8`, `Module.HEAP8`, `wasmMemory` are all undefined in the 4.7.2 shell; `performance.memory` is quantised (57.5 MiB, unchanged) |
+| Godot static memory, before / after registering both tracks (Chromium debug build) | `MEMORY_STATIC_MAX` 41.86 MiB / 79.20 MiB (+37.33 MiB); `OS.get_static_memory_usage()` 41.02 MiB / 41.02 MiB |
 | Underrun or `Audio` console lines | none, in 60 s runs of samples and stream |
 | Mean `proc_ms` (profile build, 7 x 10 s windows, run 1 / run 2) | no music 125.4 / 128.3; samples 128.2 / 132.3; stream 118.2 / 132.1 |
 
@@ -97,6 +98,14 @@ The `proc_ms` numbers come from software WebGL on a desktop, so the scatter (106
 the 1.0 ms threshold and no stream or sample delta can be read from them; they only show no gross cost.
 
 Decision: `AudioManifest.MUSIC_MODE = &"samples"`. Rule (1) holds: registration under 500 ms and decoded total at most 48 MB.
+Memory: the peak rose by 37.33 MiB (decoded total 34.6 MiB, plus about 2.7 MiB of other allocation) and the current usage fell
+back to its starting value, so the decoded frames are not kept in Godot's static memory after registration. Registration copies
+frames out of HEAPF32 into Web Audio buffers, so the WASM heap holds a transient copy and never shrinks. The Chromium monitors
+show the peak at about the decoded total; the plan's worst case (peak = decoded total + largest track, about 58 MiB on iOS at
+48 kHz: 37.7 + 20.5) is not contradicted but was not reproduced, so budget for it on iOS.
 Notes for Task 3b: on iOS Safari the unlocked state is `running`, and the locked state may read `interrupted`.
-Playwright's `page.evaluate` and `waitForFunction` carry a user gesture, so any evaluate before the tap makes the context
-`running`; the script uses an init-script state log and no early evaluate.
+Playwright's `page.evaluate` and `waitForFunction` carry a user gesture, so an evaluate before the tap can make the context
+`running`; `export/pw_audio_spike.mjs` therefore evaluates nothing before the tap. An init script logs
+`LST_STATE <ms> ctx<i>=<state>` to the console on creation and on every statechange, the "before" states are read from those
+lines, and the script exits 1 if no context was seen before the tap, if any was `running` before it, or if none is `running`
+1 s after it. The only tap in the Chromium runs is the `page.mouse.click`.
