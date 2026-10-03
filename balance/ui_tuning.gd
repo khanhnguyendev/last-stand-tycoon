@@ -16,8 +16,24 @@ extends Resource
 @export var gold_punch_scale := 1.25
 @export var gold_punch_time := 0.12
 @export var shake_amp := 0.12
-@export var shake_time := 0.15
+@export var shake_time := 0.12
 @export var shake_cooldown := 0.5
+## S5 Task 5 (spec 5.2): reactions. Screen shake per kind; carry squash; traveler hop; bar flash; arrow punch; strip pop;
+## hero dust interval; build dust every Nth paid tick.
+@export var shake_enabled := true
+@export var shake_fell_amp := 0.3
+@export var shake_fell_time := 0.4
+@export var carry_squash := 1.06
+@export var carry_squash_time := 0.12
+@export var traveler_hop_m := 0.25
+@export var traveler_hop_time := 0.2
+@export var bar_flash_time := 0.15
+@export var arrow_punch_scale := 1.3
+@export var arrow_punch_time := 0.2
+@export var strip_pop_scale := 1.25
+@export var strip_pop_time := 0.15
+@export var hero_dust_interval_s := 0.35
+@export var build_dust_every := 4
 @export var build_pop_scale := 1.2
 @export var build_pop_time := 0.2
 @export var hit_flash_time := 0.08

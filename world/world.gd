@@ -82,6 +82,9 @@ func _ready() -> void:
 	fx_field = FxField.new()
 	fx_field.name = "FxField"
 	add_child(fx_field)
+	var reactions := Reactions.new()
+	reactions.name = "Reactions"
+	add_child(reactions)
 
 func _build_environment() -> void:
 	var sun := DirectionalLight3D.new()
