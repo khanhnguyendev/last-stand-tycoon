@@ -1646,6 +1646,8 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
 **Files:**
 - Create: `actors/bots/guide_bot.gd`, `tests/sim/test_guide_sim.gd`, `export/pw_s5_check.mjs`
 - Modify: `ui/guide/guide.gd` (completion, persistence), `tests/sim/sim_harness.gd` (optional guide injection)
+- Modify: `tests/sim/capture.gd`: `--guide=<id>` reuses `main.guide` when Main built one (Task 10 builds its own; after this
+  task that would make a second Guide).
 - Wiring (hot): `world/main.gd` (build the Guide in the boot path), `CLAUDE.md` (layout line)
 - Test: `tests/unit/test_guide.gd` (persistence), `tests/sim/test_guide_sim.gd`
 
