@@ -1913,6 +1913,15 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
   36–41 MiB) for a registration of about 60–70 ms at each music change, behind the phase banner; Task 7 measures it.
   The iOS Simulator's locked state reads `interrupted`, not `suspended`; the probe (`state == "running"`) is
   unchanged. Resuming from `interrupted` on a real iPhone is a final-review item.
+- **Amended (Task 3b, 2026-10-03): music mode `lazy`, not `swap`.** Godot 4.7.2 has no call to unregister a sample
+  (`AudioServer` binds only `register_stream_as_sample` and `is_stream_registered_as_sample`). A Chromium check that
+  counts Web Audio buffers (`export/pw_audio_swap_check.mjs`) showed that dropping every reference to the old track
+  does not free its buffer, and switching back registers the track again: `swap` leaks one track per music change.
+  So the only non-leaking sample modes keep both tracks. `lazy` registers each track the first time it plays (night
+  at the first tap, day at the first dawn) and keeps it: about 36 MB of persistent buffers at 44.1 kHz (39 MB at
+  48 kHz), with the two 60–70 ms registrations at different moments. Stream playback stays rejected (main-thread mixing
+  glitches on long frames). The 48 MB limit was this spec's own guess, not a platform limit; the measured cost goes to
+  REVIEW_QUEUE for the phone check.
 - One toggle mutes the Master bus and is saved at once.
 
 **D-213 Onboarding is one pointer.**
