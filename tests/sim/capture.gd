@@ -10,6 +10,7 @@ extends SceneTree
 ## --cards=id:level,...: grant cards after start_new_game (Tank placed at its post). --scene=cardpick: no bot, emit wave_cleared so the pick opens (with --wait=<s>: open it after the camera guards and grab <s> s later).
 ## --fx-offset=x,y,z: offset of the --fx burst from the hero (default 0,0.5,0).
 ## --fx=<kind>: emit EventBus.fx_requested(kind, hero position + 0.5 up) right before the grab and show it aged --fx-age seconds (default 0.1, stepped by hand) (S5 Task 4).
+## --settings=1: open the settings panel right before the grab (S5 Task 8b); the tree is then paused by its pause reason, which is fine for a still.
 ## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
 ## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
 
@@ -187,6 +188,10 @@ func _run() -> void:
 		# entrance motion at a known point (S5 Task 6). Scene timers run on the same clock as tweens.
 		_open_cardpick()
 		await create_timer(float(_args.wait)).timeout
+	if _args.has("settings"):
+		main.settings_layer.open()
+		for i in 3:
+			await process_frame
 	if _args.has("fx"):
 		# The field is stepped by hand so the shot shows exactly 0.1 s of burst whatever the frame rate is.
 		var field = main.world.fx_field

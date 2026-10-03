@@ -131,10 +131,7 @@ func handle_key(keycode: Key) -> void:
 		KEY_N: _main.phase_controller.debug_skip_to_night()
 		KEY_K: _main.world.wave_director.debug_kill_all()
 		KEY_O: cycle_occluder_alpha()
-		KEY_R:
-			if _main.save_store != null:
-				_main.save_store.wipe()
-			_main.phase_controller.start_new_game()
+		KEY_R: _main.fresh_start()
 		KEY_F:
 			if _main.phase_controller.phase == Phase.NIGHT:
 				GameState.damage_diner(1e9)
