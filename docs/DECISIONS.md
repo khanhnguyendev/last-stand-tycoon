@@ -1978,6 +1978,10 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
   - So the warm-up stays, and the boot fade now stays opaque until it sees 10 consecutive frames under 50 ms (at most
     4 s), so the remaining load freeze happens under the fade. The overlay reads its monitors during its warm-up too,
     so its boundary costs nothing new.
+  - **Result:** night-3 median `avg_fps` 59.8; median `worst_ms` 71 (from 108 with the warm-up alone; main 134), so
+    the < 60 gate fails. Priming the overlay's reads did not remove the frame at its window boundary. Per §5.4 the
+    remaining frame (about 2.1 s after the night starts, also when the first 2 s banner hides) goes to the known issues;
+    S5 does no further perf work on it.
 
 **D-216 HUD pass.**
 - Positions only: safe-area placement, the card strip clear of the diner bar, world labels dimmed (snapped to
