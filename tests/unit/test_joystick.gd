@@ -200,3 +200,19 @@ func test_blocked_input_ends_stick_and_ignores_new_press() -> void:
 	_touch(1, Vector2(300, 700), false)
 	_touch(2, Vector2(300, 700), true)
 	assert_true(js.is_active())
+
+func test_draw_uses_atlas_cells_only() -> void:
+	var src := FileAccess.get_file_as_string("res://ui/joystick/joystick.gd")
+	assert_false("draw_circle" in src, "no polygon draws in the joystick")
+	assert_true("stick_ring" in src and "stick_knob" in src)
+
+func test_active_stick_draws_without_error() -> void:
+	_touch(0, Vector2(360, 900), true)
+	_drag(0, Vector2(360 + 30, 900))
+	js.queue_redraw()
+	await get_tree().process_frame
+	assert_true(js.is_active())
+	_touch(0, Vector2(360, 900), false)
+	js.queue_redraw()
+	await get_tree().process_frame
+	assert_false(js.is_active())

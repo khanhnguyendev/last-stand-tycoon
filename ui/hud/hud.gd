@@ -31,11 +31,14 @@ var _flash_tween: Tween
 var _punch_tween: Tween
 var _moon_row: HBoxContainer
 var _top_column: VBoxContainer
+var _occluder_fade: OccluderFade
+var _arrows_were_shown := false
+var _dim_t := 0.0
 
 ## Layout constants in 720-base units (spec 9.4: slim diner bar under the moons).
 const BAR_SIZE := Vector2(220, 12)
 const BANNER_SIDE_MARGIN := 40.0
-## Half the arrow's height (its polygon spans -16..20 at scale 1, rounded up for the big one).
+## Half the arrow's height (the drawn arrow spans about -20..24 at scale 1, rounded up for the big one).
 const ARROW_EXTENT := 26.0
 ## Task 15: HUD icons (rendered by tools/render_icons.gd).
 const ICON_PX := HudIcons.ICON_PX
@@ -46,6 +49,7 @@ const MOON_LIT := HudIcons.MOON_LIT
 func setup(main: Main) -> void:
 	_camera = main.camera_rig.camera
 	_lanes = main.world.lanes
+	_occluder_fade = main.world.occluder_fade
 
 func _ready() -> void:
 	layer = 10
@@ -116,13 +120,12 @@ func _ready() -> void:
 	banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	banner.visible = false
 	for key in ["main", "side"]:
-		var p := Polygon2D.new()
-		p.polygon = PackedVector2Array([Vector2(-20, -16), Vector2(20, -16), Vector2(0, 20)])
-		p.color = Palette.color(&"enemy_red")
+		var p := HudArrow.new()
 		p.scale = Vector2.ONE if key == "main" else Vector2.ONE * Balance.ui.arrow_side_scale
 		p.visible = false
 		root.add_child(p)
 		arrows[key] = p
+		icons.arrow_nodes.append(p)
 	_set_moon_count(GameState.lane_plan.size())
 	EventBus.gold_changed.connect(_on_gold_changed)
 	EventBus.phase_changed.connect(_on_phase_changed)
@@ -321,6 +324,53 @@ func _tick_banner(delta: float) -> void:
 func _process(delta: float) -> void:
 	_tick_banner(delta)
 	_place_arrows()
+	_layout_strip()
+	_tick_label_dim(delta)
+	# The arrows are drawn by `icons`; redraw while one shows (and once more when the last one hides).
+	var any: bool = arrows.main.visible or arrows.side.visible
+	if any or _arrows_were_shown:
+		icons.queue_redraw()
+	_arrows_were_shown = any
+
+## The card strip sits strip_gap_px below the lowest of the coin row and the diner bar (spec 7).
+func _layout_strip() -> void:
+	var bottom := maxf(maxf(gold_label.get_global_rect().end.y, icons.coin_rect().end.y), diner_bar.get_global_rect().end.y)
+	var y := bottom + Balance.ui.strip_gap_px - root.get_global_rect().position.y
+	if not is_equal_approx(card_strip.position.y, y):
+		card_strip.position.y = y
+
+## Screen rects of the HUD blocks that world labels dim under, grown by label_dim_grow_px.
+func _dim_rects() -> Array[Rect2]:
+	var out: Array[Rect2] = [_top_column.get_global_rect(), gold_label.get_global_rect().merge(icons.coin_rect())]
+	if card_strip.text != "":
+		out.append(card_strip.get_global_rect())
+	if reserved_rect.is_valid():
+		out.append(reserved_rect.call())
+	for i in out.size():
+		out[i] = out[i].grow(Balance.ui.label_dim_grow_px)
+	return out
+
+## label_dim_hz times a second: a WorldLabel whose screen point is under a HUD block gets label_dim_alpha, else 1.0.
+## The alpha snaps (a modulate change rebuilds the label mesh); labels OccluderFade owns are skipped.
+func _tick_label_dim(delta: float) -> void:
+	_dim_t += delta
+	if _dim_t < 1.0 / maxf(Balance.ui.label_dim_hz, 0.01) or _camera == null:
+		return
+	_dim_t = 0.0
+	var rects := _dim_rects()
+	for n in get_tree().get_nodes_in_group(&"world_labels"):
+		var l := n as Label3D
+		if l == null or not l.is_inside_tree() or (_occluder_fade != null and _occluder_fade.owns_label(l)):
+			continue
+		var target := 1.0
+		if not _camera.is_position_behind(l.global_position):
+			var p := _camera.unproject_position(l.global_position)
+			for r in rects:
+				if r.has_point(p):
+					target = Balance.ui.label_dim_alpha
+					break
+		if l.modulate.a != target:
+			l.modulate.a = target
 
 ## Rect of a widget that sits over the top of the HUD (the settings gear, S5 Task 8b); arrow tips stay below it.
 var reserved_rect: Callable
@@ -346,7 +396,7 @@ func _place_arrows() -> void:
 		return
 	var rect := arrow_rect()
 	for key in ["main", "side"]:
-		var arrow: Polygon2D = arrows[key]
+		var arrow: HudArrow = arrows[key]
 		var lane: String = _arrow_lane[key]
 		if not arrow.visible or lane == "" or not _lanes.has(lane):
 			continue

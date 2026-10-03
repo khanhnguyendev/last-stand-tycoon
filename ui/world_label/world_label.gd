@@ -20,3 +20,6 @@ func _init() -> void:
 	outline_modulate = Palette.color(&"ink")
 	no_depth_test = true
 	modulate = Palette.color(&"apron_white")
+
+func _ready() -> void:
+	add_to_group(&"world_labels")  # the HUD dims labels that sit under it (S5 Task 9)

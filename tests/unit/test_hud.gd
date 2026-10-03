@@ -101,8 +101,8 @@ func test_offscreen_arrow_is_pinned_inside_root_space() -> void:
 	assert_ne(far, "", "a lane entrance is off-screen")
 	EventBus.wave_incoming.emit(1, &"west", StringName(far))
 	await get_tree().process_frame
-	var arrow: Polygon2D = hud.arrows.side
-	var g := arrow.position + hud.root.position
+	var arrow = hud.arrows.side
+	var g: Vector2 = arrow.position + hud.root.position
 	assert_true(hud.root.get_global_rect().has_point(g))
 	var d := minf(minf(absf(g.x - grown.position.x), absf(g.x - grown.end.x)), minf(absf(g.y - grown.position.y), absf(g.y - grown.end.y)))
 	assert_lt(d, 1.0)

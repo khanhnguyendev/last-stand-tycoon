@@ -4,7 +4,12 @@ extends RefCounted
 
 const CSS_JS := "(function(){var d=document.createElement('div');d.style.cssText='position:fixed;top:0;left:0;visibility:hidden;padding-top:env(safe-area-inset-top);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left)';document.body.appendChild(d);var s=getComputedStyle(d);var r=[s.paddingTop,s.paddingRight,s.paddingBottom,s.paddingLeft].map(parseFloat).concat([window.innerWidth,window.innerHeight]).join(',');d.remove();return r;})()"
 
+## Tests and captures set the insets through this and nothing else (S5 Task 9); reset it to {} afterwards.
+static var override_for_tests: Dictionary = {}
+
 static func insets(viewport_size: Vector2) -> Dictionary:
+	if not override_for_tests.is_empty():
+		return override_for_tests.duplicate()
 	var out := {"top": 0.0, "bottom": 0.0, "left": 0.0, "right": 0.0}
 	if OS.has_feature("web"):
 		var raw := str(JavaScriptBridge.eval(CSS_JS, true)).split(",")
