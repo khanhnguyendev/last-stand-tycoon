@@ -1988,6 +1988,10 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
   alpha 0.15) under HUD blocks, a settings gear top-right.
 - The gear, the joystick ring and the knob are icon-atlas cells.
 - The unused `steak` icon is removed; v0.1 has no steak counter.
+- **Done (S5 Tasks 8a, 8b, 9, 2026-10-03):** the lane arrows are drawn from the atlas `guide_arrow` cell tinted
+  `enemy_red` (removes the WebGL warnings and an unbatched draw); `steak` icon removed; world labels under HUD blocks
+  dim fill and outline to 0.15; the gear and the panel are atlas-drawn (the panel backing keeps the atlas's 0.95
+  alpha, the same look as the card overlay; its dim uses `ink`, the card overlay's `night_sky`).
 
 **D-217 New game.**
 - Settings panel → "New game" → a second tap after `card_input_guard_s` and within 3 s.
