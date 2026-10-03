@@ -14,11 +14,16 @@ const LEVEL_FONT_SIZE := 18
 var text := ""
 ## [[id, level], ...] in catalog order: the single source of what is drawn.
 var _cards: Array = []
+## Cell pop on card_picked (S5 Task 5): the card id and its current scale; visual only.
+var _pop_id: StringName = &""
+var _pop_k := 1.0
+var _pop_tween: Tween
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	EventBus.card_picked.connect(func(_id: StringName, _level: int): refresh())
+	EventBus.card_picked.connect(func(id: StringName, _level: int): _pop(id))
 	EventBus.state_restored.connect(refresh)
 	refresh()
 
@@ -29,6 +34,27 @@ func shown() -> Array:
 ## The cell of the i-th shown card, in this Control's local coordinates.
 func cell_rect(i: int) -> Rect2:
 	return Rect2(float(i) * (ICON_PX + GAP), 0.0, ICON_PX, ICON_PX)
+
+func pop_scale(id: StringName) -> float:
+	return _pop_k if id == _pop_id else 1.0
+
+func _pop(id: StringName) -> void:
+	if _pop_tween != null and _pop_tween.is_valid():
+		_pop_tween.kill()
+	_pop_id = id
+	_set_pop_k(Balance.ui.strip_pop_scale)
+	_pop_tween = create_tween()
+	_pop_tween.tween_method(_set_pop_k, Balance.ui.strip_pop_scale, 1.0, Balance.ui.strip_pop_time)
+
+func _set_pop_k(k: float) -> void:
+	_pop_k = k
+	queue_redraw()
+
+## The cell as drawn: scaled about its centre while its card pops.
+func _drawn_rect(i: int) -> Rect2:
+	var r := cell_rect(i)
+	var k := pop_scale(_cards[i][0])
+	return r if k == 1.0 else Rect2(r.get_center() - r.size * k * 0.5, r.size * k)
 
 func refresh() -> void:
 	_cards = []
@@ -45,7 +71,7 @@ func refresh() -> void:
 	queue_redraw()
 
 func _badge_center(i: int) -> Vector2:
-	return cell_rect(i).end + Vector2.ONE * (4.0 - BADGE_PX * 0.5)
+	return _drawn_rect(i).end + Vector2.ONE * (4.0 - BADGE_PX * 0.5)
 
 func _draw() -> void:
 	var n := _cards.size()
@@ -54,9 +80,9 @@ func _draw() -> void:
 	var atlas := IconAtlas.texture()
 	var backing := IconAtlas.region(&"backing")
 	for i in n:
-		draw_texture_rect_region(atlas, IconAtlas.shape_dest(cell_rect(i)), backing)
+		draw_texture_rect_region(atlas, IconAtlas.shape_dest(_drawn_rect(i)), backing)
 	for i in n:
-		draw_texture_rect_region(atlas, cell_rect(i), IconAtlas.region(_icon_name(_cards[i][0])))
+		draw_texture_rect_region(atlas, _drawn_rect(i), IconAtlas.region(_icon_name(_cards[i][0])))
 	var disc := IconAtlas.region(&"disc")
 	for i in n:
 		var c := _badge_center(i)

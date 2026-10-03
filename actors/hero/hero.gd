@@ -14,6 +14,8 @@ var visual: ActorVisual
 var still_time := 0.0
 ## Incremented by teleport(); StationZone disarms when it changes (D-121).
 var teleport_serial := 0
+## Running-dust timer (S5 Task 5). Visual only, advanced in _process.
+var _dust_t := 0.0
 
 func _init() -> void:
 	name = "Hero"
@@ -70,6 +72,16 @@ func _physics_process(delta: float) -> void:
 		still_time += delta
 	else:
 		still_time = 0.0
+
+## Running dust (S5 Task 5, spec 5.2): a puff behind the cook every hero_dust_interval_s while moving. Request only.
+func _process(delta: float) -> void:
+	if not is_moving():
+		_dust_t = 0.0
+		return
+	_dust_t += delta
+	if _dust_t >= Balance.ui.hero_dust_interval_s:
+		_dust_t -= Balance.ui.hero_dust_interval_s
+		EventBus.fx_requested.emit(&"dust", global_position - velocity.normalized() * 0.4 + Vector3(0, 0.18, 0))
 
 ## True only while actually moving: still_time is reset by teleport(), but velocity is zero then.
 func is_moving() -> bool:
