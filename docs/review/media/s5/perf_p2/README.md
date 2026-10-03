@@ -83,3 +83,22 @@ Reading (no fix applied):
   outside every window.
 - All three window worst_ms values (50-56) are under the 60 ms gate when the window opens at 4 s; this is a measurement
   observation, not a result for the gate, which is defined with the 2 s warm-up.
+
+### Experiment: the pre-window stall with and without the warm-up (`?warmup=0&perfwarm=4`)
+Same build, `QUERY="warmup=0%26perfwarm=4" NIGHT_ONLY=1` (the `&` is encoded as `%26`; checked in desktop Chromium that the
+game URL becomes `/?warmup=0&perfwarm=4` and prints no `WARMUP` line). Idle before 78%, 80%, 80%; screenshots
+`runs/nowarmup_perfwarm4_run<N>.png`. For comparison, the warmed `perfwarm=4` runs are in the table above.
+
+| run | avg_fps | worst_ms | top3 (window) | pre3 (warm-up, 0 to 4 s) |
+|---|---|---|---|---|
+| 1 | 59.7 | 122.0 | `122@7.0s(w0,+4.1) 94@11.2s(w0,+8.3) 70@0.1s(w-1,-1)` | `2169@2.2s 62@2.9s 51@3.9s` |
+| 2 | 59.7 | 129.0 | `129@6.9s(w0,+4.1) 96@11.1s(w0,+8.3) 46@0.1s(w-1,-1)` | `2094@2.1s 54@4.0s 45@2.2s` |
+| 3 | 59.6 | 119.0 | `119@7.0s(w0,+4.1) 101@11.2s(w0,+8.3) 52@0.1s(w-1,-1)` | `2179@2.2s 52@3.0s 51@2.3s` |
+
+Reading (no fix applied):
+- The big pre-window frame exists without the warm-up and is larger: 2094-2179 ms at 2.1-2.2 s after the phase change, against
+  806-874 ms at 0.8-0.9 s with it. It is not caused by the warm-up (freeing its nodes, the stream registration); the warm-up
+  moves part of the first-use cost behind the boot fade, and about 0.85 s still remains after the fade.
+- Without the warm-up two more frames appear inside the window, both after wave 0 started: about 120 ms at +4.1 s and about
+  95 ms at +8.3 s (about 7.0 s and 11.2 s into the window). The warmed runs have no frame in that range above 43 ms, so these look
+  like first-use costs the warm-up covers. The instrument does not say which asset they are.
