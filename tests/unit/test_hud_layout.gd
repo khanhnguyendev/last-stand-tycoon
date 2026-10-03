@@ -77,9 +77,28 @@ func test_settings_buttons_inside_safe_rect_landscape() -> void:
 		_inside(safe, rects[k], "button %s" % k)
 	main.settings_layer.close()
 
-func test_arrow_rect_inside_safe_rect_after_resize_to_landscape() -> void:
-	await _boot(Vector2i(1280, 720), NOTCH_LANDSCAPE)
-	_inside(_safe(Vector2i(1280, 720), NOTCH_LANDSCAPE), hud.arrow_rect(), "arrow_rect")
+func test_resize_portrait_to_landscape_relayouts_inside_the_safe_rect() -> void:
+	await _boot(Vector2i(720, 1280), NOTCH_PORTRAIT)
+	GameState.debug_grant_card(&"hero_damage")
+	hud.card_strip.refresh()
+	EventBus.wave_incoming.emit(0, &"north", &"west")
+	main.settings_layer.open()
+	await get_tree().process_frame
+	SafeArea.override_for_tests = NOTCH_LANDSCAPE  # first: size_changed re-reads the insets as it fires
+	vp.size = Vector2i(1280, 720)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var safe := _safe(Vector2i(1280, 720), NOTCH_LANDSCAPE)
+	var b := _blocks()
+	for k in b:
+		_inside(safe, b[k], k)
+	var rects: Dictionary = main.settings_layer.button_rects()
+	assert_eq(rects.size(), 3)
+	for k in rects:
+		_inside(safe, rects[k], "button %s" % k)
+	_inside(safe, main.settings_layer.gear_rect(), "gear")
+	_inside(safe, hud.arrow_rect(), "arrow_rect")
+	main.settings_layer.close()
 
 func test_card_strip_gap_below_coin_row_and_diner_bar() -> void:
 	await _boot(Vector2i(720, 1280), NONE)
@@ -103,10 +122,12 @@ func test_label_under_top_column_dims_and_recovers() -> void:
 	assert_true(l.is_in_group(&"world_labels"))
 	await wait_seconds(0.3)
 	assert_almost_eq(l.modulate.a, Balance.ui.label_dim_alpha, 0.001)
+	assert_almost_eq(l.outline_modulate.a, Balance.ui.label_dim_alpha, 0.001, "the outline dims too")
 	assert_eq(l.modulate.r, Palette.color(&"apron_white").r, "rgb is kept")
 	l.global_position = main.camera_rig.camera.project_position(Vector2(360, 700), 18.0)
 	await wait_seconds(0.3)
 	assert_eq(l.modulate.a, 1.0)
+	assert_eq(l.outline_modulate.a, 1.0)
 
 func test_label_owned_by_occluder_fade_is_never_dimmed() -> void:
 	await _boot(Vector2i(720, 1280), NONE)
@@ -135,3 +156,16 @@ func test_lane_arrows_are_not_polygons_and_are_drawn_by_hud_icons() -> void:
 	await get_tree().process_frame
 	assert_true(hud.arrows.main.visible)
 	assert_eq(hud.icons.arrow_nodes.size(), 2, "HudIcons draws the two holders")
+	assert_true(hud.icons.arrow_nodes.has(hud.arrows.main))
+	assert_true(hud.icons.arrow_nodes.has(hud.arrows.side))
+	var draws := [0]
+	hud.icons.draw.connect(func(): draws[0] += 1)
+	EventBus.wave_spawned_out.emit(0)
+	assert_false(hud.arrows.main.visible or hud.arrows.side.visible)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_gte(draws[0], 1, "hiding both arrows redraws once more")
+	var after: int = draws[0]
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_eq(draws[0], after, "and then stops redrawing")

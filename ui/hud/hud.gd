@@ -38,8 +38,9 @@ var _dim_t := 0.0
 ## Layout constants in 720-base units (spec 9.4: slim diner bar under the moons).
 const BAR_SIZE := Vector2(220, 12)
 const BANNER_SIDE_MARGIN := 40.0
-## Half the arrow's height (the drawn arrow spans about -20..24 at scale 1, rounded up for the big one).
-const ARROW_EXTENT := 26.0
+## Half the arrow's height, derived from arrow_px (the arrow is drawn centred 2 px below its origin), rounded up for the big one.
+static func arrow_extent() -> float:
+	return ceilf(Balance.ui.arrow_px * 0.5 + 2.0) + 2.0
 ## Task 15: HUD icons (rendered by tools/render_icons.gd).
 const ICON_PX := HudIcons.ICON_PX
 const ICON_GAP := HudIcons.ICON_GAP
@@ -61,6 +62,7 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_apply_safe_area)
 	# The coin icon takes the old label slot (24, 16); the label moves right by one icon (the 24 px margin cannot hold it).
 	icons = HudIcons.new()  # coin, heart and moons in one custom draw (Task 16b)
+	icons.z_index = 1  # the lane arrows draw above the other HUD Controls, as the Polygon2D arrows did
 	root.add_child(icons)
 	gold_label = _label(48, Vector2(24 + ICON_PX + ICON_GAP, 16), null, &"HudCounter")
 	gold_label.pivot_offset = Vector2(0, 30)
@@ -341,7 +343,7 @@ func _layout_strip() -> void:
 
 ## Screen rects of the HUD blocks that world labels dim under, grown by label_dim_grow_px.
 func _dim_rects() -> Array[Rect2]:
-	var out: Array[Rect2] = [_top_column.get_global_rect(), gold_label.get_global_rect().merge(icons.coin_rect())]
+	var out: Array[Rect2] = [_top_column.get_global_rect(), gold_label.get_global_rect().merge(icons.coin_rect()), icons.heart_rect()]
 	if card_strip.text != "":
 		out.append(card_strip.get_global_rect())
 	if reserved_rect.is_valid():
@@ -369,8 +371,9 @@ func _tick_label_dim(delta: float) -> void:
 				if r.has_point(p):
 					target = Balance.ui.label_dim_alpha
 					break
-		if l.modulate.a != target:
+		if l.modulate.a != target or l.outline_modulate.a != target:
 			l.modulate.a = target
+			l.outline_modulate.a = target
 
 ## Rect of a widget that sits over the top of the HUD (the settings gear, S5 Task 8b); arrow tips stay below it.
 var reserved_rect: Callable
@@ -381,7 +384,7 @@ func arrow_rect() -> Rect2:
 	var hud_bottom := maxf(maxf(_top_column.get_global_rect().end.y, gold_label.get_global_rect().end.y), card_strip.get_global_rect().end.y if card_strip.text != "" else 0.0)
 	if reserved_rect.is_valid():
 		hud_bottom = maxf(hud_bottom, (reserved_rect.call() as Rect2).end.y)
-	var top := hud_bottom + Balance.ui.arrow_hud_gap + ARROW_EXTENT
+	var top := hud_bottom + Balance.ui.arrow_hud_gap + arrow_extent()
 	if top > rect.position.y:
 		rect.size.y -= top - rect.position.y
 		rect.position.y = top

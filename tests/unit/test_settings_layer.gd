@@ -201,7 +201,7 @@ func test_hud_arrow_rect_is_below_the_gear() -> void:
 
 func test_reserved_rect_pushes_the_arrow_rect_down() -> void:
 	main.hud.reserved_rect = func(): return Rect2(0, 0, 10, 600)
-	assert_gte(main.hud.arrow_rect().position.y, 600.0 + Balance.ui.arrow_hud_gap + Hud.ARROW_EXTENT)
+	assert_gte(main.hud.arrow_rect().position.y, 600.0 + Balance.ui.arrow_hud_gap + Hud.arrow_extent())
 
 func test_freed_layer_does_not_break_the_hud() -> void:
 	main.remove_child(sl)
