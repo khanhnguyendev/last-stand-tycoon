@@ -59,6 +59,7 @@ func test_gear_tap_opens_panel_and_joystick_stays_idle() -> void:
 func test_panel_swallows_presses_behind_it() -> void:
 	sl.open()
 	_touch(1, Vector2(40, 900), true)
+	assert_true(main.get_viewport().is_input_handled(), "the press was consumed")
 	assert_false(main.joystick.is_active(), "a press anywhere while open never reaches the joystick")
 	_touch(1, Vector2(40, 900), false)
 	assert_true(sl.panel_open(), "a tap outside the buttons does not close the panel")
@@ -197,3 +198,24 @@ func test_landscape_resize_keeps_rects_inside() -> void:
 func test_hud_arrow_rect_is_below_the_gear() -> void:
 	assert_true(main.hud.reserved_rect.is_valid())
 	assert_gte(main.hud.arrow_rect().position.y, sl.gear_rect().end.y)
+
+func test_reserved_rect_pushes_the_arrow_rect_down() -> void:
+	main.hud.reserved_rect = func(): return Rect2(0, 0, 10, 600)
+	assert_gte(main.hud.arrow_rect().position.y, 600.0 + Balance.ui.arrow_hud_gap + Hud.ARROW_EXTENT)
+
+func test_freed_layer_does_not_break_the_hud() -> void:
+	main.remove_child(sl)
+	sl.free()
+	for i in 5:
+		await get_tree().process_frame
+	assert_false(main.hud.reserved_rect.is_valid())
+	main.hud.arrow_rect()
+
+func test_click_sound_fires_on_press_not_release() -> void:
+	sl.open()
+	watch_signals(EventBus)
+	_touch(0, sl.button_rects()[&"close"].get_center(), true)
+	assert_signal_emitted_with_parameters(EventBus, "sfx_requested", [&"click"])
+	assert_signal_emit_count(EventBus, "sfx_requested", 1)
+	_touch(0, sl.button_rects()[&"close"].get_center(), false)
+	assert_signal_emit_count(EventBus, "sfx_requested", 1)

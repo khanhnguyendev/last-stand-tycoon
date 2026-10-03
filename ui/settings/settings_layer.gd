@@ -40,7 +40,7 @@ func _ready() -> void:
 	for k in [&"sound", &"new_game", &"close"]:
 		var l := Label.new()
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		l.add_theme_font_size_override("font_size", 40)
+		l.add_theme_font_size_override("font_size", Balance.ui.settings_font_px)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		_panel.add_child(l)
@@ -97,6 +97,7 @@ func set_muted_display(m: bool) -> void:
 func _exit_tree() -> void:
 	if _open:
 		_open = false
+		_panel.visible = false
 		closed.emit()
 
 func _disarm() -> void:
@@ -164,7 +165,8 @@ const SLICE_DST := 22.0
 
 func _draw_backing(r: Rect2, tint := Color.WHITE) -> void:
 	var cell := IconAtlas.region(&"backing")
-	var d := IconAtlas.shape_dest(r)
+	# The shape sits PAD source px inside its cell, and corners draw at SLICE_DST/SLICE_SRC scale.
+	var d := r.grow(float(IconAtlas.PAD) * SLICE_DST / SLICE_SRC)
 	var xs_s := [0.0, SLICE_SRC, float(IconAtlas.CELL) - SLICE_SRC, float(IconAtlas.CELL)]
 	var xs_d := [d.position.x, d.position.x + SLICE_DST, d.end.x - SLICE_DST, d.end.x]
 	var ys_d := [d.position.y, d.position.y + SLICE_DST, d.end.y - SLICE_DST, d.end.y]
@@ -175,8 +177,9 @@ func _draw_backing(r: Rect2, tint := Color.WHITE) -> void:
 			_panel.draw_texture_rect_region(IconAtlas.texture(), dst, src, tint)
 
 func _draw_panel() -> void:
-	var dim := Palette.color(&"night_sky")
-	_panel.draw_rect(Rect2(Vector2.ZERO, _panel.size), Color(dim.r, dim.g, dim.b, 0.45))
+	# The dim is an opaque interior texel of the ink disc cell, stretched and tinted, so the panel stays one batch.
+	var disc := IconAtlas.region(&"disc")
+	_panel.draw_texture_rect_region(IconAtlas.texture(), Rect2(Vector2.ZERO, _panel.size), Rect2(disc.get_center() - Vector2(2, 2), Vector2(4, 4)), Color(1, 1, 1, 0.45))
 	_draw_backing(_panel_rect)
 	var armed_tint := Palette.color(&"enemy_snout").lerp(Color.WHITE, 0.45)
 	for k in _buttons:
@@ -209,6 +212,9 @@ func _input(event: InputEvent) -> void:
 		if t != &"":
 			_owned[idx] = t
 			get_viewport().set_input_as_handled()
+			if t != &"panel":  # press feedback on the press, not the release
+				EventBus.sfx_requested.emit(&"click")
+				_pulse(t)
 	elif _owned.has(idx):
 		var t: StringName = _owned[idx]
 		_owned.erase(idx)
@@ -221,8 +227,6 @@ func _input(event: InputEvent) -> void:
 func _activate(t: StringName) -> void:
 	if t == &"panel":
 		return
-	EventBus.sfx_requested.emit(&"click")
-	_pulse(t)
 	match t:
 		&"gear": open()
 		&"sound":
@@ -249,8 +253,8 @@ func _pulse(key: StringName) -> void:
 	if _tween != null and _tween.is_valid():
 		_tween.kill()
 	_tween = create_tween()
-	_tween.tween_method(_set_press.bind(key), 1.0, Balance.ui.button_press_scale, 0.05)
-	_tween.tween_method(_set_press.bind(key), Balance.ui.button_press_scale, 1.0, 0.08)
+	_tween.tween_method(_set_press.bind(key), 1.0, Balance.ui.button_press_scale, Balance.ui.button_press_in_s)
+	_tween.tween_method(_set_press.bind(key), Balance.ui.button_press_scale, 1.0, Balance.ui.button_press_out_s)
 	_tween.tween_callback(func(): _press_key = &"")
 
 func _set_press(k: float, key: StringName) -> void:
@@ -261,7 +265,7 @@ func _set_press(k: float, key: StringName) -> void:
 	_gear.queue_redraw()
 	_panel.queue_redraw()
 
-## D-147: a paused tree drops touch releases, so forget every owned finger.
+## D-147 pattern, kept per the input rules. Never fires for this ALWAYS layer (its pause state does not change).
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_PAUSED:
 		_owned.clear()

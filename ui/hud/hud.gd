@@ -329,7 +329,7 @@ var reserved_rect: Callable
 func arrow_rect() -> Rect2:
 	var rect := root.get_global_rect().grow(-Balance.ui.arrow_edge_margin)
 	var hud_bottom := maxf(maxf(_top_column.get_global_rect().end.y, gold_label.get_global_rect().end.y), card_strip.get_global_rect().end.y if card_strip.text != "" else 0.0)
-	if not reserved_rect.is_null():
+	if reserved_rect.is_valid():
 		hud_bottom = maxf(hud_bottom, (reserved_rect.call() as Rect2).end.y)
 	var top := hud_bottom + Balance.ui.arrow_hud_gap + ARROW_EXTENT
 	if top > rect.position.y:
