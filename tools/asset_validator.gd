@@ -6,6 +6,7 @@ extends RefCounted
 ## PNGs are loaded through ProjectSettings.globalize_path: a plain res:// or user:// load raises an engine error.
 
 const MODEL_EXT := ["glb", "gltf", "fbx", "obj", "png", "jpg", "jpeg"]
+const AUDIO_EXT := ["ogg", "mp3", "wav"]
 const STRAY_ALLOWED := ["assets", "art", "ui/fonts", "export", "docs", "addons", "tests", ".godot", "build"]
 const PLACEHOLDER_RE := "Visuals\\s*\\.\\s*(box|capsule|cylinder|cone|plane)\\s*\\("
 ## True since Task 13: the last placeholder primitive is gone, so any new one is an error.
@@ -243,6 +244,45 @@ static func check_no_physics(dirs: PackedStringArray) -> Array[String]:
 			inst.free()
 	return out
 
+## S5 (D-211): every manifest path exists; every audio file under assets_dir is named by the manifest; the total
+## size fits the budget; music is at most max_music_s long.
+static func check_audio(sfx: Dictionary, music: Dictionary, assets_dir: String, budget: int, max_music_s: float) -> Array[String]:
+	var out: Array[String] = []
+	var named := {}
+	for d in [sfx, music]:
+		for id in d:
+			var p := String(d[id].path)
+			named[p] = true
+			if not FileAccess.file_exists(p):
+				out.append("audio %s: missing %s" % [id, p])
+	var files: Array = []
+	_files(assets_dir, files)
+	var total := 0
+	for f in files:
+		if String(f).get_extension().to_lower() in AUDIO_EXT:
+			total += FileAccess.get_file_as_bytes(f).size()
+			if not named.has(f):
+				out.append("audio file not in the manifest: %s" % f)
+	if total > budget:
+		out.append("audio total %d B > budget %d B" % [total, budget])
+	for id in music:
+		var p := String(music[id].path)
+		if FileAccess.file_exists(p):
+			var s := load(p) as AudioStream
+			if s != null and s.get_length() > max_music_s:
+				out.append("music %s is %.1f s > %.1f s" % [id, s.get_length(), max_music_s])
+	return out
+
+static func check_audio_location(root: String) -> Array[String]:
+	var out: Array[String] = []
+	var files: Array = []
+	_files(root, files)
+	for f in files:
+		var rel := String(f).trim_prefix(root.trim_suffix("/") + "/")
+		if rel.get_extension().to_lower() in AUDIO_EXT and not rel.begins_with("assets/") and not rel.begins_with(".godot/") and not rel.begins_with("build/"):
+			out.append("audio outside assets/: %s" % f)
+	return out
+
 static func validate_project(host: Node = null) -> Dictionary:
 	var errors: Array[String] = []
 	var warnings: Array[String] = []
@@ -263,6 +303,8 @@ static func validate_project(host: Node = null) -> Dictionary:
 		errors.append_array(check_triangles(PackedStringArray(scenes.filter(func(p): return String(p).ends_with(".tscn"))), host))
 	else:
 		warnings.append("triangle budgets skipped: validate_project() called without a host node")
+	errors.append_array(check_audio(AudioManifest.SFX, AudioManifest.MUSIC, "res://assets", AudioManifest.BUDGET_BYTES, AudioManifest.MAX_MUSIC_S))
+	errors.append_array(check_audio_location("res://"))
 	var ph := check_no_placeholders(PackedStringArray(["res://actors", "res://autoload", "res://components", "res://core", "res://world", "res://ui", "res://art"]))
 	if PLACEHOLDERS_ARE_ERRORS:
 		errors.append_array(ph)
