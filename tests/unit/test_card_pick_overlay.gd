@@ -217,3 +217,14 @@ func test_tap_at_final_rect_after_entrance_picks() -> void:
 	_touch(0, c, true)
 	_touch(0, c, false)
 	assert_eq(GameState.card_level(want), 1)
+
+func test_relayout_cancels_the_entrance() -> void:
+	_dawn()
+	await _frames(2.0 / 60.0)
+	Balance.ui.card_panel_gap += 10.0
+	ov.get_viewport().size_changed.emit()
+	Balance.ui.card_panel_gap -= 10.0
+	await _frames(0.35)
+	for i in ov._panels.size():
+		assert_eq(ov._panels[i].position, ov.panel_rects()[i].position)
+		assert_eq(ov._panels[i].modulate.a, 1.0)

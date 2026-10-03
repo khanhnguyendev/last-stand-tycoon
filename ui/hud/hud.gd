@@ -268,7 +268,7 @@ func _show_next_banner() -> void:
 	_banner_left = Balance.ui.banner_time if _banner_queue.is_empty() else minf(Balance.ui.banner_time, Balance.ui.banner_min_s)
 
 ## Slide-in (spec 5.3): the panel's offset_top/offset_bottom move together, so the label (not the panel, whose alpha
-## _tick_banner owns) fades in. Shifts are applied as deltas so a container resize in between cannot undo them.
+## _tick_banner owns) fades in. Shifts are applied as deltas over whatever rest offsets the panel has.
 func _banner_motion_stop() -> void:
 	if _banner_tween != null and _banner_tween.is_valid():
 		_banner_tween.kill()

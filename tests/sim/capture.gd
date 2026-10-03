@@ -22,6 +22,10 @@ func _initialize() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
+	if _args.has("wait") and _args.get("scene", "") != "cardpick":
+		push_error("--wait needs --scene=cardpick")
+		quit(2)
+		return
 	var camera_math = load("res://core/camera_math.gd")
 	var map_layout = load("res://core/map_layout.gd")
 	var enemy_path = load("res://core/enemy_path.gd")

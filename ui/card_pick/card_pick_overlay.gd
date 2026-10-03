@@ -12,6 +12,7 @@ var _panels: Array[Control] = []
 var _rects: Array[Rect2] = []
 var _owned := {}
 var _guard_left := 0.0
+var _entrance: Array[Tween] = []
 
 const HEADING_H := 70.0
 ## Card portrait size in 720-base units (Task 15).
@@ -70,6 +71,7 @@ func _animate_in() -> void:
 		var delay := float(i) * ui.card_stagger_s
 		t.tween_property(p, "position:y", rest_y, ui.card_rise_s).set_delay(delay).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		t.tween_property(p, "modulate:a", 1.0, ui.card_rise_s).set_delay(delay)
+		_entrance.append(t)
 
 func hide_overlay() -> void:
 	visible = false
@@ -105,11 +107,17 @@ static func layout(vp: Vector2, insets: Dictionary, n: int, ui: UiTuning) -> Arr
 func _relayout() -> void:
 	if offer.is_empty():
 		return
+	# A relayout (resize) snaps every panel to its final rect and cancels the entrance.
+	for t in _entrance:
+		if t.is_valid():
+			t.kill()
+	_entrance.clear()
 	var vp := get_viewport().get_visible_rect().size
 	_rects = CardPickOverlay.layout(vp, SafeArea.insets(vp), offer.size(), Balance.ui)
 	for i in _panels.size():
 		_panels[i].position = _rects[i].position
 		_panels[i].size = _rects[i].size
+		_panels[i].modulate.a = 1.0
 		var px := minf(PORTRAIT_PX, _rects[i].size.y - 32.0)
 		(_panels[i].get_node("Row/Portrait") as TextureRect).custom_minimum_size = Vector2(px, px)
 	_heading.size = Vector2(vp.x, HEADING_H)
