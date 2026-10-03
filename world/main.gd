@@ -27,6 +27,32 @@ var settings_store: SettingsStore
 var debug_fresh_start := false
 var warmup: Warmup
 var boot_fade: BootFade
+var pause_reasons := {}
+
+## S5 D-218: the tree is paused while any reason is held. paused is written only when the set changes between empty
+## and not empty, so a test that sets get_tree().paused directly is never overwritten.
+func add_pause_reason(r: StringName) -> void:
+	var was_empty := pause_reasons.is_empty()
+	pause_reasons[r] = true
+	if was_empty:
+		get_tree().paused = true
+
+func remove_pause_reason(r: StringName) -> void:
+	if not pause_reasons.erase(r):
+		return
+	if pause_reasons.is_empty():
+		get_tree().paused = false
+
+func _exit_tree() -> void:
+	if not pause_reasons.is_empty():
+		pause_reasons.clear()
+		get_tree().paused = false
+
+func _on_focus_changed(p: bool) -> void:
+	if p:
+		add_pause_reason(&"focus")
+	else:
+		remove_pause_reason(&"focus")
 
 func _ready() -> void:
 	focus_pause = FocusPause.new()
@@ -35,6 +61,8 @@ func _ready() -> void:
 	audio_director = AudioDirector.new()
 	add_child(audio_director)
 	focus_pause.changed.connect(audio_director.set_suspended)
+	focus_pause.changed.connect(_on_focus_changed)
+	focus_pause.tree_exiting.connect(remove_pause_reason.bind(&"focus"))
 	autosave = Autosave.new()
 	autosave.name = "Autosave"
 	add_child(autosave)
