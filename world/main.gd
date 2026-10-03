@@ -27,6 +27,46 @@ var settings_store: SettingsStore
 var debug_fresh_start := false
 var warmup: Warmup
 var boot_fade: BootFade
+var pause_reasons := {}
+var settings_layer: SettingsLayer
+
+## S5 D-218: the tree is paused while any reason is held. paused is written only when the set changes between empty
+## and not empty, so a test that sets get_tree().paused directly is never overwritten.
+func add_pause_reason(r: StringName) -> void:
+	var was_empty := pause_reasons.is_empty()
+	pause_reasons[r] = true
+	if was_empty:
+		get_tree().paused = true
+
+func remove_pause_reason(r: StringName) -> void:
+	if not pause_reasons.erase(r):
+		return
+	if pause_reasons.is_empty():
+		get_tree().paused = false
+
+func _exit_tree() -> void:
+	if not pause_reasons.is_empty():
+		pause_reasons.clear()
+		get_tree().paused = false
+
+## S5 D-217: wipe the save, start a new game, close the settings panel. Settings (mute, guide) are kept.
+func fresh_start() -> void:
+	if save_store != null:
+		save_store.wipe()
+	if settings_layer != null and settings_layer.panel_open():
+		settings_layer.close()
+	remove_pause_reason(&"settings")
+	phase_controller.start_new_game()
+
+func _on_settings_opened() -> void:
+	settings_layer.set_muted_display(audio_director.muted)  # the stored mute is applied after _ready (setup)
+	add_pause_reason(&"settings")
+
+func _on_focus_changed(p: bool) -> void:
+	if p:
+		add_pause_reason(&"focus")
+	else:
+		remove_pause_reason(&"focus")
 
 func _ready() -> void:
 	focus_pause = FocusPause.new()
@@ -35,6 +75,8 @@ func _ready() -> void:
 	audio_director = AudioDirector.new()
 	add_child(audio_director)
 	focus_pause.changed.connect(audio_director.set_suspended)
+	focus_pause.changed.connect(_on_focus_changed)
+	focus_pause.tree_exiting.connect(remove_pause_reason.bind(&"focus"))
 	autosave = Autosave.new()
 	autosave.name = "Autosave"
 	add_child(autosave)
@@ -60,6 +102,15 @@ func _ready() -> void:
 	# S2 (D-162): after InputLayer so its _input runs before the joystick's.
 	card_overlay = CardPickOverlay.new()
 	add_child(card_overlay)
+	# S5 (D-216, D-217): after the card overlay, so its _input runs first.
+	settings_layer = SettingsLayer.new()
+	add_child(settings_layer)
+	settings_layer.opened.connect(_on_settings_opened)
+	settings_layer.closed.connect(remove_pause_reason.bind(&"settings"))
+	settings_layer.mute_toggled.connect(audio_director.set_muted)
+	settings_layer.new_game_requested.connect(fresh_start)
+	settings_layer.set_muted_display(audio_director.muted)
+	hud.reserved_rect = settings_layer.gear_rect
 	if OS.is_debug_build() and ResourceLoader.exists("res://ui/debug/debug_overlay.gd"):
 		# D-099: load(), never preload, so release/profile can exclude ui/debug/*. Added after InputLayer
 		# so its _input (the fade button) runs before the joystick's.

@@ -6,13 +6,18 @@ extends SceneTree
 ## (PaletteMath.remap_image, alpha kept) and saved to art/icons/<name>.png. Poses use AnimationPlayer.seek + advance(0),
 ## so there is no animation time drift. Deterministic: re-running writes byte-identical PNGs.
 ## Palettes (R2, R4): the heart remaps against enemy_red, enemy_maroon and ink only; the moon against warm_white,
-## diner_cream and traveler_beige; the steaks drop gold and gold_dark (a steak rim must read as food, not reward);
+## diner_cream and traveler_beige; the carry-capacity steak stack drops gold and gold_dark (a steak rim must read as food, not reward);
 ## every other icon drops the enemy_* and traveler_* names, so steel shades land on steel, steel_dark or stone.
 ## Byte-identical output holds on the same GPU and driver (the render is hardware-dependent); the committed PNGs are the
 ## product, and CI never re-renders them.
 ## `--atlas-only` skips the rendering and only rebuilds art/icons/atlas.png (Task 16b); it needs the committed atlas.png to exist (import) and the per-icon PNGs.
 ## Editor/test only (tools/ is excluded from every web export).
 
+## Each baked shape is remapped against its own palette (S5 Task 8a).
+const SHAPE_PALETTES := {
+	&"backing": [&"diner_cream", &"ink"], &"disc": [&"ink"], &"gear": [&"ink", &"warm_white"],
+	&"stick_ring": [&"ink", &"warm_white"], &"stick_knob": [&"warm_white"], &"guide_arrow": [&"apron_white", &"ink"],
+}
 const OUT_DIR := "res://art/icons/"
 const SIZE := 512
 const OUT_SIZE := 256
@@ -95,7 +100,7 @@ func _write_atlas() -> bool:
 	for j in IconAtlas.SHAPES.size():
 		var k := IconAtlas.NAMES.size() + j
 		var shape := _shape(IconAtlas.SHAPES[j])
-		shape = PaletteMath.remap_image(shape, _palette_of([&"diner_cream", &"ink"] if IconAtlas.SHAPES[j] == &"backing" else [&"ink"]), {})
+		shape = PaletteMath.remap_image(shape, _palette_of(SHAPE_PALETTES[IconAtlas.SHAPES[j]]), {})
 		sheet.blit_rect(shape, Rect2i(0, 0, IconAtlas.CELL, IconAtlas.CELL), Vector2i((k % IconAtlas.COLS) * IconAtlas.CELL, (k / IconAtlas.COLS) * IconAtlas.CELL))
 	var err := sheet.save_png(ProjectSettings.globalize_path(IconAtlas.PATH))
 	if err != OK:
@@ -104,17 +109,14 @@ func _write_atlas() -> bool:
 	print("RENDERED ", IconAtlas.PATH)
 	return true
 
-## A solid shape cell, analytic with 4x4 supersampling: "disc" is an ink circle; "backing" is the theme's Panel box
-## (diner_cream at alpha 0.95, ink border, rounded) scaled from its 56 px cell to the atlas cell.
+## A solid shape cell, analytic with 4x4 supersampling. "disc": an ink circle. "backing": the theme's Panel box (diner_cream
+## at alpha 0.95, ink border, rounded) scaled from its 56 px cell to the atlas cell. "gear": an ink cog, 8 teeth, warm_white
+## hub hole. "stick_ring": ink disc at 25% alpha with a 6 px warm_white rim. "stick_knob": warm_white disc at 80% alpha.
+## "guide_arrow": an apron_white down arrow with a 4 px ink outline (tinted at draw time). All inset PAD px.
 static func _shape(shape: StringName) -> Image:
 	var cell := IconAtlas.CELL
 	var out := Image.create_empty(cell, cell, false, Image.FORMAT_RGBA8)
 	var half := float(cell - 2 * IconAtlas.PAD) * 0.5
-	var scale := float(cell - 2 * IconAtlas.PAD) / 56.0
-	var border := 4.0 * scale
-	var radius := 20.0 * scale if shape == &"backing" else half
-	var cream := Palette.color(&"diner_cream")
-	var ink := Palette.color(&"ink")
 	for y in cell:
 		for x in cell:
 			var a := 0.0
@@ -122,21 +124,79 @@ static func _shape(shape: StringName) -> Image:
 			for sy in 4:
 				for sx in 4:
 					var p := Vector2(float(x) + (float(sx) + 0.5) / 4.0, float(y) + (float(sy) + 0.5) / 4.0) - Vector2(cell, cell) * 0.5
-					var q := p.abs() - Vector2(half - radius, half - radius)
-					var d := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length() + minf(maxf(q.x, q.y), 0.0) - radius
-					if d > 0.0:
+					var s := _sample(shape, p, half)
+					if s.w <= 0.0:
 						continue
-					var col := ink
-					var al := 1.0
-					if shape == &"backing" and d < -border:
-						col = cream
-						al = 0.95
-					a += al
-					rgb += Vector3(col.r, col.g, col.b) * al
+					a += s.w
+					rgb += Vector3(s.x, s.y, s.z) * s.w
 			if a > 0.0:
 				rgb /= a
 				out.set_pixel(x, y, Color(rgb.x, rgb.y, rgb.z, a / 16.0))
 	return out
+
+## One sub-sample of a shape at p (centre-relative px): Vector4(r, g, b, alpha), alpha 0 outside the shape.
+static func _sample(shape: StringName, p: Vector2, half: float) -> Vector4:
+	var cream := Palette.color(&"diner_cream")
+	var ink := Palette.color(&"ink")
+	var white := Palette.color(&"warm_white")
+	match shape:
+		&"backing":
+			var scale := (half * 2.0) / 56.0
+			var radius := 20.0 * scale
+			var q := p.abs() - Vector2(half - radius, half - radius)
+			var d := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length() + minf(maxf(q.x, q.y), 0.0) - radius
+			if d > 0.0:
+				return Vector4()
+			if d < -4.0 * scale:
+				return Vector4(cream.r, cream.g, cream.b, 0.95)
+			return Vector4(ink.r, ink.g, ink.b, 1.0)
+		&"disc":
+			if p.length() > half:
+				return Vector4()
+			return Vector4(ink.r, ink.g, ink.b, 1.0)
+		&"gear":
+			var r := p.length()
+			var ang := atan2(p.y, p.x)
+			# 8 teeth: the outer radius is half at a tooth (cos 8a > -0.1) and 0.78 half between teeth
+			var outer := half if cos(8.0 * ang) > -0.1 else half * 0.78
+			if r > outer:
+				return Vector4()
+			if r < half * 0.3:
+				return Vector4(white.r, white.g, white.b, 1.0)
+			return Vector4(ink.r, ink.g, ink.b, 1.0)
+		&"stick_ring":
+			var r2 := p.length()
+			if r2 > half:
+				return Vector4()
+			if r2 > half - 6.0:
+				return Vector4(white.r, white.g, white.b, 1.0)
+			return Vector4(ink.r, ink.g, ink.b, 0.25)
+		&"stick_knob":
+			if p.length() > half:
+				return Vector4()
+			return Vector4(white.r, white.g, white.b, 0.8)
+		&"guide_arrow":
+			var d_out := _arrow_sd(p, half)
+			if d_out > 0.0:
+				return Vector4()
+			var ap := Palette.color(&"apron_white")
+			if d_out < -4.0:
+				return Vector4(ap.r, ap.g, ap.b, 1.0)
+			return Vector4(ink.r, ink.g, ink.b, 1.0)
+	return Vector4()
+
+## Signed distance (approx, px) to a down-pointing arrow: a shaft over a triangular head, fitted in +-half.
+static func _arrow_sd(p: Vector2, half: float) -> float:
+	var shaft_c := Vector2(0.0, -half * 0.31)
+	var shaft := Vector2(half * 0.28, half * 0.61)  # runs down into the head so the outline has no seam
+	var q := (p - shaft_c).abs() - shaft
+	var d_shaft := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length() + minf(maxf(q.x, q.y), 0.0)
+	# head: triangle with base y = -0.05 half (half width 0.95 half) and tip y = +half
+	var top := -half * 0.08
+	var t := clampf((p.y - top) / (half - top), 0.0, 1.0)
+	var hw := half * 0.95 * (1.0 - t)
+	var d_head := maxf(absf(p.x) - hw, maxf(top - p.y, p.y - half)) * 0.8
+	return minf(d_shaft, d_head)
 
 static func _box_half(src: Image) -> Image:
 	var w := src.get_width() / 2
@@ -174,7 +234,7 @@ static func _palette_for(icon: String) -> PackedColorArray:
 		var t := String(n)
 		if t.begins_with("enemy_") or t.begins_with("traveler_"):
 			continue
-		if icon in ["steak", "card_carry_capacity"] and t.begins_with("gold"):
+		if icon == "card_carry_capacity" and t.begins_with("gold"):
 			continue
 		names.append(n)
 	return _palette_of(names)
@@ -190,7 +250,6 @@ func _subjects() -> Array:
 		{"name": "card_archer", "build": _portrait.bind(ARCHER), "center": Vector3(0, 1.15, 0), "size": 1.4},
 		{"name": "card_tank", "build": _portrait.bind(TANK), "center": Vector3(0, 1.15, 0), "size": 1.4},
 		{"name": "coin", "fit": true, "build": _coin, "center": Vector3(0, 0.0, 0), "size": 1.2},
-		{"name": "steak", "fit": true, "build": _steak, "center": Vector3(0, 0.0, 0), "size": 1.2},
 		{"name": "heart", "fit": true, "build": _heart, "center": Vector3.ZERO, "size": 2.6},
 		{"name": "moon", "fit": true, "build": _moon, "center": Vector3.ZERO, "size": 2.6},
 	]
@@ -293,11 +352,6 @@ func _portrait(scene: PackedScene) -> Node3D:
 	var v: Node3D = scene.instantiate()
 	v.set_meta("pose", [&"Idle", 0.0])
 	return v
-
-func _steak() -> Node3D:
-	var n: Node3D = STEAK.instantiate()
-	n.scale = Vector3.ONE * 1.6
-	return n
 
 func _steak_stack() -> Node3D:
 	var root3 := Node3D.new()

@@ -74,6 +74,16 @@ extends Resource
 @export var card_rise_s := 0.18
 @export var card_stagger_s := 0.06
 @export var button_press_scale := 0.94
+## S5 Task 8b settings (D-216, D-217): gear size and margin to the safe edge, panel and button size, and how long the New game
+## confirm stays armed.
+@export var gear_px := 72.0
+@export var gear_margin := 16.0
+@export var settings_panel_size := Vector2(520, 420)
+@export var settings_button_h := 96.0
+@export var new_game_confirm_s := 3.0
+@export var settings_font_px := 40
+@export var button_press_in_s := 0.05
+@export var button_press_out_s := 0.08
 @export var autosave_interval_s := 3.0
 ## S4 Task 6: ActorVisual (D-190). Turn rate of the model toward its facing (rad/s), AnimationTree blend and
 ## one-shot fade (s), and the minimum gap between Hit_A reactions (s).
@@ -111,3 +121,12 @@ extends Resource
 @export var boot_fade_stable_frames := 10
 @export var boot_fade_stable_ms := 50.0
 @export var boot_fade_max_s := 4.0
+
+## S5 Task 9 (spec 7): gap between the coin row / diner bar and the card strip; world labels under a HUD block dim to
+## label_dim_alpha when their screen point is within label_dim_grow_px of it, checked label_dim_hz times a second.
+@export var strip_gap_px := 12.0
+@export var label_dim_alpha := 0.15
+@export var label_dim_grow_px := 8.0
+@export var label_dim_hz := 4.0
+## The lane edge arrows are drawn arrow_px square (S5 Task 9); Hud.arrow_extent() derives from it.
+@export var arrow_px := 44.0
