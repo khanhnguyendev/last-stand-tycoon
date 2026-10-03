@@ -20,7 +20,7 @@ const browser = await chromium.launch({ headless: true,
 let failed = false;
 try {
   const page = await (await browser.newContext(ctxOpts)).newPage();
-  // CONSOLE_OUT=<file>: also append every console and page-error line to that file (S5 Task 1 baseline).
+  // CONSOLE_OUT=<file>: the file is truncated at start, then every console, page-error and failure line is also appended to it (S5 Task 1 baseline).
   const consoleOut = process.env.CONSOLE_OUT;
   if (consoleOut) fs.writeFileSync(consoleOut, '');
   const emit = line => { console.log(line); if (consoleOut) fs.appendFileSync(consoleOut, line + '\n'); };
@@ -29,7 +29,7 @@ try {
   await page.goto(url, { waitUntil: 'load', timeout: 60000 });
   const build = await page.waitForFunction(() => window.LST_BUILD, null, { timeout: 30000 })
     .then(h => h.jsonValue()).catch(() => null);
-  if (!build) { failed = true; console.log('no window.LST_BUILD'); }
+  if (!build) { failed = true; emit('no window.LST_BUILD'); }
   await page.waitForTimeout(Number(process.env.WAIT_S || 15) * 1000);
   await page.screenshot({ path: out });
   console.log(`${profile} (emulated): build=${build} screenshot=${out}`);

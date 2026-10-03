@@ -5,7 +5,7 @@ func test_every_entry_meets_its_class_target() -> void:
 		var e: Dictionary = AudioManifest.SFX[id]
 		var target: float = AudioManifest.CLASS_TARGET_DB[e["class"]]
 		assert_almost_eq(e.mean_db + e.volume_db, target, 3.0, "%s loudness" % id)
-		assert_true(e.peak_db + e.volume_db <= 0.0, "%s clips" % id)
+		assert_true(e.peak_db + e.volume_db <= -1.0, "%s clips" % id)
 		var cap := 0.6 if e["class"] == &"repeated" else 1.5
 		assert_true(e.duration_s < cap, "%s too long" % id)
 	for id in AudioManifest.MUSIC:

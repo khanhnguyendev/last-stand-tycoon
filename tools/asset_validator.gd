@@ -263,6 +263,9 @@ static func check_audio(sfx: Dictionary, music: Dictionary, assets_dir: String, 
 			total += FileAccess.get_file_as_bytes(f).size()
 			if not named.has(f):
 				out.append("audio file not in the manifest: %s" % f)
+	for f in files:
+		if String(f).ends_with(".import") and not FileAccess.file_exists(String(f).trim_suffix(".import")):
+			out.append("orphan import: %s" % f)
 	if total > budget:
 		out.append("audio total %d B > budget %d B" % [total, budget])
 	for id in music:

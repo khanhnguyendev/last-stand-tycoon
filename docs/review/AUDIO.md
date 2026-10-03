@@ -38,16 +38,25 @@ Folders are `assets/kenney-<pack>/`. Total audio size is recorded in the Task 1 
 ### Swaps under the 3 dB rule
 
 Three first-choice files could not reach their class target within 3 dB once the -1 dB peak clamp was applied, so each
-was replaced (same pack first, else the nearest-sounding loud file):
+was replaced (same pack first, else the loudest-measuring file whose name fits). Distances below are
+`mean + clamped volume_db - class target` (negative = under target); all numbers are measured, nobody listened.
 
 | id | first choice | measured (mean / peak) | after clamp | replacement |
 |---|---|---|---|---|
-| coin | casino-audio/chips-stack-1.ogg | -28.4 / -1.5 dB | 3.9 dB under target | casino-audio/chips-stack-4.ogg (same pack, same name kind; 2.8 dB under target, the closest chip sound) |
-| collect | rpg-audio/handleCoins.ogg | -28.8 / 0.0 dB | 11.8 dB under target | rpg-audio/dropLeather.ogg (no coin sound in the pack is loud enough; a dropped leather pouch) |
-| card_open | casino-audio/card-fan-1.ogg | -21.8 / -0.8 dB | 4.3 dB under target | rpg-audio/bookClose.ogg (no other casino card sound is loud enough; a soft cover thump) |
+| coin | casino-audio/chips-stack-1.ogg | -28.4 / -1.5 dB | 3.9 dB under target | casino-audio/chips-stack-4.ogg (same pack, same name kind; 2.8 dB under target, the loudest-measuring chips-stack file) |
+| collect | rpg-audio/handleCoins.ogg | -28.8 / 0.0 dB | 11.8 dB under target | rpg-audio/dropLeather.ogg (-18.7 / -0.1, 1.7 dB under; name fits a coin pouch) |
+| card_open | casino-audio/card-fan-1.ogg | -21.8 / -0.8 dB | 4.3 dB under target | rpg-audio/bookClose.ogg (-18.8 / 0.0, 1.8 dB under; a cover closing, the name loosely fits an opening) |
 
-Two entries sit close to the limit: coin (-2.8 dB) and click (-2.4 dB, peak clamp). Weak candidates for the author's ears:
-card_open and collect (the swaps are the least literal matches).
+Alternatives measured and rejected (ffmpeg volumedetect on the source packs):
+- coin (target -24): chips-stack-1 (mean -28.4, peak -1.5, -3.9 dB), chips-stack-2 (mean -29.0, peak -0.2, -6.0 dB), chips-stack-3 (mean -29.3, peak -1.0, -5.3 dB), chips-stack-5 (mean -29.0, peak -0.4, -6.0 dB), chips-stack-6 (mean -28.0, peak -0.6, -4.5 dB). chips-stack-4 is the best of the chips-stack files. Not chosen: casino chip-lay-1 (mean -25.1, peak -2.1, -0.1 dB) measures closer to target; I kept a chips-stack file for the name match.
+- collect (target -18): chips-handle-1 (mean -31.1, peak -0.3, -14.1 dB), chips-handle-2 (mean -35.1, peak -1.2, -17.1 dB), chips-handle-3 (mean -28.1, peak -0.9, -10.6 dB), chips-handle-4 (mean -30.2, peak -1.5, -11.7 dB), chips-handle-5 (mean -24.8, peak -0.5, -7.3 dB), chips-handle-6 (mean -26.2, peak -1.4, -8.2 dB), handleCoins2 (mean -34.0, peak -10.7, -6.5 dB). Every coin or chip-handling file is at least 6.5 dB under target.
+- card_open (target -18): card-fan-2 (mean -29.4, peak -0.8, -11.9 dB), bookOpen (mean -33.6, peak -11.5, -5.1 dB), cards-pack-open-1 (mean -28.2, peak 0.0, -11.2 dB), cards-pack-open-2 (mean -28.7, peak -2.7, -9.2 dB), card-slide-1 (mean -27.6, peak -1.5, -9.1 dB), card-slide-2 (mean -25.5, peak -1.0, -7.5 dB), card-slide-3 (mean -26.9, peak -1.4, -8.9 dB), card-slide-4 (mean -27.6, peak -1.7, -9.1 dB), card-slide-5 (mean -30.7, peak -1.9, -12.2 dB), card-slide-6 (mean -29.3, peak -2.0, -10.3 dB), card-slide-7 (mean -31.1, peak -0.5, -13.6 dB), card-slide-8 (mean -29.4, peak -1.7, -10.9 dB). Every other casino card file is at least 7.5 dB under target.
+
+collect and card_open went cross-pack (to rpg-audio) beyond the plan's same-pack rule, because no same-pack file with a
+fitting name reaches the target within 3 dB (the lists above show it). dropLeather and bookClose are the loudest-measuring
+rpg-audio files whose names fit; both are weak matches and flagged for the author to audition.
+
+Two entries sit close to the limit: coin (-2.8 dB) and click (-2.4 dB, peak clamp).
 
 ## Music
 
