@@ -122,6 +122,7 @@ func _tick(raw: float, delta: float) -> void:
 	_since_reset += raw
 	if before < _warm:
 		_track_pre(raw)
+		_prime_reads()
 		return
 	record(raw)
 	_proc_sum += Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
@@ -171,3 +172,9 @@ func pre3_text() -> String:
 	for t in _pre:
 		parts.append("%.0f@%.1fs" % [t.ms, t.at])
 	return " ".join(parts)
+
+## S5 Task 7: the warm-up does the same monitor reads as the window and throws the values away, so crossing the window's
+## boundary changes only bookkeeping (the label formatting already runs every frame).
+func _prime_reads() -> float:
+	return Performance.get_monitor(Performance.TIME_PROCESS) + Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) \
+		+ Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)

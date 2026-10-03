@@ -102,3 +102,32 @@ Reading (no fix applied):
 - Without the warm-up two more frames appear inside the window, both after wave 0 started: about 120 ms at +4.1 s and about
   95 ms at +8.3 s (about 7.0 s and 11.2 s into the window). The warmed runs have no frame in that range above 43 ms, so these look
   like first-use costs the warm-up covers. The instrument does not say which asset they are.
+
+## Gate reading after the boot-fade hold and overlay priming (D-215 amendment)
+Changes: `BootFade` stays opaque after `fade_out()` until `boot_fade_stable_frames` (10) consecutive frames are each under
+`boot_fade_stable_ms` (50), or `boot_fade_max_s` (4.0) after `fade_out()`; then it fades over `boot_fade_out_s`. It prints
+`BOOTFADE done=<s> frames=<n>` once. The perf overlay now does the same `Performance.get_monitor` reads during its warm-up
+(values discarded). Fresh `web_profile` build, default 2 s overlay warm-up, `NIGHT_ONLY=1`, idle before 76%, 78%, 76%
+(screenshots `runs/gate_run<N>.png`):
+
+| run | avg_fps | worst_ms | top3 (window) | pre3 (warm-up, 0 to 2 s) |
+|---|---|---|---|---|
+| 1 | 59.8 | 70.0 | `70@0.1s(w-1,-1) 33@0.2s(w-1,-1) 28@20.1s(w0,+16.4)` | `861@0.9s 54@2.0s 35@1.0s` |
+| 2 | 59.7 | 87.0 | `87@0.1s(w-1,-1) 35@0.2s(w-1,-1) 34@0.2s(w-1,-1)` | `917@0.9s 35@1.1s 21@0.9s` |
+| 3 | 59.8 | 71.0 | `71@0.1s(w-1,-1) 34@0.1s(w-1,-1) 33@0.2s(w-1,-1)` | `882@0.9s 33@2.0s 28@0.9s` |
+| **median** | **59.8** | **71.0** | | |
+
+Gates (night-3, the 2 s window): median `avg_fps` >= 58 **pass** (59.8); median `worst_ms` < 60 **FAIL** (71.0, was 108.0 before
+this change and 134.0 on main). The day-3 gate was not rerun (night only). The frame at `@0.1s` of the window (70-87 ms)
+is still there: priming the reads did not remove it, so it is not explained by the first `get_monitor` calls; it remains at
+about 2.1 s after the phase change. Nothing else tuned.
+
+The 806-917 ms load frame (`pre3`, 0.9 s after the phase change) is unchanged by the overlay; what changed is the cover:
+- Simulator, one-off run with a screenshot about every second from launch (`runs/early_s11..s15.png`, 302 px wide): after the
+  Godot splash (s11), s12 and s13 are the plain night-sky fade colour with no HUD or world, s14 is the fade half dissolved
+  (the "The monsters return" banner shows through), s15 is clear. So the cover is still opaque after the phase started and the
+  freeze is no longer seen by the player.
+- Desktop Chromium (Playwright Pixel 7, software GL, so frames are never stable): `WARMUP built=12 track=night`,
+  `BOOTFADE done=4.01 frames=12` and `done=4.05 frames=11` in two loads, i.e. the 4.0 s cap lifted it. On a device the
+  stable-frames rule decides; this Chromium run only shows the cap and the print work. The Simulator console is not readable,
+  so the device `BOOTFADE` line is not captured; the screenshots above are its evidence.

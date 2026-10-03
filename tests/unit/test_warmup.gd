@@ -55,3 +55,57 @@ func test_fade_material_is_a_transparent_copy() -> void:
 	var m := main.world.occluder_fade.fade_material_for_warmup()
 	assert_not_null(m)
 	assert_eq((m as BaseMaterial3D).transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
+
+# --- BootFade (D-215 amendment) ---
+
+func _fade() -> BootFade:
+	var f := BootFade.new()
+	add_child_autofree(f)
+	return f
+
+func test_boot_fade_waits_for_fade_out() -> void:
+	var f := _fade()
+	for i in 30:
+		f._tick(0.016)
+	assert_false(f.is_lifting())
+
+func test_boot_fade_lifts_after_stable_frames() -> void:
+	var f := _fade()
+	f.fade_out()
+	for i in Balance.ui.boot_fade_stable_frames - 1:
+		f._tick(0.016)
+	assert_false(f.is_lifting())
+	f._tick(0.016)
+	assert_true(f.is_lifting())
+
+func test_boot_fade_slow_frame_resets_the_count() -> void:
+	var f := _fade()
+	f.fade_out()
+	for i in 9:
+		f._tick(0.016)
+	f._tick(0.850)
+	for i in 9:
+		f._tick(0.016)
+	assert_false(f.is_lifting())
+	f._tick(0.016)
+	assert_true(f.is_lifting())
+
+func test_boot_fade_cap_lifts_anyway() -> void:
+	var f := _fade()
+	f.fade_out()
+	var t := 0.0
+	while t < Balance.ui.boot_fade_max_s - 0.2:
+		f._tick(0.2)  # never stable
+		t += 0.2
+	assert_false(f.is_lifting())
+	f._tick(0.3)
+	assert_true(f.is_lifting())
+
+func test_boot_fade_out_before_ready_is_harmless() -> void:
+	var f := BootFade.new()
+	f.fade_out()
+	f._tick(0.016)
+	add_child_autofree(f)
+	for i in Balance.ui.boot_fade_stable_frames:
+		f._tick(0.016)
+	assert_true(f.is_lifting())
