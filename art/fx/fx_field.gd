@@ -38,13 +38,15 @@ func _init() -> void:
 	_kind.resize(CAPACITY)
 	for k in KINDS:
 		var d: Dictionary = KINDS[k]
-		_from_colors[k] = Palette.color(d.color)
-		_to_colors[k] = Palette.color(d.get("to", d.color))
+		# The palette is sRGB (ART_BIBLE); instance colours are linear.
+		_from_colors[k] = Palette.color(d.color).srgb_to_linear()
+		_to_colors[k] = Palette.color(d.get("to", d.color)).srgb_to_linear()
 	var quad := QuadMesh.new()
 	quad.size = Vector2.ONE
 	var mat := ShaderMaterial.new()
 	mat.shader = SHADER
 	mat.set_shader_parameter(&"atlas", ATLAS)
+	mat.render_priority = 1  # particles draw after the blob shadows (ShadowField is -1)
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
@@ -58,6 +60,7 @@ func _init() -> void:
 	material_override = mat
 	custom_aabb = AABB(Vector3(-30, -1, -30), Vector3(60, 12, 60))
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	visible = false  # no draw call while nothing is alive
 
 func _ready() -> void:
 	EventBus.fx_requested.connect(burst)
@@ -84,7 +87,10 @@ func burst(kind: StringName, pos: Vector3) -> void:
 		_pos[s] = local
 		_vel[s] = Vector3(cos(ang) * d.speed, d.up, sin(ang) * d.speed)
 	_burst_n += 1
-	_write(slots)
+	visible = true
+	for s in slots:
+		multimesh.set_instance_custom_data(s, Color(float(d.cell), 0, 0, 0))
+		_write_one(s)
 
 ## n free slots (lowest index first); when fewer are free the oldest live slots (largest age, ties by slot index).
 func _take_slots(n: int) -> Array[int]:
@@ -125,18 +131,18 @@ func step(dt: float) -> void:
 			continue
 		_vel[s].y -= d.gravity * dt
 		_pos[s] += _vel[s] * dt
-		_write([s])
+		_write_one(s)
+	if _active == 0:
+		visible = false
 
-func _write(slots: Array) -> void:
-	for s in slots:
-		var d: Dictionary = KINDS[_kind[s]]
-		var t: float = clampf(_age[s] / d.life, 0.0, 1.0)
-		var sz: float = d.size * (sin(PI * t) * 0.6 + 0.4)
-		multimesh.set_instance_transform(s, Transform3D(Basis.IDENTITY.scaled(Vector3(sz, sz, sz)), _pos[s]))
-		var c: Color = _from_colors[_kind[s]].lerp(_to_colors[_kind[s]], t)
-		c.a = 1.0 - t * t
-		multimesh.set_instance_color(s, c)
-		multimesh.set_instance_custom_data(s, Color(float(d.cell), 0, 0, 0))
+func _write_one(s: int) -> void:
+	var d: Dictionary = KINDS[_kind[s]]
+	var t: float = clampf(_age[s] / d.life, 0.0, 1.0)
+	var sz: float = d.size * (sin(PI * t) * 0.6 + 0.4)
+	multimesh.set_instance_transform(s, Transform3D(Basis.IDENTITY.scaled(Vector3(sz, sz, sz)), _pos[s]))
+	var c: Color = _from_colors[_kind[s]].lerp(_to_colors[_kind[s]], t)
+	c.a = 1.0 - t * t
+	multimesh.set_instance_color(s, c)
 
 ## Per slot: x, y, z, age, alive (for tests; the MultiMesh buffer is write-only when headless).
 func instance_snapshot() -> PackedFloat32Array:

@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabled;
 // One draw for every particle (S5 Task 4, D-214): camera-facing quads. Cell index comes from INSTANCE_CUSTOM.x.
-uniform sampler2D atlas : source_color, filter_linear_mipmap;
+uniform sampler2D atlas : source_color, filter_linear;
 varying float v_cell;
 void vertex() {
 	float s = length(MODEL_MATRIX[0].xyz);

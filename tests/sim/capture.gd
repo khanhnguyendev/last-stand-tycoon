@@ -182,6 +182,10 @@ func _run() -> void:
 		field.set_process(false)
 		root.get_node("EventBus").fx_requested.emit(StringName(_args.fx), main.hero.global_position + Vector3(0, 0.5, 0))
 		field.step(float(_args.get("fx-age", "0.1")))
+		if field.active_count() == 0:
+			push_error("capture: --fx produced no particles")
+			quit(1)
+			return
 		for i in 3:
 			await process_frame
 	var f0 := Engine.get_frames_drawn()

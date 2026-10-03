@@ -17,8 +17,8 @@ becomes visible (`_on_wave_incoming`: `arrows.main.visible = ...`), and not othe
 
 ## Method
 
-Debug web export (`web_debug`) of the Task 4 branch (equal to `main` for this purpose: the FxField draws nothing until a
-burst is requested, and no gameplay code emits `fx_requested` yet), served from `export/serve_nocache.py`, Playwright
+Debug web export (`web_debug`) of the Task 4 branch (equal to `main` for this purpose: FxField draws only zero-scaled quads and is
+present in runs I and J, which show 0 pairs; no gameplay code emits `fx_requested` yet), served from `export/serve_nocache.py`, Playwright
 Chromium (Pixel 7 profile, SwiftShader, `~/.cache/lst-playwright`), 100 s of a fresh start (`?reset=1`) with every console
 line timestamped from `goto`. The game runs at 5-7 fps on software GL, so the timings are slow-motion game time; the same
 events land at 26-34 s, 59-79 s and 88-93 s in different runs.
@@ -30,7 +30,7 @@ Screenshots every 3 s next to the console timestamps tie each pair to an arrow s
 cleared and the arrow for wave 1 appears; the second as the diner falls ("The diner fell") and the night restarts with
 the arrow for wave 0; the third as the "monsters look tired" retry night starts.
 
-Bisect (scratch edits, reverted; one debug export + 100 s run each):
+Bisect (scratch edits, reverted; one debug export + 100 s run each; one run each for I and J):
 
 | Run | Scratch change | Pairs seen |
 |---|---|---|
