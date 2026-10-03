@@ -29,6 +29,10 @@ var _phys_sum := 0.0
 var _dc_sum := 0.0
 var _slow := 0
 var _delta_worst := 0.0
+## The 3 worst frames of the window: {"ms", "at" (s into the window), "wave" (last started wave index, -1 none), "since" (s since that wave_started, -1 none)}.
+var _top: Array[Dictionary] = []
+var _wave := -1
+var _wave_at := -1.0
 
 func _ready() -> void:
 	layer = 20
@@ -47,6 +51,11 @@ func _ready() -> void:
 	_frozen_label.custom_minimum_size = Vector2(696, 0)
 	add_child(_frozen_label)
 	EventBus.phase_changed.connect(_on_phase_changed)
+	EventBus.wave_started.connect(_on_wave_started)
+
+func _on_wave_started(w: int, _main: StringName, _side: StringName) -> void:
+	_wave = w
+	_wave_at = _since_reset
 
 func _on_phase_changed(p: int, d: int) -> void:
 	_phase = p
@@ -65,6 +74,9 @@ func _reset_window() -> void:
 	_dc_sum = 0.0
 	_slow = 0
 	_delta_worst = 0.0
+	_top.clear()
+	_wave = -1
+	_wave_at = -1.0
 
 ## Counts one frame (seconds) into the window.
 func record(frame_seconds: float) -> void:
@@ -110,10 +122,28 @@ func _tick(raw: float, delta: float) -> void:
 	if raw > SLOW_S:
 		_slow += 1
 	_delta_worst = maxf(_delta_worst, delta * 1000.0)
+	_track_top(raw)
 	if _raw_sum >= WINDOW_S:
 		_frozen = true
 		var line := "PERF phase=%s day=%d window=60s avg_fps=%.1f worst_ms=%.1f proc_ms=%.2f phys_ms=%.2f dc=%.0f slow_pct=%.1f delta_worst_ms=%.1f" % [
 			_phase_name(), _day, avg_fps(), worst_ms(), _proc_sum / _n, _phys_sum / _n, _dc_sum / _n,
 			100.0 * _slow / _n, _delta_worst]
+		line += " top3=" + top3_text()
 		_frozen_label.text = line
 		print(line)
+
+func _track_top(raw: float) -> void:
+	var ms := raw * 1000.0
+	if _top.size() == 3 and ms <= float(_top[2].ms):
+		return
+	_top.append({"ms": ms, "at": _raw_sum, "wave": _wave, "since": -1.0 if _wave_at < 0.0 else _since_reset - _wave_at})
+	_top.sort_custom(func(a, b): return a.ms > b.ms)
+	if _top.size() > 3:
+		_top.resize(3)
+
+## `124@12.3s(w0,+0.4) ...`: ms, seconds into the window, last started wave, seconds since its wave_started (+-1 none).
+func top3_text() -> String:
+	var parts: PackedStringArray = []
+	for t in _top:
+		parts.append("%.0f@%.1fs(w%d,%s)" % [t.ms, t.at, t.wave, "-1" if float(t.since) < 0.0 else "+%.1f" % t.since])
+	return " ".join(parts)

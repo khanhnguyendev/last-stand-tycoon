@@ -40,3 +40,23 @@ Real renderer (macOS, Compatibility), `tests/sim/capture.gd` (a temporary copy t
 
 FX adds exactly 1 draw call (the single FxField). Day is 49 here against the 48 S4 recorded; the extra call predates this
 task (P1/P2 content), the FX increment is the expected +1.
+
+## Where the worst frames happen
+`ui/perf_overlay.gd` now appends `top3=<ms>@<s into the 60 s window>(w<last started wave, -1 none>,+<s since that
+wave_started, -1 none>)` for the 3 worst frames of the window (the window starts 2 s after the phase change, so `@0.1s` is
+about 2.1 s after the night began). Three night-3 runs of the warm-up build (`NIGHT_ONLY=1 export/perf_night3.sh`, idle before
+78%, 79%, 80%; screenshots in `runs/top3_run<N>.png`):
+
+| run | avg_fps | worst_ms | top3 |
+|---|---|---|---|
+| 1 | 59.8 | 75.0 | `75@0.1s(w-1,-1) 38@0.2s(w-1,-1) 36@0.2s(w-1,-1)` |
+| 2 | 59.7 | 109.0 | `109@0.1s(w-1,-1) 35@0.2s(w-1,-1) 34@0.2s(w-1,-1)` |
+| 3 | 59.7 | 121.0 | `121@0.2s(w-1,-1) 42@0.2s(w-1,-1) 31@58.2s(w1,+20.7)` |
+
+Reading: the single ~75-121 ms frame is in the first 0.2 s of the window (about 2.1-2.2 s after the phase change), before any
+`wave_started` (the first wave starts about 5 s into the phase), so it is not tied to a wave start, its banner, a lane's
+first spawn or tank behaviour. The next two worst frames are also in that 0.2 s span (31-42 ms). Everything later in the window
+is below about 31 ms (run 3's third frame, 31 ms at 58.2 s, is 20.7 s after wave 1 started). So the remaining stall is a one-off
+just after the window opens, not a recurring in-wave one. The instrument cannot say what runs then; candidates to check are
+whatever completes about 2 s after the phase change (the boot fade-out/free, the first frame after the loading/resume work, an
+unflushed GPU upload). Nothing was fixed or tuned.
