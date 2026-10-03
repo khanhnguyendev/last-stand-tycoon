@@ -74,7 +74,7 @@ IDEA "Later" stays out.
 
 | Question | Answer | Source | D-id |
 |---|---|---|---|
-| Where do settings live? | Not in GameState, because they are device preferences, not game data. A `SettingsStore` writes one JSON value `{v, muted, guide_done}` under `lst:<pathname>:settings`, with the same try/catch JS path as SaveStore, and a `user://settings.json` file elsewhere. A wiped or corrupt value means defaults. `SaveStore.wipe()` and New game leave it alone. | D-171, D-177 | D-210 |
+| Where do settings live? | Not in GameState, because they are device preferences, not game data. A `SettingsStore` writes one JSON value `{v, muted, guide_done}` under `lst:<pathname>:settings`, with the same try/catch JS path as SaveStore, and a `user://save/settings.json` file elsewhere. A wiped or corrupt value means defaults. `SaveStore.wipe()` and New game leave it alone. | D-171, D-177 | D-210 |
 | Which sounds and music? | **SFX:** Kenney audio packs (CC0): Interface Sounds, Impact Sounds, RPG Audio, Casino Audio, Music Jingles. One file per event, picked in Task 1 by the ear-free criteria in §4.2. **Music:** day = "Happy Adventure Loop" (tinyworlds, 47 s); night = "Chiptune Adventures: Stage 2" (Juhani Junkala, 56 s). Both are from OpenGameArt and marked CC0. **Honesty:** the agent cannot hear. The tracks are chosen by licence, length, loopability and measured loudness. Each is one line in `art/audio/audio_manifest.gd`, so the author can swap it in a minute. | Author's S5 line | D-211 |
 | How is audio kept small? | Music is re-encoded with the already-installed `ffmpeg` to MP3 (libmp3lame), mono, 32 kHz, 64 kbps: 0.38 MB and 0.45 MB (measured). This ffmpeg has no libvorbis, and its native Vorbis encoder is experimental. Tracks are capped at 60 s. SFX stay as shipped (10–40 KB each). **Budget:** all audio at most 2.5 MB; the validator enforces it and fails on any audio file under `assets/` that the manifest does not name. | D-196 | D-211 |
 | How does audio start on web? | Browsers keep the AudioContext suspended until a user activation, and the engine resumes it on input by itself. `AudioDirector` does not fight that: it polls one named probe, `unlocked`, once a second until true. Before that it drops SFX and queues no music; at unlock it starts the current phase's track. On web, `unlocked` is true when the AudioContext's `state == "running"` (read through a hook the web shell installs, §4.4). Only if the hook found no context does it fall back to "an input release has been seen". Off web it is true at once. A Task 3 spike checks the probe before the director relies on it. | Author's S5 line | D-212 |
@@ -188,9 +188,9 @@ at the loop point; AUDIO.md says so.
   (`InputEventScreenTouch` not pressed, mouse button up, or key up) instead. It is not OR-ed in, because sounds
   started before the context resumes would all fire together at resume.
 - **Task 3 spike first:**
-  - **Chromium (Playwright, with a synthetic tap):** the context is suspended before the tap and running after
+  - **Chromium (Playwright, with a synthetic tap):** the context is not `running` before the tap (`suspended`) and `running` after
     it; the engine resumes it without help; music starts.
-  - **iOS Simulator (no input available):** the context is suspended at load; no error on the page (read from a
+  - **iOS Simulator (no input available):** the context is not `running` at load (Safari may read `interrupted`); no error on the page (read from a
     status line the spike build draws, since the harness has no console capture).
   - The after-gesture half on a real iPhone is a final-review phone-checklist item.
 - **Music playback mode.** The spike measures both modes on Chromium and picks the first option that passes:
@@ -465,7 +465,8 @@ settings 25, boot fade 90.
 - **Determinism:** `tools/baseline_diff.sh` after every task. The baseline is the S4 one; it must still match.
 - **Web checks** (`export/pw_check.mjs` extended, Task 1 records the baseline from `main`):
   - no new console error or warning against the baseline, WebGL warnings included;
-  - before a gesture the AudioContext is suspended; after a synthetic tap it is running and the director's
+  - before a gesture no AudioContext is `running` (`suspended`; iOS Safari may read `interrupted`); after a synthetic
+    tap one is `running` and the director's
     `unlocked` is true;
   - the mute setting survives a reload: load with `?mute=1` (debug builds: sets and saves the setting at boot),
     reload without it, and read `muted`.

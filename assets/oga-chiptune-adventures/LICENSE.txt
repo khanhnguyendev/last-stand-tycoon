@@ -1,0 +1,8 @@
+Page: https://opengameart.org/content/4-chiptunes-adventure
+Retrieved: 2026-10-02
+License field (verbatim): License(s): CC0
+Author field (verbatim): Author: SubspaceAudio
+Uploader: SubspaceAudio is Juhani Junkala's account; the uploader is the author. The pack's INFO.txt says: "I'm Juhani Junkala, the author of this music collection ... These music tracks have been released under CC0 creative commons license."
+Original file: Juhani Junkala [Chiptune Adventures] 2. Stage 2.ogg
+Original SHA-256: 68ec252839e1f227275fe46fca5e38ffab5086b39a6ab2650a752e4f2ef2a5a7
+Encode command: ffmpeg -y -i "Juhani Junkala [Chiptune Adventures] 2. Stage 2.ogg" -t 60 -ac 1 -ar 32000 -c:a libmp3lame -b:a 64k stage_2.mp3

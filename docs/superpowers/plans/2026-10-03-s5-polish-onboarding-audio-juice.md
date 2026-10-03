@@ -546,7 +546,7 @@ Task numbering: Tasks 3 and 8 are split into 3a/3b and 8a/8b (plan review); spec
   `Label` (layer 99) with: probe value, registration ms, decoded MB, heap before/after, `AudioServer.get_mix_rate()`.
   Then:
   - **Chromium:** a Playwright script (`export/pw_audio_spike.mjs`, kept in the repo for Task 11) loads the page, reads
-    `window.LST_AUDIO.map(c => c.state)` (expect `suspended`), taps the canvas centre (`page.mouse.click`), waits 1 s,
+    `window.LST_AUDIO.map(c => c.state)` (expect not `running`: `suspended`, or `interrupted` on iOS Safari), taps the canvas centre (`page.mouse.click`), waits 1 s,
     reads it again (expect `running`), and screenshots the label. Then repeat with the music player set to
     `PLAYBACK_TYPE_STREAM` and a 60 s run; record mean `proc_ms` from the perf overlay of a profile build and every
     console line containing `underrun` or `Audio`.
@@ -913,7 +913,7 @@ Task numbering: Tasks 3 and 8 are split into 3a/3b and 8a/8b (plan review); spec
   In `_boot()`, first line: `audio_director.register_streams()` (Task 7 moves it into the warm-up).
 
 - [ ] **Step 5: Run** `./run_tests.sh unit`, `./run_tests.sh sim`, `tools/baseline_diff.sh`. Export the debug web build
-  and run `node export/pw_audio_spike.mjs <url>` once more: `suspended` before the tap, `running` after.
+  and run `node export/pw_audio_spike.mjs <url>` once more: not `running` before the tap, `running` after.
 - [ ] **Step 6: Commit** (non-hot files) and report the wiring patch.
 
 ---
@@ -1222,6 +1222,9 @@ Task numbering: Tasks 3 and 8 are split into 3a/3b and 8a/8b (plan review); spec
 **Files:**
 - Create: `world/warmup.gd`, `ui/boot_fade.gd`
 - Modify: `components/occluder_fade.gd` (expose `fade_material_for_warmup() -> Material` returning one faded copy)
+- Modify: `world/audio/audio_director.gd` (`func preload_music(id: StringName) -> void`: on web, registers that music
+  stream as a sample if `MUSIC_MODE` is `&"lazy"` and it is not registered yet; no-op off web; a unit test covers the
+  off-web no-op and that the stream is cached)
 - Wiring (hot): `world/main.gd` (`_boot`), `balance/ui_tuning.gd` (`boot_fade_out_s := 0.3`)
 - Test: `tests/unit/test_warmup.gd`, `tests/unit/test_resume.gd` (unchanged; must still pass)
 - Media: `docs/review/media/s5/perf_p2/`
@@ -1229,7 +1232,7 @@ Task numbering: Tasks 3 and 8 are split into 3a/3b and 8a/8b (plan review); spec
 **Interfaces:**
 - Produces: `class_name Warmup extends Node3D`; `signal finished`; `func run(main: Main) -> void` (a coroutine: builds the
   temporary nodes in front of `main.camera_rig.camera`, awaits `get_tree().process_frame` three times, frees them,
-  calls `main.audio_director.register_streams()`, emits `finished`); `var built_count := 0` (tests).
+  calls `main.audio_director.register_streams()` and `main.audio_director.preload_music(id)` for the resume phase's track (`&"night"` unless the save resumes into DAY or DAWN, then `&"day"`; D-212 lazy mode: this moves the first registration behind the fade), emits `finished`); `var built_count := 0` (tests).
 - Produces: `class_name BootFade extends CanvasLayer` (layer 90): `func fade_out() -> void`.
 
 Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything is committed.
@@ -1715,8 +1718,9 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
   revises the `fight` target rule).
 - [ ] **Step 5: Web checks** (`export/pw_s5_check.mjs`, Playwright, debug build, desktop profile):
   1. load `?reset=1`, wait 30 s, collect console lines; diff against `docs/review/media/s5/console_baseline_main.txt`
-     ignoring timestamps and numbers; print new lines; exit 1 on any new `error` or `warning`;
-  2. read `window.LST_AUDIO.map(c=>c.state)` (all `suspended`), click the canvas centre, wait 1.5 s, read again (some
+     ignoring timestamps and numbers (first normalise per-run pointers: `s/0x[0-9a-f]+/0x?/g`, since the baseline holds
+     `[.WebGL-0x…]` prefixes); print new lines; exit 1 on any new `error` or `warning`;
+  2. read `window.LST_AUDIO.map(c=>c.state)` (none `running`), click the canvas centre, wait 1.5 s, read again (some
      `running`) and read `window.LST_STATE` (`unlocked` true, `music_id` `night`);
   3. load `?mute=1`, wait 5 s; reload without flags; wait 5 s; `window.LST_STATE.muted` is true.
   `LST_STATE` is written once a second by the debug overlay (`ui/debug/debug_overlay.gd`, debug builds only):

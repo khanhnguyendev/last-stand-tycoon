@@ -109,6 +109,19 @@ html, body { position: fixed; inset: 0; overflow: hidden; }
 			<div id="status-notice"></div>
 		</div>
 
+		<script>
+// S5 D-212: remember every AudioContext so the game can read its state. A subclass, not a Proxy (AudioWorklet brand checks).
+(function () {
+	window.LST_AUDIO = [];
+	for (const name of ['AudioContext', 'webkitAudioContext']) {
+		const Base = window[name];
+		if (typeof Base !== 'function') continue;
+		window[name] = class extends Base {
+			constructor(...args) { super(...args); window.LST_AUDIO.push(this); }
+		};
+	}
+}());
+		</script>
 		<script src="$GODOT_URL"></script>
 		<script>
 const GODOT_CONFIG = $GODOT_CONFIG;

@@ -204,3 +204,66 @@ func test_no_physics_catches_shapes_and_passes_clean_scene() -> void:
 	assert_eq(AssetValidator.check_no_physics(PackedStringArray([ROOT + "/phys"])).size(), 1, "bare CollisionShape3D")
 	_scene_with(CollisionPolygon3D.new(), "poly.tscn")
 	assert_eq(AssetValidator.check_no_physics(PackedStringArray([ROOT + "/phys"])).size(), 2, "CollisionPolygon3D")
+
+# --- S5 audio rules (D-211) ---
+
+const AROOT := "user://validator_audio"
+
+func _audio_fixture() -> Dictionary:
+	_rm(AROOT)
+	DirAccess.make_dir_recursive_absolute(AROOT + "/assets/pack")
+	_write(AROOT + "/assets/pack/a.ogg", "0123456789")
+	return {&"a": {"path": AROOT + "/assets/pack/a.ogg"}}
+
+func test_audio_ok_and_missing_path() -> void:
+	var sfx := _audio_fixture()
+	assert_eq(AssetValidator.check_audio(sfx, {}, AROOT + "/assets", 1000, 60.0), [], "clean")
+	sfx[&"b"] = {"path": AROOT + "/assets/pack/nope.ogg"}
+	assert_eq(AssetValidator.check_audio(sfx, {}, AROOT + "/assets", 1000, 60.0).size(), 1, "missing path")
+	_rm(AROOT)
+
+func test_audio_reports_unnamed_file() -> void:
+	var sfx := _audio_fixture()
+	_write(AROOT + "/assets/pack/extra.ogg", "x")
+	var e := AssetValidator.check_audio(sfx, {}, AROOT + "/assets", 1000, 60.0)
+	assert_eq(e.size(), 1, "extra.ogg is not named by the manifest")
+	_rm(AROOT)
+
+func test_audio_reports_total_over_budget() -> void:
+	var sfx := _audio_fixture()
+	assert_eq(AssetValidator.check_audio(sfx, {}, AROOT + "/assets", 10, 60.0), [], "10 B fits budget 10")
+	assert_eq(AssetValidator.check_audio(sfx, {}, AROOT + "/assets", 5, 60.0).size(), 1, "10 B over budget 5")
+	_rm(AROOT)
+
+func test_audio_reports_long_music() -> void:
+	var track: Dictionary = AudioManifest.MUSIC[&"day"]
+	var music := {&"day": {"path": track.path}}
+	_rm(AROOT)
+	DirAccess.make_dir_recursive_absolute(AROOT + "/assets")
+	assert_eq(AssetValidator.check_audio({}, music, AROOT + "/assets", 1000, 0.1).size(), 1, "music longer than 0.1 s")
+	assert_eq(AssetValidator.check_audio({}, music, AROOT + "/assets", 1000, 60.0), [], "music within 60 s")
+	_rm(AROOT)
+
+func test_audio_location() -> void:
+	_rm(AROOT)
+	DirAccess.make_dir_recursive_absolute(AROOT + "/ui")
+	DirAccess.make_dir_recursive_absolute(AROOT + "/assets/p")
+	DirAccess.make_dir_recursive_absolute(AROOT + "/build")
+	_write(AROOT + "/ui/x.ogg", "x")
+	_write(AROOT + "/build/z.ogg", "z")
+	_write(AROOT + "/assets/p/y.ogg", "y")
+	_write(AROOT + "/assets/p/y.ogg.import", "i")
+	var e := AssetValidator.check_audio_location(AROOT)
+	assert_eq(e.size(), 1, "only ui/x.ogg is outside assets/")
+	assert_true(String(e[0]).contains("ui/x.ogg"))
+	_rm(AROOT)
+
+func test_audio_reports_orphan_import() -> void:
+	var sfx := _audio_fixture()
+	_write(AROOT + "/assets/pack/a.ogg.import", "i")
+	assert_eq(AssetValidator.check_audio(sfx, {}, AROOT + "/assets", 1000, 60.0), [], "import with its source is fine")
+	_write(AROOT + "/assets/pack/gone.ogg.import", "i")
+	var e := AssetValidator.check_audio(sfx, {}, AROOT + "/assets", 1000, 60.0)
+	assert_eq(e.size(), 1, "gone.ogg.import has no source")
+	assert_true(String(e[0]).begins_with("orphan import:"))
+	_rm(AROOT)

@@ -40,6 +40,7 @@ func _init() -> void:
 	attacker = Attacker.new()
 	attacker.projectile_art = &"knife"
 	attacker.fired.connect(func(_target): visual.attack())
+	attacker.fired.connect(func(_target): EventBus.sfx_requested.emit(&"throw"))
 	add_child(attacker)
 
 func _ready() -> void:

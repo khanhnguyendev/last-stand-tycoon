@@ -1,0 +1,16 @@
+# Task 3a review re-run, 2026-10-03: debug web export of s5/p1-t03a-spike with a temporary spike hook (removed before commit),
+# Chromium 153.0.8010.12 (Playwright), desktop 720x1280, `node export/pw_audio_spike.mjs <url>` with RUN_S=0. Copied from the
+# implementer's report (the console of that run).
+[console] LST_STATE 3002 ctx0=suspended
+[console] SPIKE mix_rate=44100.0
+[console] SPIKE mem before static_max=43896609.0 static_usage=43009667 static=43009667.0
+[console] SPIKE track happy_adventure_loop.mp3 len=46.8114051818848
+[console] SPIKE track stage_2.mp3 len=56.1039047241211
+[console] SPIKE register_ms=137.8 decoded_bytes=36308520
+[console] SPIKE mem after static_max=83048641.0 static_usage=43010975 static=43010975.0
+before tap (from console): ["suspended"]
+[console] LST_STATE 13509 ctx0=running
+after tap (1 s): ["running"]
+final: ["running"]
+desktop (emulated): 6 matching console lines
+EXIT=0

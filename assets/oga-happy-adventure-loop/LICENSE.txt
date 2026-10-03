@@ -1,0 +1,8 @@
+Page: https://opengameart.org/content/happy-adventure-loop
+Retrieved: 2026-10-02
+License field (verbatim): License(s): CC0
+Author field (verbatim): Author: TinyWorlds
+Uploader: submitter account /users/tinyworlds; the uploader is the stated author (same person).
+Original file: happy_adveture.mp3
+Original SHA-256: 50aa6a32625fe8565403a0c8ceb772d7fb500b9267d0019eacfe0fc742b6c73d
+Encode command: ffmpeg -y -i "happy_adveture.mp3" -t 60 -ac 1 -ar 32000 -c:a libmp3lame -b:a 64k happy_adventure_loop.mp3

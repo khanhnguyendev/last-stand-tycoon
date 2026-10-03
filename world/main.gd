@@ -22,12 +22,17 @@ var hud: Hud
 var autosave: Autosave
 var card_overlay: CardPickOverlay
 var save_store: SaveStore
+var audio_director: AudioDirector
+var settings_store: SettingsStore
 var debug_fresh_start := false
 
 func _ready() -> void:
 	focus_pause = FocusPause.new()
 	focus_pause.name = "FocusPause"
 	add_child(focus_pause)
+	audio_director = AudioDirector.new()
+	add_child(audio_director)
+	focus_pause.changed.connect(audio_director.set_suspended)
 	autosave = Autosave.new()
 	autosave.name = "Autosave"
 	add_child(autosave)
@@ -65,10 +70,16 @@ func _ready() -> void:
 	if auto_start:
 		save_store = SaveStore.for_platform()
 		autosave.store = save_store
+		settings_store = SettingsStore.for_platform()
+		settings_store.load_settings()
+		audio_director.setup(settings_store)
 		_boot.call_deferred()
+	else:
+		audio_director.setup(null)
 
 ## S3 (D-176, D-177): resume the saved run, or start fresh. Deferred so every listener has connected.
 func _boot() -> void:
+	audio_director.register_streams()
 	if debug_fresh_start:
 		save_store.wipe()
 		phase_controller.start_new_game()

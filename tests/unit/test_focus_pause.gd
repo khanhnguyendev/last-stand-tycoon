@@ -74,3 +74,18 @@ func test_main_wires_focus_pause_first() -> void:
 	assert_eq(m.focus_pause.process_mode, Node.PROCESS_MODE_ALWAYS)
 	var kids := m.get_children()
 	assert_lt(kids.find(m.focus_pause), kids.find(m.hero))
+
+func test_changed_signal_follows_focus() -> void:
+	watch_signals(fp)
+	fp.notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	assert_signal_emitted_with_parameters(fp, "changed", [true])
+	fp.notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	assert_signal_emitted_with_parameters(fp, "changed", [false])
+	assert_signal_emit_count(fp, "changed", 2)
+
+func test_changed_not_repeated_for_same_state() -> void:
+	watch_signals(fp)
+	fp.on_visibility_changed(true)
+	fp.on_visibility_changed(true)
+	assert_signal_emit_count(fp, "changed", 1)
+	fp.on_visibility_changed(false)
