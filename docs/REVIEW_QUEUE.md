@@ -8,6 +8,7 @@ direction, and anything that deviates from IDEA.md. Ranked by impact, highest fi
 3. The hero is a cook who throws spinning kitchen knives (IDEA doesn't say how the hero attacks; a pan is held for the look) — [D-191](DECISIONS.md)
 4. Boar: red-brown procedural tusked boar; tusks only small white flares at phone size (bigger tusks cost readability of the face) — [D-202](DECISIONS.md)
 5. Onboarding is one bouncing pointer with ≤ 3 words for night 1 and day 1, then never again on that device — [D-213](DECISIONS.md)
+5c. Guide details: a hero carrying steaks who walks through the freezer zone sees "Take steaks" briefly (the spec's hold rule); near the top of the screen the Guide shows its edge arrow on the target instead of the world pointer — [D-213](DECISIONS.md)
 5b. Particle sizes, counts and colours (`FxField.KINDS`) were tuned from screenshots, not on a phone; running dust is subtle by design — [D-214](DECISIONS.md)
 6. Night look: darker blue moonlight (about half the day's light); the grey diner roof reads slate-blue at night; the hero's white stays white — [D-194](DECISIONS.md), [D-206](DECISIONS.md)
 7. The diner has a flat roof with a parapet so the Archer can stand on it (a gabled roof reads more 'diner', but hides the Archer) — [D-194](DECISIONS.md)

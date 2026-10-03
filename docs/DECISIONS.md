@@ -1944,6 +1944,11 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 - It ends on the first `phase_changed(NIGHT, day ≥ 2)`; `guide_done` is saved per device.
 - A sim proves it on two seeds: a bot that only follows the pointer clears night 1 with 0 fails and reaches
   night 2 with at least one build.
+- **Guide sim details (Task 11, 2026-10-03):** the sim bot re-routes a chase only when the target's nearest graph node
+  changes (re-routing on every 1 m of target movement made it dither and lose night 1). The day-2 "no rule for more
+  than 5 s" check is sampled at the Guide's evaluations, like the fight check: between a sale that empties the counter
+  and the next 0.25 s evaluation, the Guide still shows the previous (empty) rule, which is the rule's defined rate,
+  not a dead spot. Measured: longest legitimate wait for travelers 13–20 s with a stocked counter.
 
 **D-214 Juice is one draw; two request signals.**
 - An `FxField` MultiMesh of 192 CPU-animated quads draws every poof, spark, sparkle and dust. When full, the

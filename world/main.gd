@@ -29,6 +29,7 @@ var warmup: Warmup
 var boot_fade: BootFade
 var pause_reasons := {}
 var settings_layer: SettingsLayer
+var guide: Guide
 
 ## S5 D-218: the tree is paused while any reason is held. paused is written only when the set changes between empty
 ## and not empty, so a test that sets get_tree().paused directly is never overwritten.
@@ -125,6 +126,7 @@ func _ready() -> void:
 		autosave.store = save_store
 		settings_store = SettingsStore.for_platform()
 		settings_store.load_settings()
+		_maybe_build_guide()
 		audio_director.setup(settings_store)
 		# S5 (D-215): the boot fade always; the warm-up unless ?warmup=0 (so A and B differ only in the warm-up).
 		boot_fade = BootFade.new()
@@ -136,6 +138,17 @@ func _ready() -> void:
 		_boot.call_deferred()
 	else:
 		audio_director.setup(null)
+
+## S5 D-213: the onboarding pointer, only for a device that has not finished it (or forced by ?guide=1 on debug).
+func _maybe_build_guide() -> void:
+	if guide != null or settings_store == null:
+		return
+	var flag := UrlFlags.get_flag("guide")
+	if flag == "1" or (flag != "0" and not settings_store.guide_done):
+		guide = Guide.new()
+		add_child(guide)
+		guide.setup(self)
+		guide.completed.connect(func(): guide = null)
 
 ## S3 (D-176, D-177): resume the saved run, or start fresh. S5 (D-215): when a Warmup exists, draw every first-use
 ## visual under the boot fade first; without one (tests) this stays synchronous.

@@ -10,17 +10,27 @@ var first_combat_s := -1.0
 var diner_min := INF
 var kills := 0
 var failed := false
+var guide: Guide
 
 func _init(p_parent: Node) -> void:
 	parent = p_parent
 
-func start(p_seed: int, bot_script: GDScript) -> void:
+func start(p_seed: int, bot_script: GDScript, with_guide := false) -> void:
 	main = Main.create()
 	parent.add_child(main)
+	if with_guide:  # S5 spec 9: Main.create() never builds a Guide; the guide sim injects one with a throwaway store
+		main.settings_store = SettingsStore.with_dir("user://sim_guide")
+		main.settings_store.wipe_for_tests()
+		main.settings_store.load_settings()
+		guide = Guide.new()
+		main.add_child(guide)
+		guide.setup(main)
 	bot = bot_script.new()
 	bot.name = "Bot"
 	main.add_child(bot)
 	bot.setup(main)
+	if with_guide:
+		bot.guide = guide
 	EventBus.diner_damaged.connect(_on_diner_damaged)
 	EventBus.enemy_killed.connect(_on_killed)
 	EventBus.night_failed.connect(_on_failed)

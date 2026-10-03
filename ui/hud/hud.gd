@@ -411,9 +411,6 @@ func _place_arrows() -> void:
 			arrow.position = _hover_point(p, rect) - root.position
 			arrow.rotation = 0.0
 		else:
-			var c := rect.get_center()
-			var dir := (p - c).normalized()
-			var tx := INF if is_zero_approx(dir.x) else ((rect.end.x if dir.x > 0 else rect.position.x) - c.x) / dir.x
-			var ty := INF if is_zero_approx(dir.y) else ((rect.end.y if dir.y > 0 else rect.position.y) - c.y) / dir.y
-			arrow.position = c + dir * minf(tx, ty) - root.position
-			arrow.rotation = dir.angle() - PI / 2.0
+			var e := EdgeClamp.clamp_to_rect(p, rect)
+			arrow.position = (e.position as Vector2) - root.position
+			arrow.rotation = e.rotation
