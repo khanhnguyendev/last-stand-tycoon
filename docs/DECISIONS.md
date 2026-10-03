@@ -1869,3 +1869,104 @@ Full text: `docs/superpowers/specs/2026-10-01-s4-art-pass-design.md` §3.
   focus, while rendering and `physics_frame` carry on, so a shot shows a frozen game: wrong banners, no Boars, or
   the camera before it moved. `tests/sim/capture.gd` now removes FocusPause and fails if the tree is paused, the
   camera is not in place, or fewer than 5 frames were drawn after the camera was set.
+
+## 2026-10-02: S5 spec (autonomous, D-159)
+
+Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-design.md` §3.
+
+**D-210 Settings live outside the save.**
+- A `SettingsStore` keeps `{v, muted, guide_done}` under `lst:<pathname>:settings` (a `user://` file off web).
+- A corrupt or missing value means defaults. `SaveStore.wipe()` and New game do not reset it.
+- It is built only in the `auto_start` boot path; tests inject it.
+
+**D-211 Audio sources and size.**
+- **SFX:** Kenney CC0 audio packs, one file per event.
+- **Music:** two OpenGameArt CC0 tracks: day "Happy Adventure Loop" (tinyworlds), night "Chiptune Adventures:
+  Stage 2" (Juhani Junkala). Each lives in `assets/oga-<slug>/` with a `LICENSE.txt` that records the page URL,
+  the retrieval date, the licence field verbatim, the uploader-is-author check, the source SHA-256 and the ffmpeg
+  command.
+- **Encoding:** MP3 (libmp3lame), mono, 32 kHz, 64 kbps, at most 60 s. The installed ffmpeg has no libvorbis. An
+  MP3 loop may have a small gap at the loop point; `docs/review/AUDIO.md` says so.
+- **Budget:** all audio at most 2.5 MB. The validator enforces it and fails on any audio file the manifest does
+  not name.
+- **Chosen without listening:** the agent cannot hear. Sounds are picked by measured length, peak and mean level
+  (±3 dB of a class target). Every choice is one line in `art/audio/audio_manifest.gd`, listed in
+  `docs/review/AUDIO.md` (REVIEW_QUEUE, high).
+
+**D-212 Web unlock, playback type and mute.**
+- Nothing plays before the audio context runs; music starts at unlock with the current phase's track.
+- **Probe:** the web shell subclasses `AudioContext` and keeps each context in `window.LST_AUDIO`; `unlocked` is
+  "some context is running". Only if the hook found no context is it "an input release was seen". Off web it is
+  true at once.
+- **Playback:** SFX are samples, registered at boot behind the boot fade. Music's mode is picked by the Task 3
+  spike, first option that passes: (1) samples, both tracks at boot (registration under 0.5 s, decoded size at
+  most 48 MB); (2) stream playback (no underrun, at most +1 ms mean `proc_ms`); (3) samples, one track at a time,
+  swapped at `phase_changed`. The result is appended here by Task 3.
+- The spike checks the probe on Chromium (before and after a tap) and the iOS Simulator (before a gesture only:
+  the harness has no input). The after-gesture check on a real iPhone is a final-review item.
+- One toggle mutes the Master bus and is saved at once.
+
+**D-213 Onboarding is one pointer.**
+- A `Guide` shows one pointer with at most three words, from an ordered list of pure state predicates.
+- Night 1 (`day == 1`): move, fight, grab. First day (`day == 2`): build, collect, take, stock, close.
+- `fight` is true whenever a Boar is alive and none is in the hero's range; `grab` whenever no Boar is alive and
+  a ground steak can be carried. Neither turns off after the first kill or pickup: a one-shot rule left a
+  pointer-following player standing still while later waves took another lane (second spec review).
+- `build` shows while a spot is affordable (`0 < remaining_cost ≤ gold`; a maxed spot never is) and points at
+  the affordable spot with the lowest `next_level_cost`. `close` shows only while `Pulse.should_pulse()` is true.
+- `take` waits for counter room for a full load (`min(carry_capacity, freezer, counter_capacity)`), and holds
+  while the hero fills up in the freezer zone. This stops one-steak trips after each sale.
+- An off-screen target gets an arrow clamped to the HUD's arrow rect (inset 40 px more), using the lane-arrow
+  maths, now in `core/edge_clamp.gd`.
+- Its one counter (walked distance) resets on `state_restored`. It never pauses or blocks input.
+- It ends on the first `phase_changed(NIGHT, day ≥ 2)`; `guide_done` is saved per device.
+- A sim proves it on two seeds: a bot that only follows the pointer clears night 1 with 0 fails and reaches
+  night 2 with at least one build.
+
+**D-214 Juice is one draw; two request signals.**
+- An `FxField` MultiMesh of 192 CPU-animated quads draws every poof, spark, sparkle and dust. When full, the
+  oldest quads are replaced.
+- No GPUParticles and no Label3D pop-ups.
+- `EventBus.sfx_requested(id)` and `EventBus.fx_requested(kind, position)` carry local events (a throw, a hit, a
+  payment tick, a UI press) to `AudioDirector` and `FxField`. No gameplay code listens to them.
+- Screen shake replaces the existing one in `camera_rig.gd`; it stays a camera offset from a fixed table and can
+  be turned off with `Balance.ui.shake_enabled`. The cooldown gates `diner_damaged` only; `diner_fell` always
+  shakes, because both are emitted in one `damage_diner` call.
+- No randomness and no gameplay timing.
+
+**D-215 Warm-up.**
+- Task 7 first attributes the first-wave stall with an A/B on the profile build; the cause was never proven.
+- `Main._boot` awaits a warm-up that draws one of each visual inside the camera frustum, under an opaque boot-fade
+  layer, for three frames, then frees them. Off-screen drawing would be culled and compile nothing.
+- `_boot()` awaits only when a Warmup node exists, so tests that call it stay synchronous.
+- It uses temporary nodes only: no pools, no PickupField slot, no GameState, no Rng.
+- If `worst_ms` stays at or above 60 with every first-use item warmed, the measured cause becomes a known issue
+  for the final review.
+
+**D-216 HUD pass.**
+- Positions only: safe-area placement, the card strip clear of the diner bar, world labels dimmed (snapped to
+  alpha 0.15) under HUD blocks, a settings gear top-right.
+- The gear, the joystick ring and the knob are icon-atlas cells.
+- The unused `steak` icon is removed; v0.1 has no steak counter.
+
+**D-217 New game.**
+- Settings panel → "New game" → a second tap after `card_input_guard_s` and within 3 s.
+- The panel emits `new_game_requested`; Main calls `fresh_start()`: wipe the save, `start_new_game()`, close the
+  panel, remove the `settings` pause reason. The debug R key calls the same function.
+- The panel hit-tests touches itself, because `emulate_mouse_from_touch` is off.
+
+**D-218 One pause owner.**
+- Main owns a set of pause reasons (`focus`, `settings`); the tree is paused while the set is not empty. Main
+  writes `tree.paused` only when the set changes between empty and not empty.
+- FocusPause only emits `changed(paused)` and no longer touches the tree. Main maps it to `focus` and clears the
+  reason when FocusPause leaves the tree. The settings panel adds and removes `settings`.
+- `AudioDirector.set_suspended()` pauses its players while the tab is hidden (wired in Task 3).
+
+**D-219 S5 gates.**
+- Baseline identical; validator green including audio.
+- Perf, median of 3 on an idle Mac: night-3 `avg_fps` ≥ 58; night-3 `worst_ms` < 60; day-3 `avg_fps` no lower
+  than the S4 `main` build read in the same session, minus 1.
+- D-196 size gates.
+- Web console: no new error or warning against a baseline recorded from `main`.
+- Audio is verified by state on web (suspended before a gesture, running after, mute persists), not by ear. Its
+  CPU cost is reported from a Chromium A/B and is not gated.
