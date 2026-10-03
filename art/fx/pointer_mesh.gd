@@ -4,8 +4,10 @@ extends MeshInstance3D
 ## tip at the node's origin. One mesh, one surface, one draw call. It ignores depth so a wall never hides it.
 
 const SEGMENTS := 12
+## The pointer's height, tip to top; Guide uses it to find where the pointer ends on screen.
+const HEIGHT := 1.15
 ## Profile (radius, height above the tip), tip first.
-const PROFILE := [Vector2(0.0, 0.0), Vector2(0.42, 0.62), Vector2(0.16, 0.62), Vector2(0.16, 1.15), Vector2(0.0, 1.15)]
+const PROFILE := [Vector2(0.0, 0.0), Vector2(0.42, 0.62), Vector2(0.16, 0.62), Vector2(0.16, HEIGHT), Vector2(0.0, HEIGHT)]
 
 static func build() -> ArrayMesh:
 	var st := SurfaceTool.new()

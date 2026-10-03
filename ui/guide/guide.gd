@@ -12,10 +12,7 @@ signal completed
 
 const LAYER := 12
 const POINTER_SCENE := preload("res://art/fx/pointer.tscn")
-const LABEL_SIZE := 40
 const LABEL_GAP := 24.0
-## Where the ghost stick sits inside the rect, as a fraction of its height ("lower third").
-const STICK_Y := 0.78
 const FINGER_PX := 18.0
 const FINGER_ALPHA := 0.55
 
@@ -39,6 +36,8 @@ var _arrow_pos := Vector2.ZERO
 var _arrow_rot := 0.0
 var _stick_visible := false
 var _stick_center := Vector2.ZERO
+## The Boar the `fight` rule picked at the last evaluation; the pointer follows it every frame while it lives.
+var _target_boar: Node3D
 var _stick_phase := 0.0
 
 func setup(p_main: Main) -> void:
@@ -57,7 +56,7 @@ func setup(p_main: Main) -> void:
 	overlay.add_child(canvas)
 	label = Label.new()
 	label.theme_type_variation = &"HudCounter"
-	label.add_theme_font_size_override("font_size", LABEL_SIZE)
+	label.add_theme_font_size_override("font_size", int(Balance.ui.guide_font_px))
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.visible = false
 	overlay.add_child(label)
@@ -120,6 +119,12 @@ func evaluate_now() -> void:
 		rule_id = r.rule_id
 		target_id = r.target_id
 		target_position = r.target_position
+		_target_boar = null
+		if rule_id == &"fight":
+			for b in main.world.wave_director.alive_enemies():
+				if (b as Node3D).global_position == target_position:
+					_target_boar = b
+					break
 	_apply()
 	evaluated.emit()
 
@@ -187,18 +192,26 @@ func _relayout() -> void:
 	_arrow_visible = false
 	_stick_visible = false
 	pointer.visible = false
-	if rule_id == &"":
+	# Nothing shows while the night is failing (the restore is about to move everything), nor when no rule applies.
+	var shown := rule_id != &"" and (_forced or not main.phase_controller.failing)
+	label.visible = shown
+	if not shown:
 		canvas.queue_redraw()
 		return
+	# Visual only: the fight pointer follows its Boar every frame instead of jumping at each evaluation.
+	if rule_id == &"fight" and is_instance_valid(_target_boar) and _target_boar in main.world.wave_director.alive_enemies():
+		target_position = _target_boar.global_position
 	var rect := edge_rect()
 	var anchor := Vector2.ZERO  # where the label hangs from
 	if rule_id == &"move":
 		_stick_visible = true
-		_stick_center = Vector2(rect.get_center().x, rect.position.y + rect.size.y * STICK_Y)
+		_stick_center = Vector2(rect.get_center().x, rect.position.y + rect.size.y * Balance.ui.guide_stick_y)
 		anchor = _stick_center + Vector2(0.0, -Balance.ui.joystick_radius_px - LABEL_GAP)
 	else:
 		var ground := _screen_point(target_position, rect)
-		var top := _screen_point(target_position + Vector3(0.0, Balance.ui.guide_pointer_h + 1.2, 0.0), rect)
+		var top := _screen_point(target_position + Vector3(0.0, Balance.ui.guide_pointer_h + PointerMesh.HEIGHT, 0.0), rect)
+		# The world pointer needs both the target and the top of the pointer inside the rect; a target whose pointer would poke
+		# out of the top falls back to the edge arrow, placed on the target itself.
 		if rect.has_point(ground) and rect.has_point(top):
 			var bounce := sin(_t * TAU * Balance.ui.guide_bounce_hz) * Balance.ui.guide_bounce_m
 			pointer.global_position = target_position + Vector3(0.0, Balance.ui.guide_pointer_h + bounce, 0.0)
@@ -214,7 +227,7 @@ func _relayout() -> void:
 			_arrow_rot = e.rotation
 			# The label sits on the arrow's inner side (towards the rect centre).
 			var inward := (rect.get_center() - _arrow_pos).normalized()
-			anchor = _arrow_pos + inward * (Hud.arrow_extent() + LABEL_GAP * 2.0)
+			anchor = _arrow_pos + inward * (Balance.ui.guide_arrow_px * 0.5 + 2.0 + LABEL_GAP * 2.0)
 	label.reset_size()
 	var half := label.size * 0.5
 	var pos := anchor - Vector2(half.x, label.size.y)
@@ -226,7 +239,7 @@ func _relayout() -> void:
 ## The ghost stick's knob offset: a horizontal swipe from left to right over guide_swipe_s, then a restart.
 func knob_offset() -> Vector2:
 	var r := Balance.ui.joystick_radius_px
-	return Vector2(lerpf(-r * 0.7, r * 0.7, ease(_stick_phase, -1.6)), 0.0)
+	return Vector2(lerpf(-r * Balance.ui.guide_swipe_frac, r * Balance.ui.guide_swipe_frac, ease(_stick_phase, -1.6)), 0.0)
 
 func label_rect() -> Rect2:
 	return label.get_global_rect()
@@ -239,6 +252,9 @@ func arrow_position() -> Vector2:
 
 func arrow_rotation() -> float:
 	return _arrow_rot
+
+func stick_center() -> Vector2:
+	return _stick_center
 
 func stick_visible() -> bool:
 	return _stick_visible
@@ -257,12 +273,12 @@ class GuideCanvas extends Control:
 		var atlas := IconAtlas.texture()
 		var origin := -global_position
 		if guide.arrow_visible():
-			var px := Balance.ui.arrow_px
+			var px := Balance.ui.guide_arrow_px
 			draw_set_transform(guide.arrow_position() + origin, guide.arrow_rotation(), Vector2.ONE)
 			draw_texture_rect_region(atlas, IconAtlas.shape_dest(Rect2(HudIcons.ARROW_CENTER - Vector2.ONE * px * 0.5, Vector2.ONE * px)), IconAtlas.region(&"guide_arrow"), Palette.color(&"gold"))
 			draw_set_transform_matrix(Transform2D.IDENTITY)
 		if guide.stick_visible():
-			var c := guide._stick_center + origin
+			var c := guide.stick_center() + origin
 			var r := Balance.ui.joystick_radius_px
 			draw_texture_rect_region(atlas, IconAtlas.shape_dest(Rect2(c - Vector2.ONE * r, Vector2.ONE * r * 2.0)), IconAtlas.region(&"stick_ring"))
 			var k := c + guide.knob_offset()

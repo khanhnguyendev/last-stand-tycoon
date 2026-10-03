@@ -143,21 +143,21 @@ func test_onscreen_target_shows_the_world_pointer() -> void:
 
 func test_landscape_resize_keeps_arrow_and_label_in_the_safe_rect() -> void:
 	await _boot(Vector2i(1280, 720), NOTCH_LANDSCAPE)
-	await _day_with_freezer(MapLayout.NIGHT1_START)
+	await _day_with_freezer(Vector2(-12, -20))  # far from the freezer: off-screen in landscape
 	assert_eq(guide.rule_id, &"take")
 	var rect := main.hud.arrow_rect().grow(-Balance.ui.guide_rect_inset_px)
 	var safe := Rect2(88, 0, 1280 - 176, 720 - 42)
 	assert_true(safe.encloses(rect), "rect %s in safe %s" % [rect, safe])
-	if guide.arrow_visible():
-		assert_true(rect.grow(0.5).has_point(guide.arrow_position()), "arrow %s in %s" % [guide.arrow_position(), rect])
-	else:
-		assert_true(guide.pointer.visible, "on screen: the world pointer shows")
+	assert_true(guide.arrow_visible())
+	assert_true(rect.grow(0.5).has_point(guide.arrow_position()), "arrow %s in %s" % [guide.arrow_position(), rect])
 	assert_true(rect.grow(0.5).encloses(guide.label_rect()), "label %s in %s" % [guide.label_rect(), rect])
 	# And back to portrait: still inside.
 	vp.size = Vector2i(720, 1280)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	rect = main.hud.arrow_rect().grow(-Balance.ui.guide_rect_inset_px)
+	assert_true(guide.arrow_visible())
+	assert_true(rect.grow(0.5).has_point(guide.arrow_position()), "arrow %s in %s" % [guide.arrow_position(), rect])
 	assert_true(rect.grow(0.5).encloses(guide.label_rect()), "label %s in %s" % [guide.label_rect(), rect])
 
 func test_every_control_ignores_the_mouse() -> void:
@@ -191,9 +191,42 @@ func test_debug_force_shows_each_rule() -> void:
 		assert_eq(guide.label.text, GuideRules.TEXT[id], str(id))
 		assert_true(guide.label.visible)
 
-func test_completes_at_night_two() -> void:
+func test_completes_at_night_two_not_at_night_one() -> void:
 	await _boot()
 	var n := [0]
 	guide.completed.connect(func() -> void: n[0] += 1)
+	guide.walked = 5.0
+	EventBus.phase_changed.emit(Phase.NIGHT, 1)
+	assert_eq(n[0], 0)
+	assert_true(is_instance_valid(guide) and not guide.is_queued_for_deletion())
+	assert_eq(guide.walked, 0.0)
 	EventBus.phase_changed.emit(Phase.NIGHT, 2)
 	assert_eq(n[0], 1)
+
+func test_shows_nothing_while_the_night_is_failing() -> void:
+	await _boot()
+	guide.evaluate_now()
+	await get_tree().process_frame
+	assert_true(guide.label.visible)
+	assert_true(guide.stick_visible())
+	main.phase_controller.failing = true
+	await get_tree().process_frame
+	assert_false(guide.label.visible)
+	assert_false(guide.stick_visible())
+	assert_false(guide.pointer.visible)
+	assert_false(guide.arrow_visible())
+	main.phase_controller.failing = false
+
+func test_fight_pointer_follows_its_boar_between_evaluations() -> void:
+	await _boot()
+	guide.walked = 5.0
+	var b := main.world.wave_director.debug_spawn("north")
+	b.dist = 10.0
+	b.set_physics_process(false)
+	b._update_position()
+	guide.evaluate_now()
+	assert_eq(guide.rule_id, &"fight")
+	b.dist = 11.0
+	b._update_position()
+	await get_tree().process_frame
+	assert_eq(guide.target_position, b.global_position)

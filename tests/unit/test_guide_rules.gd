@@ -139,3 +139,10 @@ func test_close_only_on_pulse() -> void:
 
 func test_day_five_shows_nothing() -> void:
 	assert_eq(GuideRules.evaluate(_s({"day": 5, "gold": 999, "gold_pile": 30, "freezer": 36, "should_pulse": true})).rule_id, &"")
+
+func test_collect_clause_one_cases() -> void:
+	assert_eq(GuideRules.evaluate(_s({"gold_pile": 30, "carried": 3})).rule_id, &"collect")
+	assert_eq(GuideRules.evaluate(_s({"gold_pile": 30, "freezer": 36})).rule_id, &"collect")
+	assert_eq(GuideRules.evaluate(_s({"gold_pile": 30, "freezer": 36, "carried": 6, "hero_xz": MapLayout.FREEZER_ZONE})).rule_id, &"collect")
+	assert_eq(GuideRules.evaluate(_s({"gold_pile": 5, "carried": 3})).rule_id, &"stock")
+	assert_eq(GuideRules.evaluate(_s({"freezer": 36, "carried": 3})).rule_id, &"stock")
