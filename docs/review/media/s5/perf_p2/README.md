@@ -60,3 +60,26 @@ is below about 31 ms (run 3's third frame, 31 ms at 58.2 s, is 20.7 s after wave
 just after the window opens, not a recurring in-wave one. The instrument cannot say what runs then; candidates to check are
 whatever completes about 2 s after the phase change (the boot fade-out/free, the first frame after the loading/resume work, an
 unflushed GPU upload). Nothing was fixed or tuned.
+
+### Experiment: warm-up length (`?perfwarm=4`)
+`ui/perf_overlay.gd` reads `?perfwarm=<s>` (default 2.0) and appends `pre3=<ms>@<s since the phase change>s ...` (the 3 worst
+frames inside the warm-up) after `top3`. Three night-3 runs with `QUERY=perfwarm=4 NIGHT_ONLY=1` (idle before 77%, 75%, 75%;
+screenshots `runs/perfwarm4_run<N>.png`):
+
+| run | avg_fps | worst_ms | top3 (window) | pre3 (warm-up, 0 to 4 s) |
+|---|---|---|---|---|
+| 1 | 59.4 | 52.0 | `52@0.1s 43@50.5s(w1,+15.1) 30@0.2s` | `874@0.9s 53@1.6s 52@2.6s` |
+| 2 | 59.7 | 50.0 | `50@0.1s 35@0.2s 30@35.2s(w0,+33.5)` | `829@0.8s 52@2.0s 41@1.0s` |
+| 3 | 59.7 | 56.0 | `56@0.1s 33@59.3s(w1,+24.0) 32@0.1s` | `806@0.8s 55@2.1s 36@3.1s` |
+
+Reading (no fix applied):
+- The 75-121 ms frame at about 2.1 s is gone: with a 4 s warm-up no frame in the 2.0-2.6 s span is above 55 ms.
+- Both warm-ups show a worst frame 0.1 s after their own boundary (`@0.1s` in top3), now 50-56 ms instead of 75-121 ms. That
+  frame follows the overlay's boundary when the boundary moves, so part of the stall is tied to what the overlay itself starts at
+  the boundary (first `Performance.get_monitor` calls, label/state change, `_track_top`). It is smaller here, and a 50 ms frame
+  also sits at 2.0-2.6 s inside the warm-up in each run (52, 52, 55 ms), so a real ~50 ms event about 2 s after the night starts
+  is not excluded.
+- The warm-up now holds the largest frame by far: 806-874 ms at 0.8-0.9 s after the phase change (the resume/first-night load),
+  outside every window.
+- All three window worst_ms values (50-56) are under the 60 ms gate when the window opens at 4 s; this is a measurement
+  observation, not a result for the gate, which is defined with the 2 s warm-up.

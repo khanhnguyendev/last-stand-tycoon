@@ -31,6 +31,9 @@ var _slow := 0
 var _delta_worst := 0.0
 ## The 3 worst frames of the window: {"ms", "at" (s into the window), "wave" (last started wave index, -1 none), "since" (s since that wave_started, -1 none)}.
 var _top: Array[Dictionary] = []
+## The 3 worst frames before the window opens: {"ms", "at" (s since the phase change)}.
+var _pre: Array[Dictionary] = []
+var _warm := WARMUP_S
 var _wave := -1
 var _wave_at := -1.0
 
@@ -50,6 +53,9 @@ func _ready() -> void:
 	_frozen_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 	_frozen_label.custom_minimum_size = Vector2(696, 0)
 	add_child(_frozen_label)
+	var pw := UrlFlags.get_flag("perfwarm")
+	if pw.is_valid_float() and float(pw) >= 0.0:
+		_warm = float(pw)  # ?perfwarm=<s>: warm-up length (default WARMUP_S), to tell the overlay's own boundary from a game event
 	EventBus.phase_changed.connect(_on_phase_changed)
 	EventBus.wave_started.connect(_on_wave_started)
 
@@ -75,6 +81,7 @@ func _reset_window() -> void:
 	_slow = 0
 	_delta_worst = 0.0
 	_top.clear()
+	_pre.clear()
 	_wave = -1
 	_wave_at = -1.0
 
@@ -104,7 +111,7 @@ func _process(delta: float) -> void:
 
 ## One frame: raw = measured seconds, delta = the engine's (clamped) delta. Split out so tests can inject time.
 func _tick(raw: float, delta: float) -> void:
-	var state := "frozen" if _frozen else ("warm-up" if _since_reset < WARMUP_S else "")
+	var state := "frozen" if _frozen else ("warm-up" if _since_reset < _warm else "")
 	var n := maxi(_n, 1)
 	_label.text = "fps %.0f  avg %.1f  worst %.0f ms  win %.0fs %s\nproc %.1f ms  phys %.1f ms  dc %.0f  slow %.1f%%" % [
 		Engine.get_frames_per_second(), avg_fps(), worst_ms(), _raw_sum, state,
@@ -113,7 +120,8 @@ func _tick(raw: float, delta: float) -> void:
 		return
 	var before := _since_reset
 	_since_reset += raw
-	if before < WARMUP_S:
+	if before < _warm:
+		_track_pre(raw)
 		return
 	record(raw)
 	_proc_sum += Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
@@ -128,7 +136,7 @@ func _tick(raw: float, delta: float) -> void:
 		var line := "PERF phase=%s day=%d window=60s avg_fps=%.1f worst_ms=%.1f proc_ms=%.2f phys_ms=%.2f dc=%.0f slow_pct=%.1f delta_worst_ms=%.1f" % [
 			_phase_name(), _day, avg_fps(), worst_ms(), _proc_sum / _n, _phys_sum / _n, _dc_sum / _n,
 			100.0 * _slow / _n, _delta_worst]
-		line += " top3=" + top3_text()
+		line += " top3=" + top3_text() + " pre3=" + pre3_text()
 		_frozen_label.text = line
 		print(line)
 
@@ -146,4 +154,20 @@ func top3_text() -> String:
 	var parts: PackedStringArray = []
 	for t in _top:
 		parts.append("%.0f@%.1fs(w%d,%s)" % [t.ms, t.at, t.wave, "-1" if float(t.since) < 0.0 else "+%.1f" % t.since])
+	return " ".join(parts)
+
+func _track_pre(raw: float) -> void:
+	var ms := raw * 1000.0
+	if _pre.size() == 3 and ms <= float(_pre[2].ms):
+		return
+	_pre.append({"ms": ms, "at": _since_reset})
+	_pre.sort_custom(func(a, b): return a.ms > b.ms)
+	if _pre.size() > 3:
+		_pre.resize(3)
+
+## `98@2.1s ...`: ms and seconds since the phase change of the 3 worst frames inside the warm-up.
+func pre3_text() -> String:
+	var parts: PackedStringArray = []
+	for t in _pre:
+		parts.append("%.0f@%.1fs" % [t.ms, t.at])
 	return " ".join(parts)
