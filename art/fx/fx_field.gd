@@ -13,9 +13,9 @@ const BURST_TURN := 0.618
 ## count, cell, colour (Palette name), speed (m/s), up (m/s), gravity (m/s²), life (s), size (m); "to" = colour at end of life.
 const KINDS := {
 	&"poof": {"count": 8, "cell": 0, "color": &"enemy_snout", "to": &"apron_white", "speed": 2.2, "up": 1.5, "gravity": 2.0, "life": 0.45, "size": 0.75},
-	&"hit": {"count": 4, "cell": 1, "color": &"warm_white", "speed": 3.0, "up": 1.0, "gravity": 0.0, "life": 0.22, "size": 0.6},
+	&"hit": {"count": 4, "cell": 1, "color": &"warm_white", "speed": 3.0, "up": 1.0, "gravity": 0.0, "life": 0.25, "size": 0.8},
 	&"sparkle": {"count": 6, "cell": 2, "color": &"gold", "speed": 1.6, "up": 2.4, "gravity": 3.0, "life": 0.6, "size": 0.4},
-	&"dust": {"count": 3, "cell": 3, "color": &"diner_cream", "speed": 0.6, "up": 0.4, "gravity": 0.0, "life": 0.4, "size": 0.5},
+	&"dust": {"count": 3, "cell": 3, "color": &"stone", "speed": 0.6, "up": 0.4, "gravity": 0.0, "life": 0.45, "size": 0.7},
 	&"coin": {"count": 5, "cell": 2, "color": &"gold", "speed": 1.6, "up": 2.6, "gravity": 3.0, "life": 0.6, "size": 0.45},
 }
 
