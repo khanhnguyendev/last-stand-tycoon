@@ -13,7 +13,7 @@ extends SceneTree
 ## --settings=1: open the settings panel right before the grab (S5 Task 8b); the tree is then paused by its pause reason, which is fine for a still.
 ## --insets=t,r,b,l: safe-area insets for the shot, set through SafeArea.override_for_tests (S5 Task 9). With a landscape --resolution the shot is not 720x1280 (a size warning is printed).
 ## --arrows=main[,side]: emit wave_incoming with those lanes right before the grab and let the arrow punch settle, so the red lane arrows show (S5 Task 9).
-## --guide=<rule id>: the hero parked at the night-1 start, a Guide built by hand (it is not in Main yet) and forced to that rule (move|fight|grab|build|collect|take|stock|close) at a fixed target (S5 Task 10).
+## --guide=<rule id>: the hero parked at the night-1 start, the Guide (Main's own when it built one, else built by hand) and forced to that rule (move|fight|grab|build|collect|take|stock|close) at a fixed target (S5 Task 10).
 ## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
 ## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
 
@@ -140,9 +140,11 @@ func _run() -> void:
 		main.hero.teleport(map_layout.NIGHT1_START)
 		for i in 60:  # the follow camera settles on the hero
 			await physics_frame
-		var guide = load("res://ui/guide/guide.gd").new()
-		main.add_child(guide)
-		guide.setup(main)
+		var guide = main.guide  # a Main that built its own Guide (boot path) keeps it: never a second one
+		if guide == null:
+			guide = load("res://ui/guide/guide.gd").new()
+			main.add_child(guide)
+			guide.setup(main)
 		guide.debug_force(StringName(_args.guide))
 	var dbg = main.get_node_or_null("DebugOverlay")
 	if dbg != null and not _args.has("debug"):

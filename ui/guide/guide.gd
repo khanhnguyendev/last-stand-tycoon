@@ -5,7 +5,7 @@ extends Node
 ## or, when the target is off-screen, an edge arrow on the HUD's arrow rect (inset a further guide_rect_inset_px). `move`
 ## shows a ghost joystick swiping at the lower third instead. It only reads the game: it never writes GameState, never calls
 ## Rng, and has no physics body. Every Control ignores the mouse.
-## Not wired into Main here (Task 11 does that); tests build it with `setup(main)`.
+## Main builds it through `_maybe_build_guide()`; tests and sims build it with `setup(main)`.
 
 signal evaluated
 signal completed
@@ -80,12 +80,16 @@ func _on_phase_changed(phase: int, day: int) -> void:
 	if phase == Phase.NIGHT and day == 1:
 		walked = 0.0
 	elif phase == Phase.NIGHT and day >= 2:
-		completed.emit()  # Task 11 saves guide_done; the Guide has nothing more to show
+		# D-213: the first night after the tutorial day (or any night of day 2 or later) finishes the onboarding for this device.
+		if main != null and main.settings_store != null:
+			main.settings_store.guide_done = true
+			main.settings_store.save_settings()
+		completed.emit()
 		queue_free()
 
 func _physics_process(delta: float) -> void:
-	if main == null:
-		return
+	if main == null or GameState.buildings.is_empty():
+		return  # Main builds the Guide before the run starts (boot path): nothing to read yet
 	var v := main.hero.velocity
 	walked += Vector2(v.x, v.z).length() * delta
 	_eval_left -= delta
