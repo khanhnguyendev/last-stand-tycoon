@@ -50,6 +50,14 @@ extends Resource
 @export var card_panel_min_h := 120.0
 ## S3: a new banner shortens the one on screen to at most banner_min_s (D-175); autosave throttle (D-173).
 @export var banner_min_s := 0.6
+## S5 UI motion (spec 5.3): banner slide/fade-in, card rise and stagger (the last card lands inside card_input_guard_s),
+## button press scale (Task 8).
+@export var banner_slide_px := 24.0
+@export var banner_in_s := 0.15
+@export var card_rise_px := 40.0
+@export var card_rise_s := 0.18
+@export var card_stagger_s := 0.06
+@export var button_press_scale := 0.94
 @export var autosave_interval_s := 3.0
 ## S4 Task 6: ActorVisual (D-190). Turn rate of the model toward its facing (rad/s), AnimationTree blend and
 ## one-shot fade (s), and the minimum gap between Hit_A reactions (s).
