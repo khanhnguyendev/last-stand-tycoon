@@ -8,6 +8,7 @@ extends SceneTree
 ## --save=<fixture path>: decode it with SaveCodec.decode and resume_from it instead of start_new_game (no phase staging; waits --seconds, default 12). --drawcalls: print "DRAWCALLS n" once a second while waiting and "DRAWCALLS_MAX n" at the end.
 ## --steaks=N: bot freed, N steaks lie on the ground 2.5-5 m around the night-1 start (grass and dirt), for the R5 shot.
 ## --cards=id:level,...: grant cards after start_new_game (Tank placed at its post). --scene=cardpick: no bot, emit wave_cleared so the pick opens (with --wait=<s>: open it after the camera guards and grab <s> s later).
+## --fx-offset=x,y,z: offset of the --fx burst from the hero (default 0,0.5,0).
 ## --fx=<kind>: emit EventBus.fx_requested(kind, hero position + 0.5 up) right before the grab and show it aged --fx-age seconds (default 0.1, stepped by hand) (S5 Task 4).
 ## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
 ## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
@@ -32,6 +33,7 @@ func _run() -> void:
 	var enemy_path = load("res://core/enemy_path.gd")
 	_bal = root.get_node("Balance")
 	_bal.reset()
+	_bal.ui.shake_enabled = false  # a shot must not catch the camera mid-shake (S5 Task 5)
 	var main = load("res://world/main.gd").create()
 	root.add_child(main)
 	# FocusPause pauses the tree when this window loses focus (D-147). A capture window is rarely focused, and a paused
@@ -189,7 +191,7 @@ func _run() -> void:
 		# The field is stepped by hand so the shot shows exactly 0.1 s of burst whatever the frame rate is.
 		var field = main.world.fx_field
 		field.set_process(false)
-		root.get_node("EventBus").fx_requested.emit(StringName(_args.fx), main.hero.global_position + Vector3(0, 0.5, 0))
+		root.get_node("EventBus").fx_requested.emit(StringName(_args.fx), main.hero.global_position + _fx_offset())
 		field.step(float(_args.get("fx-age", "0.1")))
 		if field.active_count() == 0:
 			push_error("capture: --fx produced no particles")
@@ -218,6 +220,14 @@ func _run() -> void:
 	if _args.has("drawcalls"):
 		print("DRAWCALLS_MAX %d" % _dc_max)
 	quit(0)
+
+## --fx-offset=x,y,z: where the --fx burst sits relative to the hero (default 0,0.5,0).
+func _fx_offset() -> Vector3:
+	var p := String(_args.get("fx-offset", "0,0.5,0")).split(",")
+	if p.size() != 3:
+		push_error("bad --fx-offset")
+		return Vector3(0, 0.5, 0)
+	return Vector3(float(p[0]), float(p[1]), float(p[2]))
 
 func _open_cardpick() -> void:
 	var gs2 = root.get_node("GameState")

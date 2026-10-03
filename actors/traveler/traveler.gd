@@ -12,13 +12,17 @@ var visual: KayKitVisual
 var shadow_field: ShadowField
 var _target := Vector2.ZERO
 var _last_xz := Vector2.ZERO
+var _hop: Tween
+var _rest_y := 0.0
 
 func _init() -> void:
 	name = "Traveler"
 	visual = preload("res://art/characters/traveler_visual.tscn").instantiate()
 	add_child(visual)
+	_rest_y = visual.position.y
 
 func begin(p_want: int) -> void:
+	_reset_hop()
 	want = p_want
 	service_timer = 0.0
 	leaving = false
@@ -32,8 +36,23 @@ func begin(p_want: int) -> void:
 
 ## NodePool hook: a released traveler leaves the shadow field.
 func on_release() -> void:
+	_reset_hop()
 	if shadow_field != null:
 		shadow_field.unregister(visual)
+
+## Sale hop (S5 Task 5): up and back on the Visual only.
+func hop() -> void:
+	_reset_hop()
+	var half := Balance.ui.traveler_hop_time * 0.5
+	_hop = create_tween()
+	_hop.tween_property(visual, "position:y", _rest_y + Balance.ui.traveler_hop_m, half).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_hop.tween_property(visual, "position:y", _rest_y, half).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
+func _reset_hop() -> void:
+	if _hop != null and _hop.is_valid():
+		_hop.kill()
+	_hop = null
+	visual.position.y = _rest_y
 
 func set_target(p: Vector2) -> void:
 	_target = p

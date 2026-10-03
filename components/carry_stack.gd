@@ -5,6 +5,7 @@ extends Node3D
 ## One MultiMeshInstance3D with a slot per steak the hero can ever carry (D-201).
 
 var _pile: MultiMeshInstance3D
+var _squash: Tween
 
 func _ready() -> void:
 	var cb := Balance.data.cards
@@ -16,7 +17,16 @@ func _ready() -> void:
 	add_child(_pile)
 	EventBus.stocks_changed.connect(refresh)
 	EventBus.state_restored.connect(refresh)
+	EventBus.steak_picked.connect(func(_c): _squash_pop())
 	refresh()
+
+## S5 Task 5: a short squash on every pickup (visual only).
+func _squash_pop() -> void:
+	if _squash != null and _squash.is_valid():
+		_squash.kill()
+	scale = Vector3(1.0, Balance.ui.carry_squash, 1.0)
+	_squash = create_tween()
+	_squash.tween_property(self, "scale", Vector3.ONE, Balance.ui.carry_squash_time)
 
 func refresh() -> void:
 	PileMesh.set_count(_pile, GameState.carried_steaks)

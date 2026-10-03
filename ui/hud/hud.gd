@@ -27,6 +27,8 @@ var _banner_tween: Tween
 var _banner_slide := 0.0
 var _gold_tween: Tween
 var _bar_tween: Tween
+var _flash_tween: Tween
+var _punch_tween: Tween
 var _moon_row: HBoxContainer
 var _top_column: VBoxContainer
 
@@ -229,6 +231,17 @@ func _on_wave_incoming(_w: int, main_lane: StringName, side_lane: StringName) ->
 	arrows.main.visible = _arrow_lane.main != ""
 	arrows.side.visible = _arrow_lane.side != ""
 	_place_arrows()
+	_punch_arrows()
+
+## S5 Task 5: the arrows pop when a wave is announced (visual only).
+func _punch_arrows() -> void:
+	if _punch_tween != null and _punch_tween.is_valid():
+		_punch_tween.kill()
+	_punch_tween = create_tween().set_parallel(true)
+	for key in ["main", "side"]:
+		var rest := Vector2.ONE if key == "main" else Vector2.ONE * Balance.ui.arrow_side_scale
+		arrows[key].scale = rest * Balance.ui.arrow_punch_scale
+		_punch_tween.tween_property(arrows[key], "scale", rest, Balance.ui.arrow_punch_time)
 
 func _on_wave_spawned_out(_w: int) -> void:
 	arrows.main.visible = false
@@ -236,6 +249,11 @@ func _on_wave_spawned_out(_w: int) -> void:
 
 func _on_diner_damaged(_amount: float, hp_left: float) -> void:
 	diner_bar.value = hp_left
+	if _flash_tween != null and _flash_tween.is_valid():
+		_flash_tween.kill()
+	diner_bar.modulate = Palette.color(&"enemy_red")
+	_flash_tween = create_tween()
+	_flash_tween.tween_property(diner_bar, "modulate", Color.WHITE, Balance.ui.bar_flash_time)
 	if _bar_tween != null and _bar_tween.is_valid():
 		_bar_tween.kill()
 	# The bar sits in a layout slot; shake its x inside the slot so the layout never matters.

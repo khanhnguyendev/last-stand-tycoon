@@ -12,6 +12,8 @@ var marker: Node3D
 var _world: World
 var _pips: Array = []
 var _fx: FlyFx
+## Paid ticks since the last empty refresh; drives the build dust only (S5 Task 5, visual).
+var _paid_ticks := 0
 var _pop: Tween
 ## level * 2 + rubble of the model shown now (-1: none yet). The model is swapped only when this changes.
 var _model_key := -1
@@ -61,6 +63,10 @@ func _on_tick() -> void:
 		return
 	var paid := GameState.pay_into_spot(spot_id, Economy.drain_per_tick(cost, Balance.data.build))
 	if paid > 0:
+		# Visual-only counter (S5 Task 5): a dust puff on every build_dust_every-th paid tick.
+		_paid_ticks += 1
+		if _paid_ticks % Balance.ui.build_dust_every == 0:
+			EventBus.fx_requested.emit(&"dust", global_position)
 		var hero := get_tree().get_first_node_in_group(&"hero") as Node3D
 		if _fx != null and hero != null:
 			_fx.fly("coin", hero.global_position + Vector3(0, 1.2, 0), global_position + Vector3(0, 1.0, 0))
@@ -92,6 +98,8 @@ func refresh() -> void:
 	_kill_pop()
 	var b: Dictionary = GameState.buildings.get(spot_id, {"level": 0, "paid": 0, "hp": 0.0})
 	level = int(b.level)
+	if int(b.paid) == 0:
+		_paid_ticks = 0
 	visual.scale = Vector3.ONE * pow(Balance.ui.build_level_scale, maxi(level - 1, 0))
 	for i in _pips.size():
 		_pips[i].visible = i < level
