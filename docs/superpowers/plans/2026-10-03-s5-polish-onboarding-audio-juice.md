@@ -1229,7 +1229,7 @@ Task numbering: Tasks 3 and 8 are split into 3a/3b and 8a/8b (plan review); spec
 **Interfaces:**
 - Produces: `class_name Warmup extends Node3D`; `signal finished`; `func run(main: Main) -> void` (a coroutine: builds the
   temporary nodes in front of `main.camera_rig.camera`, awaits `get_tree().process_frame` three times, frees them,
-  calls `main.audio_director.register_streams()`, emits `finished`); `var built_count := 0` (tests).
+  calls `main.audio_director.register_streams()` and `main.audio_director.preload_music(id)` for the resume phase's track (`&"night"` unless the save resumes into DAY or DAWN, then `&"day"`; D-212 lazy mode: this moves the first registration behind the fade), emits `finished`); `var built_count := 0` (tests).
 - Produces: `class_name BootFade extends CanvasLayer` (layer 90): `func fade_out() -> void`.
 
 Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything is committed.
