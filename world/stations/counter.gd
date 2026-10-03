@@ -35,6 +35,7 @@ func setup(world: World) -> void:
 
 func _on_tick() -> void:
 	if GameState.move_carry_to_counter(1) > 0:
+		EventBus.sfx_requested.emit(&"stock")
 		var hero := get_tree().get_first_node_in_group(&"hero") as Node3D
 		if _fx != null and hero != null:
 			_fx.fly("steak", hero.global_position + Vector3(0, 1.2, 0.5), MapLayout.to3(MapLayout.COUNTER, 1.2))

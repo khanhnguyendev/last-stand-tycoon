@@ -6,6 +6,10 @@ extends Node
 
 var _js_cb: JavaScriptObject
 var _paused_by_focus := false
+## FocusPause's own focus state (S5 Task 3b): true from focus-out/hidden to focus-in/visible.
+var focus_paused := false
+
+signal changed(paused: bool)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -25,6 +29,9 @@ func _notification(what: int) -> void:
 		set_paused(false)
 
 func set_paused(p: bool) -> void:
+	if p != focus_paused:
+		focus_paused = p
+		changed.emit(p)
 	if p:
 		if not get_tree().paused:
 			get_tree().paused = true

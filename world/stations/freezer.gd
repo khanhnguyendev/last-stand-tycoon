@@ -34,6 +34,7 @@ func setup(world: World) -> void:
 
 func _on_tick() -> void:
 	if GameState.move_freezer_to_carry(1) > 0:
+		EventBus.sfx_requested.emit(&"take")
 		var hero := get_tree().get_first_node_in_group(&"hero") as Node3D
 		if _fx != null and hero != null:
 			_fx.fly("steak", MapLayout.to3(MapLayout.FREEZER, 1.6), hero.global_position + Vector3(0, 1.2, 0.5))
