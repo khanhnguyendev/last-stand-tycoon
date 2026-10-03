@@ -233,3 +233,13 @@ func test_music_streams_stay_referenced_and_are_not_reloaded() -> void:
 	EventBus.phase_changed.emit(Phase.DAWN, 2)
 	assert_same(d._streams[AudioManifest.MUSIC[&"day"].path], day_stream)
 	assert_eq(AudioManifest.MUSIC_MODE, &"lazy")
+
+func test_preload_music_caches_the_stream_and_registers_nothing_off_web() -> void:
+	d.preload_music(&"night")
+	var path: String = AudioManifest.MUSIC[&"night"].path
+	assert_true(d._streams.has(path))
+	var s: AudioStream = d._streams[path]
+	d.preload_music(&"night")
+	assert_same(d._streams[path], s)
+	assert_false(AudioServer.is_stream_registered_as_sample(s), "off web nothing is registered")
+	d.preload_music(&"nope")  # unknown id: ignored
