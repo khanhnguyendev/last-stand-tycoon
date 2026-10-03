@@ -183,3 +183,37 @@ func test_each_panel_has_a_portrait_of_its_card() -> void:
 		assert_eq(portrait.texture.resource_path, CardCatalog.ICONS[ov.offer[i]])
 		assert_eq(portrait.mouse_filter, Control.MOUSE_FILTER_IGNORE)
 		assert_lte(portrait.custom_minimum_size.y, ov.panel_rects()[i].size.y - 32.0 + 0.01, "fits the panel")
+
+func test_card_entrance_fits_input_guard() -> void:
+	var ui := Balance.ui
+	assert_lte(ui.card_stagger_s * 2.0 + ui.card_rise_s, ui.card_input_guard_s)
+
+func _frames(seconds: float) -> void:
+	for i in int(round(seconds * 60.0)):
+		await get_tree().process_frame
+
+func test_card_entrance_fades_rises_and_lands_on_final_rect() -> void:
+	_dawn()
+	var last: Control = ov._panels[2]
+	var final_rect := ov.panel_rects()[2]
+	assert_eq(last.modulate.a, 0.0)
+	assert_almost_eq(last.position.y, final_rect.position.y + Balance.ui.card_rise_px, 0.01)
+	await _frames(0.35)
+	assert_eq(last.modulate.a, 1.0)
+	assert_eq(last.position, final_rect.position)
+	assert_eq(ov._panels[0].position, ov.panel_rects()[0].position)
+
+func test_card_entrance_is_staggered() -> void:
+	_dawn()
+	await _frames(Balance.ui.card_stagger_s + 0.05)
+	assert_gt(ov._panels[0].modulate.a, ov._panels[1].modulate.a)
+	assert_gt(ov._panels[1].modulate.a, ov._panels[2].modulate.a)
+
+func test_tap_at_final_rect_after_entrance_picks() -> void:
+	_dawn()
+	await _frames(0.6)
+	var want: StringName = GameState.card_offer[2]
+	var c := ov.panel_rects()[2].get_center()
+	_touch(0, c, true)
+	_touch(0, c, false)
+	assert_eq(GameState.card_level(want), 1)

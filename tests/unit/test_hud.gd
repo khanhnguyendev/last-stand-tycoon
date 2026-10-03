@@ -274,3 +274,31 @@ func test_moon_tint_lit_and_unlit_after_a_wave_clears() -> void:
 	assert_eq(hud.moon_color(1), Palette.color(&"ink_soft"))
 	assert_ne(hud.moon_color(0), hud.moon_color(1))
 	assert_true(hud.moons_shown(), "the ink discs and moons are drawn at night")
+
+func _frames(seconds: float) -> void:
+	for i in int(round(seconds * 60.0)):
+		await get_tree().process_frame
+
+func test_banner_slides_down_and_label_fades_in() -> void:
+	var ui := Balance.ui
+	EventBus.banner_requested.emit("Dawn")
+	var top0 := hud.banner_panel.offset_top
+	var bottom0 := hud.banner_panel.offset_bottom
+	assert_eq(hud.banner.modulate.a, 0.0)
+	await _frames(ui.banner_in_s * 0.5)
+	assert_between(hud.banner.modulate.a, 0.05, 0.95)
+	assert_gt(hud.banner_panel.offset_top, top0)
+	await _frames(ui.banner_in_s * 0.5 + 0.05)
+	assert_eq(hud.banner.modulate.a, 1.0)
+	assert_almost_eq(hud.banner_panel.offset_top - top0, ui.banner_slide_px, 0.01, "slid down to rest")
+	assert_almost_eq(hud.banner_panel.offset_bottom - bottom0, ui.banner_slide_px, 0.01)
+	assert_almost_eq(hud.banner_panel.offset_bottom - hud.banner_panel.offset_top, bottom0 - top0, 0.01, "height unchanged")
+
+func test_banner_rest_offsets_are_stable_across_banners() -> void:
+	EventBus.banner_requested.emit("One")
+	await _frames(Balance.ui.banner_in_s + 0.05)
+	var rest_top := hud.banner_panel.offset_top
+	EventBus.banner_requested.emit("Two")  # shortens "One" to banner_min_s, then plays "Two"
+	await _frames(Balance.ui.banner_min_s + Balance.ui.banner_in_s + 0.1)
+	assert_eq(hud.banner.text, "Two")
+	assert_almost_eq(hud.banner_panel.offset_top, rest_top, 0.01)

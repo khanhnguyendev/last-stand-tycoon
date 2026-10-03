@@ -22,6 +22,9 @@ var _filled := 0
 var _banner_queue: Array[String] = []
 ## Seconds left of the banner on screen; 0 when none is showing.
 var _banner_left := 0.0
+var _banner_tween: Tween
+## Pixels the banner panel is currently shifted from its rest offsets by the slide-in (spec 5.3).
+var _banner_slide := 0.0
 var _gold_tween: Tween
 var _bar_tween: Tween
 var _moon_row: HBoxContainer
@@ -254,13 +257,40 @@ func _show_next_banner() -> void:
 		_banner_left = 0.0
 		banner.visible = false
 		banner_panel.visible = false
+		_banner_motion_stop()
 		return
 	banner.text = _banner_queue.pop_front()
 	banner.visible = true
 	banner_panel.visible = true
 	banner_panel.modulate.a = 1.0
+	_banner_motion_start()
 	# A banner shown while others wait plays banner_min_s (the fail path: "The diner fell" -> "The monsters return" -> flavor).
 	_banner_left = Balance.ui.banner_time if _banner_queue.is_empty() else minf(Balance.ui.banner_time, Balance.ui.banner_min_s)
+
+## Slide-in (spec 5.3): the panel's offset_top/offset_bottom move together, so the label (not the panel, whose alpha
+## _tick_banner owns) fades in. Shifts are applied as deltas so a container resize in between cannot undo them.
+func _banner_motion_stop() -> void:
+	if _banner_tween != null and _banner_tween.is_valid():
+		_banner_tween.kill()
+	_banner_set_slide(0.0)
+	banner.modulate.a = 1.0
+
+func _banner_motion_start() -> void:
+	_banner_motion_stop()
+	var ui := Balance.ui
+	if ui.banner_in_s <= 0.0:
+		return
+	_banner_set_slide(-ui.banner_slide_px)
+	banner.modulate.a = 0.0
+	_banner_tween = create_tween().set_parallel(true)
+	_banner_tween.tween_method(_banner_set_slide, -ui.banner_slide_px, 0.0, ui.banner_in_s).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_banner_tween.tween_property(banner, "modulate:a", 1.0, ui.banner_in_s)
+
+func _banner_set_slide(v: float) -> void:
+	var d := v - _banner_slide
+	banner_panel.offset_top += d
+	banner_panel.offset_bottom += d
+	_banner_slide = v
 
 func _tick_banner(delta: float) -> void:
 	if _banner_left <= 0.0:
