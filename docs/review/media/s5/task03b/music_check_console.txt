@@ -1,0 +1,69 @@
+[console] LST_BUF_NEW 1 200664 2 25083 44100
+[console] LST_BUF_NEW 2 151896 2 18987 44100
+[console] LST_BUF_NEW 3 178192 2 22274 44100
+[console] LST_BUF_NEW 4 36136 2 4517 44100
+[console] LST_BUF_NEW 5 67416 2 8427 44100
+[console] LST_BUF_NEW 6 124304 2 15538 44100
+[console] LST_BUF_NEW 7 81144 2 10143 44100
+[console] LST_BUF_NEW 8 146440 2 18305 44100
+[console] LST_BUF_NEW 9 93704 2 11713 44100
+[console] LST_BUF_NEW 10 199016 2 24877 44100
+[console] LST_BUF_NEW 11 81352 2 10169 44100
+[console] LST_BUF_NEW 12 174832 2 21854 44100
+[console] LST_BUF_NEW 13 394648 2 49331 44100
+[console] LST_BUF_NEW 14 162832 2 20354 44100
+[console] LST_BUF_NEW 15 110440 2 13805 44100
+[console] LST_BUF_NEW 16 325664 2 40708 44100
+[console] LST_BUF_NEW 17 281248 2 35156 44100
+[console] LST_BUF_NEW 18 200664 2 25083 44100
+[console] LST_BUF_NEW 19 200664 2 25083 44100
+[console] LST_BUF_NEW 20 35280 2 4410 44100
+[console] LST_STATE 3135 ctx0=suspended
+[console] LST_STATE 12304 ctx0=running
+[console] LST_BUF_NEW 21 19793456 2 2474182 44100
+[console] LST_BUF_NEW 22 19793456 2 2474182 44100
+SUMMARY 1 after tap (night track, before gc; Godot makes a temporary second copy): created=22 freed=0 live_buffers=22 live_bytes=42833448 live_music_buffers=2 live_music_bytes=39586912
+[console] LST_BUF_NEW 23 200664 2 25083 44100
+[console] LST_BUF_NEW 24 151896 2 18987 44100
+[console] LST_BUF_NEW 25 200664 2 25083 44100
+[console] LST_BUF_NEW 26 151896 2 18987 44100
+[console] LST_BUF_FREED 23 200664
+[console] LST_BUF_NEW 27 200664 2 25083 44100
+[console] LST_BUF_FREED 24 151896
+[console] LST_BUF_NEW 28 178192 2 22274 44100
+[console] LST_BUF_NEW 29 151896 2 18987 44100
+[console] LST_BUF_NEW 30 200664 2 25083 44100
+[console] LST_BUF_FREED 26 151896
+[console] LST_BUF_FREED 25 200664
+[console] LST_BUF_NEW 31 151896 2 18987 44100
+[console] LST_BUF_NEW 32 200664 2 25083 44100
+[console] LST_BUF_NEW 33 151896 2 18987 44100
+[console] LST_BUF_NEW 34 200664 2 25083 44100
+SUMMARY 1b after tap + gc: created=34 freed=4 live_buffers=30 live_bytes=44269984 live_music_buffers=2 live_music_bytes=39586912
+[console] LST_BUF_NEW 35 281248 2 35156 44100
+[console] LST_BUF_NEW 36 16515056 2 2064382 44100
+[console] LST_BUF_NEW 37 16515056 2 2064382 44100
+[console] LST_BUF_NEW 38 81352 2 10169 44100
+[console] LST_BUF_FREED 29 151896
+[console] LST_BUF_FREED 28 178192
+[console] LST_BUF_FREED 27 200664
+[console] LST_BUF_FREED 30 200664
+[console] LST_BUF_FREED 34 200664
+[console] LST_BUF_FREED 33 151896
+[console] LST_BUF_FREED 31 151896
+[console] LST_BUF_FREED 32 200664
+SUMMARY 2 after J (day, before gc): created=38 freed=12 live_buffers=26 live_bytes=76226160 live_music_buffers=4 live_music_bytes=72617024
+[console] LST_BUF_FREED 38 81352
+[console] LST_BUF_FREED 35 281248
+[console] LST_BUF_FREED 22 19793456
+SUMMARY 3 after J + gc: created=38 freed=15 live_buffers=23 live_bytes=56070104 live_music_buffers=3 live_music_bytes=52823568
+night=19793456 day=16515056 expected live music bytes after J+gc (night + day + playing day copy)=52823568
+[console] LST_BUF_NEW 39 19793456 2 2474182 44100
+[console] LST_BUF_NEW 40 394648 2 49331 44100
+SUMMARY 4 after N (night, before gc): created=40 freed=15 live_buffers=25 live_bytes=76258208 live_music_buffers=4 live_music_bytes=72617024
+[console] LST_BUF_FREED 40 394648
+[console] LST_BUF_FREED 37 16515056
+SUMMARY 5 after N + gc: created=40 freed=17 live_buffers=23 live_bytes=59348504 live_music_buffers=3 live_music_bytes=56101968
+music buffers created by the switch back to night: 1; night re-registered after N: no
+expected live music bytes after N+gc (night + day + playing night copy)=56101968
+RESULT OK

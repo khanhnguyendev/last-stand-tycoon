@@ -201,3 +201,15 @@ func test_empty_ticks_are_silent() -> void:
 	m.world.freezer._on_tick()
 	m.world.counter._on_tick()
 	assert_signal_not_emitted(EventBus, "sfx_requested")
+
+func test_music_streams_stay_referenced_and_are_not_reloaded() -> void:
+	EventBus.phase_changed.emit(Phase.NIGHT, 1)
+	var night_stream: AudioStream = d._streams[AudioManifest.MUSIC[&"night"].path]
+	EventBus.phase_changed.emit(Phase.DAWN, 1)
+	var day_stream: AudioStream = d._streams[AudioManifest.MUSIC[&"day"].path]
+	EventBus.phase_changed.emit(Phase.NIGHT, 2)
+	assert_true(d._streams.has(AudioManifest.MUSIC[&"day"].path), "the day stream is still referenced")
+	assert_same(d._streams[AudioManifest.MUSIC[&"night"].path], night_stream, "night is the same object after switching back")
+	EventBus.phase_changed.emit(Phase.DAWN, 2)
+	assert_same(d._streams[AudioManifest.MUSIC[&"day"].path], day_stream)
+	assert_eq(AudioManifest.MUSIC_MODE, &"lazy")

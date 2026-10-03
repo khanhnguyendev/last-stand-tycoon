@@ -115,3 +115,22 @@ Playwright's `page.evaluate` and `waitForFunction` carry a user gesture, so an e
 `LST_STATE <ms> ctx<i>=<state>` to the console on creation and on every statechange, the "before" states are read from those
 lines, and the script exits 1 if no context was seen before the tap, if any was `running` before it, or if none is `running`
 1 s after it. The only tap in the Chromium runs is the `page.mouse.click`.
+
+### Swap check (Task 3b)
+
+`export/pw_audio_swap_check.mjs` (removed in the lazy-mode commit; its output is kept in `media/s5/task03b/swap_check_console.txt`)
+counted `AudioContext.createBuffer` calls and `AudioBuffer` collections (`FinalizationRegistry`) on the debug web build, in
+Chromium with `--js-flags=--expose-gc`, through night, J (day), N (night). Godot 4.7.2 has no `unregister_stream_as_sample`, so swap
+mode dropped every reference to the old track. Result: the old track's registered buffer was never collected (the night buffer of
+19,793,456 bytes was still live after J and several `gc()` passes), and the return to night created a new registered buffer pair
+instead of reusing one (four music buffers, 75,895,424 bytes, live after N + gc). Swap leaks one track per change and
+re-registers on return, so it was dropped (D-212 amendment).
+
+### Music mode: lazy
+
+`AudioManifest.MUSIC_MODE = &"lazy"`: a music stream is registered as a sample on first use and stays referenced in the
+director's `_streams`. `export/pw_audio_music_check.mjs` (output: `media/s5/task03b/music_check_console.txt`, exit 0) measured on
+the same build: a track's first play creates two buffers, the registered sample (night 19,793,456 bytes, day 16,515,056 bytes,
+kept) and a playback copy of the same size that is collected after the track stops. Live music bytes after gc: after J
+52,823,568 (night + day + the playing day copy); after N 56,101,968 (night + day + the playing night copy). The switch back to
+night created one music buffer (the playback copy) and no second registration: "night re-registered after N: no".

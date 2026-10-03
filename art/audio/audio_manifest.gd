@@ -7,8 +7,9 @@ extends RefCounted
 const CLASS_TARGET_DB := {&"repeated": -24.0, &"single": -18.0, &"music": -26.0}
 const BUDGET_BYTES := 2_621_440
 const MAX_MUSIC_S := 60.0
-## Music playback mode, set by the Task 3 spike (D-212): &"samples", &"stream" or &"swap".
-const MUSIC_MODE := &"swap"
+## Music playback mode (D-212): &"samples" (both tracks registered as samples at boot), &"lazy" (each track registered as a
+## sample on first use and kept for the life of the director) or &"stream". &"swap" was dropped: Godot 4.7.2 cannot release a sample.
+const MUSIC_MODE := &"lazy"
 
 const SFX := {
 	&"throw": {"path": "res://assets/kenney-rpg-audio/knifeSlice2.ogg", "class": &"repeated", "mean_db": -19.1, "peak_db": 0.0, "duration_s": 0.57, "volume_db": -5.0, "pitch_spread": 0.08, "min_gap_s": 0.05},

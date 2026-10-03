@@ -74,7 +74,8 @@ func setup(settings: SettingsStore, auto_unlock := true) -> void:
 	if auto_unlock and not OS.has_feature("web"):
 		set_unlocked()
 
-## Registers every SFX stream as a sample (web only). Music is registered per change in swap mode (D-212).
+## Registers every SFX stream as a sample (web only). Music is registered here only in samples mode; lazy mode registers
+## each track on first use in _set_music (D-212).
 ## Main calls it behind the boot fade.
 func register_streams() -> void:
 	for id in AudioManifest.SFX:
@@ -145,15 +146,15 @@ func _set_music(id: StringName) -> void:
 	if _music_tween != null:
 		_music_tween.kill()
 		_music_tween = null
-	if _swap_mode():
-		# Godot 4.7.2 has no unregister_stream_as_sample: a sample lives as long as its AudioStream, so the old track is
-		# released by dropping every reference to it (_release_music), after its fade. The new one is registered first.
+	if OS.has_feature("web") and AudioManifest.MUSIC_MODE == &"lazy" and not AudioServer.is_stream_registered_as_sample(stream):
+		# Godot 4.7.2 cannot release a sample, so a registered track stays referenced in _streams for good (D-212).
 		AudioServer.register_stream_as_sample(stream)
 	nxt.stop()
 	nxt.stream = stream
 	if suspended:
 		nxt.volume_db = target_db
-		_release_music(old)
+		old.stop()
+		old.volume_db = SILENT_DB
 		nxt.play()
 		nxt.stream_paused = true  # after play(), which would clear it
 		return
@@ -164,22 +165,7 @@ func _set_music(id: StringName) -> void:
 	_music_tween.tween_property(nxt, "volume_db", target_db, CROSSFADE_S)
 	if old.playing:
 		_music_tween.tween_property(old, "volume_db", SILENT_DB, CROSSFADE_S)
-		_music_tween.chain().tween_callback(_release_music.bind(old))
-	else:
-		_release_music(old)
-
-func _swap_mode() -> bool:
-	return OS.has_feature("web") and AudioManifest.MUSIC_MODE == &"swap"
-
-## Stops a music player. In swap mode on web it also drops the player's stream and the cache entry, so the stream (and its
-## registered sample) can be freed.
-func _release_music(p: AudioStreamPlayer) -> void:
-	var s := p.stream
-	p.stop()
-	p.volume_db = SILENT_DB
-	if _swap_mode() and s != null and p.stream == s and p != _music[_music_cur]:
-		p.stream = null
-		_streams.erase(s.resource_path)
+		_music_tween.chain().tween_callback(old.stop)
 
 func set_unlocked() -> void:
 	unlocked = true
