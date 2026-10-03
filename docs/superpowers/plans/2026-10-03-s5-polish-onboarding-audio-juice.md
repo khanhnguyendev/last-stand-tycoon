@@ -1715,7 +1715,8 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
   revises the `fight` target rule).
 - [ ] **Step 5: Web checks** (`export/pw_s5_check.mjs`, Playwright, debug build, desktop profile):
   1. load `?reset=1`, wait 30 s, collect console lines; diff against `docs/review/media/s5/console_baseline_main.txt`
-     ignoring timestamps and numbers; print new lines; exit 1 on any new `error` or `warning`;
+     ignoring timestamps and numbers (first normalise per-run pointers: `s/0x[0-9a-f]+/0x?/g`, since the baseline holds
+     `[.WebGL-0x…]` prefixes); print new lines; exit 1 on any new `error` or `warning`;
   2. read `window.LST_AUDIO.map(c=>c.state)` (all `suspended`), click the canvas centre, wait 1.5 s, read again (some
      `running`) and read `window.LST_STATE` (`unlocked` true, `music_id` `night`);
   3. load `?mute=1`, wait 5 s; reload without flags; wait 5 s; `window.LST_STATE.muted` is true.
