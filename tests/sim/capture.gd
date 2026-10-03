@@ -8,6 +8,7 @@ extends SceneTree
 ## --save=<fixture path>: decode it with SaveCodec.decode and resume_from it instead of start_new_game (no phase staging; waits --seconds, default 12). --drawcalls: print "DRAWCALLS n" once a second while waiting and "DRAWCALLS_MAX n" at the end.
 ## --steaks=N: bot freed, N steaks lie on the ground 2.5-5 m around the night-1 start (grass and dirt), for the R5 shot.
 ## --cards=id:level,...: grant cards after start_new_game (Tank placed at its post). --scene=cardpick: no bot, emit wave_cleared so the pick opens (with --wait=<s>: open it after the camera guards and grab <s> s later).
+## --fx=<kind>: emit EventBus.fx_requested(kind, hero position + 0.5 up) right before the grab and show it aged --fx-age seconds (default 0.1, stepped by hand) (S5 Task 4).
 ## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
 ## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
 
@@ -184,6 +185,18 @@ func _run() -> void:
 		# entrance motion at a known point (S5 Task 6). Scene timers run on the same clock as tweens.
 		_open_cardpick()
 		await create_timer(float(_args.wait)).timeout
+	if _args.has("fx"):
+		# The field is stepped by hand so the shot shows exactly 0.1 s of burst whatever the frame rate is.
+		var field = main.world.fx_field
+		field.set_process(false)
+		root.get_node("EventBus").fx_requested.emit(StringName(_args.fx), main.hero.global_position + Vector3(0, 0.5, 0))
+		field.step(float(_args.get("fx-age", "0.1")))
+		if field.active_count() == 0:
+			push_error("capture: --fx produced no particles")
+			quit(1)
+			return
+		for i in 3:
+			await process_frame
 	var f0 := Engine.get_frames_drawn()
 	var t2 := Time.get_ticks_msec()
 	while Engine.get_frames_drawn() == f0 and Time.get_ticks_msec() - t2 < 5000:
