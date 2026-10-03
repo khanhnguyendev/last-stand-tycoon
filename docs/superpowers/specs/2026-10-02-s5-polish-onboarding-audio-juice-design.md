@@ -188,9 +188,9 @@ at the loop point; AUDIO.md says so.
   (`InputEventScreenTouch` not pressed, mouse button up, or key up) instead. It is not OR-ed in, because sounds
   started before the context resumes would all fire together at resume.
 - **Task 3 spike first:**
-  - **Chromium (Playwright, with a synthetic tap):** the context is suspended before the tap and running after
+  - **Chromium (Playwright, with a synthetic tap):** the context is not `running` before the tap (`suspended`) and `running` after
     it; the engine resumes it without help; music starts.
-  - **iOS Simulator (no input available):** the context is suspended at load; no error on the page (read from a
+  - **iOS Simulator (no input available):** the context is not `running` at load (Safari may read `interrupted`); no error on the page (read from a
     status line the spike build draws, since the harness has no console capture).
   - The after-gesture half on a real iPhone is a final-review phone-checklist item.
 - **Music playback mode.** The spike measures both modes on Chromium and picks the first option that passes:
@@ -465,7 +465,8 @@ settings 25, boot fade 90.
 - **Determinism:** `tools/baseline_diff.sh` after every task. The baseline is the S4 one; it must still match.
 - **Web checks** (`export/pw_check.mjs` extended, Task 1 records the baseline from `main`):
   - no new console error or warning against the baseline, WebGL warnings included;
-  - before a gesture the AudioContext is suspended; after a synthetic tap it is running and the director's
+  - before a gesture no AudioContext is `running` (`suspended`; iOS Safari may read `interrupted`); after a synthetic
+    tap one is `running` and the director's
     `unlocked` is true;
   - the mute setting survives a reload: load with `?mute=1` (debug builds: sets and saves the setting at boot),
     reload without it, and read `muted`.

@@ -72,3 +72,5 @@ direction, and anything that deviates from IDEA.md. Ranked by impact, highest fi
 1. Day phase runs at about 52 fps in the iOS Simulator (night about 58). Not the gate (night only); cause unresolved after three spikes (D-199); S5 perf work.
 2. There is a stall of about 115–140 ms when the first wave of a night spawns (S4 final; 280–300 ms before the S4 bake). The cause is unproven (first-use shader or pool cost); S5 Task 7 attributes it, then warms up.
 3. One-time WebGL warnings (`bindBuffer: element array buffers can not be bound to a different target`, `bufferSubData: no buffer`) appear about 15–45 s into night 1 on Chromium; pre-existing on S3 main, nothing visibly wrong. S5 check.
+4. Music is kept as decoded samples on web (D-212): about 35–38 MB of audio buffers, and a WASM heap peak of about that plus the largest track during boot registration (it never shrinks). Fine on the Simulator; watch memory on a low-end phone at the final review. Fallbacks: stream playback or one track at a time (`AudioManifest.MUSIC_MODE`).
+5. The iOS silent switch may mute Web Audio (unverified); it affects playtest question 2 on iPhones.

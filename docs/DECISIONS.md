@@ -1904,6 +1904,11 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
   swapped at `phase_changed`. The result is appended here by Task 3.
 - The spike checks the probe on Chromium (before and after a tap) and the iOS Simulator (before a gesture only:
   the harness has no input). The after-gesture check on a real iPhone is a final-review item.
+- **Spike result (Task 3a, 2026-10-03):** music mode `samples`. Registering both tracks took 115–124 ms (Chromium)
+  and 121 ms (iOS Simulator); decoded size 34.6 MB at 44.1 kHz, 37.7 MB at 48 kHz (budget 48). Registration copies
+  frames out of the WASM heap, so the heap peak is about the decoded total plus the largest track and never shrinks
+  (see `docs/review/AUDIO.md`). The iOS Simulator's locked state reads `interrupted`, not `suspended`; the probe
+  (`state == "running"`) is unchanged. Resuming from `interrupted` on a real iPhone is a final-review item.
 - One toggle mutes the Master bus and is saved at once.
 
 **D-213 Onboarding is one pointer.**
