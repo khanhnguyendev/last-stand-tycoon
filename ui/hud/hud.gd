@@ -322,10 +322,15 @@ func _process(delta: float) -> void:
 	_tick_banner(delta)
 	_place_arrows()
 
+## Rect of a widget that sits over the top of the HUD (the settings gear, S5 Task 8b); arrow tips stay below it.
+var reserved_rect: Callable
+
 ## Where arrow tips may sit: the safe root rect, inset by the edge margin, below the top HUD.
-func _arrow_rect() -> Rect2:
+func arrow_rect() -> Rect2:
 	var rect := root.get_global_rect().grow(-Balance.ui.arrow_edge_margin)
 	var hud_bottom := maxf(maxf(_top_column.get_global_rect().end.y, gold_label.get_global_rect().end.y), card_strip.get_global_rect().end.y if card_strip.text != "" else 0.0)
+	if not reserved_rect.is_null():
+		hud_bottom = maxf(hud_bottom, (reserved_rect.call() as Rect2).end.y)
 	var top := hud_bottom + Balance.ui.arrow_hud_gap + ARROW_EXTENT
 	if top > rect.position.y:
 		rect.size.y -= top - rect.position.y
@@ -339,7 +344,7 @@ func _hover_point(entrance: Vector2, rect: Rect2) -> Vector2:
 func _place_arrows() -> void:
 	if _camera == null:
 		return
-	var rect := _arrow_rect()
+	var rect := arrow_rect()
 	for key in ["main", "side"]:
 		var arrow: Polygon2D = arrows[key]
 		var lane: String = _arrow_lane[key]
