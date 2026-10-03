@@ -1125,7 +1125,7 @@ Task numbering: Tasks 3 and 8 are split into 3a/3b and 8a/8b (plan review); spec
     exactly one `&"dust"`;
   - the hero moving for 0.8 s (`hero.input.set_move(Vector2.RIGHT)`) → at least 2 `&"dust"`;
   - `steak_picked` → `hero.carry_stack.scale.y` above 1.0 within 0.05 s;
-  - a sale → the buying traveler's `visual.position.y` above its rest within 0.1 s (drive one traveler to the service
+  - a sale → the buying traveler's `visual.body.position.y` above its rest within 0.1 s (drive one traveler to the service
     point as `tests/unit/test_traveler*.gd` does);
   - `diner_damaged` → `hud.diner_bar.modulate` is `Palette.color(&"enemy_red")`, back to white after 0.2 s;
   - `wave_incoming` → `hud.arrows.main.scale` above 1.0 within 0.05 s;
@@ -1181,9 +1181,9 @@ Task numbering: Tasks 3 and 8 are split into 3a/3b and 8a/8b (plan review); spec
   - Shots: add `--fx-offset=x,y,z` to `tests/sim/capture.gd` (default `0,0.5,0`) and retake `fx_dust.png` with
     `--fx-offset=0.8,0.2,0`; no dust shot so far shows cell 3 rendered.
 - [ ] **Step 4: Reactions node and UI reactions** per the Interfaces list; tweens only on Visual or Control nodes,
-  durations from `ui_tuning`. Traveler `hop()`: tween `visual.position.y` up `traveler_hop_m` and back over
+  durations from `ui_tuning`. Traveler `hop()`: tween `visual.body.position.y` up `traveler_hop_m` and back over
   `traveler_hop_time`; TravelerSpawner calls `hop()` on the traveler it sold to, right after the sale. `hop()` keeps its tween in a var,
-  kills it before starting a new one, and `on_release()` and `begin()` kill it and reset `visual.position.y` to rest (a
+  kills it before starting a new one, and `on_release()` and `begin()` kill it and reset `visual.body.position.y` to rest (a
   pooled traveler must never keep the offset).
 - [ ] **Step 5: Wiring (patch):** `world/world.gd` `_ready()` after the FxField: `var reactions := Reactions.new();
   reactions.name = "Reactions"; add_child(reactions)`. `ui_tuning.gd` per Interfaces.
