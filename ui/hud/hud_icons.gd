@@ -12,6 +12,9 @@ const MOON_CELL_PX := 32.0
 const COIN_POS := Vector2(24, 22)
 ## Lit moons show the icon as rendered (warm_white); unlit ones are tinted ink_soft, on an ink disc.
 const MOON_LIT := Color.WHITE
+## The lane edge arrows (S5 Task 9): the guide_arrow cell, tinted enemy_red, in a square of Balance.ui.arrow_px centred 2 px below the
+## holder's origin (the old polygon spanned -16..20), tip down at rotation 0.
+const ARROW_CENTER := Vector2(0, 2)
 
 ## The diner-bar slot; the heart sits left of it, centred on its height.
 var heart_anchor: Control
@@ -19,6 +22,8 @@ var heart_anchor: Control
 var moon_cells: Array = []
 var night := false
 var filled := 0
+## HudArrow holders drawn last, over the icons; each is drawn only while visible.
+var arrow_nodes: Array = []
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -58,3 +63,12 @@ func _draw() -> void:
 	if night:
 		for i in moon_cells.size():
 			draw_texture_rect_region(atlas, _local(moon_rect(i)), IconAtlas.region(&"moon"), moon_color(i))
+	var red := Palette.color(&"enemy_red")
+	var cell := IconAtlas.region(&"guide_arrow")
+	var px := Balance.ui.arrow_px
+	for a in arrow_nodes:
+		if not a.visible:
+			continue
+		draw_set_transform(a.position, a.rotation, a.scale)
+		draw_texture_rect_region(atlas, IconAtlas.shape_dest(Rect2(ARROW_CENTER - Vector2.ONE * px * 0.5, Vector2.ONE * px)), cell, red)
+	draw_set_transform_matrix(Transform2D.IDENTITY)

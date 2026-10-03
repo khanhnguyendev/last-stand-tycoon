@@ -101,8 +101,8 @@ func test_offscreen_arrow_is_pinned_inside_root_space() -> void:
 	assert_ne(far, "", "a lane entrance is off-screen")
 	EventBus.wave_incoming.emit(1, &"west", StringName(far))
 	await get_tree().process_frame
-	var arrow: Polygon2D = hud.arrows.side
-	var g := arrow.position + hud.root.position
+	var arrow = hud.arrows.side
+	var g: Vector2 = arrow.position + hud.root.position
 	assert_true(hud.root.get_global_rect().has_point(g))
 	var d := minf(minf(absf(g.x - grown.position.x), absf(g.x - grown.end.x)), minf(absf(g.y - grown.position.y), absf(g.y - grown.end.y)))
 	assert_lt(d, 1.0)
@@ -167,7 +167,7 @@ func test_arrows_stay_below_the_top_hud() -> void:
 	EventBus.wave_incoming.emit(0, &"north", &"")
 	await get_tree().process_frame
 	var col := hud._top_column
-	var arrow_top: float = hud.arrows.main.position.y + hud.root.position.y - Hud.ARROW_EXTENT
+	var arrow_top: float = hud.arrows.main.position.y + hud.root.position.y - Hud.arrow_extent()
 	assert_gte(arrow_top, col.get_global_rect().end.y)
 	assert_gte(arrow_top, hud.gold_label.get_global_rect().end.y)
 
@@ -209,11 +209,11 @@ func test_queue_survives_state_restored() -> void:
 
 func test_arrow_rect_top_clears_the_hud() -> void:
 	var need := maxf(hud._top_column.get_global_rect().end.y, hud.gold_label.get_global_rect().end.y) \
-		+ Balance.ui.arrow_hud_gap + Hud.ARROW_EXTENT
+		+ Balance.ui.arrow_hud_gap + Hud.arrow_extent()
 	assert_gte(hud.arrow_rect().position.y, need)
 	GameState.debug_grant_card(&"tank")
 	assert_ne(hud.card_strip.text, "")
-	need = maxf(need, hud.card_strip.get_global_rect().end.y + Balance.ui.arrow_hud_gap + Hud.ARROW_EXTENT)
+	need = maxf(need, hud.card_strip.get_global_rect().end.y + Balance.ui.arrow_hud_gap + Hud.arrow_extent())
 	assert_gte(hud.arrow_rect().position.y, need)
 
 func test_empty_card_strip_does_not_push_the_arrow_rect_down() -> void:

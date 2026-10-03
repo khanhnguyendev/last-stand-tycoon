@@ -14,6 +14,7 @@ func setup(input: HeroInput) -> void:
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 
 func _input(event: InputEvent) -> void:
 	handle(event)
@@ -93,5 +94,8 @@ func _draw() -> void:
 	if not is_active():
 		return
 	var r := Balance.ui.joystick_radius_px
-	draw_circle(_base, r, Color(1, 1, 1, 0.18))
-	draw_circle(_base + _knob, r * 0.45, Color(1, 1, 1, 0.55))
+	# Atlas cells only (D-201): the ring and knob are baked with their own colour and alpha (spec 7).
+	var atlas := IconAtlas.texture()
+	draw_texture_rect_region(atlas, IconAtlas.shape_dest(Rect2(_base - Vector2.ONE * r, Vector2.ONE * r * 2.0)), IconAtlas.region(&"stick_ring"))
+	var kr := r * 0.45
+	draw_texture_rect_region(atlas, IconAtlas.shape_dest(Rect2(_base + _knob - Vector2.ONE * kr, Vector2.ONE * kr * 2.0)), IconAtlas.region(&"stick_knob"))

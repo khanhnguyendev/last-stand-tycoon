@@ -69,6 +69,10 @@ func refresh_bounds() -> void:
 func boxes() -> Array[AABB]:
 	return _boxes
 
+## True for a label under this fade's parent: it owns that label's alpha, so the HUD dimmer leaves it alone (S5 Task 9).
+func owns_label(l: Node) -> bool:
+	return get_parent().is_ancestor_of(l)
+
 func is_faded() -> bool:
 	return _alpha < 1.0
 

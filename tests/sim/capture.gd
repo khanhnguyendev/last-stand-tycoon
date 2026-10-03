@@ -11,6 +11,8 @@ extends SceneTree
 ## --fx-offset=x,y,z: offset of the --fx burst from the hero (default 0,0.5,0).
 ## --fx=<kind>: emit EventBus.fx_requested(kind, hero position + 0.5 up) right before the grab and show it aged --fx-age seconds (default 0.1, stepped by hand) (S5 Task 4).
 ## --settings=1: open the settings panel right before the grab (S5 Task 8b); the tree is then paused by its pause reason, which is fine for a still.
+## --insets=t,r,b,l: safe-area insets for the shot, set through SafeArea.override_for_tests (S5 Task 9). With a landscape --resolution the shot is not 720x1280 (a size warning is printed).
+## --arrows=main[,side]: emit wave_incoming with those lanes right before the grab and let the arrow punch settle, so the red lane arrows show (S5 Task 9).
 ## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
 ## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
 
@@ -35,6 +37,13 @@ func _run() -> void:
 	_bal = root.get_node("Balance")
 	_bal.reset()
 	_bal.ui.shake_enabled = false  # a shot must not catch the camera mid-shake (S5 Task 5)
+	if _args.has("insets"):
+		var iv := String(_args.insets).split(",")
+		if iv.size() != 4:
+			push_error("bad --insets (want t,r,b,l)")
+			quit(2)
+			return
+		load("res://ui/hud/safe_area.gd").override_for_tests = {"top": float(iv[0]), "right": float(iv[1]), "bottom": float(iv[2]), "left": float(iv[3])}
 	var main = load("res://world/main.gd").create()
 	root.add_child(main)
 	# Main's pause reasons (D-218) pause the tree when this window loses focus (D-147). A capture window is rarely focused, and a paused
@@ -192,6 +201,10 @@ func _run() -> void:
 		main.settings_layer.open()
 		for i in 3:
 			await process_frame
+	if _args.has("arrows"):
+		var al := String(_args.arrows).split(",")
+		root.get_node("EventBus").wave_incoming.emit(0, StringName(al[0]), StringName(al[1]) if al.size() > 1 else &"")
+		await _wait(0.5)
 	if _args.has("fx"):
 		# The field is stepped by hand so the shot shows exactly 0.1 s of burst whatever the frame rate is.
 		var field = main.world.fx_field
