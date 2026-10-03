@@ -1711,8 +1711,8 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
 
   `_stand()`: `goal = ""; _route = []` (not `reset_route()`, which would drop a pending card offer at dawn).
   `_chase(p)`: route to `graph.nearest(p)` with `go_to`; once `arrived()` (or within 1 m of that node), replace the route
-  with `[p]` (walk the last leg straight). Re-evaluate the chase target when `guide.target_position` moves more than
-  1 m. After the Guide completes (night 2 starts), the bot stands still; the sim ends there.
+  with `[p]` (walk the last leg straight). Re-route the chase only when the target's nearest graph node changes (a
+  re-route on every 1 m of target movement made the bot dither between two nodes and lose night 1; Task 11). After the Guide completes (night 2 starts), the bot stands still; the sim ends there.
 - [ ] **Step 4: Sim** (`tests/sim/test_guide_sim.gd`). `SimHarness.start(seed, GuideBot, true)` builds a Guide with
   `setup(main)` and a temp `SettingsStore.with_dir("user://sim_guide")` (wiped first), sets `bot.guide`. Seeds:
   `20260930` and the first seed ≥ 1 whose plan `pl := LanePlanner.plan(seed, 1, Balance.data.wave)` has

@@ -8,12 +8,12 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - `core/` pure static helpers, no scene access (unit-tested)
 - `components/` reusable child nodes
 - `actors/` hero, enemy, traveler, projectile, pickups, bots
-- `world/` main scene, map, stations, build spots, directors, PhaseController
-- `ui/` HUD, joystick, world labels, overlays; `ui/debug/` is debug-only and excluded from release/profile exports
+- `world/` main scene, map, stations, build spots, directors, PhaseController; `world/audio/` AudioDirector (S5); `world/warmup.gd` boot warm-up
+- `ui/` HUD, joystick, world labels, overlays; `ui/guide/` onboarding pointer, `ui/settings/` settings panel (S5); `ui/debug/` is debug-only and excluded from release/profile exports
 - `balance/` typed Resource scripts + `balance.tres`, `ui_tuning.tres`
 - `tests/unit/`, `tests/sim/` (GUT); `tests/sim/out/` is gitignored; `tests/sim/baseline/` is the S4 determinism baseline (never re-recorded in S4)
 - `assets/<pack-id>/` third-party CC0 packs (only used files + `LICENSE.txt`, one row per pack in `docs/ASSET_LICENSES.md`); `assets/_candidates/` is gitignored (D-187)
-- `art/` our art: palette, remapped atlases, shared materials, wrappers, procedural builders, icons (D-187, D-188); rules in `docs/ART_BIBLE.md`
+- `art/` our art: palette, remapped atlases, shared materials, wrappers, procedural builders, icons (D-187, D-188); `art/audio/` audio manifest, `art/fx/` FX atlas, shader, field, pointer (S5); rules in `docs/ART_BIBLE.md`
 - `tools/` headless and editor-only scripts (validator, palette remap, KayKit post-import, shots); excluded from every web export
 - Infra only (never game code): `addons/` (GUT), `export/` (web shell), `.github/` (CI), `docs/`
 
