@@ -64,8 +64,12 @@ func _on_tick() -> void:
 	var paid := GameState.pay_into_spot(spot_id, Economy.drain_per_tick(cost, Balance.data.build))
 	if paid > 0:
 		# Visual-only counter (S5 Task 5): a dust puff on every build_dust_every-th paid tick.
-		_paid_ticks += 1
-		if _paid_ticks % Balance.ui.build_dust_every == 0:
+		# A tick that completes a level leaves paid == 0: the next level starts counting again.
+		if int(GameState.buildings[spot_id].paid) == 0:
+			_paid_ticks = 0
+		else:
+			_paid_ticks += 1
+		if _paid_ticks > 0 and _paid_ticks % maxi(Balance.ui.build_dust_every, 1) == 0:
 			EventBus.fx_requested.emit(&"dust", global_position)
 		var hero := get_tree().get_first_node_in_group(&"hero") as Node3D
 		if _fx != null and hero != null:

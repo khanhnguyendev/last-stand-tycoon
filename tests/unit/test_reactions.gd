@@ -99,24 +99,30 @@ func test_traveler_hops_on_sale() -> void:
 			front = sp.queue[0]
 			break
 	assert_not_null(front)
-	var rest := front.visual.position.y
-	while not front.leaving:
+	var root_y := front.visual.position.y
+	var shadow_y := front.visual.global_position.y  # what the ShadowField reads
+	guard = int(ceil(Balance.data.economy.service_time * 60.0 * 1.5)) + 60
+	while not front.leaving and guard > 0:
 		await get_tree().physics_frame
+		guard -= 1
+	assert_true(front.leaving, "the sale happened")
 	await wait_seconds(0.08)
-	assert_gt(front.visual.position.y, rest)
+	assert_gt(front.visual.body.position.y, 0.0, "the Body hops")
+	assert_eq(front.visual.position.y, root_y, "the Visual root stays")
+	assert_eq(front.visual.global_position.y, shadow_y, "so the blob shadow stays on the ground")
 	await wait_seconds(Balance.ui.traveler_hop_time + 0.1)
-	assert_almost_eq(front.visual.position.y, rest, 0.001)
+	assert_almost_eq(front.visual.body.position.y, 0.0, 0.001)
 
 func test_traveler_release_resets_hop() -> void:
 	var t: Traveler = main.world.traveler_pool.acquire()
 	t.begin(1)
-	var rest := t.visual.position.y
 	t.hop()
 	await wait_seconds(0.08)
+	assert_gt(t.visual.body.position.y, 0.0)
 	t.on_release()
-	assert_eq(t.visual.position.y, rest)
+	assert_eq(t.visual.body.position.y, 0.0)
 	await wait_seconds(0.3)
-	assert_eq(t.visual.position.y, rest, "the killed tween does not move it again")
+	assert_eq(t.visual.body.position.y, 0.0, "the killed tween does not move it again")
 
 func test_diner_bar_flash_and_arrow_punch() -> void:
 	var hud := main.hud
@@ -133,8 +139,15 @@ func test_diner_bar_flash_and_arrow_punch() -> void:
 func test_card_strip_pop() -> void:
 	var strip := main.hud.card_strip
 	assert_eq(strip.pop_scale(&"tank"), 1.0)
-	EventBus.card_picked.emit(&"tank", 1)
+	GameState.debug_grant_card(&"tank")  # emits card_picked
 	assert_gt(strip.pop_scale(&"tank"), 1.0)
+	var i := -1
+	for j in strip.shown().size():
+		if strip.shown()[j][0] == &"tank":
+			i = j
+	assert_gte(i, 0)
+	assert_gt(strip._drawn_rect(i).size.x, CardStrip.ICON_PX, "the popped cell is drawn larger")
 	assert_eq(strip.pop_scale(&"archer"), 1.0)
 	await wait_seconds(Balance.ui.strip_pop_time + 0.1)
 	assert_eq(strip.pop_scale(&"tank"), 1.0)
+	assert_eq(strip._drawn_rect(i).size.x, CardStrip.ICON_PX)
