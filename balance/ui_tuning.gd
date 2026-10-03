@@ -130,3 +130,20 @@ extends Resource
 @export var label_dim_hz := 4.0
 ## The lane edge arrows are drawn arrow_px square (S5 Task 9); Hud.arrow_extent() derives from it.
 @export var arrow_px := 44.0
+
+## S5 Task 10 (spec 6): the Guide. Evaluation period, extra inset of its edge rect, world pointer height and bounce,
+## the walk that clears `move`, the ghost stick's swipe loop.
+@export var guide_eval_s := 0.25
+## 62 = lane arrow extent + half the 64 px Guide arrow + 2, so the two arrows never stack.
+@export var guide_rect_inset_px := 62.0
+@export var guide_pointer_h := 2.2
+@export var guide_bounce_m := 0.25
+@export var guide_bounce_hz := 1.5
+@export var guide_move_m := 2.0
+@export var guide_swipe_s := 1.0
+## S5 Task 10 review: the Guide's label size, the ghost stick's height (fraction of the rect), its swipe reach (fraction of the
+## ring radius), and the size of its edge arrow (the HUD lane arrows keep arrow_px).
+@export var guide_font_px := 40.0
+@export var guide_stick_y := 0.78
+@export var guide_swipe_frac := 0.7
+@export var guide_arrow_px := 64.0
