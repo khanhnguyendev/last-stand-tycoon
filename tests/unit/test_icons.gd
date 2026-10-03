@@ -1,7 +1,7 @@
 extends GutTest
 ## Task 15: the rendered icons exist, are 256x256 and sit on the palette (ART_BIBLE R1, D-188).
 
-const EXTRA := ["coin", "steak", "heart", "moon"]
+const EXTRA := ["coin", "heart", "moon"]
 
 func _image(path: String) -> Image:
 	return Image.load_from_file(ProjectSettings.globalize_path(path))  # a res:// load raises an engine error
@@ -58,7 +58,9 @@ func test_atlas_is_a_grid_of_every_icon() -> void:
 	assert_eq(img.get_size(), Vector2i(IconAtlas.COLS * IconAtlas.CELL, IconAtlas.rows() * IconAtlas.CELL))
 	assert_lte(maxi(img.get_width(), img.get_height()), 512, "the size rule allows the atlas up to 512")
 	assert_not_null(IconAtlas.texture())
-	assert_eq(IconAtlas.NAMES.size(), 11)
+	assert_eq(IconAtlas.NAMES.size(), 10)
+	assert_eq(IconAtlas.SHAPES.size(), 6)
+	assert_eq(img.get_size(), Vector2i(512, 512))
 	var files := 0
 	for f in DirAccess.get_files_at("res://art/icons"):
 		if f.ends_with(".png") and f != "atlas.png":
@@ -114,3 +116,14 @@ func test_atlas_only_uses_the_enemy_colours_in_the_heart_cell() -> void:
 				if c.a8 == 255 and enemy.has(c.to_html(false)):
 					bad += 1
 		assert_eq(bad, 0, "shape cell %s has no enemy colour" % shape)
+
+func test_every_shape_cell_is_not_blank() -> void:
+	var img := _image(IconAtlas.PATH)
+	for shape in IconAtlas.SHAPES:
+		var r := IconAtlas.region(shape)
+		var solid := 0
+		for y in range(int(r.position.y), int(r.end.y)):
+			for x in range(int(r.position.x), int(r.end.x)):
+				if img.get_pixel(x, y).a > 0.0:
+					solid += 1
+		assert_gt(solid, IconAtlas.CELL * IconAtlas.CELL / 8, "shape cell %s is not blank" % shape)

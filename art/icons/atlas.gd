@@ -1,21 +1,21 @@
 class_name IconAtlas
 extends RefCounted
-## The icon atlas (S4 Task 16b, D-201 applied to the HUD): all 11 icons at 128 px in one 4x4 grid (512x512), so a Control that draws
+## The icon atlas (S4 Task 16b, D-201 applied to the HUD): all 10 icons at 128 px in one 4x4 grid (512x512), so a Control that draws
 ## several icons issues one batched draw. Written by tools/render_icons.gd (`--atlas-only` rebuilds it from the committed
 ## per-icon PNGs, which stay the checked source and what the card overlay shows). NAMES is the grid order, row-major,
-## followed by SHAPES: two solid UI shapes baked as cells (the card backing, an ink disc), so a Control that draws
+## followed by SHAPES: six solid UI shapes baked as cells (the card backing, an ink disc, the gear, the joystick ring and knob, the guide arrow), so a Control that draws
 ## icons, backings and badges stays one texture and batches (polygons from draw_circle / draw_style_box do not).
 
 const CELL := 128
 const COLS := 4
 const NAMES: Array[StringName] = [
 	&"card_hero_damage", &"card_attack_speed", &"card_move_speed", &"card_carry_capacity",
-	&"card_gold_per_steak", &"coin", &"steak", &"heart",
+	&"card_gold_per_steak", &"coin", &"heart",
 	&"moon", &"card_archer", &"card_tank",
 ]
 ## Baked shapes: the card backing (the theme's Panel look: cream at 0.95, 4 px ink border, 20 px radius on a 56 px cell,
 ## scaled to the cell) and an ink disc. Both are inset PAD px inside their cell so mip filtering never reads a neighbour.
-const SHAPES: Array[StringName] = [&"backing", &"disc"]
+const SHAPES: Array[StringName] = [&"backing", &"disc", &"gear", &"stick_ring", &"stick_knob", &"guide_arrow"]
 const PAD := 2
 const PATH := "res://art/icons/atlas.png"
 

@@ -1,11 +1,10 @@
 class_name FocusPause
 extends Node
-## Pause on focus loss / hidden tab so switching away never costs the diner (D-046).
+## Focus loss / hidden tab detector (D-046). Signal-only since S5 (D-218): Main turns `changed` into the `focus` pause
+## reason; FocusPause never writes get_tree().paused.
 ## Resume rule: the latest focus-in or visible event resumes (iOS may never send focus-in).
-## Only undoes a pause FocusPause itself set.
 
 var _js_cb: JavaScriptObject
-var _paused_by_focus := false
 ## FocusPause's own focus state (S5 Task 3b): true from focus-out/hidden to focus-in/visible.
 var focus_paused := false
 
@@ -32,13 +31,6 @@ func set_paused(p: bool) -> void:
 	if p != focus_paused:
 		focus_paused = p
 		changed.emit(p)
-	if p:
-		if not get_tree().paused:
-			get_tree().paused = true
-			_paused_by_focus = true
-	elif _paused_by_focus:
-		get_tree().paused = false
-		_paused_by_focus = false
 
 func on_visibility_changed(hidden: bool) -> void:
 	set_paused(hidden)
