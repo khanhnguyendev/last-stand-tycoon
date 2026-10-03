@@ -7,7 +7,9 @@ extends SceneTree
 ## --crop-top=N: save only the top N pixels. --debug: keep the DebugOverlay visible (hidden by default).
 ## --save=<fixture path>: decode it with SaveCodec.decode and resume_from it instead of start_new_game (no phase staging; waits --seconds, default 12). --drawcalls: print "DRAWCALLS n" once a second while waiting and "DRAWCALLS_MAX n" at the end.
 ## --steaks=N: bot freed, N steaks lie on the ground 2.5-5 m around the night-1 start (grass and dirt), for the R5 shot.
-## --cards=id:level,...: grant cards after start_new_game (Tank placed at its post). --scene=cardpick: no bot, emit wave_cleared so the pick opens.
+## --cards=id:level,...: grant cards after start_new_game (Tank placed at its post). --scene=cardpick: no bot, emit wave_cleared so the pick opens (with --wait=<s>: open it after the camera guards and grab <s> s later).
+## --fx-offset=x,y,z: offset of the --fx burst from the hero (default 0,0.5,0).
+## --fx=<kind>: emit EventBus.fx_requested(kind, hero position + 0.5 up) right before the grab and show it aged --fx-age seconds (default 0.1, stepped by hand) (S5 Task 4).
 ## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
 ## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
 
@@ -22,11 +24,16 @@ func _initialize() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
+	if _args.has("wait") and _args.get("scene", "") != "cardpick":
+		push_error("--wait needs --scene=cardpick")
+		quit(2)
+		return
 	var camera_math = load("res://core/camera_math.gd")
 	var map_layout = load("res://core/map_layout.gd")
 	var enemy_path = load("res://core/enemy_path.gd")
 	_bal = root.get_node("Balance")
 	_bal.reset()
+	_bal.ui.shake_enabled = false  # a shot must not catch the camera mid-shake (S5 Task 5)
 	var main = load("res://world/main.gd").create()
 	root.add_child(main)
 	# FocusPause pauses the tree when this window loses focus (D-147). A capture window is rarely focused, and a paused
@@ -58,8 +65,8 @@ func _run() -> void:
 			tank.place_at_post()
 	if _args.get("scene", "") == "cardpick":
 		bot.queue_free()
-		var gs2 = root.get_node("GameState")
-		root.get_node("EventBus").wave_cleared.emit(gs2.lane_plan.size() - 1)
+		if not _args.has("wait"):
+			_open_cardpick()
 	var phase_arg: String = _args.get("phase", "night")
 	if not phase_arg in ["day", "night", "fail", "build", "retry"]:
 		push_error("bad --phase %s" % phase_arg)
@@ -175,6 +182,23 @@ func _run() -> void:
 		push_error("capture: the tree is paused; the shot would show a frozen game")
 		quit(1)
 		return
+	if _args.has("wait"):
+		# --wait=<s> (cardpick): open the pick only now, then let <s> seconds of game time pass, so the shot catches the
+		# entrance motion at a known point (S5 Task 6). Scene timers run on the same clock as tweens.
+		_open_cardpick()
+		await create_timer(float(_args.wait)).timeout
+	if _args.has("fx"):
+		# The field is stepped by hand so the shot shows exactly 0.1 s of burst whatever the frame rate is.
+		var field = main.world.fx_field
+		field.set_process(false)
+		root.get_node("EventBus").fx_requested.emit(StringName(_args.fx), main.hero.global_position + _fx_offset())
+		field.step(float(_args.get("fx-age", "0.1")))
+		if field.active_count() == 0:
+			push_error("capture: --fx produced no particles")
+			quit(1)
+			return
+		for i in 3:
+			await process_frame
 	var f0 := Engine.get_frames_drawn()
 	var t2 := Time.get_ticks_msec()
 	while Engine.get_frames_drawn() == f0 and Time.get_ticks_msec() - t2 < 5000:
@@ -196,6 +220,18 @@ func _run() -> void:
 	if _args.has("drawcalls"):
 		print("DRAWCALLS_MAX %d" % _dc_max)
 	quit(0)
+
+## --fx-offset=x,y,z: where the --fx burst sits relative to the hero (default 0,0.5,0).
+func _fx_offset() -> Vector3:
+	var p := String(_args.get("fx-offset", "0,0.5,0")).split(",")
+	if p.size() != 3:
+		push_error("bad --fx-offset")
+		return Vector3(0, 0.5, 0)
+	return Vector3(float(p[0]), float(p[1]), float(p[2]))
+
+func _open_cardpick() -> void:
+	var gs2 = root.get_node("GameState")
+	root.get_node("EventBus").wave_cleared.emit(gs2.lane_plan.size() - 1)
 
 ## Waits `seconds` of physics frames; with --drawcalls, samples the render draw calls once a second.
 func _wait(seconds: float) -> void:

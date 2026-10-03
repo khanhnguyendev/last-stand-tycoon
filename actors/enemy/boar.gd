@@ -105,6 +105,7 @@ func take_hit(amount: float) -> void:
 		_flash_left = Balance.ui.hit_flash_time
 		health.damage(amount)
 		EventBus.sfx_requested.emit(&"hit")
+		EventBus.fx_requested.emit(&"hit", global_position + Vector3(0, AIM_HEIGHT, 0))
 
 func flash_active() -> bool:
 	return _flash_left > 0.0

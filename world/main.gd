@@ -25,6 +25,8 @@ var save_store: SaveStore
 var audio_director: AudioDirector
 var settings_store: SettingsStore
 var debug_fresh_start := false
+var warmup: Warmup
+var boot_fade: BootFade
 
 func _ready() -> void:
 	focus_pause = FocusPause.new()
@@ -73,19 +75,35 @@ func _ready() -> void:
 		settings_store = SettingsStore.for_platform()
 		settings_store.load_settings()
 		audio_director.setup(settings_store)
+		# S5 (D-215): the boot fade always; the warm-up unless ?warmup=0 (so A and B differ only in the warm-up).
+		boot_fade = BootFade.new()
+		add_child(boot_fade)
+		if UrlFlags.get_flag("warmup") != "0":
+			warmup = Warmup.new()
+			warmup.name = "Warmup"
+			add_child(warmup)
 		_boot.call_deferred()
 	else:
 		audio_director.setup(null)
 
-## S3 (D-176, D-177): resume the saved run, or start fresh. Deferred so every listener has connected.
+## S3 (D-176, D-177): resume the saved run, or start fresh. S5 (D-215): when a Warmup exists, draw every first-use
+## visual under the boot fade first; without one (tests) this stays synchronous.
 func _boot() -> void:
-	audio_director.register_streams()
+	var r := {"ok": false, "state": {}}
+	if not debug_fresh_start:
+		r = save_store.read()  # read once, before the warm-up, which needs the resume phase for its music track
+	if warmup != null:
+		await warmup.run(self, String(r.state.resume_phase) if r.ok else "")
+		warmup.queue_free()
+		warmup = null
+	else:
+		audio_director.register_streams()
 	if debug_fresh_start:
 		save_store.wipe()
 		phase_controller.start_new_game()
-		return
-	var r := save_store.read()
-	if r.ok:
+	elif r.ok:
 		phase_controller.resume_from(r.state)
 	else:
 		phase_controller.start_new_game()
+	if boot_fade != null:
+		boot_fade.fade_out()

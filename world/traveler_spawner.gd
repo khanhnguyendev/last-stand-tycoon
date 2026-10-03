@@ -59,6 +59,8 @@ func _physics_process(delta: float) -> void:
 				if sold > 0 and _fx != null:
 					_fx.fly("coin", MapLayout.to3(MapLayout.SERVICE_POINT, 1.2), MapLayout.to3(MapLayout.GOLD_PILE, 0.3))
 				queue.pop_front()
+				if sold > 0:
+					front.hop()  # visual only
 				front.leave()
 				leaving.append(front)
 	for t in leaving.duplicate():

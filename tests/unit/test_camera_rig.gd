@@ -30,7 +30,10 @@ func test_shake_has_cooldown() -> void:
 	GameState.damage_diner(5.0)
 	GameState.damage_diner(5.0)
 	assert_eq(main.camera_rig.shake_count, 1)
-	await wait_seconds(Balance.ui.shake_cooldown + 0.1)
+	assert_almost_eq(main.camera_rig.shake_amp_now(), Balance.ui.shake_amp, Balance.ui.shake_amp * 0.1)
+	await wait_seconds(Balance.ui.shake_time + 0.05)
+	assert_eq(main.camera_rig.shake_amp_now(), 0.0, "the damaged shake lasts shake_time")
+	await wait_seconds(Balance.ui.shake_cooldown)
 	assert_eq(main.camera_rig.shake_count, 1)
 	GameState.damage_diner(5.0)
 	assert_eq(main.camera_rig.shake_count, 2)
@@ -48,7 +51,29 @@ func test_lens_reapplied_on_resize_d145() -> void:
 	assert_almost_eq(cam.fov, CameraMath.portrait_fov_v(Balance.ui), 0.0001)
 
 func test_shake_decays_to_rest() -> void:
-	GameState.damage_diner(5.0)
-	await wait_seconds(Balance.ui.shake_time + 0.1)
+	GameState.damage_diner(1e9)  # damaged, then fell: the longer fell shake is the one that must end
+	await wait_seconds(Balance.ui.shake_fell_time + 0.1)
 	var expect := CameraMath.camera_transform(CameraMath.focus_for(main.hero.xz()), Balance.ui)
 	assert_true(main.camera_rig.camera.global_transform.is_equal_approx(expect))
+
+func test_fell_shake_ignores_cooldown() -> void:
+	GameState.damage_diner(1e9)
+	assert_eq(main.camera_rig.shake_count, 2, "damaged then fell")
+	assert_gte(main.camera_rig.shake_amp_now(), Balance.ui.shake_fell_amp * 0.9)
+
+func test_shake_disabled() -> void:
+	Balance.ui.shake_enabled = false
+	GameState.damage_diner(1e9)
+	assert_eq(main.camera_rig.shake_count, 0)
+	assert_eq(main.camera_rig.shake_amp_now(), 0.0)
+	await wait_physics_frames(2)
+	var expect := CameraMath.camera_transform(CameraMath.focus_for(main.hero.xz()), Balance.ui)
+	assert_true(main.camera_rig.camera.global_transform.is_equal_approx(expect))
+
+func test_damaged_after_fell_is_full_strength() -> void:
+	var rig := main.camera_rig
+	rig.shake(Balance.ui.shake_fell_amp, Balance.ui.shake_fell_time, false)
+	await wait_seconds(Balance.ui.shake_fell_time + 0.1)
+	await wait_seconds(Balance.ui.shake_cooldown)
+	GameState.damage_diner(5.0)
+	assert_almost_eq(rig.shake_amp_now(), Balance.ui.shake_amp, Balance.ui.shake_amp * 0.05)

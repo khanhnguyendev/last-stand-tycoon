@@ -26,6 +26,8 @@ var guard_roster: GuardRoster
 var shadow_field: ShadowField
 ## One draw for every ground steak (S4 Task 10b, D-201): the steak factory hands each steak this field and its slot.
 var pickup_field: PickupField
+## One draw for every particle (S5 Task 4, D-214). Listens to EventBus.fx_requested.
+var fx_field: FxField
 
 @export var enemy_pool: NodePool
 @export var steak_pool: NodePool
@@ -77,6 +79,12 @@ func _ready() -> void:
 	guard_roster.name = "GuardRoster"
 	add_child(guard_roster)
 	guard_roster.setup(self)
+	fx_field = FxField.new()
+	fx_field.name = "FxField"
+	add_child(fx_field)
+	var reactions := Reactions.new()
+	reactions.name = "Reactions"
+	add_child(reactions)
 
 func _build_environment() -> void:
 	var sun := DirectionalLight3D.new()

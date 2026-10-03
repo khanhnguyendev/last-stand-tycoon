@@ -1955,6 +1955,9 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
   be turned off with `Balance.ui.shake_enabled`. The cooldown gates `diner_damaged` only; `diner_fell` always
   shakes, because both are emitted in one `damage_diner` call.
 - No randomness and no gameplay timing.
+- **Retuned after the Task 4 shot review (2026-10-03):** the spec's kind table read too small at phone size. Now
+  poof size 0.75; hit 4 sparks, size 0.8, life 0.25; dust 3 puffs in `stone`, size 0.7, life 0.45; coin 5 stars, size
+  0.45, life 0.6; sparkle unchanged. The table is `FxField.KINDS` (REVIEW_QUEUE).
 
 **D-215 Warm-up.**
 - Task 7 first attributes the first-wave stall with an A/B on the profile build; the cause was never proven.
@@ -1964,6 +1967,21 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 - It uses temporary nodes only: no pools, no PickupField slot, no GameState, no Rng.
 - If `worst_ms` stays at or above 60 with every first-use item warmed, the measured cause becomes a known issue
   for the final review.
+- **Amended (Task 7, 2026-10-03), from measurement.** The perf overlay now records the 3 worst frames with their
+  timing, and with `?perfwarm=4` also the worst frames before its window. Findings (iOS Simulator, profile build,
+  `docs/review/media/s5/perf_p2/README.md`):
+  - The "first-wave stall" was mislabelled. The night-3 worst frame landed 0.1–0.2 s after the overlay's own 2 s
+    warm-up boundary, before any wave; part of it was the overlay's first-time work at that boundary.
+  - The real cost is a load freeze after the phase starts: about 2.1 s without the warm-up and about 0.85 s with it,
+    after the boot fade had already lifted. Without the warm-up there are also 95–129 ms first-use frames after wave
+    0 starts; with it there are none above 43 ms.
+  - So the warm-up stays, and the boot fade now stays opaque until it sees 10 consecutive frames under 50 ms (at most
+    4 s), so the remaining load freeze happens under the fade. The overlay reads its monitors during its warm-up too,
+    so its boundary costs nothing new.
+  - **Result:** night-3 median `avg_fps` 59.8; median `worst_ms` 71 (from 108 with the warm-up alone; main 134), so
+    the < 60 gate fails. Priming the overlay's reads did not remove the frame at its window boundary. Per §5.4 the
+    remaining frame (about 2.1 s after the night starts, also when the first 2 s banner hides) goes to the known issues;
+    S5 does no further perf work on it.
 
 **D-216 HUD pass.**
 - Positions only: safe-area placement, the card strip clear of the diner bar, world labels dimmed (snapped to

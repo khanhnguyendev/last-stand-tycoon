@@ -16,8 +16,24 @@ extends Resource
 @export var gold_punch_scale := 1.25
 @export var gold_punch_time := 0.12
 @export var shake_amp := 0.12
-@export var shake_time := 0.15
+@export var shake_time := 0.12
 @export var shake_cooldown := 0.5
+## S5 Task 5 (spec 5.2): reactions. Screen shake per kind; carry squash; traveler hop; bar flash; arrow punch; strip pop;
+## hero dust interval; build dust every Nth paid tick.
+@export var shake_enabled := true
+@export var shake_fell_amp := 0.3
+@export var shake_fell_time := 0.4
+@export var carry_squash := 1.06
+@export var carry_squash_time := 0.12
+@export var traveler_hop_m := 0.25
+@export var traveler_hop_time := 0.2
+@export var bar_flash_time := 0.15
+@export var arrow_punch_scale := 1.3
+@export var arrow_punch_time := 0.2
+@export var strip_pop_scale := 1.25
+@export var strip_pop_time := 0.15
+@export var hero_dust_interval_s := 0.35
+@export var build_dust_every := 4
 @export var build_pop_scale := 1.2
 @export var build_pop_time := 0.2
 @export var hit_flash_time := 0.08
@@ -50,6 +66,14 @@ extends Resource
 @export var card_panel_min_h := 120.0
 ## S3: a new banner shortens the one on screen to at most banner_min_s (D-175); autosave throttle (D-173).
 @export var banner_min_s := 0.6
+## S5 UI motion (spec 5.3): banner slide/fade-in, card rise and stagger (the last card lands inside card_input_guard_s),
+## button press scale (Task 8).
+@export var banner_slide_px := 24.0
+@export var banner_in_s := 0.15
+@export var card_rise_px := 40.0
+@export var card_rise_s := 0.18
+@export var card_stagger_s := 0.06
+@export var button_press_scale := 0.94
 @export var autosave_interval_s := 3.0
 ## S4 Task 6: ActorVisual (D-190). Turn rate of the model toward its facing (rad/s), AnimationTree blend and
 ## one-shot fade (s), and the minimum gap between Hit_A reactions (s).
@@ -78,3 +102,12 @@ extends Resource
 @export var night_sun_energy := 0.55
 @export var night_ambient := Color(0.36, 0.40, 0.58)
 @export var night_bg := Color("2a4a35")
+
+## S5 Task 7 (D-215): the boot fade-out time (s).
+@export var boot_fade_out_s := 0.3
+
+## S5 Task 7 (D-215 amendment): after the phase starts the boot fade stays opaque until this many consecutive frames are each
+## under boot_fade_stable_ms, or boot_fade_max_s seconds after fade_out() was called; then it fades over boot_fade_out_s.
+@export var boot_fade_stable_frames := 10
+@export var boot_fade_stable_ms := 50.0
+@export var boot_fade_max_s := 4.0

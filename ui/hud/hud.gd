@@ -22,8 +22,13 @@ var _filled := 0
 var _banner_queue: Array[String] = []
 ## Seconds left of the banner on screen; 0 when none is showing.
 var _banner_left := 0.0
+var _banner_tween: Tween
+## Pixels the banner panel is currently shifted from its rest offsets by the slide-in (spec 5.3).
+var _banner_slide := 0.0
 var _gold_tween: Tween
 var _bar_tween: Tween
+var _flash_tween: Tween
+var _punch_tween: Tween
 var _moon_row: HBoxContainer
 var _top_column: VBoxContainer
 
@@ -226,6 +231,17 @@ func _on_wave_incoming(_w: int, main_lane: StringName, side_lane: StringName) ->
 	arrows.main.visible = _arrow_lane.main != ""
 	arrows.side.visible = _arrow_lane.side != ""
 	_place_arrows()
+	_punch_arrows()
+
+## S5 Task 5: the arrows pop when a wave is announced (visual only).
+func _punch_arrows() -> void:
+	if _punch_tween != null and _punch_tween.is_valid():
+		_punch_tween.kill()
+	_punch_tween = create_tween().set_parallel(true)
+	for key in ["main", "side"]:
+		var rest := Vector2.ONE if key == "main" else Vector2.ONE * Balance.ui.arrow_side_scale
+		arrows[key].scale = rest * Balance.ui.arrow_punch_scale
+		_punch_tween.tween_property(arrows[key], "scale", rest, Balance.ui.arrow_punch_time)
 
 func _on_wave_spawned_out(_w: int) -> void:
 	arrows.main.visible = false
@@ -233,6 +249,11 @@ func _on_wave_spawned_out(_w: int) -> void:
 
 func _on_diner_damaged(_amount: float, hp_left: float) -> void:
 	diner_bar.value = hp_left
+	if _flash_tween != null and _flash_tween.is_valid():
+		_flash_tween.kill()
+	diner_bar.modulate = Palette.color(&"enemy_red")
+	_flash_tween = create_tween()
+	_flash_tween.tween_property(diner_bar, "modulate", Color.WHITE, Balance.ui.bar_flash_time)
 	if _bar_tween != null and _bar_tween.is_valid():
 		_bar_tween.kill()
 	# The bar sits in a layout slot; shake its x inside the slot so the layout never matters.
@@ -254,13 +275,40 @@ func _show_next_banner() -> void:
 		_banner_left = 0.0
 		banner.visible = false
 		banner_panel.visible = false
+		_banner_motion_stop()
 		return
 	banner.text = _banner_queue.pop_front()
 	banner.visible = true
 	banner_panel.visible = true
 	banner_panel.modulate.a = 1.0
+	_banner_motion_start()
 	# A banner shown while others wait plays banner_min_s (the fail path: "The diner fell" -> "The monsters return" -> flavor).
 	_banner_left = Balance.ui.banner_time if _banner_queue.is_empty() else minf(Balance.ui.banner_time, Balance.ui.banner_min_s)
+
+## Slide-in (spec 5.3): the panel's offset_top/offset_bottom move together, so the label (not the panel, whose alpha
+## _tick_banner owns) fades in. Shifts are applied as deltas over whatever rest offsets the panel has.
+func _banner_motion_stop() -> void:
+	if _banner_tween != null and _banner_tween.is_valid():
+		_banner_tween.kill()
+	_banner_set_slide(0.0)
+	banner.modulate.a = 1.0
+
+func _banner_motion_start() -> void:
+	_banner_motion_stop()
+	var ui := Balance.ui
+	if ui.banner_in_s <= 0.0:
+		return
+	_banner_set_slide(-ui.banner_slide_px)
+	banner.modulate.a = 0.0
+	_banner_tween = create_tween().set_parallel(true)
+	_banner_tween.tween_method(_banner_set_slide, -ui.banner_slide_px, 0.0, ui.banner_in_s).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_banner_tween.tween_property(banner, "modulate:a", 1.0, ui.banner_in_s)
+
+func _banner_set_slide(v: float) -> void:
+	var d := v - _banner_slide
+	banner_panel.offset_top += d
+	banner_panel.offset_bottom += d
+	_banner_slide = v
 
 func _tick_banner(delta: float) -> void:
 	if _banner_left <= 0.0:

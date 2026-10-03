@@ -89,6 +89,15 @@ func register_streams() -> void:
 		if OS.has_feature("web") and AudioManifest.MUSIC_MODE == &"samples":
 			AudioServer.register_stream_as_sample(s)
 
+## Boot warm-up (D-212, D-215): loads one music track and, on web in lazy mode, registers it as a sample now, behind the
+## boot fade, instead of at the first phase change. Off web it only caches the stream.
+func preload_music(id: StringName) -> void:
+	if disabled or not AudioManifest.MUSIC.has(id):
+		return
+	var stream := _stream(AudioManifest.MUSIC[id].path)
+	if OS.has_feature("web") and AudioManifest.MUSIC_MODE == &"lazy" and not AudioServer.is_stream_registered_as_sample(stream):
+		AudioServer.register_stream_as_sample(stream)
+
 ## Loaded once and cached.
 func _stream(path: String) -> AudioStream:
 	if not _streams.has(path):

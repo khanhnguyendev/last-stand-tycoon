@@ -290,7 +290,7 @@ static func validate_project(host: Node = null) -> Dictionary:
 	var errors: Array[String] = []
 	var warnings: Array[String] = []
 	errors.append_array(check_licenses("res://assets", "res://docs/ASSET_LICENSES.md"))
-	errors.append_array(check_palette(PackedStringArray(["res://art/palette/atlas", "res://art/icons"]), Palette.hex_set()))
+	errors.append_array(check_palette(PackedStringArray(["res://art/palette/atlas", "res://art/icons", "res://art/fx"]), Palette.hex_set()))
 	var enemy := enemy_hexes()
 	errors.append_array(check_no_enemy_colors("res://art/palette/atlas", enemy))
 	# The atlas holds the heart, so the R4 check skips it; the per-icon PNGs stay the checked source (Task 16b).

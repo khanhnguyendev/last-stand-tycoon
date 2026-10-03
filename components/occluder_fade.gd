@@ -131,6 +131,24 @@ func _apply() -> void:
 		l.modulate.a = _labels[l].a * _alpha
 		l.outline_modulate.a = _labels[l].outline_a * _alpha
 
+## One faded copy of a material the diner uses, for the boot warm-up (D-215): drawing it once compiles the transparent
+## pipeline before the first occlusion fade. Nothing is applied to the diner.
+func fade_material_for_warmup() -> Material:
+	var src := StandardMaterial3D.new()
+	var parent := get_parent()
+	if parent != null:
+		for m in parent.find_children("*", "MeshInstance3D", true, false):
+			var mi := m as MeshInstance3D
+			var base: BaseMaterial3D = mi.material_override as BaseMaterial3D
+			if base == null and mi.mesh != null and mi.mesh.get_surface_count() > 0:
+				base = (mi.get_surface_override_material(0) if mi.get_surface_override_material(0) != null else mi.mesh.surface_get_material(0)) as BaseMaterial3D
+			if base != null:
+				src = base
+				break
+	var f := _fade_copy(src)
+	f.albedo_color.a = Balance.ui.occluder_alpha
+	return f
+
 func _fade_copy(src: BaseMaterial3D) -> BaseMaterial3D:
 	var f := src.duplicate() as BaseMaterial3D
 	f.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
