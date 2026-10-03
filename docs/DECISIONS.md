@@ -1904,11 +1904,15 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
   swapped at `phase_changed`. The result is appended here by Task 3.
 - The spike checks the probe on Chromium (before and after a tap) and the iOS Simulator (before a gesture only:
   the harness has no input). The after-gesture check on a real iPhone is a final-review item.
-- **Spike result (Task 3a, 2026-10-03):** music mode `samples`. Registering both tracks took 115–124 ms (Chromium)
-  and 121 ms (iOS Simulator); decoded size 34.6 MB at 44.1 kHz, 37.7 MB at 48 kHz (budget 48). Registration copies
-  frames out of the WASM heap, so the heap peak is about the decoded total plus the largest track and never shrinks
-  (see `docs/review/AUDIO.md`). The iOS Simulator's locked state reads `interrupted`, not `suspended`; the probe
-  (`state == "running"`) is unchanged. Resuming from `interrupted` on a real iPhone is a final-review item.
+- **Spike result (Task 3a, 2026-10-03): music mode `swap`.** Registering both tracks took 115–138 ms (Chromium)
+  and 121 ms (iOS Simulator); decoded size 34.6 MiB at 44.1 kHz, 37.7 MiB at 48 kHz, so rule (1) passed as written.
+  But the added memory, which the 48 MB limit was meant to bound, is 72–78 MiB: the Web Audio buffers persist outside
+  the WASM heap, and registration raised the WASM high-water mark by 37 MiB, which never shrinks. Stream playback
+  showed no underrun, but its CPU cost could not be read on software WebGL, and a stream is mixed on the main thread
+  in a single-threaded build, so long frames would glitch the music. `swap` keeps one track registered (about
+  36–41 MiB) for a registration of about 60–70 ms at each music change, behind the phase banner; Task 7 measures it.
+  The iOS Simulator's locked state reads `interrupted`, not `suspended`; the probe (`state == "running"`) is
+  unchanged. Resuming from `interrupted` on a real iPhone is a final-review item.
 - One toggle mutes the Master bus and is saved at once.
 
 **D-213 Onboarding is one pointer.**
