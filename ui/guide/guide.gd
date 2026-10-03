@@ -116,6 +116,8 @@ func snapshot() -> Dictionary:
 func evaluate_now() -> void:
 	if not _forced:
 		var r := GuideRules.evaluate(snapshot())
+		if main.phase_controller.failing:
+			r = {"rule_id": &"", "target_id": &"", "target_position": Vector3.ZERO}  # a bot following the Guide stops during the fail banner
 		rule_id = r.rule_id
 		target_id = r.target_id
 		target_position = r.target_position

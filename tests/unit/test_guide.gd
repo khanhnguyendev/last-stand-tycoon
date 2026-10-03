@@ -210,6 +210,9 @@ func test_shows_nothing_while_the_night_is_failing() -> void:
 	assert_true(guide.label.visible)
 	assert_true(guide.stick_visible())
 	main.phase_controller.failing = true
+	guide.evaluate_now()
+	assert_eq(guide.rule_id, &"")
+	assert_eq(guide.target_id, &"")
 	await get_tree().process_frame
 	assert_false(guide.label.visible)
 	assert_false(guide.stick_visible())
