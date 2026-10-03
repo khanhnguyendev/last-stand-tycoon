@@ -55,5 +55,10 @@ signal guard_revived(guard_id: StringName)
 ## GameState -> guards. Dawn healed the guard to hp (spec 5.2: after phase_changed(DAWN)).
 signal guard_healed(guard_id: StringName, hp: float)
 
+## Any system -> AudioDirector. A local event wants a sound (S5 D-214). Never listened to by gameplay.
+signal sfx_requested(id: StringName)
+## Any system -> FxField. A local event wants a particle burst (S5 D-214). Never listened to by gameplay.
+signal fx_requested(kind: StringName, position: Vector3)
+
 ## PhaseController -> Autosave. A new restore point was taken (new game, close-up, night-1 retry). Never mutate it.
 signal snapshot_taken(snapshot: Dictionary)

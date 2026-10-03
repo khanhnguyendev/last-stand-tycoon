@@ -154,6 +154,7 @@ func test_audio_flag_disables() -> void:
 	e.setup(null)
 	e.set_unlocked()
 	e.register_streams()
+	assert_true(e._streams.is_empty(), "register_streams is a no-op under ?audio=0")
 	EventBus.sfx_requested.emit(&"throw")
 	assert_eq(e.last_played, [])
 	assert_eq(e.music_id, &"")
