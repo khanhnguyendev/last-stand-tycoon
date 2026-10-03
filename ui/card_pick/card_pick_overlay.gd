@@ -12,6 +12,7 @@ var _panels: Array[Control] = []
 var _rects: Array[Rect2] = []
 var _owned := {}
 var _guard_left := 0.0
+var _entrance: Array[Tween] = []
 
 const HEADING_H := 70.0
 ## Card portrait size in 720-base units (Task 15).
@@ -52,9 +53,25 @@ func show_offer(o: Array) -> void:
 	for id in offer:
 		_panels.append(_make_panel(id))
 	_relayout()
+	_animate_in()
 	_owned.clear()
 	_guard_left = Balance.ui.card_input_guard_s
 	visible = true
+
+## Entrance (spec 5.3): each card rises card_rise_px and fades in, staggered. Visual only: hit-testing uses _rects (the
+## final layout). Each tween is bound to its panel, so replacing the offer frees it with the panel.
+func _animate_in() -> void:
+	var ui := Balance.ui
+	for i in _panels.size():
+		var p := _panels[i]
+		var rest_y := _rects[i].position.y
+		p.position.y = rest_y + ui.card_rise_px
+		p.modulate.a = 0.0
+		var t := p.create_tween().set_parallel(true)
+		var delay := float(i) * ui.card_stagger_s
+		t.tween_property(p, "position:y", rest_y, ui.card_rise_s).set_delay(delay).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		t.tween_property(p, "modulate:a", 1.0, ui.card_rise_s).set_delay(delay)
+		_entrance.append(t)
 
 func hide_overlay() -> void:
 	visible = false
@@ -90,11 +107,17 @@ static func layout(vp: Vector2, insets: Dictionary, n: int, ui: UiTuning) -> Arr
 func _relayout() -> void:
 	if offer.is_empty():
 		return
+	# A relayout (resize) snaps every panel to its final rect and cancels the entrance.
+	for t in _entrance:
+		if t.is_valid():
+			t.kill()
+	_entrance.clear()
 	var vp := get_viewport().get_visible_rect().size
 	_rects = CardPickOverlay.layout(vp, SafeArea.insets(vp), offer.size(), Balance.ui)
 	for i in _panels.size():
 		_panels[i].position = _rects[i].position
 		_panels[i].size = _rects[i].size
+		_panels[i].modulate.a = 1.0
 		var px := minf(PORTRAIT_PX, _rects[i].size.y - 32.0)
 		(_panels[i].get_node("Row/Portrait") as TextureRect).custom_minimum_size = Vector2(px, px)
 	_heading.size = Vector2(vp.x, HEADING_H)

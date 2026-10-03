@@ -7,7 +7,7 @@ extends SceneTree
 ## --crop-top=N: save only the top N pixels. --debug: keep the DebugOverlay visible (hidden by default).
 ## --save=<fixture path>: decode it with SaveCodec.decode and resume_from it instead of start_new_game (no phase staging; waits --seconds, default 12). --drawcalls: print "DRAWCALLS n" once a second while waiting and "DRAWCALLS_MAX n" at the end.
 ## --steaks=N: bot freed, N steaks lie on the ground 2.5-5 m around the night-1 start (grass and dirt), for the R5 shot.
-## --cards=id:level,...: grant cards after start_new_game (Tank placed at its post). --scene=cardpick: no bot, emit wave_cleared so the pick opens.
+## --cards=id:level,...: grant cards after start_new_game (Tank placed at its post). --scene=cardpick: no bot, emit wave_cleared so the pick opens (with --wait=<s>: open it after the camera guards and grab <s> s later).
 ## A -s script compiles before the autoloads exist, so nothing here may name an autoload or any
 ## script that does (Main, bots, Phase...). They are all load()ed at run time and used untyped.
 
@@ -22,6 +22,10 @@ func _initialize() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
+	if _args.has("wait") and _args.get("scene", "") != "cardpick":
+		push_error("--wait needs --scene=cardpick")
+		quit(2)
+		return
 	var camera_math = load("res://core/camera_math.gd")
 	var map_layout = load("res://core/map_layout.gd")
 	var enemy_path = load("res://core/enemy_path.gd")
@@ -58,8 +62,8 @@ func _run() -> void:
 			tank.place_at_post()
 	if _args.get("scene", "") == "cardpick":
 		bot.queue_free()
-		var gs2 = root.get_node("GameState")
-		root.get_node("EventBus").wave_cleared.emit(gs2.lane_plan.size() - 1)
+		if not _args.has("wait"):
+			_open_cardpick()
 	var phase_arg: String = _args.get("phase", "night")
 	if not phase_arg in ["day", "night", "fail", "build", "retry"]:
 		push_error("bad --phase %s" % phase_arg)
@@ -175,6 +179,11 @@ func _run() -> void:
 		push_error("capture: the tree is paused; the shot would show a frozen game")
 		quit(1)
 		return
+	if _args.has("wait"):
+		# --wait=<s> (cardpick): open the pick only now, then let <s> seconds of game time pass, so the shot catches the
+		# entrance motion at a known point (S5 Task 6). Scene timers run on the same clock as tweens.
+		_open_cardpick()
+		await create_timer(float(_args.wait)).timeout
 	var f0 := Engine.get_frames_drawn()
 	var t2 := Time.get_ticks_msec()
 	while Engine.get_frames_drawn() == f0 and Time.get_ticks_msec() - t2 < 5000:
@@ -196,6 +205,10 @@ func _run() -> void:
 	if _args.has("drawcalls"):
 		print("DRAWCALLS_MAX %d" % _dc_max)
 	quit(0)
+
+func _open_cardpick() -> void:
+	var gs2 = root.get_node("GameState")
+	root.get_node("EventBus").wave_cleared.emit(gs2.lane_plan.size() - 1)
 
 ## Waits `seconds` of physics frames; with --drawcalls, samples the render draw calls once a second.
 func _wait(seconds: float) -> void:
