@@ -39,9 +39,12 @@ var _stick_center := Vector2.ZERO
 ## The Boar the `fight` rule picked at the last evaluation; the pointer follows it every frame while it lives.
 var _target_boar: Node3D
 var _stick_phase := 0.0
+## False until a run exists: Main builds the Guide in _ready, before start_new_game or resume.
+var _live := false
 
 func setup(p_main: Main) -> void:
 	main = p_main
+	_live = not GameState.buildings.is_empty()
 	layer = CanvasLayer.new()
 	layer.name = "GuideLayer"
 	layer.layer = LAYER
@@ -74,6 +77,7 @@ func _exit_tree() -> void:
 		EventBus.phase_changed.disconnect(_on_phase_changed)
 
 func _on_state_restored() -> void:
+	_live = true
 	walked = 0.0
 
 func _on_phase_changed(phase: int, day: int) -> void:
@@ -88,8 +92,8 @@ func _on_phase_changed(phase: int, day: int) -> void:
 		queue_free()
 
 func _physics_process(delta: float) -> void:
-	if main == null or GameState.buildings.is_empty():
-		return  # Main builds the Guide before the run starts (boot path): nothing to read yet
+	if main == null or not _live:
+		return  # Main builds the Guide before the run starts (boot path): nothing to read until a run exists
 	var v := main.hero.velocity
 	walked += Vector2(v.x, v.z).length() * delta
 	_eval_left -= delta

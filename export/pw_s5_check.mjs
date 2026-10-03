@@ -26,11 +26,11 @@ try {
   const ctx1 = await browser.newContext({ viewport: { width: 720, height: 1280 } });
   const page = await ctx1.newPage();
   const lines = [];
-  const seen = new Map();
+  const seen = [];  // every LST_CTX event in arrival order, none overwritten
   page.on('console', m => {
     const t = m.text();
     const st = /^LST_CTX \d+ ctx(\d+)=(\w+)/.exec(t);
-    if (st) { seen.set(Number(st[1]), st[2]); return; }
+    if (st) { seen.push({ ctx: Number(st[1]), state: st[2] }); return; }
     lines.push(`[console.${m.type()}] ${t}`);
   });
   page.on('pageerror', e => { lines.push(`[pageerror] ${e.message}`); fail('page error: ' + e.message); });
@@ -49,11 +49,14 @@ try {
   await page.waitForTimeout(30000);
   const baseline = new Set(fs.readFileSync(baselineFile, 'utf8').split('\n').filter(Boolean).map(norm));
   const fresh = [...new Set(lines.filter(l => !baseline.has(norm(l))))];
-  console.log(`console: ${lines.length} lines, ${fresh.length} new distinct (after pointer/number normalisation)`);
+  console.log(`console: ${lines.length} lines (baseline ${baseline.size} distinct normalised from ${fs.readFileSync(baselineFile, 'utf8').split('\n').filter(Boolean).length} lines), ${fresh.length} new distinct (after pointer/number normalisation)`);
   for (const l of fresh) console.log('  NEW ' + l);
   for (const l of fresh) if (/^\[(console\.(error|warning)|pageerror)\]/.test(l)) fail('new error/warning: ' + l);
 
-  const before = [...seen.entries()].sort((a, b) => a[0] - b[0]).map(e => e[1]);
+  // the latest state per context index (events are an array, so none is overwritten)
+  const latest = new Map();
+  for (const v of seen) latest.set(v.ctx, v.state);
+  const before = [...latest.entries()].sort((a, b) => a[0] - b[0]).map(e => e[1]);
   console.log('audio before tap (console, no evaluate): ' + JSON.stringify(before));
   if (before.length === 0) fail('no AudioContext seen before the tap');
   if (before.includes('running')) fail('an AudioContext was running before the tap');

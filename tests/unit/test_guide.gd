@@ -268,18 +268,32 @@ func test_completion_without_a_store_is_null_safe() -> void:
 	watch_signals(guide)
 	EventBus.phase_changed.emit(Phase.NIGHT, 2)
 	assert_signal_emitted(guide, "completed")
+	assert_true(guide.is_queued_for_deletion())
+
+var _seen_rules: Array = []
+var _evals := 0
+
+func _record_eval() -> void:
+	_evals += 1
+	if guide.rule_id != &"":
+		_seen_rules.append(guide.rule_id)
 
 func test_resumed_day_five_without_the_key_shows_nothing_then_completes() -> void:
+	# Review Focus 1: a pre-S5 player with a save and no settings key resumes into DAY of day 5.
 	await _boot()
 	var st := _store()
 	main.settings_store = st
-	main.phase_controller.debug_skip_to_day()
-	GameState.day = 5
-	guide.walked = 0.0
-	for i in 120:
+	var d := GameState.to_dict()
+	d.day = 5
+	d.resume_phase = "DAY"
+	main.phase_controller.resume_from(d)
+	_seen_rules = []
+	_evals = 0
+	guide.evaluated.connect(_record_eval)
+	for i in 150:
 		await get_tree().physics_frame
-	guide.evaluate_now()
-	assert_eq(guide.rule_id, &"", "nothing on day 5")
+	assert_gte(_evals, 8, "the Guide kept evaluating for 2 s")
+	assert_eq(_seen_rules, [], "no rule showed on day 5")
 	assert_false(st.guide_done)
 	EventBus.phase_changed.emit(Phase.NIGHT, 5)
 	assert_true(st.guide_done)

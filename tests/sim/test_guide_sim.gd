@@ -9,6 +9,11 @@ var _fight_checks := 0
 var _move_seen := false
 var _move_cleared := false
 var _t0 := 0
+## Day-2 no-rule gap tracking: members, because a lambda captures locals by value and could never update them.
+var _gap := 0.0
+var _max_gap := 0.0
+var _bad := 0
+var _gap_log: Array = []
 
 func before_each() -> void:
 	Balance.reset()
@@ -18,6 +23,10 @@ func before_each() -> void:
 	_move_seen = false
 	_move_cleared = false
 	_t0 = Time.get_ticks_msec()
+	_gap = 0.0
+	_max_gap = 0.0
+	_bad = 0
+	_gap_log = []
 
 func after_each() -> void:
 	h.finish()
@@ -32,6 +41,9 @@ func _second_seed() -> int:
 
 func _on_evaluated() -> void:
 	var g := h.guide
+	if h.main.phase_controller.phase == Phase.DAY and g.rule_id == &"" and _gap > 5.0 and GameState.counter_steaks <= 0:
+		_bad += 1
+		_gap_log.append("t=%.1f gap=%.1f counter=%d carried=%d goal=%s hero=%s" % [h.elapsed, _gap, GameState.counter_steaks, GameState.carried_steaks, h.bot.goal, h.main.hero.xz()])
 	if g.rule_id == &"move":
 		_move_seen = true
 	elif _move_seen:
@@ -51,6 +63,16 @@ func _on_evaluated() -> void:
 	if g.rule_id != &"fight":
 		_violations.append("t=%.1f rule=%s diner=%.0f hero=%s boars=%d" % [h.elapsed, g.rule_id, GameState.diner_hp, h.main.hero.xz(), alive.size()])
 
+## The gap accumulates per physics tick; the property is checked only where the rule is computed (the `evaluated` signal,
+## 4 Hz), like the fight check. Checking per tick would flag the up to 0.25 s between the counter emptying and the next
+## evaluation, which says nothing about a dead spot (Task 11 decision).
+func _track_gap() -> void:
+	if h.main.phase_controller.phase == Phase.DAY and h.guide.rule_id == &"":
+		_gap += 1.0 / 60.0
+		_max_gap = maxf(_max_gap, _gap)
+	else:
+		_gap = 0.0
+
 func _play(p_seed: int) -> void:
 	h.start(p_seed, GuideBot, true)
 	h.guide.evaluated.connect(_on_evaluated)
@@ -59,21 +81,16 @@ func _play(p_seed: int) -> void:
 	assert_true(r.cleared, "night 1 cleared (seed %d)" % p_seed)
 	assert_false(r.failed, "night 1 not failed (seed %d)" % p_seed)
 	assert_true(_move_cleared, "move cleared")
+	assert_gt(_fight_checks, 0, "the fight rule was checked at least once (seed %d)" % p_seed)
 	assert_eq(_violations.size(), 0, "0-fail fight rule: %s" % [_violations.slice(0, 5)])
 	# the day: a no-rule gap over 5 s only with steaks still on the counter
-	var gap := 0.0
-	var bad := 0
 	var cond := func() -> bool:
-		if h.main.phase_controller.phase == Phase.DAY and h.guide.rule_id == &"":
-			gap += 1.0 / 60.0
-			if gap > 5.0 and GameState.counter_steaks <= 0:
-				bad += 1
-		else:
-			gap = 0.0
+		_track_gap()
 		return h.main.phase_controller.phase == Phase.NIGHT
 	var closed := await h.run_until(cond, 600.0)
 	assert_true(closed, "the day closed (seed %d)" % p_seed)
-	assert_eq(bad, 0, "no 5 s no-rule gap with an empty counter")
+	gut.p("seed %d max no-rule gap on day 2: %.2f s (checked at each evaluation)" % [p_seed, _max_gap])
+	assert_eq(_bad, 0, "no 5 s no-rule gap with an empty counter, sampled at each evaluation: %s" % [_gap_log.slice(0, 5)])
 	var built := 0
 	for id in MapLayout.SPOT_IDS:
 		if int(GameState.buildings[id].level) >= 1:
