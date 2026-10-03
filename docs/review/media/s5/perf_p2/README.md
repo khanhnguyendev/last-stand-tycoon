@@ -18,11 +18,13 @@ warm-up runs of attribution.md (same build, no query). Day-3 reading = frozen `P
 
 (cpu_idle_after is taken while Safari is still playing the game, so it is always lower; only "before" gates validity.)
 
-## Gates
+## Gates (superseded by "Gate reading after the boot-fade hold and overlay priming" below, median 71)
+Readings from the build before the fade hold and the overlay priming:
 - night-3 median avg_fps >= 58: **pass** (59.7).
-- night-3 median worst_ms < 60: **FAIL** (108.0; main is 134.0, so this is not new in P2, and the warm-up lowered it by 26 ms).
+- night-3 median worst_ms < 60: **FAIL** (108.0). Branch vs main: -26 ms (main 134.0); same-build A/B (warm-up vs `?warmup=0`): -17 ms.
   Not tuned; for the main session (spec 5.4 fallback or section 11 FX cuts).
-- day-3 median avg_fps >= main median - 1 (51.7): **pass** (53.0 vs 52.7).
+- day-3 median avg_fps >= main median - 1 (51.7): **pass** (53.0 vs 52.7). This day reading predates the fade hold and the
+  overlay priming and was not repeated.
 
 Phase-change music registration hitch: not visible. The PERF line holds one worst_ms per 60 s window (the same reading with
 or without the warm-up, 104-142 ms on all builds), the night fixture resumes straight into night, and the window starts 2 s
@@ -44,7 +46,7 @@ task (P1/P2 content), the FX increment is the expected +1.
 ## Where the worst frames happen
 `ui/perf_overlay.gd` now appends `top3=<ms>@<s into the 60 s window>(w<last started wave, -1 none>,+<s since that
 wave_started, -1 none>)` for the 3 worst frames of the window (the window starts 2 s after the phase change, so `@0.1s` is
-about 2.1 s after the night began). Three night-3 runs of the warm-up build (`NIGHT_ONLY=1 export/perf_night3.sh`, idle before
+about 2.1 s after the night began). Three night-3 runs of the warm-up build (`export/perf_night3.sh`, both phases ran and only the night screenshot was read, idle before
 78%, 79%, 80%; screenshots in `runs/top3_run<N>.png`):
 
 | run | avg_fps | worst_ms | top3 |
@@ -63,7 +65,7 @@ unflushed GPU upload). Nothing was fixed or tuned.
 
 ### Experiment: warm-up length (`?perfwarm=4`)
 `ui/perf_overlay.gd` reads `?perfwarm=<s>` (default 2.0) and appends `pre3=<ms>@<s since the phase change>s ...` (the 3 worst
-frames inside the warm-up) after `top3`. Three night-3 runs with `QUERY=perfwarm=4 NIGHT_ONLY=1` (idle before 77%, 75%, 75%;
+frames inside the warm-up) after `top3`. Three night-3 runs with `QUERY=perfwarm=4` (both phases ran; only the night screenshot was read) (idle before 77%, 75%, 75%;
 screenshots `runs/perfwarm4_run<N>.png`):
 
 | run | avg_fps | worst_ms | top3 (window) | pre3 (warm-up, 0 to 4 s) |
@@ -85,7 +87,7 @@ Reading (no fix applied):
   observation, not a result for the gate, which is defined with the 2 s warm-up.
 
 ### Experiment: the pre-window stall with and without the warm-up (`?warmup=0&perfwarm=4`)
-Same build, `QUERY="warmup=0%26perfwarm=4" NIGHT_ONLY=1` (the `&` is encoded as `%26`; checked in desktop Chromium that the
+Same build, `QUERY="warmup=0%26perfwarm=4"` (both phases ran; the `&` was encoded by hand as `%26`, the script now does it; checked in desktop Chromium that the
 game URL becomes `/?warmup=0&perfwarm=4` and prints no `WARMUP` line). Idle before 78%, 80%, 80%; screenshots
 `runs/nowarmup_perfwarm4_run<N>.png`. For comparison, the warmed `perfwarm=4` runs are in the table above.
 
@@ -107,7 +109,7 @@ Reading (no fix applied):
 Changes: `BootFade` stays opaque after `fade_out()` until `boot_fade_stable_frames` (10) consecutive frames are each under
 `boot_fade_stable_ms` (50), or `boot_fade_max_s` (4.0) after `fade_out()`; then it fades over `boot_fade_out_s`. It prints
 `BOOTFADE done=<s> frames=<n>` once. The perf overlay now does the same `Performance.get_monitor` reads during its warm-up
-(values discarded). Fresh `web_profile` build, default 2 s overlay warm-up, `NIGHT_ONLY=1`, idle before 76%, 78%, 76%
+(values discarded). Fresh `web_profile` build, default 2 s overlay warm-up, both phases ran (only the night screenshot was read), idle before 76%, 78%, 76%
 (screenshots `runs/gate_run<N>.png`):
 
 | run | avg_fps | worst_ms | top3 (window) | pre3 (warm-up, 0 to 2 s) |
@@ -118,7 +120,7 @@ Changes: `BootFade` stays opaque after `fade_out()` until `boot_fade_stable_fram
 | **median** | **59.8** | **71.0** | | |
 
 Gates (night-3, the 2 s window): median `avg_fps` >= 58 **pass** (59.8); median `worst_ms` < 60 **FAIL** (71.0, was 108.0 before
-this change and 134.0 on main). The day-3 gate was not rerun (night only). The frame at `@0.1s` of the window (70-87 ms)
+this change and 134.0 on main). The day-3 gate was not read in these runs. The frame at `@0.1s` of the window (70-87 ms)
 is still there: priming the reads did not remove it, so it is not explained by the first `get_monitor` calls; it remains at
 about 2.1 s after the phase change. Nothing else tuned.
 
@@ -131,3 +133,8 @@ The 806-917 ms load frame (`pre3`, 0.9 s after the phase change) is unchanged by
   `BOOTFADE done=4.01 frames=12` and `done=4.05 frames=11` in two loads, i.e. the 4.0 s cap lifted it. On a device the
   stable-frames rule decides; this Chromium run only shows the cap and the print work. The Simulator console is not readable,
   so the device `BOOTFADE` line is not captured; the screenshots above are its evidence.
+
+### Correction (Task 7 review)
+The earlier runs labelled `NIGHT_ONLY=1` above were made before that flag existed in the committed script (the local edit that was meant
+to add it did not apply). Both the day and the night half ran each time, the day screenshot was ignored, and the night readings
+are valid as recorded. `export/perf_night3.sh` now has `NIGHT_ONLY=1` and encodes `&` in `QUERY`.

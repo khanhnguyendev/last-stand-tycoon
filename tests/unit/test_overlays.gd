@@ -247,9 +247,9 @@ func test_stale_owned_finger_does_not_swallow_the_stick_release() -> void:
 	_touch(vp, pair[1].button_rect().get_center(), false)
 	assert_false(main.joystick.is_active(), "the stale owned index must not swallow this release")
 
-func test_perf_warmup_primes_reads_and_keeps_the_window_clean() -> void:
+func test_perf_warmup_tracks_pre3_and_adds_nothing_to_the_window() -> void:
 	var p := _perf()
-	assert_eq(p._prime_reads() >= 0.0, true)
 	for i in 120:  # exactly the 2 s warm-up
 		p._tick(1.0 / 60.0, 1.0 / 60.0)
-	assert_eq(p.avg_fps(), 0.0, "priming adds nothing to the window")
+	assert_eq(p.avg_fps(), 0.0, "warm-up frames are not in the window")
+	assert_eq(p.pre3_text().split(" ").size(), 3, "the 3 worst warm-up frames are tracked")

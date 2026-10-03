@@ -4,7 +4,8 @@ extends CanvasLayer
 ## fade_out() is called once the saved run is resumed; the cover then stays opaque until `boot_fade_stable_frames`
 ## consecutive frames each took under `boot_fade_stable_ms` (the load freeze after the phase starts happens under it), or
 ## `boot_fade_max_s` seconds after fade_out(); then it dissolves over `boot_fade_out_s`. Frame times are wall-clock
-## (Time.get_ticks_usec deltas): they measure the real cost of a frame. Visual only.
+## (Time.get_ticks_usec deltas): they measure the real cost of a frame. Safety: it lifts by itself `boot_fade_max_s * 3`
+## seconds after it exists even if fade_out() never comes. Visual only.
 
 var _rect: ColorRect
 var _requested := false
@@ -12,11 +13,13 @@ var _lifting := false
 var _stable := 0
 var _frames := 0
 var _elapsed := 0.0
+var _since_ready := 0.0
 var _last_usec := 0
 
 func _init() -> void:
 	name = "BootFade"
 	layer = 90
+	process_mode = Node.PROCESS_MODE_ALWAYS  # a paused tree (FocusPause) must not hold the cover up
 
 func _ready() -> void:
 	_rect = ColorRect.new()
@@ -40,7 +43,13 @@ func _process(_delta: float) -> void:
 
 ## One frame of `raw` seconds. Split out so tests can inject frame times.
 func _tick(raw: float) -> void:
-	if not _requested or _lifting or raw <= 0.0:
+	if _lifting or raw <= 0.0:
+		return
+	_since_ready += raw
+	if _since_ready >= Balance.ui.boot_fade_max_s * 3.0:
+		_lift()  # safety: fade_out() never came (a failed boot)
+		return
+	if not _requested:
 		return
 	_frames += 1
 	_elapsed += raw

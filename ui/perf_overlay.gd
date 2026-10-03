@@ -47,7 +47,7 @@ func _ready() -> void:
 	add_child(_label)
 	_frozen_label = Label.new()
 	_frozen_label.theme_type_variation = &"HudLabel"
-	_frozen_label.position = Vector2(12, 1215)
+	_frozen_label.position = Vector2(12, 1190)
 	_frozen_label.add_theme_font_size_override("font_size", 13)
 	_frozen_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_frozen_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY

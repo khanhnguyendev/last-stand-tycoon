@@ -25,6 +25,8 @@ const SCENES: Array[String] = [
 
 ## Temporary nodes built by the last run (tests).
 var built_count := 0
+## World positions the temporary nodes were placed at by the last run (tests check they are inside the frustum).
+var placed: Array[Vector3] = []
 var _slot := 0
 var _origin := Vector3.ZERO
 var _right := Vector3.RIGHT
@@ -32,10 +34,12 @@ var _up := Vector3.UP
 
 ## The music track the saved run resumes into: night, or day for a DAY or CARD_PICK (dawn) resume.
 static func music_for(resume_phase: String) -> StringName:
-	return &"night" if resume_phase == "NIGHT" else &"day"
+	return &"day" if resume_phase in ["DAY", "CARD_PICK"] else &"night"
 
-func run(main: Main) -> void:
+## resume_phase: the saved run's resume_phase ("" for a fresh start: night).
+func run(main: Main, resume_phase := "") -> void:
 	built_count = 0
+	placed.clear()
 	_slot = 0
 	var cam := main.camera_rig.camera
 	var xf := cam.global_transform if cam.is_inside_tree() else cam.transform
@@ -56,20 +60,18 @@ func run(main: Main) -> void:
 	for c in get_children():
 		remove_child(c)
 		c.free()
-	var track := &"night"
-	if main.save_store != null and not main.debug_fresh_start:
-		var r := main.save_store.read()
-		if r.ok:
-			track = music_for(String(r.state.resume_phase))
+	var track := music_for(resume_phase)
 	main.audio_director.register_streams()
 	main.audio_director.preload_music(track)
-	print("WARMUP built=%d track=%s" % [built_count, track])
+	if OS.is_debug_build() or OS.has_feature("profile_overlay"):
+		print("WARMUP built=%d track=%s" % [built_count, track])
 	finished.emit()
 
 func _place(n: Node3D) -> void:
 	add_child(n)
 	# 1 m apart, centred on the view axis, in a row inside the frustum.
 	n.global_position = _origin + _right * (SPREAD * (float(_slot % ROW) - float(ROW - 1) * 0.5)) + _up * (SPREAD * float(_slot / ROW))
+	placed.append(n.global_position)
 	_slot += 1
 	built_count += 1
 

@@ -109,3 +109,29 @@ func test_boot_fade_out_before_ready_is_harmless() -> void:
 	for i in Balance.ui.boot_fade_stable_frames:
 		f._tick(0.016)
 	assert_true(f.is_lifting())
+
+func test_warmup_nodes_sit_inside_the_camera_frustum() -> void:
+	_main()
+	var warmup := Warmup.new()
+	main.add_child(warmup)
+	await warmup.run(main)
+	var cam := main.camera_rig.camera
+	assert_eq(warmup.placed.size(), warmup.built_count)
+	for p in warmup.placed:
+		assert_true(cam.is_position_in_frustum(p), "%s is in view" % p)
+
+func test_music_track_is_night_without_a_phase() -> void:
+	assert_eq(Warmup.music_for(""), &"night")
+
+func test_boot_fade_runs_while_the_tree_is_paused() -> void:
+	assert_eq(_fade().process_mode, Node.PROCESS_MODE_ALWAYS)
+
+func test_boot_fade_safety_cap_lifts_without_fade_out() -> void:
+	var f := _fade()
+	var t := 0.0
+	while t < Balance.ui.boot_fade_max_s * 3.0 - 0.5:
+		f._tick(0.1)
+		t += 0.1
+	assert_false(f.is_lifting())
+	f._tick(0.6)
+	assert_true(f.is_lifting())

@@ -1,6 +1,6 @@
 class_name UrlFlags
 extends RefCounted
-## Query-string flags for debug and profile web builds (S5): audio=0, warmup=0, mute=1, guide=0|1. Release ignores them.
+## Query-string flags for debug and profile web builds (S5): audio=0, warmup=0, perfwarm=<seconds> (perf overlay warm-up length), mute=1, guide=0|1. Release ignores them.
 
 static var _cache: Dictionary = {}
 static var _loaded := false
