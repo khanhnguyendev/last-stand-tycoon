@@ -75,3 +75,28 @@ Two entries sit close to the limit: coin (-2.8 dB) and click (-2.4 dB, peak clam
 
 ## Spike results
 
+
+Task 3a spike (2026-10-03), debug and profile web builds of branch `s5/p1-t03a-spike`, temporary hook (removed before commit).
+Method: both music tracks loaded and registered with `AudioServer.register_stream_as_sample`, timed with `Time.get_ticks_usec()`;
+decoded size = mix rate x 2 channels x 4 bytes x length; `export/pw_audio_spike.mjs` reads `window.LST_AUDIO` (the D-212 shell hook).
+
+| Measure | Result |
+|---|---|
+| Chromium (Playwright 153, desktop 720x1280) AudioContext before any input | `suspended` (from 2-4 s after load) |
+| Same, 1 s after `page.mouse.click` on the canvas centre | `running` (change logged at about 13.4 s, the tap) |
+| iOS Simulator (iPhone 17 Pro, Safari), 25 s, no input | `interrupted` (not `suspended`; treat any state other than `running` as locked) |
+| Registration time, both tracks | 115-124 ms on Chromium (5 runs), 121 ms on the iOS Simulator |
+| Decoded size per track | day 15.7 MB (46.8 s), night 18.9 MB (56.1 s) at 44.1 kHz; 17.1 MB and 20.5 MB at 48 kHz |
+| Decoded total | 34.6 MB at 44.1 kHz (Chromium), 37.7 MB at 48 kHz (iOS); budget 48 MB |
+| Mix rate | 44100 (Chromium), 48000 (iOS Simulator) |
+| Wasm heap before/after | not readable: `HEAP8`, `Module.HEAP8`, `wasmMemory` are all undefined in the 4.7.2 shell; `performance.memory` is quantised (60.3 MB, unchanged) |
+| Underrun or `Audio` console lines | none, in 60 s runs of samples and stream |
+| Mean `proc_ms` (profile build, 7 x 10 s windows, run 1 / run 2) | no music 125.4 / 128.3; samples 128.2 / 132.3; stream 118.2 / 132.1 |
+
+The `proc_ms` numbers come from software WebGL on a desktop, so the scatter (106-159 ms per window) is far larger than
+the 1.0 ms threshold and no stream or sample delta can be read from them; they only show no gross cost.
+
+Decision: `AudioManifest.MUSIC_MODE = &"samples"`. Rule (1) holds: registration under 500 ms and decoded total at most 48 MB.
+Notes for Task 3b: on iOS Safari the unlocked state is `running`, and the locked state may read `interrupted`.
+Playwright's `page.evaluate` and `waitForFunction` carry a user gesture, so any evaluate before the tap makes the context
+`running`; the script uses an init-script state log and no early evaluate.
