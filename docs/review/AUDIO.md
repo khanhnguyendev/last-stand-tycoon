@@ -97,12 +97,18 @@ decoded size = mix rate x 2 channels x 4 bytes x length; `export/pw_audio_spike.
 The `proc_ms` numbers come from software WebGL on a desktop, so the scatter (106-159 ms per window) is far larger than
 the 1.0 ms threshold and no stream or sample delta can be read from them; they only show no gross cost.
 
-Decision: `AudioManifest.MUSIC_MODE = &"samples"`. Rule (1) holds: registration under 500 ms and decoded total at most 48 MB.
-Memory: the peak rose by 37.33 MiB (decoded total 34.6 MiB, plus about 2.7 MiB of other allocation) and the current usage fell
-back to its starting value, so the decoded frames are not kept in Godot's static memory after registration. Registration copies
-frames out of HEAPF32 into Web Audio buffers, so the WASM heap holds a transient copy and never shrinks. The Chromium monitors
-show the peak at about the decoded total; the plan's worst case (peak = decoded total + largest track, about 58 MiB on iOS at
-48 kHz: 37.7 + 20.5) is not contradicted but was not reproduced, so budget for it on iOS.
+Memory: `MEMORY_STATIC_MAX` rose 37.33 MiB while static usage returned to 41.02 MiB, so the WASM-side frames are transient,
+but the WASM heap's high-water mark never shrinks (up to +37 MiB if the heap had no free room). The Web Audio buffers
+(34.6 MiB at 44.1 kHz, 37.7 MiB at 48 kHz) live outside the WASM heap and persist. Total cost of `samples` with both tracks:
+about 72 MiB (Chromium) to 78 MiB (iOS). Evidence: `media/s5/task03a/chromium_rerun_console.txt` (the label shots of the first
+run were not kept; `chromium_gesture_check_*.png` are the gesture check, `ios_before_gesture.png` still shows the label).
+
+Decision (main session, D-212): `AudioManifest.MUSIC_MODE = &"swap"`. Rule (1) passes as written (decoded total ≤ 48 MiB), but
+its intent was the added memory, and that is 72–78 MiB. Rule (2), stream playback, showed no underrun, but its CPU cost cannot
+be read on software WebGL, and in a single-threaded build a stream is mixed on the main thread, so the first-wave stall and any
+long frame would glitch the music; samples were introduced to avoid exactly that. Rule (3) keeps one track registered at a
+time: about 36–41 MiB at most, for one registration of about 60–70 ms (half of the 115–138 ms for both tracks) at each music
+change, which happens at a phase change behind the phase banner. Task 7 measures that hitch on the profile build.
 Notes for Task 3b: on iOS Safari the unlocked state is `running`, and the locked state may read `interrupted`.
 Playwright's `page.evaluate` and `waitForFunction` carry a user gesture, so an evaluate before the tap can make the context
 `running`; `export/pw_audio_spike.mjs` therefore evaluates nothing before the tap. An init script logs
