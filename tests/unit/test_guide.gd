@@ -233,3 +233,117 @@ func test_fight_pointer_follows_its_boar_between_evaluations() -> void:
 	b._update_position()
 	await get_tree().process_frame
 	assert_eq(guide.target_position, b.global_position)
+
+# ---- Task 11: persistence and the Main seam (D-213, Review Focus 1) ----
+
+func _store() -> SettingsStore:
+	var st := SettingsStore.with_dir("user://test_guide_settings")
+	st.wipe_for_tests()
+	st.load_settings()
+	return st
+
+func after_all() -> void:
+	UrlFlags.set_for_tests("")
+	_store()
+
+func test_night_two_saves_guide_done_and_frees_the_guide() -> void:
+	await _boot()
+	var st := _store()
+	main.settings_store = st
+	watch_signals(guide)
+	EventBus.phase_changed.emit(Phase.NIGHT, 1)
+	assert_false(st.guide_done, "night 1 does not complete")
+	assert_false(guide.is_queued_for_deletion())
+	EventBus.phase_changed.emit(Phase.NIGHT, 2)
+	assert_true(st.guide_done)
+	assert_signal_emitted(guide, "completed")
+	assert_true(guide.is_queued_for_deletion())
+	var reread := SettingsStore.with_dir("user://test_guide_settings")
+	reread.load_settings()
+	assert_true(reread.guide_done, "saved to disk")
+
+func test_completion_without_a_store_is_null_safe() -> void:
+	await _boot()
+	assert_null(main.settings_store)
+	watch_signals(guide)
+	EventBus.phase_changed.emit(Phase.NIGHT, 2)
+	assert_signal_emitted(guide, "completed")
+	assert_true(guide.is_queued_for_deletion())
+
+var _seen_rules: Array = []
+var _evals := 0
+
+func _record_eval() -> void:
+	_evals += 1
+	if guide.rule_id != &"":
+		_seen_rules.append(guide.rule_id)
+
+func test_resumed_day_five_without_the_key_shows_nothing_then_completes() -> void:
+	# Review Focus 1: a pre-S5 player with a save and no settings key resumes into DAY of day 5.
+	await _boot()
+	var st := _store()
+	main.settings_store = st
+	var d := GameState.to_dict()
+	d.day = 5
+	d.resume_phase = "DAY"
+	main.phase_controller.resume_from(d)
+	_seen_rules = []
+	_evals = 0
+	guide.evaluated.connect(_record_eval)
+	for i in 150:
+		await get_tree().physics_frame
+	assert_gte(_evals, 8, "the Guide kept evaluating for 2 s")
+	assert_eq(_seen_rules, [], "no rule showed on day 5")
+	assert_false(st.guide_done)
+	EventBus.phase_changed.emit(Phase.NIGHT, 5)
+	assert_true(st.guide_done)
+
+func _bare_main() -> Main:
+	var m := Main.create()
+	add_child_autofree(m)
+	return m
+
+func test_maybe_build_guide_respects_flag_and_done() -> void:
+	var m := _bare_main()
+	m._maybe_build_guide()
+	assert_null(m.guide, "no store, no guide")
+	m.settings_store = _store()
+	UrlFlags.set_for_tests("")
+	m._maybe_build_guide()
+	assert_not_null(m.guide, "fresh device builds")
+	var first := m.guide
+	m._maybe_build_guide()
+	assert_eq(m.guide, first, "never a second one")
+	var count := 0
+	for c in m.get_children():
+		if c is Guide:
+			count += 1
+	assert_eq(count, 1)
+
+func test_maybe_build_guide_skips_when_done_or_flag_zero() -> void:
+	var m := _bare_main()
+	m.settings_store = _store()
+	m.settings_store.guide_done = true
+	UrlFlags.set_for_tests("")
+	m._maybe_build_guide()
+	assert_null(m.guide, "done device builds nothing")
+	UrlFlags.set_for_tests("?guide=1")
+	m._maybe_build_guide()
+	assert_not_null(m.guide, "guide=1 forces it")
+	var m2 := _bare_main()
+	m2.settings_store = _store()
+	UrlFlags.set_for_tests("?guide=0")
+	m2._maybe_build_guide()
+	assert_null(m2.guide, "guide=0 forbids it")
+
+func test_guide_built_before_the_run_starts_reads_nothing() -> void:
+	# The boot path builds the Guide in Main._ready, before start_new_game / resume (S5 Task 11 web check found it).
+	GameState.buildings = {}
+	var m := Main.create()
+	add_child_autofree(m)
+	var g := Guide.new()
+	m.add_child(g)
+	g.setup(m)
+	for i in 5:
+		await get_tree().physics_frame
+	assert_eq(g.rule_id, &"")

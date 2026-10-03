@@ -15,6 +15,7 @@ var _owned := {}
 var _label: Label
 var _warnings: Array = []
 var _scene_query := {}
+var _state_left := 0.0
 
 func _init() -> void:
 	name = "DebugOverlay"
@@ -56,13 +57,23 @@ func _on_first_phase(_phase: int, _day: int) -> void:
 func _apply_scene() -> void:
 	load("res://ui/debug/debug_scenes.gd").apply(_main, _scene_query)
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _main == null:
 		return
+	_publish_state(delta)
 	var wd := _main.world.wave_director
 	_label.text = "seed %d\nday %d  %s\nwave %d  alive %d\nfps %d\n%s" % [GameState.run_seed, GameState.day,
 		Phase.name_of(_main.phase_controller.phase), wd.wave_index, wd.alive_count(),
 		Engine.get_frames_per_second(), "\n".join(_warnings)]
+
+## Web debug only (S5 Task 11): window.LST_STATE = {unlocked, muted, music_id}, once a second, for export/pw_s5_check.mjs.
+func _publish_state(delta: float) -> void:
+	_state_left -= delta
+	if _state_left > 0.0 or not OS.has_feature("web") or _main.audio_director == null:
+		return
+	_state_left = 1.0
+	var a := _main.audio_director
+	JavaScriptBridge.eval("window.LST_STATE=" + JSON.stringify({"unlocked": a.unlocked, "muted": a.muted, "music_id": String(a.music_id)}), true)
 
 ## Bottom-right, inside the safe area, clear of the joystick's edge strips and above the bottom inset.
 func button_rect() -> Rect2:
