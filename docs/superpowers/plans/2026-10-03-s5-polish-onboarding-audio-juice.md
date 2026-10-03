@@ -1329,11 +1329,12 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
   add four shapes to `_shape()` (`tools/render_icons.gd:107`), analytic with the same 4×4 supersampling, each inset
   `IconAtlas.PAD`, each remapped with its own palette list at line 98 (replace the inline ternary with a
   `const SHAPE_PALETTES := {&"backing": [&"diner_cream", &"ink"], &"disc": [&"ink"], &"gear": [&"ink", &"warm_white"],
-  &"stick_ring": [&"ink", &"warm_white"], &"stick_knob": [&"warm_white"], &"guide_arrow": [&"gold", &"ink"]}`):
+  &"stick_ring": [&"ink", &"warm_white"], &"stick_knob": [&"warm_white"], &"guide_arrow": [&"apron_white", &"ink"]}`):
   - gear: an `ink` cog, 8 teeth, with a `warm_white` hub hole;
   - stick_ring: an `ink` disc at 25% alpha with a 6 px `warm_white` rim;
   - stick_knob: a `warm_white` disc at 80% alpha;
-  - guide_arrow: a `gold` down-pointing arrow with a 4 px `ink` outline.
+  - guide_arrow: an `apron_white` down-pointing arrow with a 4 px `ink` outline; it is tinted at draw time (`gold` for
+    the Guide, `enemy_red` for the HUD lane arrows in Task 9).
   Regenerate the atlas (`--atlas-only` per the file header), delete `art/icons/steak.png` and its `.import`. Update
   `tests/unit/test_icons.gd`: `NAMES.size() == 10`, the extra list without `steak`, and a check that each new shape
   cell is not blank. `check_palette` and `check_texture_sizes` must pass (the atlas stays 512×512).
@@ -1474,6 +1475,12 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
 **Spec:** §7 (joystick, HUD, labels), D-216.
 
 **Files:**
+- Modify: `ui/hud/hud.gd` + `ui/hud/hud_icons.gd`: the two lane arrows stop being `Polygon2D` nodes and are drawn by
+  `HudIcons` from the `guide_arrow` cell tinted `enemy_red` (side arrow scaled `arrow_side_scale`), at the positions and
+  rotations `_place_arrows` computes. Task 4 traced the WebGL warnings (`bindBuffer…`, `bufferSubData: no buffer`) to
+  these two `Polygon2D` nodes (`docs/review/WEBGL_WARNINGS.md`); this removes them and one unbatched draw. Keep the
+  `arrows` dictionary as the place tests read visibility, position and rotation (plain data or small Node2D holders,
+  no Polygon2D). Web check: a 100 s Chromium night-1 run shows neither warning.
 - Modify: `ui/joystick/joystick.gd` (`_draw` from atlas cells), `ui/hud/safe_area.gd`
   (`static var override_for_tests: Dictionary = {}`; `insets()` returns a copy of it when it is not empty),
   `ui/hud/hud.gd` (safe-area layout, card-strip gap, label dimming), `ui/world_label/world_label.gd`
