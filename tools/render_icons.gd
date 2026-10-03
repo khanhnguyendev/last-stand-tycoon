@@ -157,9 +157,9 @@ static func _sample(shape: StringName, p: Vector2, half: float) -> Vector4:
 		&"gear":
 			var r := p.length()
 			var ang := atan2(p.y, p.x)
-			# 8 teeth: the outer radius is half at a tooth (cos 8a > 0) and 0.74 half between teeth
+			# 8 teeth: the outer radius is half at a tooth (cos 8a > -0.1) and 0.78 half between teeth
 			var outer := half if cos(8.0 * ang) > -0.1 else half * 0.78
-			if r > outer or r > half:
+			if r > outer:
 				return Vector4()
 			if r < half * 0.3:
 				return Vector4(white.r, white.g, white.b, 1.0)
@@ -187,8 +187,9 @@ static func _sample(shape: StringName, p: Vector2, half: float) -> Vector4:
 
 ## Signed distance (approx, px) to a down-pointing arrow: a shaft over a triangular head, fitted in +-half.
 static func _arrow_sd(p: Vector2, half: float) -> float:
-	var shaft := Vector2(half * 0.28, half * 0.42)
-	var q := (p - Vector2(0.0, -half * 0.5)).abs() - shaft
+	var shaft_c := Vector2(0.0, -half * 0.31)
+	var shaft := Vector2(half * 0.28, half * 0.61)  # runs down into the head so the outline has no seam
+	var q := (p - shaft_c).abs() - shaft
 	var d_shaft := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length() + minf(maxf(q.x, q.y), 0.0)
 	# head: triangle with base y = -0.05 half (half width 0.95 half) and tip y = +half
 	var top := -half * 0.08

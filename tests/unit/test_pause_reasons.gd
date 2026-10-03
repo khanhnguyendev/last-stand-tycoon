@@ -30,7 +30,9 @@ func test_settings_held_across_focus_in() -> void:
 
 func test_settings_held_across_focus_out() -> void:
 	main.add_pause_reason(&"settings")
+	assert_true(get_tree().paused)
 	_focus(true)
+	assert_true(get_tree().paused)
 	main.remove_pause_reason(&"settings")
 	assert_true(get_tree().paused, "focus still holds the pause")
 	_focus(false)
@@ -58,3 +60,10 @@ func test_focus_out_with_settings_held_still_suspends_audio() -> void:
 	_focus(false)
 	assert_false(main.audio_director.suspended)
 	main.remove_pause_reason(&"settings")
+
+func test_freeing_main_while_a_reason_is_held_unpauses() -> void:
+	main.add_pause_reason(&"settings")
+	assert_true(get_tree().paused)
+	remove_child(main)
+	main.free()
+	assert_false(get_tree().paused)

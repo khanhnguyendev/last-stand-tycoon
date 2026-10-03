@@ -1,19 +1,10 @@
 extends GutTest
 
-class TickCounter:
-	extends Node
-	var ticks := 0
-	func _physics_process(_d: float) -> void:
-		ticks += 1
-
 var fp: FocusPause
-var counter: TickCounter
 
 func before_each() -> void:
 	fp = FocusPause.new()
 	add_child_autofree(fp)
-	counter = TickCounter.new()
-	add_child_autofree(counter)
 
 func after_each() -> void:
 	get_tree().paused = false
@@ -38,11 +29,20 @@ func test_window_focus_out_and_in() -> void:
 	assert_false(get_tree().paused)
 
 func test_visibility_hidden_and_visible() -> void:
+	watch_signals(fp)
 	fp.on_visibility_changed(true)
 	assert_true(fp.focus_paused)
+	assert_signal_emitted_with_parameters(fp, "changed", [true])
 	assert_false(get_tree().paused)
 	fp.on_visibility_changed(false)
 	assert_false(fp.focus_paused)
+	assert_signal_emitted_with_parameters(fp, "changed", [false])
+
+func test_two_focus_outs_emit_changed_once() -> void:
+	watch_signals(fp)
+	fp.notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	fp.notification(Node.NOTIFICATION_WM_WINDOW_FOCUS_OUT)
+	assert_signal_emit_count(fp, "changed", 1)
 
 func test_never_touches_a_foreign_pause() -> void:
 	get_tree().paused = true

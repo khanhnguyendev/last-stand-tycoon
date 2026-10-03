@@ -19,7 +19,7 @@ var _last_usec := 0
 func _init() -> void:
 	name = "BootFade"
 	layer = 90
-	process_mode = Node.PROCESS_MODE_ALWAYS  # a paused tree (FocusPause) must not hold the cover up
+	process_mode = Node.PROCESS_MODE_ALWAYS  # a paused tree (Main's pause reasons, D-218) must not hold the cover up
 
 func _ready() -> void:
 	_rect = ColorRect.new()

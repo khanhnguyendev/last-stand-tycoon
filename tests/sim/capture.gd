@@ -36,7 +36,7 @@ func _run() -> void:
 	_bal.ui.shake_enabled = false  # a shot must not catch the camera mid-shake (S5 Task 5)
 	var main = load("res://world/main.gd").create()
 	root.add_child(main)
-	# FocusPause pauses the tree when this window loses focus (D-147). A capture window is rarely focused, and a paused
+	# Main's pause reasons (D-218) pause the tree when this window loses focus (D-147). A capture window is rarely focused, and a paused
 	# game still renders and still fires physics_frame, so the shot would show a frozen state. Remove it.
 	main.focus_pause.free()
 	paused = false

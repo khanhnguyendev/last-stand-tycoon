@@ -14,7 +14,7 @@ const NAMES: Array[StringName] = [
 	&"moon", &"card_archer", &"card_tank",
 ]
 ## Baked shapes: the card backing (the theme's Panel look: cream at 0.95, 4 px ink border, 20 px radius on a 56 px cell,
-## scaled to the cell) and an ink disc. Both are inset PAD px inside their cell so mip filtering never reads a neighbour.
+## scaled to the cell), an ink disc, the gear, the joystick ring and knob, and the guide arrow. All are inset PAD px inside their cell so mip filtering never reads a neighbour.
 const SHAPES: Array[StringName] = [&"backing", &"disc", &"gear", &"stick_ring", &"stick_knob", &"guide_arrow"]
 const PAD := 2
 const PATH := "res://art/icons/atlas.png"
