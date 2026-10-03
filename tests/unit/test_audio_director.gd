@@ -15,6 +15,8 @@ func after_each() -> void:
 	GameState.new_game(0)
 	UrlFlags.set_for_tests("")
 	get_tree().paused = false
+	SettingsStore.with_dir("user://test_dir_audio").wipe_for_tests()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_dir_audio"))
 
 func test_bus_signals_map_to_ids() -> void:
 	EventBus.steak_sold.emit(1, 3)
@@ -107,6 +109,12 @@ func test_mute_persists_and_sets_master() -> void:
 	assert_true(t.muted)
 	s.wipe_for_tests()
 
+func _assert_night_playing(e: AudioDirector) -> void:
+	var playing := e.music_players().filter(func(m): return m.playing)
+	assert_eq(playing.size(), 1)
+	if playing.size() == 1:
+		assert_eq(playing[0].stream, load(AudioManifest.MUSIC[&"night"].path))
+
 func test_mute_before_unlock_review_focus_2() -> void:
 	var s := SettingsStore.with_dir("user://test_dir_audio")
 	s.muted = true
@@ -119,9 +127,11 @@ func test_mute_before_unlock_review_focus_2() -> void:
 	EventBus.phase_changed.emit(Phase.NIGHT, 1)
 	e.set_unlocked()
 	assert_eq(e.music_id, &"night")
+	_assert_night_playing(e)
 	assert_true(AudioServer.is_bus_mute(0))
 	e.set_muted(false)
 	assert_false(AudioServer.is_bus_mute(0))
+	_assert_night_playing(e)
 	s.wipe_for_tests()
 
 func test_suspend_across_phase_change_review_focus_3() -> void:
@@ -143,9 +153,18 @@ func test_audio_flag_disables() -> void:
 	add_child_autofree(e)
 	e.setup(null)
 	e.set_unlocked()
+	e.register_streams()
 	EventBus.sfx_requested.emit(&"throw")
 	assert_eq(e.last_played, [])
 	assert_eq(e.music_id, &"")
+
+func test_suspended_plays_no_sfx() -> void:
+	d.set_suspended(true)
+	EventBus.sfx_requested.emit(&"throw")
+	assert_eq(d.last_played, [])
+	d.set_suspended(false)
+	EventBus.sfx_requested.emit(&"throw")
+	assert_eq(d.last_played, [&"throw"])
 
 func test_focus_pause_changed_suspends() -> void:
 	var m := Main.create()

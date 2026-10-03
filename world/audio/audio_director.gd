@@ -78,6 +78,8 @@ func setup(settings: SettingsStore, auto_unlock := true) -> void:
 ## each track on first use in _set_music (D-212).
 ## Main calls it behind the boot fade.
 func register_streams() -> void:
+	if disabled:
+		return
 	for id in AudioManifest.SFX:
 		var s := _stream(AudioManifest.SFX[id].path)
 		if OS.has_feature("web"):
@@ -94,7 +96,7 @@ func _stream(path: String) -> AudioStream:
 	return _streams[path]
 
 func play(id: StringName) -> void:
-	if disabled or not unlocked or not AudioManifest.SFX.has(id):
+	if disabled or suspended or not unlocked or not AudioManifest.SFX.has(id):
 		return
 	var info: Dictionary = AudioManifest.SFX[id]
 	var now := Time.get_ticks_msec()

@@ -134,3 +134,6 @@ the same build: a track's first play creates two buffers, the registered sample 
 kept) and a playback copy of the same size that is collected after the track stops. Live music bytes after gc: after J
 52,823,568 (night + day + the playing day copy); after N 56,101,968 (night + day + the playing night copy). The switch back to
 night created one music buffer (the playback copy) and no second registration: "night re-registered after N: no".
+Peak before gc at each switch: 72,617,024 bytes of music buffers (76,226,160 bytes of all live buffers) after J, and 72,617,024
+music (76,258,208 total) after N, against the steady state above. The night track's first registration happens at the first tap;
+Task 7's warm-up will move it behind the boot fade.
