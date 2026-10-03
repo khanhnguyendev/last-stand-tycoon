@@ -1955,6 +1955,9 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
   be turned off with `Balance.ui.shake_enabled`. The cooldown gates `diner_damaged` only; `diner_fell` always
   shakes, because both are emitted in one `damage_diner` call.
 - No randomness and no gameplay timing.
+- **Retuned after the Task 4 shot review (2026-10-03):** the spec's kind table read too small at phone size. Now
+  poof size 0.75; hit 4 sparks, size 0.8, life 0.25; dust 3 puffs in `stone`, size 0.7, life 0.45; coin 5 stars, size
+  0.45, life 0.6; sparkle unchanged. The table is `FxField.KINDS` (REVIEW_QUEUE).
 
 **D-215 Warm-up.**
 - Task 7 first attributes the first-wave stall with an A/B on the profile build; the cause was never proven.
