@@ -45,9 +45,13 @@ section named in each task before starting it.
 - **Loading PNGs by path:** always `Image.load_from_file(ProjectSettings.globalize_path(path))`.
 - **CanvasLayer numbers:** HUD 10, Guide 12, card overlay 15, perf 20, settings 25, debug 30, boot fade 90, build label
   100.
-- **URL flags** (`world/url_flags.gd`, Task 3) are read only on web and only in debug or profile builds; release ignores
+- **Safe-area tests:** `SafeArea.override_for_tests` (Task 9 adds it; until then insets are zero off web) is the only
+  way tests and captures set insets; reset it to `{}` in `after_each`.
+- **Time in tests:** `run_tests.sh` runs with `--fixed-fps 60`, so wall-clock time (`Time.get_ticks_msec()`) does not
+  match game time in tests. Timers that tests wait on accumulate `delta`.
+- **URL flags** (`world/url_flags.gd`, Task 3a) are read only on web and only in debug or profile builds; release ignores
   them.
-- **Visual tasks** (4, 5, 6, 8, 9, 10, 11) end with `tools/shots.sh docs/review/media/s5/task<NN>` plus the task's extra
+- **Visual tasks** (4, 5, 6, 8a, 8b, 9, 10, 11) end with `tools/shots.sh docs/review/media/s5/task<NN>` plus the task's extra
   shots, and the main session reviews them at 100% and at 40% against `docs/ART_BIBLE.md`.
 - **Commits:** one per task on the phase branch; message `feat(s5): …` or `docs(s5): …`; trailer = the
   `Co-Authored-By` line from your own session's attribution, then
@@ -57,16 +61,19 @@ section named in each task before starting it.
 
 ## Review Focus
 
+Task numbering: Tasks 3 and 8 are split into 3a/3b and 8a/8b (plan review); spec §10's numbers map to these.
+
 1. **A pre-S5 player with a save but no settings key** resumes into DAY of day 5: the Guide must show nothing, and must
    complete (save `guide_done`) at the next `phase_changed(NIGHT, day ≥ 2)`. Test in Task 11.
 2. **Mute set before unlock:** with `muted == true` loaded from settings, unlock starts the phase's music with the Master
-   bus already muted, and toggling sound on later makes it audible without a restart. Test in Task 3.
-3. **Tab hidden across a phase change:** suspended, then `phase_changed(NIGHT)`; on resume the night track plays and no
-   player stays `stream_paused`. Test in Task 3.
+   bus already muted, and toggling sound on later makes it audible without a restart. Test in Task 3b.
+3. **Tab hidden across a phase change:** suspended, then `phase_changed(NIGHT)`; on resume exactly one music player
+   plays, it holds the night stream at its manifest volume, and no player stays `stream_paused`. Test in Task 3b.
 4. **Gear tapped while the card overlay is open and inside its input guard:** the panel opens, no card is chosen, the
-   joystick does not start; closing the panel leaves the overlay accepting. Test in Task 8.
+   joystick does not start; closing the panel leaves the overlay accepting. Test in Task 8b.
 5. **Window resized to landscape** (1280×720) with the settings panel open and with the Guide's edge arrow showing: both
-   relayout on `size_changed` and stay inside the safe rect. Tests in Tasks 8 and 10.
+   relayout on `size_changed` and stay inside the safe rect, with notch insets set through
+   `SafeArea.override_for_tests`. Tests in Tasks 9 (gear) and 10 (Guide).
 
 ---
 
@@ -156,7 +163,8 @@ section named in each task before starting it.
   `ffprobe -v error -show_entries format=duration -of csv=p=0 <f>` and
   `ffmpeg -hide_banner -nostats -i <f> -af volumedetect -f null - 2>&1 | grep -E 'mean_volume|max_volume'`. Set
   `volume_db = round_to_0.5(CLASS_TARGET_DB[class] - mean_db)`, clamped so `peak_db + volume_db ≤ -1.0`. Music class is
-  `music`.
+  `music`. If the clamp leaves `mean_db + volume_db` more than 3 dB from the target, pick another file from the same
+  pack with the same kind of name, and log the swap in AUDIO.md.
 
 - [ ] **Step 5: Write `art/audio/audio_manifest.gd`.**
 
@@ -286,8 +294,9 @@ section named in each task before starting it.
   	errors.append_array(check_audio_location("res://"))
   ```
 
-- [ ] **Step 8: ASSET_LICENSES rows.** One row per new `assets/` folder, in the existing table format (pack, source URL,
-  licence `CC0`, files used, date). `check_licenses` must pass.
+- [ ] **Step 8: ASSET_LICENSES rows.** One row per new `assets/` folder in the existing columns: Pack, Folder, Source,
+  License (`CC0 1.0`), Added (`2026-10-03`), LICENSE.txt SHA-256 (`shasum -a 256`), Files (non-hidden, non-`.import`
+  files in the folder, including `LICENSE.txt`). `check_licenses` must pass.
 
 - [ ] **Step 9: Write `docs/review/AUDIO.md`.** Sections: "Chosen without listening" (one paragraph: picks are by
   pack and file name, measured length and loudness, and for jingles a pitch contour from an STFT peak tracker; swap any
@@ -460,42 +469,24 @@ section named in each task before starting it.
 - [ ] **Step 3: Run** `./run_tests.sh unit` (PASS), `tools/baseline_diff.sh`.
 - [ ] **Step 4: Commit** (`feat(s5): SettingsStore outside the save (Task 2)`).
 
-### Task 3: Unlock spike, bus layout, UrlFlags, AudioDirector, request hooks, suspend
+### Task 3a: Bus layout, UrlFlags, web shell hook, unlock and playback spike
 
-**Spec:** §3 rows on unlock, playback, mute and request signals; §4.3; §4.4; D-212, D-214, D-218.
+**Spec:** §3 rows on unlock and playback; §4.4; D-212.
 
 **Files:**
-- Create: `world/url_flags.gd`, `world/audio/audio_director.gd`, `default_bus_layout.tres`
-- Modify: `export/web_shell.html` (AudioContext subclass), `world/focus_pause.gd` (add `signal changed(paused: bool)`;
-  emit it in `set_paused` whenever FocusPause's own focus state changes; tree behaviour unchanged until Task 8),
-  `actors/hero/hero.gd` (throw), `actors/enemy/boar.gd` (hit), `world/stations/freezer.gd` (take),
-  `world/stations/counter.gd` (stock), `docs/review/AUDIO.md` (spike results), `art/audio/audio_manifest.gd`
-  (`MUSIC_MODE`)
-- Wiring (hot): `autoload/EventBus.gd` (two signals), `world/main.gd` (director, settings store)
-- Test: `tests/unit/test_audio_director.gd`, `tests/unit/test_focus_pause.gd` (add signal tests), `tests/unit/test_url_flags.gd`
+- Create: `world/url_flags.gd`, `default_bus_layout.tres`, `export/pw_audio_spike.mjs`
+- Modify: `export/web_shell.html` (AudioContext subclass), `docs/review/AUDIO.md` (spike results),
+  `art/audio/audio_manifest.gd` (`MUSIC_MODE`)
+- Test: `tests/unit/test_url_flags.gd`, `tests/unit/test_audio_buses.gd`
 
 **Interfaces:**
-- Produces (EventBus, wiring):
-
-  ```gdscript
-  ## Any system -> AudioDirector. A local event wants a sound (S5 D-214). Never listened to by gameplay.
-  signal sfx_requested(id: StringName)
-  ## Any system -> FxField. A local event wants a particle burst (S5 D-214). Never listened to by gameplay.
-  signal fx_requested(kind: StringName, position: Vector3)
-  ```
-
 - Produces: `UrlFlags.get_flag(name: String) -> String` ("" when absent, off web, or in release);
-  `UrlFlags.set_for_tests(query: String)`.
-- Produces: `class_name AudioDirector extends Node` with `var unlocked := false`, `var muted := false`,
-  `var suspended := false`, `var music_id: StringName = &""`, `var last_played: Array[StringName]` (ring of 16),
-  `var disabled := false` (`?audio=0`), `func setup(settings: SettingsStore, auto_unlock := true) -> void` (off web,
-  `auto_unlock` unlocks at once; tests pass `false` to exercise the locked state), `func play(id: StringName) -> void`,
-  `func set_muted(m: bool) -> void`, `func set_suspended(p: bool) -> void`, `func set_unlocked() -> void`,
-  `func register_streams() -> void`, `const VOICES := 10`, `const RING := 16`.
-- Produces: `FocusPause.changed(paused: bool)`.
+  `UrlFlags.parse(query: String) -> Dictionary`; `UrlFlags.set_for_tests(query: String)`.
+- Produces: `AudioManifest.MUSIC_MODE` set to the spike's choice.
+- Produces: `export/pw_audio_spike.mjs <url>` (prints the AudioContext states before and after a tap).
 
 - [ ] **Step 1: Bus layout.** Create `default_bus_layout.tres` with buses `Master`, `SFX` (send Master), `Music` (send
-  Master). Godot loads `res://default_bus_layout.tres` by default; no `project.godot` change. Add a unit test:
+  Master). Godot loads `res://default_bus_layout.tres` by default; no `project.godot` change. Add `tests/unit/test_audio_buses.gd`:
   `AudioServer.get_bus_index("SFX") >= 0` and `"Music"`.
 
 - [ ] **Step 2: UrlFlags.**
@@ -564,11 +555,49 @@ section named in each task before starting it.
   Pick the music mode: (1) `samples` if registration < 500 ms and decoded total ≤ 48 MB; else (2) `stream` if no
   underrun and mean `proc_ms` +≤ 1.0; else (3) `swap`. Write the numbers and the choice under "Spike results" in
   `docs/review/AUDIO.md`, set `AudioManifest.MUSIC_MODE`, and put the result in the report (the main session appends
-  it to D-212). Remove the spike hook before Step 6. **If the probe never reads `running` after a tap on Chromium,
+  it to D-212). Remove the spike hook before committing. **If the probe never reads `running` after a tap on Chromium,
   stop and report** (escalation: the pre-agreed fallback is the input-release test, which the director then uses on
   web).
 
-- [ ] **Step 5: Write the failing tests** (`tests/unit/test_audio_director.gd`). Use a bare director (no Main) for
+- [ ] **Step 5: Run** unit, sim, `tools/baseline_diff.sh`. **Commit** (`feat(s5): bus layout, UrlFlags, AudioContext hook,
+  playback spike (Task 3a)`) and report the spike numbers and the chosen music mode.
+
+
+### Task 3b: AudioDirector, request hooks, suspend
+
+**Spec:** §3 rows on mute and request signals; §4.3; D-212, D-214, D-218. Review Focus 2 and 3.
+
+**Files:**
+- Create: `world/audio/audio_director.gd`
+- Modify: `world/focus_pause.gd` (add `signal changed(paused: bool)`; emit it in `set_paused` whenever FocusPause's own
+  focus state changes; tree behaviour unchanged until Task 8a), `actors/hero/hero.gd` (throw), `actors/enemy/boar.gd`
+  (hit), `world/stations/freezer.gd` (take), `world/stations/counter.gd` (stock)
+- Wiring (hot): `autoload/EventBus.gd` (two signals), `world/main.gd` (director, settings store)
+- Test: `tests/unit/test_audio_director.gd`, `tests/unit/test_focus_pause.gd` (add signal tests)
+
+**Interfaces:**
+- Consumes: `UrlFlags.get_flag`, `UrlFlags.set_for_tests` (Task 3a), `AudioManifest` (Task 1, `MUSIC_MODE` from 3a),
+  `SettingsStore` (Task 2), the `SFX` and `Music` buses (Task 3a).
+- Produces (EventBus, wiring):
+
+  ```gdscript
+  ## Any system -> AudioDirector. A local event wants a sound (S5 D-214). Never listened to by gameplay.
+  signal sfx_requested(id: StringName)
+  ## Any system -> FxField. A local event wants a particle burst (S5 D-214). Never listened to by gameplay.
+  signal fx_requested(kind: StringName, position: Vector3)
+  ```
+
+- Produces: `UrlFlags.get_flag(name: String) -> String` ("" when absent, off web, or in release);
+  `UrlFlags.set_for_tests(query: String)`.
+- Produces: `class_name AudioDirector extends Node` with `var unlocked := false`, `var muted := false`,
+  `var suspended := false`, `var music_id: StringName = &""`, `var last_played: Array[StringName]` (ring of 16),
+  `var disabled := false` (`?audio=0`), `func setup(settings: SettingsStore, auto_unlock := true) -> void` (off web,
+  `auto_unlock` unlocks at once; tests pass `false` to exercise the locked state), `func play(id: StringName) -> void`,
+  `func set_muted(m: bool) -> void`, `func set_suspended(p: bool) -> void`, `func set_unlocked() -> void`,
+  `func register_streams() -> void`, `const VOICES := 10`, `const RING := 16`.
+- Produces: `FocusPause.changed(paused: bool)`.
+
+- [ ] **Step 1: Write the failing tests** (`tests/unit/test_audio_director.gd`). Use a bare director (no Main) for
   the logic tests and `Main.create()` for the wiring tests:
 
   ```gdscript
@@ -586,6 +615,8 @@ section named in each task before starting it.
 
   func after_each() -> void:
   	AudioServer.set_bus_mute(0, false)
+  	GameState.new_game(0)
+  	UrlFlags.set_for_tests("")
 
   func test_bus_signals_map_to_ids() -> void:
   	EventBus.steak_sold.emit(1, 3)
@@ -599,7 +630,9 @@ section named in each task before starting it.
   	EventBus.guard_knocked_out.emit(&"archer")
   	EventBus.guard_revived.emit(&"archer")
   	EventBus.sfx_requested.emit(&"throw")
-  	assert_eq(d.last_played, [&"coin", &"pickup", &"build_done", &"card_open", &"card_pick", &"horn", &"diner_hit", &"fail", &"guard_down", &"guard_up", &"throw"])
+  	EventBus.enemy_killed.emit(0, &"north", Vector3.ZERO)
+  	EventBus.phase_changed.emit(Phase.DAWN, 1)
+  	assert_eq(d.last_played, [&"coin", &"pickup", &"build_done", &"card_open", &"card_pick", &"horn", &"diner_hit", &"fail", &"guard_down", &"guard_up", &"throw", &"poof", &"dawn"])
 
   func test_gold_delta_sign() -> void:
   	EventBus.gold_changed.emit(10, 10)
@@ -636,6 +669,7 @@ section named in each task before starting it.
   		d.play(&"click")
   		d.debug_clear_gaps()
   	assert_eq(d.sfx_players().size(), AudioDirector.VOICES)
+  	assert_almost_eq(d.sfx_players()[0].pitch_scale, d.last_pitch, 0.0001, "the 11th play reused voice 0")
 
   func test_nothing_before_unlock_then_music() -> void:
   	var e := AudioDirector.new()
@@ -692,6 +726,10 @@ section named in each task before starting it.
   	d.set_suspended(false)
   	for p in d.all_players():
   		assert_false(p.stream_paused)
+  	var playing := d.music_players().filter(func(m): return m.playing)
+  	assert_eq(playing.size(), 1)
+  	assert_eq(playing[0].stream, load(AudioManifest.MUSIC[&"night"].path))
+  	assert_almost_eq(playing[0].volume_db, float(AudioManifest.MUSIC[&"night"].volume_db), 0.01)
 
   func test_audio_flag_disables() -> void:
   	UrlFlags.set_for_tests("?audio=0")
@@ -718,7 +756,7 @@ section named in each task before starting it.
   emits `sfx_requested(&"throw")`; `Boar.take_hit` emits `sfx_requested(&"hit")`; a freezer tick that moved a steak emits
   `&"take"`; a counter tick that moved one emits `&"stock"` (use `watch_signals(EventBus)`). Run — FAIL.
 
-- [ ] **Step 6: Implement the director.**
+- [ ] **Step 2: Implement the director.**
 
   ```gdscript
   class_name AudioDirector
@@ -804,6 +842,12 @@ section named in each task before starting it.
   	if OS.has_feature("web"):
   		for id in AudioManifest.SFX:
   			AudioServer.register_stream_as_sample(_stream(AudioManifest.SFX[id].path))
+
+  ## Loaded once and cached.
+  func _stream(path: String) -> AudioStream:
+  	if not _streams.has(path):
+  		_streams[path] = load(path)
+  	return _streams[path]
   ```
 
   Complete the class:
@@ -816,7 +860,8 @@ section named in each task before starting it.
     play `dawn` when `p == Phase.DAWN`; `_set_music(&"night" if p == Phase.NIGHT else &"day")`.
   - `_on_wave_cleared(w)`: play `wave_clear` only if `_phase == Phase.NIGHT and w < _plan_size - 1`.
   - `_set_music(id)`: always record `music_id = id` when unlocked and not disabled; if suspended, set the new stream on
-    the next player but leave it `stream_paused`; otherwise crossfade over `CROSSFADE_S` with a Tween on `volume_db`
+    the next player at its manifest `volume_db`, `stop()` the old player, then call `play()` and only after it set
+    `stream_paused = true` (so `play()` cannot clear it); otherwise crossfade over `CROSSFADE_S` with a Tween on `volume_db`
     (old to `SILENT_DB` then `stop()`, new from `SILENT_DB` to the manifest `volume_db`). Swap mode
     (`MUSIC_MODE == &"swap"`): unregister the old stream (`AudioServer.unregister_stream_as_sample`) and register the
     new one before playing. Stream mode: set `playback_type = AudioServer.PLAYBACK_TYPE_STREAM` on the music players.
@@ -830,17 +875,18 @@ section named in each task before starting it.
   - `set_muted(m)`: `_apply_mute(m)`; save to settings when not null. `_apply_mute(m)`: `muted = m`;
     `AudioServer.set_bus_mute(0, m)`.
   - `set_suspended(p)`: `suspended = p`; `stream_paused = p` on every player in `_sfx` and `_music`.
-  - Test helpers: `sfx_players()`, `all_players()`, `debug_clear_gaps()` (clears `_last_ms`).
+  - Test helpers: `sfx_players()`, `music_players()`, `all_players()`, `debug_clear_gaps()` (clears `_last_ms`).
 
-- [ ] **Step 7: Hooks.**
+- [ ] **Step 3: Hooks.**
   - `actors/hero/hero.gd` (where `attacker` is created): `attacker.fired.connect(func(_t): EventBus.sfx_requested.emit(&"throw"))`.
-  - `actors/enemy/boar.gd` `take_hit`: after the existing logic, `EventBus.sfx_requested.emit(&"hit")`.
+  - `actors/enemy/boar.gd` `take_hit`: inside its existing `if alive:` branch (line 102), after the existing logic,
+    `EventBus.sfx_requested.emit(&"hit")`.
   - `world/stations/freezer.gd` `_on_tick`: inside `if GameState.move_freezer_to_carry(1) > 0:` emit `&"take"`.
   - `world/stations/counter.gd` `_on_tick`: inside the success branch emit `&"stock"`.
   - `world/focus_pause.gd`: add `signal changed(paused: bool)` and `var focus_paused := false`; in `set_paused(p)`, at the
     top: `if p != focus_paused: focus_paused = p; changed.emit(p)`; keep the existing tree logic below it unchanged.
 
-- [ ] **Step 8: Main wiring (patch).** In `world/main.gd`:
+- [ ] **Step 4: Main wiring (patch).** In `world/main.gd`:
 
   ```gdscript
   var audio_director: AudioDirector
@@ -864,11 +910,11 @@ section named in each task before starting it.
   ```
 
   and in the `else` case (add one) `audio_director.setup(null)` so tests and sims get a working director with no store.
-  In `_boot()`, first line: `audio_director.register_streams()` (Task 7 moves it behind the fade).
+  In `_boot()`, first line: `audio_director.register_streams()` (Task 7 moves it into the warm-up).
 
-- [ ] **Step 9: Run** `./run_tests.sh unit`, `./run_tests.sh sim`, `tools/baseline_diff.sh`. Export the debug web build
+- [ ] **Step 5: Run** `./run_tests.sh unit`, `./run_tests.sh sim`, `tools/baseline_diff.sh`. Export the debug web build
   and run `node export/pw_audio_spike.mjs <url>` once more: `suspended` before the tap, `running` after.
-- [ ] **Step 10: Commit** (non-hot files) and report the wiring patch and the spike numbers.
+- [ ] **Step 6: Commit** (non-hot files) and report the wiring patch.
 
 ---
 
@@ -1087,8 +1133,9 @@ section named in each task before starting it.
   In `test_camera_rig.gd`: update `test_shake_has_cooldown` to the new duration (`Balance.ui.shake_time` still names it);
   add `test_fell_shake_ignores_cooldown` (`damage_diner(1e9)` emits damaged then fell → `shake_count == 2`,
   `camera_rig.shake_amp_now() >= Balance.ui.shake_fell_amp * 0.9`); add `test_shake_disabled`
-  (`shake_enabled = false` → `shake_count` unchanged and camera at rest); keep `test_shake_decays_to_rest` with
-  `shake_fell_time`. Run — FAIL.
+  (`shake_enabled = false` → `shake_count` unchanged and camera at rest); add `test_damaged_after_fell_is_full_strength`
+  (fell shake, wait `shake_fell_time + 0.1`, wait out the cooldown, `damage_diner(5.0)`, then right away
+  `shake_amp_now()` ≈ `Balance.ui.shake_amp`); keep `test_shake_decays_to_rest` with `shake_fell_time`. Run — FAIL.
 
 - [ ] **Step 2: Camera rig.** Replace the shake with:
 
@@ -1108,11 +1155,13 @@ section named in each task before starting it.
   		if _cooldown > 0.0:
   			return
   		_cooldown = Balance.ui.shake_cooldown
-  	if _shake_left <= 0.0:
+  	var idle := _shake_left <= 0.0
+  	if idle:
   		_shake_amp = 0.0
+  		_shake_time = 0.0
   	_shake_amp = maxf(_shake_amp, amp)
   	_shake_left = maxf(_shake_left, time)
-  	_shake_time = maxf(_shake_time if _shake_left > 0.0 else 0.0, time)
+  	_shake_time = maxf(_shake_time, time)
   	shake_count += 1
 
   func shake_amp_now() -> float:
@@ -1120,17 +1169,19 @@ section named in each task before starting it.
   ```
 
   `_on_diner_damaged` calls `shake(Balance.ui.shake_amp, Balance.ui.shake_time, true)`. `_process` uses
-  `shake_amp_now()` in place of `Balance.ui.shake_amp * k`. `_on_state_restored` also zeroes `_shake_amp`.
+  `shake_amp_now()` in place of `Balance.ui.shake_amp * k`. `_on_state_restored` also zeroes `_shake_amp` and `_shake_time`.
 
 - [ ] **Step 3: Local emitters.**
-  - Boar `take_hit`: `EventBus.fx_requested.emit(&"hit", global_position + Vector3(0, AIM_HEIGHT, 0))`.
+  - Boar `take_hit`, inside `if alive:`: `EventBus.fx_requested.emit(&"hit", global_position + Vector3(0, AIM_HEIGHT, 0))`.
   - BuildSpot `_on_tick`: count successful paid ticks in `var _paid_ticks := 0` (reset in `refresh()` when
     `paid == 0`); emit `&"dust"` at `global_position` when `_paid_ticks % Balance.ui.build_dust_every == 0`.
   - Hero: `_process(delta)`: while `is_moving()`, accumulate; every `hero_dust_interval_s` emit `&"dust"` at
     `global_position`. Visual only; no gameplay state.
 - [ ] **Step 4: Reactions node and UI reactions** per the Interfaces list; tweens only on Visual or Control nodes,
   durations from `ui_tuning`. Traveler `hop()`: tween `visual.position.y` up `traveler_hop_m` and back over
-  `traveler_hop_time`; TravelerSpawner calls `hop()` on the traveler it sold to, right after the sale.
+  `traveler_hop_time`; TravelerSpawner calls `hop()` on the traveler it sold to, right after the sale. `hop()` keeps its tween in a var,
+  kills it before starting a new one, and `on_release()` and `begin()` kill it and reset `visual.position.y` to rest (a
+  pooled traveler must never keep the offset).
 - [ ] **Step 5: Wiring (patch):** `world/world.gd` `_ready()` after the FxField: `var reactions := Reactions.new();
   reactions.name = "Reactions"; add_child(reactions)`. `ui_tuning.gd` per Interfaces.
 - [ ] **Step 6: Run** unit, sim, `tools/baseline_diff.sh`; shots `tools/shots.sh docs/review/media/s5/task05`.
@@ -1154,8 +1205,12 @@ section named in each task before starting it.
   - Overlay: after `show_offer([a, b, c])`, panel 2's `modulate.a` is 0 at t = 0 and 1 at t = 0.35 s; its final
     position equals `layout(...)[2].position`; a tap at t = 0.6 s on a panel's final rect chooses it (the hit-test uses
     the final rects, not the animated positions).
-  - HUD: a banner's panel starts `banner_slide_px` above its rest and reaches rest within `banner_in_s + 0.05`.
-- [ ] **Step 2: Implement** with tweens on the Control `position`/`modulate` only; `_rects` stay the final layout.
+  - HUD: a banner's panel starts `banner_slide_px` above its rest (`offset_top`/`offset_bottom`) and reaches rest within
+    `banner_in_s + 0.05`; the label (`hud.banner.modulate.a`) fades from 0 to 1 over `banner_in_s`. The existing
+    `tests/unit/test_hud.gd:183-184` assertion on `banner_panel.modulate.a` stays unchanged and must still pass.
+- [ ] **Step 2: Implement.** Cards: tweens on each panel Control's `position` and `modulate`; `_rects` stay the final
+  layout. Banner: tween the panel's `offset_top`/`offset_bottom` for the slide and `banner.modulate.a` (the label, not
+  the panel) for the fade, because `_tick_banner` writes `banner_panel.modulate.a` every frame (`ui/hud/hud.gd:261,269`).
 - [ ] **Step 3: Run** unit, sim, baseline; shots `docs/review/media/s5/task06` (`cardpick` at 0.1 s and 0.4 s: add
   `--wait=<s>` to capture if missing).
 - [ ] **Step 4: Commit**, report the patch.
@@ -1180,13 +1235,15 @@ section named in each task before starting it.
 Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything is committed.
 
 - [ ] **Step 1: Failing tests** (`tests/unit/test_warmup.gd`):
-  - with a `Main.create()` and a hand-made Warmup: `GameState.to_dict()` and `Rng` stream draws
-    (`Rng.stream(1, 1, &"probe").randi()`) are equal before and after `await warmup.run(main)`; every pool's
+  - with a `Main.create()` and a hand-made Warmup: `GameState.to_dict()` is equal before and after
+    `await warmup.run(main)`; every pool's
     `size` is unchanged; `warmup.get_child_count() == 0` after `finished`; `built_count` ≥ 9 (Boar, steak MultiMesh,
-    knife, arrow, FX MultiMesh, tower L1, fence L1, the character roles, the diner fade material);
+    knife, arrow, FX MultiMesh, tower L1, fence L1, the character roles, the diner fade material). (Rng needs no check:
+    `Rng.stream` is pure, and the existing global-rand ban test covers the rest.)
   - it finishes under `--headless` (the test itself is the proof);
   - `_boot()` without a Warmup completes synchronously: with `main.save_store` a temp `SaveStore.with_dir` and no
-    warmup, `main._boot()` then on the next line `main.phase_controller.phase == Phase.NIGHT`.
+    warmup, `main._boot()` then on the next line `not main.phase_controller.snapshot.is_empty()` and
+    `main.world.wave_director.state != WaveDirector.State.IDLE`.
 - [ ] **Step 2: Implement Warmup.** Place nodes at `camera.global_transform.origin - camera.global_transform.basis.z *
   6.0` spread 1 m apart, inside the frustum. Use the real scenes: `Boar.VISUAL_SCENE`, the knife and arrow projectile
   scenes from `art/pickups/`, `art/env/tower_l1.tscn`, `art/env/fence_l1.tscn`, the role visuals under
@@ -1236,7 +1293,9 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
 
 - [ ] **Step 6: Perf checkpoint** (idle Mac, D-209): profile build of this branch vs a profile build of `main`, 3 runs
   each with `export/perf_night3.sh`: night-3 `avg_fps`, night-3 `worst_ms`, day-3 `avg_fps` (from `day_peak.png`),
-  plus `cpu_idle_before/after`. Write `docs/review/media/s5/perf_p2/README.md` with the 12 readings and medians.
+  plus `cpu_idle_before/after`. Also read desktop draw calls with FX active (a headless-off desktop capture with
+  `--fx=poof` repeated: `RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)`;
+  expect S4's 48 + 1). Write `docs/review/media/s5/perf_p2/README.md` with the readings and medians.
   Gates: night-3 median `avg_fps` ≥ 58; night-3 median `worst_ms` < 60; day-3 median ≥ main's median − 1. If a gate
   fails: report the numbers; do not tune (the main session applies spec §5.4's fallback or the §11 FX cuts).
 - [ ] **Step 7: Commit**, report the patch and the perf table.
@@ -1245,63 +1304,48 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
 
 ## Phase P3: UI (`s5/p3-ui`)
 
-### Task 8: Icon cells, pause reasons, settings layer, gear, panel, New game
+### Task 8a: Icon cells, FocusPause signal-only, pause reasons
 
-**Spec:** §7, D-216, D-217, D-218. Review Focus 4 and 5.
+**Spec:** §7 (icon atlas), §3 row "Who owns pausing?", D-216, D-218.
 
 **Files:**
 - Modify: `tools/render_icons.gd`, `art/icons/atlas.gd`, `art/icons/atlas.png` (+ remove `art/icons/steak.png*`),
-  `tests/unit/test_icons.gd`, `world/focus_pause.gd` (signal-only), `tests/unit/test_focus_pause.gd` (rewritten),
-  `ui/hud/hud.gd` (`arrow_rect()` public, `reserved_rect: Callable`), `ui/debug/debug_overlay.gd` (R →
-  `fresh_start`), `tests/sim/capture.gd` (`--settings=1`)
-- Create: `ui/settings/settings_layer.gd`
-- Wiring (hot): `world/main.gd` (pause reasons, settings layer, `fresh_start`), `balance/ui_tuning.gd`
-- Test: `tests/unit/test_pause_reasons.gd`, `tests/unit/test_settings_layer.gd`
+  `tests/unit/test_icons.gd`, `world/focus_pause.gd` (signal-only), `tests/unit/test_focus_pause.gd` (rewritten)
+- Wiring (hot): `world/main.gd` (pause reasons)
+- Test: `tests/unit/test_pause_reasons.gd`, `tests/unit/test_icons.gd`
 
 **Interfaces:**
-- Produces: `IconAtlas.NAMES` without `&"steak"`, plus `&"gear"`, `&"stick_ring"`, `&"stick_knob"`,
-  `&"guide_arrow"`, `&"ghost_stick"` (append to the end of NAMES before SHAPES; the atlas grows to 5 rows).
+- Produces: `IconAtlas.NAMES` = the current 11 minus `&"steak"` (10 names, unchanged order otherwise);
+  `IconAtlas.SHAPES` = `[&"backing", &"disc", &"gear", &"stick_ring", &"stick_knob", &"guide_arrow"]` (16 cells: the
+  atlas stays 4×4 at 512×512). The ghost joystick is drawn later from `stick_ring` + `stick_knob` + `disc`; there is
+  no `ghost_stick` cell.
 - Produces (Main): `func add_pause_reason(r: StringName) -> void`, `func remove_pause_reason(r: StringName) -> void`,
-  `var pause_reasons := {}`, `func fresh_start() -> void`, `var settings_layer: SettingsLayer`.
-- Produces: `class_name SettingsLayer extends CanvasLayer` (layer 25): signals `opened`, `closed`,
-  `mute_toggled(muted: bool)`, `new_game_requested`; `func gear_rect() -> Rect2`; `func panel_open() -> bool`;
-  `func open() -> void`; `func close() -> void`; `func set_muted_display(m: bool) -> void`; `var confirm_armed := false`;
-  `func button_rects() -> Dictionary` (`&"sound"`, `&"new_game"`, `&"close"`).
-- Produces (ui_tuning): `gear_px := 72.0`, `gear_margin := 16.0`, `settings_panel_size := Vector2(520, 420)`,
-  `settings_button_h := 96.0`, `new_game_confirm_s := 3.0`.
+  `var pause_reasons := {}`.
 
-- [ ] **Step 1: Icon cells.** In `tools/render_icons.gd`, remove the steak icon and add the five cells (gear: an
-  `ink` cog with 8 teeth on a transparent cell; stick_ring: `ink` disc at 25% alpha with a 6 px `warm_white` rim;
-  stick_knob: `warm_white` disc at 80%; guide_arrow: a `gold` down-pointing arrow with a 4 px `ink` outline;
-  ghost_stick: stick_ring + knob offset right plus a small `warm_white` hand/finger dot). Regenerate the atlas
-  (`--atlas-only` per its header) and delete `steak.png`/`.import`. Update `tests/unit/test_icons.gd` (names list,
-  rows = 5). `check_palette` must still pass.
+- [ ] **Step 1: Icon cells.** In `tools/render_icons.gd`, remove the steak icon (its PNG render and its NAMES entry) and
+  add four shapes to `_shape()` (`tools/render_icons.gd:107`), analytic with the same 4×4 supersampling, each inset
+  `IconAtlas.PAD`, each remapped with its own palette list at line 98 (replace the inline ternary with a
+  `const SHAPE_PALETTES := {&"backing": [&"diner_cream", &"ink"], &"disc": [&"ink"], &"gear": [&"ink", &"warm_white"],
+  &"stick_ring": [&"ink", &"warm_white"], &"stick_knob": [&"warm_white"], &"guide_arrow": [&"gold", &"ink"]}`):
+  - gear: an `ink` cog, 8 teeth, with a `warm_white` hub hole;
+  - stick_ring: an `ink` disc at 25% alpha with a 6 px `warm_white` rim;
+  - stick_knob: a `warm_white` disc at 80% alpha;
+  - guide_arrow: a `gold` down-pointing arrow with a 4 px `ink` outline.
+  Regenerate the atlas (`--atlas-only` per the file header), delete `art/icons/steak.png` and its `.import`. Update
+  `tests/unit/test_icons.gd`: `NAMES.size() == 10`, the extra list without `steak`, and a check that each new shape
+  cell is not blank. `check_palette` and `check_texture_sizes` must pass (the atlas stays 512×512).
 
-- [ ] **Step 2: Failing tests** (`tests/unit/test_pause_reasons.gd`, `Main.create()` each):
-  - focus out → paused; panel open → still paused; focus in → still paused (settings); panel close → unpaused;
-  - panel open, focus out, panel close → still paused; focus in → unpaused;
+- [ ] **Step 2: Failing tests** (`tests/unit/test_pause_reasons.gd`, `Main.create()` each; a settings panel does not
+  exist yet, so tests use `main.add_pause_reason(&"settings")` / `remove_pause_reason(&"settings")` directly):
+  - focus out → paused; add `settings` → still paused; focus in → still paused; remove `settings` → unpaused;
+  - add `settings`, focus out, remove `settings` → still paused; focus in → unpaused;
   - focus out, then `main.focus_pause.free()` → unpaused (`focus` cleared on `tree_exiting`);
   - a test sets `get_tree().paused = true` directly with an empty reason set: Main does not overwrite it (no
     reason change happened);
-  - focus out while the panel is open still suspends audio (`audio_director.suspended`).
+  - focus out while `settings` is held still suspends audio (`audio_director.suspended`).
   Rewrite `tests/unit/test_focus_pause.gd`: standalone FocusPause emits `changed(true)` on focus-out / hidden and
   `changed(false)` on focus-in / visible, never touches `get_tree().paused`, keeps `PROCESS_MODE_ALWAYS`; the pause
   behaviour tests move to `test_pause_reasons.gd`; keep `test_main_wires_focus_pause_first`.
-  `tests/unit/test_settings_layer.gd` (with `Main.create()` and the settings layer present):
-  - a `InputEventScreenTouch` press + release at `gear_rect().get_center()` opens the panel and the joystick stays
-    inactive (`main.joystick.is_active() == false`);
-  - Sound toggles `audio_director.muted` and the displayed state;
-  - New game: first tap arms (`confirm_armed`); a second tap before `card_input_guard_s` does nothing; a second tap
-    between `card_input_guard_s` and `new_game_confirm_s` emits `new_game_requested`; after `new_game_confirm_s` the arm
-    expires;
-  - `fresh_start()` wipes the save store (temp `SaveStore.with_dir`), starts a new game (`GameState.day == 1`, phase
-    NIGHT), closes the panel, removes `settings`, and leaves `settings_store.muted` unchanged;
-  - Close closes and unpauses;
-  - Review Focus 4: card overlay open via `EventBus.card_offered.emit([...])` inside its guard; gear tap opens the panel,
-    no `card_chosen` emitted (`watch_signals(EventBus)`); close; overlay `accepting()` after its guard;
-  - Review Focus 5: in a `SubViewport` resized from 720×1280 to 1280×720 with the panel open, every
-    `button_rects()` rect and `gear_rect()` lie inside the safe rect;
-  - the HUD's `arrow_rect()` top is below `gear_rect().end.y`.
   Run — FAIL.
 
 - [ ] **Step 3: FocusPause signal-only.** Remove every `get_tree().paused` write and `_paused_by_focus`; keep
@@ -1311,8 +1355,9 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
 
   ```gdscript
   var pause_reasons := {}
-  var settings_layer: SettingsLayer
 
+  ## S5 D-218: the tree is paused while any reason is held. paused is written only when the set changes between empty
+  ## and not empty, so a test that sets get_tree().paused directly is never overwritten.
   func add_pause_reason(r: StringName) -> void:
   	var was_empty := pause_reasons.is_empty()
   	pause_reasons[r] = true
@@ -1325,6 +1370,68 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
   	if pause_reasons.is_empty():
   		get_tree().paused = false
 
+  func _on_focus_changed(p: bool) -> void:
+  	if p:
+  		add_pause_reason(&"focus")
+  	else:
+  		remove_pause_reason(&"focus")
+  ```
+
+  In `_ready()` after the FocusPause block: `focus_pause.changed.connect(_on_focus_changed)` and
+  `focus_pause.tree_exiting.connect(remove_pause_reason.bind(&"focus"))`.
+
+- [ ] **Step 5: Run** unit, sim, baseline; shots `docs/review/media/s5/task08a` (the `hud` shot only; nothing else
+  changes visibly).
+- [ ] **Step 6: Commit**, report the patch.
+
+### Task 8b: Settings layer, gear, panel, New game
+
+**Spec:** §7, D-216, D-217. Review Focus 4.
+
+**Files:**
+- Create: `ui/settings/settings_layer.gd`
+- Modify: `ui/hud/hud.gd` (`arrow_rect()` public, `reserved_rect: Callable`), `ui/debug/debug_overlay.gd` (R →
+  `fresh_start`), `tests/sim/capture.gd` (`--settings=1`)
+- Wiring (hot): `world/main.gd` (settings layer, `fresh_start`), `balance/ui_tuning.gd`
+- Test: `tests/unit/test_settings_layer.gd`
+
+**Interfaces:**
+- Consumes: `Main.add_pause_reason` / `remove_pause_reason` (8a), `IconAtlas` `gear` and `backing` (8a),
+  `AudioDirector.set_muted` / `muted` (3b), `SettingsStore` (2), `UiTuning.button_press_scale` (6).
+- Produces (Main): `func fresh_start() -> void`, `var settings_layer: SettingsLayer`.
+- Produces: `class_name SettingsLayer extends CanvasLayer` (layer 25): signals `opened`, `closed`,
+  `mute_toggled(muted: bool)`, `new_game_requested`; `func gear_rect() -> Rect2`; `func panel_open() -> bool`;
+  `func open() -> void`; `func close() -> void`; `func set_muted_display(m: bool) -> void`; `var confirm_armed := false`;
+  `func button_rects() -> Dictionary` (`&"sound"`, `&"new_game"`, `&"close"`).
+- Produces (Hud): `func arrow_rect() -> Rect2` (was `_arrow_rect`), `var reserved_rect: Callable`.
+- Produces (ui_tuning): `gear_px := 72.0`, `gear_margin := 16.0`, `settings_panel_size := Vector2(520, 420)`,
+  `settings_button_h := 96.0`, `new_game_confirm_s := 3.0`.
+
+- [ ] **Step 1: Failing tests.** In each test, inject a store so `fresh_start` and mute have one:
+  `main.settings_store = SettingsStore.with_dir("user://test_settings_layer")` (wiped first),
+  `main.save_store = SaveStore.with_dir("user://test_settings_layer_save")`, then
+  `main.audio_director.setup(main.settings_store)`.
+  - a `InputEventScreenTouch` press + release at `gear_rect().get_center()` opens the panel and the joystick stays
+    inactive (`main.joystick.is_active() == false`);
+  - Sound toggles `audio_director.muted` and the displayed state;
+  - New game: first tap arms (`confirm_armed`); a second tap before `card_input_guard_s` does nothing; a second tap
+    between `card_input_guard_s` and `new_game_confirm_s` emits `new_game_requested`; after `new_game_confirm_s` the arm
+    expires;
+  - `fresh_start()` wipes the save store (temp `SaveStore.with_dir`), starts a new game (`GameState.day == 1`, phase
+    NIGHT), closes the panel, removes `settings`, and leaves `settings_store.muted` unchanged;
+  - Close closes and unpauses; Close while unfocused (`focus` held) leaves the tree paused;
+  - Review Focus 4: card overlay open via `EventBus.card_offered.emit([...])` inside its guard; gear tap opens the panel,
+    no `card_chosen` emitted (`watch_signals(EventBus)`); close; overlay `accepting()` after its guard;
+  - in a `SubViewport` resized from 720×1280 to 1280×720 with the panel open, every `button_rects()` rect and
+    `gear_rect()` lie inside the viewport (the notch-inset version of this check is in Task 9);
+  - the HUD's `arrow_rect()` top is below `gear_rect().end.y`.
+  Run — FAIL.
+
+- [ ] **Step 2: Main (patch).**
+
+  ```gdscript
+  var settings_layer: SettingsLayer
+
   ## S5 D-217: wipe the save, start a new game, close the settings panel. Settings (mute, guide) are kept.
   func fresh_start() -> void:
   	if save_store != null:
@@ -1335,46 +1442,51 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
   	phase_controller.start_new_game()
   ```
 
-  In `_ready()` after the FocusPause block: `focus_pause.changed.connect(_on_focus_changed)` (a method:
-  `if p: add_pause_reason(&"focus") else: remove_pause_reason(&"focus")`) and `focus_pause.tree_exiting.connect(func(): remove_pause_reason(&"focus"))`. After
-  the card overlay is added (so its `_input` runs before the overlay's and the joystick's): create `settings_layer`,
-  `add_child`, connect `opened → add_pause_reason(&"settings")`, `closed → remove_pause_reason(&"settings")`,
-  `mute_toggled → audio_director.set_muted`, `new_game_requested → fresh_start`; call
-  `settings_layer.set_muted_display(audio_director.muted)`; set `hud.reserved_rect = settings_layer.gear_rect`.
+  In `_ready()`, after the card overlay is added (so its `_input` runs before the overlay's and the joystick's):
+  create `settings_layer`, `add_child`, connect `opened → add_pause_reason.bind(&"settings")`,
+  `closed → remove_pause_reason.bind(&"settings")`, `mute_toggled → audio_director.set_muted`,
+  `new_game_requested → fresh_start`; call `settings_layer.set_muted_display(audio_director.muted)`; set
+  `hud.reserved_rect = settings_layer.gear_rect`.
 
-- [ ] **Step 5: SettingsLayer.** Built in code, `process_mode = PROCESS_MODE_ALWAYS`. The gear is one Control drawing
+- [ ] **Step 3: SettingsLayer.** Built in code, `process_mode = PROCESS_MODE_ALWAYS`. The gear is one Control drawing
   `IconAtlas` `gear` at `gear_rect()` (top-right: `vp.x - insets.right - gear_margin - gear_px`,
-  `insets.top + gear_margin`). The panel is a `PanelContainer` (theme Panel) centred, with three Labels styled as
-  buttons via the theme (`Button` look drawn with `IconAtlas` `backing` cells, not `draw_style_box`); texts through
+  `insets.top + gear_margin`). The panel is one custom-draw Control that draws the panel and the three button
+  backings from `IconAtlas` `backing` cells (no `draw_style_box`, no PanelContainer), with plain Labels (no stylebox)
+  on top for the texts; texts through
   `tr()`: "Sound: On" / "Sound: Off", "New game", "Tap again to erase", "Close". `_input` hit-tests `gear_rect()` and,
   when open, `button_rects()`, with the `_owned` finger pattern; a press anywhere while open is consumed (so the game
   behind never gets it). On each press: `EventBus.sfx_requested.emit(&"click")` and a press scale tween to
-  `button_press_scale` and back. Relayout on `get_viewport().size_changed`. New game arm uses `Time.get_ticks_msec()`.
+  `button_press_scale` and back. Relayout on `get_viewport().size_changed`. The New game arm accumulates `delta` in `_process` (the layer is
+  `PROCESS_MODE_ALWAYS`, so it counts while paused); never wall-clock time (tests run with `--fixed-fps`).
 
-- [ ] **Step 6: HUD + debug.** `Hud._arrow_rect` → public `arrow_rect()` (update every caller); include
+- [ ] **Step 4: HUD + debug.** `Hud._arrow_rect` → public `arrow_rect()` (update every caller); include
   `reserved_rect.call().end.y` (when set) in the `hud_bottom` max. Debug overlay R: `_main.fresh_start()`.
 
-- [ ] **Step 7: Run** unit, sim, baseline; shots `docs/review/media/s5/task08` plus `--settings=1` (panel open) at
+- [ ] **Step 5: Run** unit, sim, baseline; shots `docs/review/media/s5/task08b` plus `--settings=1` (panel open) at
   720×1280 and 1280×720.
-- [ ] **Step 8: Commit**, report the patch.
+- [ ] **Step 6: Commit**, report the patch.
 
 ### Task 9: Joystick skin, HUD safe-area pass, label dimming
 
 **Spec:** §7 (joystick, HUD, labels), D-216.
 
 **Files:**
-- Modify: `ui/joystick/joystick.gd` (`_draw` from atlas cells), `ui/hud/hud.gd` (safe-area layout from
-  `SafeArea.insets`, `insets_override` for tests, card-strip gap, label dimming), `ui/world_label/world_label.gd`
-  (`add_to_group(&"world_labels")` in `_ready`), `components/occluder_fade.gd` (expose `owns_label(l: Label3D) -> bool`
-  if `_labels` is not already reachable)
+- Modify: `ui/joystick/joystick.gd` (`_draw` from atlas cells), `ui/hud/safe_area.gd`
+  (`static var override_for_tests: Dictionary = {}`; `insets()` returns a copy of it when it is not empty),
+  `ui/hud/hud.gd` (safe-area layout, card-strip gap, label dimming), `ui/world_label/world_label.gd`
+  (`add_to_group(&"world_labels")` in `_ready`), `components/occluder_fade.gd`
+  (`func owns_label(l: Node) -> bool: return get_parent().is_ancestor_of(l)`: `_labels` is filled only while faded,
+  so it cannot answer this), `tests/sim/capture.gd` (`--insets=t,r,b,l` sets `SafeArea.override_for_tests`)
 - Wiring (hot): `balance/ui_tuning.gd` (`strip_gap_px := 12.0`, `label_dim_alpha := 0.15`, `label_dim_grow_px := 8.0`,
   `label_dim_hz := 4.0`)
 - Test: `tests/unit/test_hud_layout.gd`, `tests/unit/test_joystick.gd`
 
 - [ ] **Step 1: Failing tests.**
-  - For insets `{0,0,0,0}`, `{top: 88, bottom: 68, left: 0, right: 0}` (notch portrait) and
-    `{top: 0, bottom: 42, left: 88, right: 88}` (notch landscape at 1280×720): every HUD block's global rect (coin and
-    gold label, the top column, the card strip, the gear from the settings layer) lies inside the safe rect.
+  - For insets set through `SafeArea.override_for_tests`: `{top: 0, …}`, `{top: 88, bottom: 68, left: 0, right: 0}`
+    (notch portrait) and `{top: 0, bottom: 42, left: 88, right: 88}` (notch landscape, SubViewport 1280×720): every HUD
+    block's global rect (coin and gold label, the top column, the card strip, the gear from the settings layer) lies
+    inside the safe rect, after a `size_changed` relayout. With the settings panel open in the landscape case, every
+    `button_rects()` rect lies inside the safe rect (Review Focus 5).
   - The card strip's top is `strip_gap_px` below `max(coin row bottom, diner bar bottom)` when the strip has cards.
   - A WorldLabel placed so its screen point falls inside the top column's rect gets `modulate.a == label_dim_alpha`
     within 0.3 s; moved away, 1.0; the diner board label (owned by OccluderFade) is never changed by the dimmer.
@@ -1399,7 +1511,20 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
 **Files:**
 - Create: `core/edge_clamp.gd`, `core/guide_rules.gd`, `ui/guide/guide.gd`, `art/fx/pointer.tscn` (+ a small
   `art/fx/pointer_mesh.gd` builder if no suitable mesh exists)
-- Modify: `ui/hud/hud.gd` (`_place_arrows` uses `EdgeClamp`), `components/node_pool.gd` (`active_nodes() -> Array`)
+- Modify: `ui/hud/hud.gd` (`_place_arrows` uses `EdgeClamp`)
+- Wiring (hot): `balance/ui_tuning.gd`:
+
+  ```gdscript
+  ## S5 Task 10 (spec 6): the Guide. Evaluation period, extra inset of its edge rect, world pointer height and bounce,
+  ## the walk that clears `move`, the ghost stick's swipe loop.
+  @export var guide_eval_s := 0.25
+  @export var guide_rect_inset_px := 40.0
+  @export var guide_pointer_h := 2.2
+  @export var guide_bounce_m := 0.25
+  @export var guide_bounce_hz := 1.5
+  @export var guide_move_m := 2.0
+  @export var guide_swipe_s := 1.0
+  ```
 - Test: `tests/unit/test_edge_clamp.gd`, `tests/unit/test_guide_rules.gd`, `tests/unit/test_guide.gd`
 
 **Interfaces:**
@@ -1408,14 +1533,17 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
 - Produces: `GuideRules.evaluate(s: Dictionary) -> Dictionary` → `{rule_id: StringName, target_id: StringName,
   target_position: Vector3}`; `GuideRules.TEXT := {&"move": "Drag to move", …}` (keys only; the Guide wraps with
   `tr()`).
-- Produces: `class_name Guide extends Node`; `signal evaluated`; `var rule_id: StringName`, `var target_id: StringName`,
+- Consumes: `NodePool.active()` (exists, `components/node_pool.gd:49`), `IconAtlas` `guide_arrow`, `stick_ring`,
+  `stick_knob`, `disc` (8a), `Hud.arrow_rect()` (8b), `SafeArea.override_for_tests` (9).
+- Produces: `class_name Guide extends Node`; `signal evaluated`; `func debug_force(rule_id: StringName) -> void` (debug
+  capture only: shows that rule's text and pointer at a fixed target); `var rule_id: StringName`, `var target_id: StringName`,
   `var target_position: Vector3`; `func setup(main: Main) -> void`; `func snapshot() -> Dictionary`;
   `func evaluate_now() -> void`; `var walked := 0.0`; `signal completed`.
 
   Snapshot keys (all plain values): `phase: int`, `day: int`, `hero_xz: Vector2`, `walked: float`,
   `attack_range: float`, `boars: Array` of `{xz: Vector2, remaining: float, spawn_index: int, pos: Vector3}`,
   `steaks: Array` of `Vector3`, `carried: int`, `carry_capacity: int`, `freezer: int`, `counter: int`,
-  `counter_capacity: int`, `gold: int`, `gold_pile: int`, `spots: Array` of `{id: String, remaining: int,
+  `counter_capacity: int`, `gold: int`, `gold_pile: int`, `move_m: float` (from `Balance.ui.guide_move_m`), `spots: Array` of `{id: String, remaining: int,
   next_cost: int, pos: Vector3}` in `MapLayout.SPOT_IDS` order, `should_pulse: bool`.
 
 - [ ] **Step 1: Edge clamp, test first.** Move the maths from `ui/hud/hud.gd:301-313`:
@@ -1443,7 +1571,8 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
   `_s(over: Dictionary) -> Dictionary` (defaults: phase DAY, day 2, everything 0, hero at HOME, attack_range 4,
   carry 6, counter_capacity 12, no boars, no steaks, spots with `remaining` 20/20/20/40/40 and `next_cost` equal,
   `should_pulse` false) and asserts:
-  - NIGHT day 1, walked 0 → `move`, target_id `&""`;
+  - every `GuideRules.TEXT` value has at most 3 words (spec §1.2);
+  - NIGHT day 1, walked 0 (move_m 2) → `move`, target_id `&""`;
   - walked 3, a boar at 10 m → `fight` targeting the boar with the smallest `remaining`; two equal `remaining` → lower
     `spawn_index`;
   - a boar within 4 m → not `fight` (and not `grab`, since a boar is alive) → empty rule;
@@ -1473,26 +1602,29 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
 
 - [ ] **Step 3: Guide node, test first** (`tests/unit/test_guide.gd`, `Main.create()` + `start_new_game(20260930)` +
   a Guide built by the test with `setup(main)`):
-  - `snapshot()` matches GameState and positions (`steaks` from `main.world.steak_pool.active_nodes()` global
+  - `snapshot()` matches GameState and positions (`steaks` from `main.world.steak_pool.active()` global
     positions; `boars` from `wave_director.alive_enemies()` with `remaining = b.path_length() - b.dist`;
     `should_pulse` from `Pulse.should_pulse(GameState.to_dict(), Balance.data)`);
   - `walked` sums `hero.velocity` length × physics delta in `_physics_process`, so `hero.teleport` adds nothing; it
     resets on `state_restored`;
-  - the Guide evaluates every 0.25 s (`evaluated` emitted ~4 times in 1 s);
+  - the Guide evaluates every `guide_eval_s` (`evaluated` emitted ~4 times in 1 s, counted in game time);
   - off-screen: hero at `NIGHT1_START`, force a DAY day-2 snapshot with the freezer as target (set GameState: phase via
     `debug_skip_to_day`, `freezer_steaks = 10`): the edge arrow is visible, inside `hud.arrow_rect().grow(-40)`, its
     rotation points toward the freezer's screen point (dot product of the arrow's down vector and the direction > 0.9);
     the label rect lies inside that rect;
+  - Review Focus 5: with `SafeArea.override_for_tests` notch insets and the SubViewport at 1280×720, the edge arrow and
+    the label stay inside `hud.arrow_rect().grow(-guide_rect_inset_px)`;
   - on screen: the world pointer is visible above the target and the edge arrow hidden;
   - every Control under the Guide has `mouse_filter == MOUSE_FILTER_IGNORE`;
-  - Review Focus 5: resized to 1280×720 in a SubViewport, the edge arrow and label stay inside the rect.
   The Guide draws: CanvasLayer 12; label (theme `HudCounter`, text `tr(GuideRules.TEXT[rule_id])`); edge arrow and
-  ghost joystick as one custom-draw Control using `IconAtlas` cells; the world pointer (`art/fx/pointer.tscn`, an
-  unshaded `gold` arrow mesh, bouncing 0.25 m at 1.5 Hz in `_process`) placed 2.2 m above `target_position`. `move`
-  shows the ghost stick at the lower third centre with a 1 s horizontal swipe loop and no world pointer.
+  ghost joystick as one custom-draw Control using `IconAtlas` cells (the ghost stick = `stick_ring` + `stick_knob` + a
+  small `disc` fingertip on the knob); the world pointer (`art/fx/pointer.tscn`, an unshaded `gold` arrow mesh, bouncing
+  `guide_bounce_m` at `guide_bounce_hz` in `_process`) placed `guide_pointer_h` above `target_position`. `move` shows
+  the ghost stick at the lower third centre with a `guide_swipe_s` horizontal swipe loop and no world pointer. Every
+  number comes from `Balance.ui`.
 - [ ] **Step 4: Run** unit, sim, baseline; shots `docs/review/media/s5/task10` with a capture option `--guide=<id>`
-  that forces a rule display (debug only) for each of the 8 rules, including `take` from `NIGHT1_START` (off-screen).
-- [ ] **Step 5: Commit**.
+  that calls `guide.debug_force(id)` (debug only) for each of the 8 rules, including `take` from `NIGHT1_START` (off-screen).
+- [ ] **Step 5: Commit**, report the patch.
 
 ### Task 11: Ghost joystick, persistence, Main wiring, guide sim, web checks
 
@@ -1514,19 +1646,26 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
     itself; `phase_changed(NIGHT, 1)` does not.
   - Review Focus 1: resume (from a fixture dict) into DAY day 5 with `guide_done == false`: `rule_id` stays empty for
     2 s; the next `phase_changed(NIGHT, 5)` completes it.
-  - Main builds a Guide in the boot path only when `settings_store.guide_done` is false and
-    `UrlFlags.get_flag("guide") != "0"`, and always when it is `"1"` (debug).
-- [ ] **Step 2: Main (patch).** In `_ready()`'s `auto_start` block after the settings store loads:
+  - `Main._maybe_build_guide()`: with an injected `main.settings_store` (`SettingsStore.with_dir`), it builds a Guide
+    only when `guide_done` is false and `UrlFlags.get_flag("guide") != "0"`, and always when the flag is `"1"`
+    (set with `UrlFlags.set_for_tests`); it never builds a second one.
+- [ ] **Step 2: Main (patch).**
 
   ```gdscript
-  		var flag := UrlFlags.get_flag("guide")
-  		if flag == "1" or (flag != "0" and not settings_store.guide_done):
-  			guide = Guide.new()
-  			add_child(guide)
-  			guide.setup(self)
+  var guide: Guide
+
+  ## S5 D-213: the onboarding pointer, only for a device that has not finished it (or forced by ?guide=1 on debug).
+  func _maybe_build_guide() -> void:
+  	if guide != null or settings_store == null:
+  		return
+  	var flag := UrlFlags.get_flag("guide")
+  	if flag == "1" or (flag != "0" and not settings_store.guide_done):
+  		guide = Guide.new()
+  		add_child(guide)
+  		guide.setup(self)
   ```
 
-  with `var guide: Guide` at the top. The Guide reads `main.settings_store` for completion (null-safe: tests without a
+  Called from the `auto_start` block after `settings_store.load_settings()`. The Guide reads `main.settings_store` for completion (null-safe: tests without a
   store skip saving).
 - [ ] **Step 3: GuideBot.**
 
@@ -1561,8 +1700,9 @@ Steps 1–4 implement the warm-up; Step 5 attributes the stall before anything i
   1 m. After the Guide completes (night 2 starts), the bot stands still; the sim ends there.
 - [ ] **Step 4: Sim** (`tests/sim/test_guide_sim.gd`). `SimHarness.start(seed, GuideBot, true)` builds a Guide with
   `setup(main)` and a temp `SettingsStore.with_dir("user://sim_guide")` (wiped first), sets `bot.guide`. Seeds:
-  `20260930` and the first seed ≥ 1 whose `LanePlanner.plan(seed, 1, Balance.data.wave)` has waves 1 and 2 not north
-  (find it in the test with a loop up to 1000 and print it). For each seed:
+  `20260930` and the first seed ≥ 1 whose plan `pl := LanePlanner.plan(seed, 1, Balance.data.wave)` has
+  `pl[1].main != "north" and pl[2].main != "north"` (wave 0 is always north on day 1; find the seed in the test with a
+  loop up to 1000 and print it). For each seed:
   - `run_night()` → `cleared` true, `failed` false; print `diner_frac`;
   - during night 1, connect to `guide.evaluated`; after `move` has first cleared, at every evaluation where some Boar is
     alive and none within `attack_range` of the hero, assert `guide.rule_id == &"fight"`;
