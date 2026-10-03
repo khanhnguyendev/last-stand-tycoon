@@ -84,7 +84,7 @@ func _end() -> void:
 	_input_api.set_move(Vector2.ZERO)
 	queue_redraw()
 
-## D-147: a paused tree drops the touch release, so end the stick when FocusPause pauses.
+## D-147: a paused tree drops the touch release, so end the stick when the tree pauses (Main's pause reasons, D-218).
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_PAUSED and is_active():
 		_end()
