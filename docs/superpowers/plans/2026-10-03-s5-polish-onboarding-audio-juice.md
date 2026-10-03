@@ -1222,6 +1222,9 @@ Task numbering: Tasks 3 and 8 are split into 3a/3b and 8a/8b (plan review); spec
 **Files:**
 - Create: `world/warmup.gd`, `ui/boot_fade.gd`
 - Modify: `components/occluder_fade.gd` (expose `fade_material_for_warmup() -> Material` returning one faded copy)
+- Modify: `world/audio/audio_director.gd` (`func preload_music(id: StringName) -> void`: on web, registers that music
+  stream as a sample if `MUSIC_MODE` is `&"lazy"` and it is not registered yet; no-op off web; a unit test covers the
+  off-web no-op and that the stream is cached)
 - Wiring (hot): `world/main.gd` (`_boot`), `balance/ui_tuning.gd` (`boot_fade_out_s := 0.3`)
 - Test: `tests/unit/test_warmup.gd`, `tests/unit/test_resume.gd` (unchanged; must still pass)
 - Media: `docs/review/media/s5/perf_p2/`
