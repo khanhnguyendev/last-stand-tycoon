@@ -1967,6 +1967,17 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 - It uses temporary nodes only: no pools, no PickupField slot, no GameState, no Rng.
 - If `worst_ms` stays at or above 60 with every first-use item warmed, the measured cause becomes a known issue
   for the final review.
+- **Amended (Task 7, 2026-10-03), from measurement.** The perf overlay now records the 3 worst frames with their
+  timing, and with `?perfwarm=4` also the worst frames before its window. Findings (iOS Simulator, profile build,
+  `docs/review/media/s5/perf_p2/README.md`):
+  - The "first-wave stall" was mislabelled. The night-3 worst frame landed 0.1–0.2 s after the overlay's own 2 s
+    warm-up boundary, before any wave; part of it was the overlay's first-time work at that boundary.
+  - The real cost is a load freeze after the phase starts: about 2.1 s without the warm-up and about 0.85 s with it,
+    after the boot fade had already lifted. Without the warm-up there are also 95–129 ms first-use frames after wave
+    0 starts; with it there are none above 43 ms.
+  - So the warm-up stays, and the boot fade now stays opaque until it sees 10 consecutive frames under 50 ms (at most
+    4 s), so the remaining load freeze happens under the fade. The overlay reads its monitors during its warm-up too,
+    so its boundary costs nothing new.
 
 **D-216 HUD pass.**
 - Positions only: safe-area placement, the card strip clear of the diner bar, world labels dimmed (snapped to
