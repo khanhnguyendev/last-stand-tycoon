@@ -1918,8 +1918,10 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
   counts Web Audio buffers (`export/pw_audio_swap_check.mjs`) showed that dropping every reference to the old track
   does not free its buffer, and switching back registers the track again: `swap` leaks one track per music change.
   So the only non-leaking sample modes keep both tracks. `lazy` registers each track the first time it plays (night
-  at the first tap, day at the first dawn) and keeps it: about 36 MB of persistent buffers at 44.1 kHz (39 MB at
-  48 kHz), with the two 60–70 ms registrations at different moments. Stream playback stays rejected (main-thread mixing
+  at the first tap, day at the first dawn) and keeps it. Measured in Chromium
+  (`export/pw_audio_music_check.mjs`): 36.3 MB of registered buffers plus one playback copy of the playing track,
+  about 53–56 MB steady (44.1 kHz), and switching back reuses the registered sample. The two 60–70 ms registrations
+  fall at different moments. Stream playback stays rejected (main-thread mixing
   glitches on long frames). The 48 MB limit was this spec's own guess, not a platform limit; the measured cost goes to
   REVIEW_QUEUE for the phone check.
 - One toggle mutes the Master bus and is saved at once.
