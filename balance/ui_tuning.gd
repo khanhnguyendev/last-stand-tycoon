@@ -102,3 +102,12 @@ extends Resource
 @export var night_sun_energy := 0.55
 @export var night_ambient := Color(0.36, 0.40, 0.58)
 @export var night_bg := Color("2a4a35")
+
+## S5 Task 7 (D-215): the boot fade-out time (s).
+@export var boot_fade_out_s := 0.3
+
+## S5 Task 7 (D-215 amendment): after the phase starts the boot fade stays opaque until this many consecutive frames are each
+## under boot_fade_stable_ms, or boot_fade_max_s seconds after fade_out() was called; then it fades over boot_fade_out_s.
+@export var boot_fade_stable_frames := 10
+@export var boot_fade_stable_ms := 50.0
+@export var boot_fade_max_s := 4.0
