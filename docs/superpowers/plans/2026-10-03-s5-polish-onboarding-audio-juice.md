@@ -1175,8 +1175,11 @@ Task numbering: Tasks 3 and 8 are split into 3a/3b and 8a/8b (plan review); spec
   - Boar `take_hit`, inside `if alive:`: `EventBus.fx_requested.emit(&"hit", global_position + Vector3(0, AIM_HEIGHT, 0))`.
   - BuildSpot `_on_tick`: count successful paid ticks in `var _paid_ticks := 0` (reset in `refresh()` when
     `paid == 0`); emit `&"dust"` at `global_position` when `_paid_ticks % Balance.ui.build_dust_every == 0`.
-  - Hero: `_process(delta)`: while `is_moving()`, accumulate; every `hero_dust_interval_s` emit `&"dust"` at
-    `global_position`. Visual only; no gameplay state.
+  - Hero: `_process(delta)`: while `is_moving()`, accumulate; every `hero_dust_interval_s` emit `&"dust"` behind the
+    hero, opposite its velocity, at about y 0.15–0.2 (`global_position - velocity.normalized() * 0.4 + Vector3(0, 0.18,
+    0)`): at the feet the ground clips it and the body hides it (Task 4 review). Visual only; no gameplay state.
+  - Shots: add `--fx-offset=x,y,z` to `tests/sim/capture.gd` (default `0,0.5,0`) and retake `fx_dust.png` with
+    `--fx-offset=0.8,0.2,0`; no dust shot so far shows cell 3 rendered.
 - [ ] **Step 4: Reactions node and UI reactions** per the Interfaces list; tweens only on Visual or Control nodes,
   durations from `ui_tuning`. Traveler `hop()`: tween `visual.position.y` up `traveler_hop_m` and back over
   `traveler_hop_time`; TravelerSpawner calls `hop()` on the traveler it sold to, right after the sale. `hop()` keeps its tween in a var,
