@@ -1,0 +1,23 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked,stations
+1,0.633,0,18,36,108,tower_nw:0|tower_ne:0|fence_w:0|fence_n:0|fence_e:0,18,77.1,118.3,8,tank:1,0,tank,counter:0|freezer:0
+2,0.517,0,24,48,144,tower_nw:1|tower_ne:0|fence_w:1|fence_n:1|fence_e:1,24,105.8,129.1,12,tank:2,0,tank,counter:0|freezer:0
+3,0.883,0,31,62,186,tower_nw:1|tower_ne:1|fence_w:1|fence_n:1|fence_e:2,31,97.9,157.6,13,hero_damage:1|tank:2,0,hero_damage,counter:0|freezer:1
+4,0.850,0,36,72,216,tower_nw:1|tower_ne:2|fence_w:1|fence_n:1|fence_e:2,36,97.3,198.1,9,hero_damage:1|tank:3,0,tank,counter:0|freezer:1
+5,0.950,0,43,86,258,tower_nw:2|tower_ne:2|fence_w:2|fence_n:2|fence_e:1,43,90.8,237.4,27,hero_damage:1|archer:1|tank:3,0,archer,counter:0|freezer:1
+6,0.400,0,50,100,300,tower_nw:3|tower_ne:2|fence_w:2|fence_n:2|fence_e:1,50,95.4,242.9,27,hero_damage:1|archer:1|tank:4,0,tank,counter:0|freezer:1
+7,0.567,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:2|fence_n:3|fence_e:1,56,99.3,258.7,13,hero_damage:1|attack_speed:1|archer:1|tank:4,0,attack_speed,counter:1|freezer:1
+8,0.867,0,63,126,378,tower_nw:3|tower_ne:3|fence_w:2|fence_n:3|fence_e:3,63,104.8,257.8,31,hero_damage:1|attack_speed:1|archer:2|tank:4,0,archer,counter:1|freezer:1
+9,0.567,0,68,136,408,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,68,110.7,273.8,49,hero_damage:1|attack_speed:1|archer:2|tank:5,0,tank,counter:2|freezer:2
+10,0.150,1,72,144,432,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,72,115.4,225.3,101,hero_damage:2|attack_speed:1|archer:2|tank:5,0,hero_damage,counter:2|freezer:3
+11,0.632,1,75,150,450,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,75,116.4,250.4,11,hero_damage:3|attack_speed:1|archer:2|tank:5,0,hero_damage,counter:3|freezer:3
+12,0.802,2,78,156,468,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,78,116.2,217.3,199,hero_damage:4|attack_speed:1|archer:2|tank:5,0,hero_damage,counter:3|freezer:3
+13,0.498,2,81,162,486,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,81,118.7,225.7,205,hero_damage:4|attack_speed:1|archer:3|tank:5,0,archer,counter:3|freezer:4
+14,0.807,3,82,164,492,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,82,114.9,218.5,177,hero_damage:5|attack_speed:1|archer:3|tank:5,0,hero_damage,counter:4|freezer:4
+SWEEP first_fail_day=10 hard_break_day=-1 target=10±1
+RETRIES days=14 median=0.0 max_before_day8=0 max=3 target_ok=true
+WARNING: 22 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 8 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)

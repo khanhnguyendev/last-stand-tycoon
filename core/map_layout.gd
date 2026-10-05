@@ -40,7 +40,7 @@ const COUNTER := Vector2(0, 4.8)
 const COUNTER_SIZE := Vector2(3, 1)
 const COUNTER_DROP := Vector2(2.2, 4.8)
 const SERVICE_POINT := Vector2(0, 6.0)
-## Slots 0-3: the S1 diagonal. Slots 4-8 (E1, D-230): a second row just north of the road, filling eastward, so an
+## Slots 0-3: the S1 diagonal. Slots 4-8 (E1, D-230): a second row on the road's north edge (the strip spans ROAD_Z ± 1.0), filling eastward, so an
 ## arriving traveler never walks through the queue and the whole line is on screen from the counter.
 const QUEUE_SLOTS := [Vector2(0, 6.0), Vector2(-1.2, 7.0), Vector2(-2.4, 8.0), Vector2(-3.6, 9.0),
 	Vector2(-3.0, 10.3), Vector2(-1.8, 10.3), Vector2(-0.6, 10.3), Vector2(0.6, 10.3), Vector2(1.8, 10.3)]

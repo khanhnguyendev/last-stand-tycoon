@@ -2083,3 +2083,31 @@ Reversible; goes to `docs/REVIEW_QUEUE.md` when it ships.
 - `WaypointGraph.create_default()` is frozen; `UpgraderBot` extends its own copy.
 - Built-in save migrations live in a constant table, so tests that clear `SaveCodec.MIGRATIONS` cannot remove them.
 - The guide ignores stations; the sign pulse counts them.
+
+## 2026-10-05: E1 build (subagent-driven; rulings by the main session)
+
+**D-231 E1 build decisions.**
+- **Tables unchanged.** Sim 6.1 on seed 20260930: travelers served in 60 s per counter level 0 to 5 = 16, 20, 24, 29, 33,
+  38 (gains 25, 20, 21, 14, 15%; minimum 8%). No tuning round was needed.
+- **Sim 6.2:** DAY phase 1 with the planner takes 108.4 s at counter level 0 and 77.3 s at level 3.
+- **Upgrader sweep, 14 days, against the planner baseline** (`docs/review/media/e1/sweep_upgrader_<seed>.*`):
+
+  | Seed | first_fail_day (upgrader / planner) | hard break | Day 8 to 14 day length (upgrader / planner) | Unspent gold at day 14 | Stations at day 14 |
+  |---|---|---|---|---|---|
+  | 20260930 | 10 / 10 | none / none | 173 to 206 s / 313 to 380 s | 627 / 2312 | counter 5, freezer 5 |
+  | 11 | 11 / 11 | none / none | 186 to 211 s / 299 to 380 s | 157 / 1822 | counter 5, freezer 5 |
+  | 777 | 10 / 10 | none / none | 217 to 274 s / 298 to 385 s | 177 / 1102 | counter 4, freezer 4 |
+
+  The break day does not move: the upgrader buys defense first. Late days are 30 to 50% shorter. The first station
+  level lands on day 2 or 3 (freezer), the first counter level between day 3 and day 7.
+- **One payment rule** (`GameState._pay_towards`) and **one paid-tick feedback** (`PayFx`) are shared by build spots and
+  stations; the plan's line-for-line copies were replaced after review. Behaviour of build spots is unchanged
+  (`baseline identical`).
+- **Pads show the station's name** above the cost. A number alone did not say which station a pad upgrades.
+- **A saved `paid` at or above the next cost is clamped to `cost - 1` on load** (spec 5.5 amended): a later cost
+  reduction never loses a save or bricks a pad.
+- **Built-in migrations are a `match` in `SaveCodec._built_in`**, not a constant table (a constant cannot hold a
+  Callable). A hook entry in `MIGRATIONS` still overrides it.
+- **Phase 2 ran Tasks 5, 6, 7 in parallel** (D-136) at the author's request; Task 8b (tuning) was skipped as not needed.
+- **Traveler pool: 31** (`StationEffects.traveler_pool_size`), up from 8. Visual order of traveler looks changes.
+- **Queue slots 4 to 8 stand on the road's north edge** (z 10.3; the strip spans z 10 to 12).
