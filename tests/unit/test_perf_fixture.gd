@@ -52,3 +52,13 @@ func test_closeup_fixture_resumes_into_day() -> void:
 	main.phase_controller.resume_from(_decode("night3_closeup").state)
 	assert_true(_events.has([Phase.DAY, 3]), "phase_changed(DAY, 3) emitted: %s" % [_events])
 	assert_eq(GameState.day, 3)
+
+func test_the_level_5_day_fixture_loads() -> void:
+	var text := FileAccess.get_file_as_string("res://export/fixtures/day3_counter5.save.json")
+	assert_ne(text, "", "generate it: make_save.gd -- --fixture=day3_counter5")
+	var r := SaveCodec.decode(text, GameState.SCHEMA_VERSION, Balance.data)
+	assert_true(r.ok, r.reason)
+	assert_eq(String(r.state.resume_phase), "DAY")
+	assert_eq(int(r.state.day), 3)
+	assert_eq(int(r.state.stations.counter.level), Balance.data.stations.max_level)
+	assert_gt(int(r.state.counter_steaks), 0, "stocked")

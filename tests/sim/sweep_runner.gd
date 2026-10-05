@@ -1,5 +1,6 @@
 extends Node
 ## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1-14 by default -> tests/sim/out/sweep.csv.
+## `--bot=upgrader` runs the UpgraderBot and writes `sweep_upgrader.csv` with a `stations` column (E1).
 ## After the SWEEP line it prints a RETRIES line (days, median, max_before_day8, max, target_ok) for the D-184 retries-per-night target.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
 
@@ -7,20 +8,21 @@ func _ready() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	var args := {"seed": "20260930", "days": "14"}
+	var args := {"seed": "20260930", "days": "14", "bot": "planner"}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if kv.size() == 2:
 			args[kv[0]] = kv[1]
 	Balance.reset()
+	var upgrader := String(args.bot) == "upgrader"
 	var holder := Node.new()
 	get_tree().root.add_child(holder)
 	var h := SimHarness.new(holder)
-	h.start(int(args.seed), PlannerBot)
+	h.start(int(args.seed), UpgraderBot if upgrader else PlannerBot)
 	EventBus.steak_sold.connect(_on_sold)
 	EventBus.card_picked.connect(_on_picked)
 	EventBus.guard_knocked_out.connect(_on_knockout)
-	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked"]
+	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked" + (",stations" if upgrader else "")]
 	var first_fail_day := -1
 	var hard_break_day := -1
 	var retries_per_day: Array = []
@@ -50,17 +52,17 @@ func _run() -> void:
 		var night_s := h.elapsed - t0
 		if n.failed:
 			hard_break_day = day
-			rows.append("%d,%.3f,%d,%d,0,0,%s,%d,%.1f,,,%s,%d," % [day, n.diner_frac, retries, n.kills, defending, enemy_count, night_s, _cards(), _knockouts])
+			rows.append("%d,%.3f,%d,%d,0,0,%s,%d,%.1f,,,%s,%d," % [day, n.diner_frac, retries, n.kills, defending, enemy_count, night_s, _cards(), _knockouts] + _stations(upgrader))
 			break
 		# dawn moved the night's steaks to the freezer (freezer + carried, as test_night_sims counts); gold is what the day's sales pay out
 		var steaks := GameState.freezer_steaks + GameState.carried_steaks - stock0
 		_gold_sold = 0
 		var d := await h.run_day()
 		if not d.closed:
-			rows.append("%d,STALL" % day)
+			rows.append("%d,STALL" % day + _stations(upgrader))
 			break
 		rows.append("%d,%.3f,%d,%d,%d,%d,%s,%d,%.1f,%.1f,%d,%s,%d,%s" % [day, n.diner_frac, retries, n.kills, steaks,
-			_gold_sold, defending, enemy_count, night_s, d.seconds, int(h.main.phase_controller.snapshot.gold), _cards(), _knockouts, _picked])
+			_gold_sold, defending, enemy_count, night_s, d.seconds, int(h.main.phase_controller.snapshot.gold), _cards(), _knockouts, _picked] + _stations(upgrader))
 	if EventBus.steak_sold.is_connected(_on_sold):
 		EventBus.steak_sold.disconnect(_on_sold)
 	if EventBus.card_picked.is_connected(_on_picked):
@@ -71,7 +73,7 @@ func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	var gi := FileAccess.open(out_dir.path_join(".gdignore"), FileAccess.WRITE)  # keep Godot from importing out/
 	gi.close()
-	var f := FileAccess.open(out_dir.path_join("sweep.csv"), FileAccess.WRITE)
+	var f := FileAccess.open(out_dir.path_join("sweep_upgrader.csv" if upgrader else "sweep.csv"), FileAccess.WRITE)
 	f.store_string("\n".join(rows) + "\n")
 	f.close()
 	print("\n".join(rows))
@@ -116,3 +118,12 @@ func _builds() -> String:
 	for id in MapLayout.SPOT_IDS:
 		parts.append("%s:%d" % [id, int(GameState.buildings[id].level)])
 	return "|".join(parts)
+
+## "" for the planner (its CSV must stay byte-identical to the S4 baseline); the station levels for the upgrader.
+func _stations(upgrader: bool) -> String:
+	if not upgrader:
+		return ""
+	var parts: Array = []
+	for id in StationEffects.IDS:
+		parts.append("%s:%d" % [id, GameState.station_level(id)])
+	return "," + "|".join(parts)
