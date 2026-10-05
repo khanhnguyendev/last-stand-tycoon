@@ -2098,8 +2098,12 @@ Reversible; goes to `docs/REVIEW_QUEUE.md` when it ships.
   | 11 | 11 / 11 | none / none | 186 to 211 s / 299 to 380 s | 157 / 1822 | counter 5, freezer 5 |
   | 777 | 10 / 10 | none / none | 217 to 274 s / 298 to 385 s | 177 / 1102 | counter 4, freezer 4 |
 
-  The break day does not move: the upgrader buys defense first. Late days are 30 to 50% shorter. The first station
-  level lands on day 2 or 3 (freezer), the first counter level between day 3 and day 7.
+  `first_fail_day` does not move on any seed. Days 8 to 14 are 14 to 53% shorter than the planner's (seed 20260930: 34 to
+  53%; seed 11: 38 to 49%; seed 777: 14 to 41%). The first station level lands on day 2 or 3 (freezer), the first
+  counter level between day 3 and day 7.
+  "Defense first" holds within a day only: station spending removes the gold the planner would carry over, so on some
+  nights of days 4 to 8 the upgrader is one or two fence levels behind. Night 9 on seed 20260930 ends at diner 0.033
+  against the planner's 0.083.
 - **One payment rule** (`GameState._pay_towards`) and **one paid-tick feedback** (`PayFx`) are shared by build spots and
   stations; the plan's line-for-line copies were replaced after review. Behaviour of build spots is unchanged
   (`baseline identical`).
@@ -2111,3 +2115,24 @@ Reversible; goes to `docs/REVIEW_QUEUE.md` when it ships.
 - **Phase 2 ran Tasks 5, 6, 7 in parallel** (D-136) at the author's request; Task 8b (tuning) was skipped as not needed.
 - **Traveler pool: 31** (`StationEffects.traveler_pool_size`), up from 8. Visual order of traveler looks changes.
 - **Queue slots 4 to 8 stand on the road's north edge** (z 10.3; the strip spans z 10 to 12).
+- **CI on the phase 3 head:** `SIM SUITE: 35s (budget 60s)`; sim 6.1 prints the same counts as locally.
+- **Day perf with a level 5 counter (iOS Simulator, profile build, `DAY_FIXTURE=day3_counter5`): NOT a valid gate
+  reading.** The Mac never reached the 75% idle the method requires (other programs of the author's were at about 97%
+  and 57% CPU; idle before each run 60 to 69%), so the absolute numbers cannot be compared with D-221's 52.9 fps.
+  Taken on the same loaded machine, back to back:
+
+  | Fixture | Day avg fps (worst ms) | Night avg fps (worst ms) |
+  |---|---|---|
+  | `day3_counter5`, 3 runs | 39.1 (91), 42.8 (86), 42.5 (98) | 58.3 (109), 59.6 (117), 58.5 (229) |
+  | `night3_closeup` (counter level 0), 1 run | 48.0 (100) | 59.6 (63) |
+
+  What the day shot shows at level 5: the 42 stocked steaks are sold within the window, then 9 travelers stand in the
+  queue (level 0: 4 travelers). Draw calls 81. So a level 5 day costs about 5 to 9 fps against level 0 on this
+  machine and load. It is reported to the author as a known issue, not tuned; an idle-machine re-run is still owed
+  (`docs/review/media/e1/readings_raw.md`, `shots_head/`).
+- **Load time: not measured.** `load_time.mjs` and the emulated Android check failed at launch: Playwright in
+  `~/.cache/lst-playwright` wants Chromium build 1243 and only 1194 is installed. One-time step for the author:
+  `cd ~/.cache/lst-playwright && npx playwright install chromium` (agents never install system components, D-138).
+  The traveler pool went from 8 to 31 prewarmed travelers, so boot time and memory are unmeasured for E1.
+- **Device check:** iOS Simulator (iPhone 17 Pro, Safari) on the preview build: night 1 loads, nothing clipped by the
+  notch (`docs/review/media/e1/device/ios.png`). No Android reading (same Playwright problem).

@@ -1,0 +1,52 @@
+cpu idle 69% < 75%, waiting
+cpu idle 72% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu idle 66% < 75%, waiting
+cpu idle 69% < 75%, waiting
+cpu idle 67% < 75%, waiting
+cpu idle 69% < 75%, waiting
+cpu idle 67% < 75%, waiting
+cpu idle 70% < 75%, waiting
+cpu idle 70% < 75%, waiting
+cpu idle 67% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu idle 67% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu idle 67% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu idle 66% < 75%, waiting
+cpu idle 67% < 75%, waiting
+cpu idle 70% < 75%, waiting
+cpu idle 67% < 75%, waiting
+cpu idle 69% < 75%, waiting
+cpu idle 71% < 75%, waiting
+cpu idle 70% < 75%, waiting
+cpu idle 70% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu idle 69% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu idle 65% < 75%, waiting
+cpu idle 69% < 75%, waiting
+cpu idle 65% < 75%, waiting
+cpu idle 69% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu idle 65% < 75%, waiting
+cpu idle 69% < 75%, waiting
+cpu idle 67% < 75%, waiting
+cpu idle 65% < 75%, waiting
+cpu idle 64% < 75%, waiting
+cpu idle 70% < 75%, waiting
+cpu idle 67% < 75%, waiting
+cpu_idle_before=67%
+cpu_idle_mid=51% phase=day
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 0975DD93-19EA-4AA6-B8B9-BA74952C2040 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/e1-p1-core/docs/review/media/e1/perf_counter5/run3/day_peak.png
+cpu_idle_mid=40% phase=night
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 0975DD93-19EA-4AA6-B8B9-BA74952C2040 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/e1-p1-core/docs/review/media/e1/perf_counter5/run3/night3_80s.png
+ios: docs/review/media/e1/perf_counter5/run3/night3_80s.png
+cpu_idle_after=33%
+EXIT=0
