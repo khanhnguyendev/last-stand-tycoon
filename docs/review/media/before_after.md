@@ -21,3 +21,24 @@ Device shots are web builds in the iOS Simulator and in Playwright's Pixel 7 pro
 | Android (emulated) | [before](before/ios/android_emulated.png) | [after](after/ios/android_emulated.png) | Same, Playwright Pixel 7 profile (emulated, D-141). |
 
 The 40% copies (`*_40.png`) sit beside each full shot.
+
+## S5 additions (Task 12)
+After shots for S5 (`after/` = `tools/shots.sh`, re-rendered on the S5 build 6f9b826). No S5 "before" exists for the new
+screens; the S4 shots above are the before for the shared ones. Web checks of the release build: `../review/media/s5/device_check/`.
+
+| Screen | After | What it shows |
+|---|---|---|
+| Settings, portrait | [after](s5/after/settings_portrait.png) | Cream panel over the dimmed day: Sound: On, New game, Close. |
+| Settings, 1280x720 | [after](s5/after/settings_landscape.png) | Same panel centred in landscape; coin counter and gear stay in the corners. |
+| Guide move | [after](s5/after/guide_move.png) | Night-1 start, "Drag to move" prompt above a joystick ring. |
+| Guide fight | [after](s5/after/guide_fight.png) | "Stay close" with a yellow arrow over the lane. |
+| Guide take | [after](s5/after/guide_take.png) | "Take steaks" with a yellow arrow pointing into the diner floor. |
+| FX poof | [after](s5/after/fx_poof.png) | 8-quad poof 0.1 s old, offset 2 m from the hero. |
+| FX coin | [after](s5/after/fx_coin.png) | Small orange coin burst at the counter offset. |
+| FX hit | [after](s5/after/fx_hit.png) | 4-quad hit spark (shot taken, not individually inspected). |
+| FX sparkle | [after](s5/after/fx_sparkle.png) | Sparkle burst (shot taken, not individually inspected). |
+| FX dust | [after](s5/after/fx_dust.png) | Dust puff (shot taken, not individually inspected). |
+| iOS (release) | [after](s5/device_check/ios.png) | Release build in the Simulator: HUD, settings gear, guide prompt, joystick. |
+| Android (emulated) | [after](s5/device_check/android_emulated.png) | Same on the Pixel 7 profile. |
+
+`--fx=click|stock|take|throw` emit no particles (they are audio-only kinds), so capture.gd exits with an error for them; no shots.

@@ -137,3 +137,20 @@ night created one music buffer (the playback copy) and no second registration: "
 Peak before gc at each switch: 72,617,024 bytes of music buffers (76,226,160 bytes of all live buffers) after J, and 72,617,024
 music (76,258,208 total) after N, against the steady state above. The night track's first registration happens at the first tap;
 Task 7's warm-up will move it behind the boot fade.
+
+## Audio CPU (Task 12)
+Profile build of `s5/p5-results` (6f9b826), Playwright Chromium (Pixel 7 profile, software GL via SwiftShader, `--autoplay-policy=no-user-gesture-required`),
+fixture `night3_start`, 75 s per run, alternating with and without `?audio=0`. Read from the frozen `PERF phase=NIGHT` console line.
+Software GL runs at about 7 fps here, so `proc_ms` is dominated by the renderer and the noise is large (the two `?audio=0` runs differ by 16 ms).
+
+| run | proc_ms | phys_ms | avg_fps | worst_ms |
+|---|---|---|---|---|
+| audio on 1 | 177.85 | 1.13 | 6.7 | 310.8 |
+| audio off 1 | 158.03 | 0.58 | 7.3 | 274.1 |
+| audio on 2 | 165.32 | 1.24 | 7.1 | 303.3 |
+| audio off 2 | 174.08 | 0.57 | 6.7 | 294.9 |
+| **mean on / off** | **171.6 / 166.1** | 1.19 / 0.58 | | |
+
+proc_ms: +5.5 ms with audio on (3%), inside the run-to-run noise, so no audio cost can be read from it. phys_ms is the steadier
+instrument: it is about 0.6 ms higher with audio on in both pairs (audio runs inside the physics tick). The real-device reading
+is the iOS Simulator night-3 table in `docs/review/media/s5/perf_final/README.md`.
