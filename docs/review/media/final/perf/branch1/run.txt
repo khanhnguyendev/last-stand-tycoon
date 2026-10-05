@@ -1,0 +1,11 @@
+cpu_idle_before=79%
+cpu_idle_mid=50% phase=day
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 76EF95E2-ED4D-4632-BAE0-8CFE412BC4E9 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/final/docs/review/media/final/perf/branch1/day_peak.png
+cpu_idle_mid=58% phase=night
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 76EF95E2-ED4D-4632-BAE0-8CFE412BC4E9 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/final/docs/review/media/final/perf/branch1/night3_80s.png
+ios: docs/review/media/final/perf/branch1/night3_80s.png
+cpu_idle_after=65%

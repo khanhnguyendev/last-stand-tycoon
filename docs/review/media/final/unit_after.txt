@@ -1,0 +1,1546 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+---  GUT  ---
+[1m[INFO]:  [0musing [/Users/ryan/Library/Application Support/Godot/app_userdata/Last Stand Tycoon] for temporary output.
+Godot version:  4.7.2
+GUT version:  9.7.1
+[4m
+
+res://tests/unit/test_actor_visual.gd
+[0m* test_base_contract_on_kaykit_base
+* test_flash_mirrors
+* test_face_converges
+* test_face_ignores_zero
+* test_role_scenes_cycle
+* test_kaykit_tree_and_filter
+* test_kaykit_upper_body_filter_keeps_legs
+* test_kaykit_motion_blend_clamped
+* test_kaykit_props_hidden_and_clips_resolve
+* test_kaykit_hit_cooldown
+* test_blob_shadow_scene
+* test_hero_visual_is_a_cook
+* test_hero_visual_within_budget
+* test_chef_hat_is_one_merged_vertex_coloured_surface
+* test_apron_atlas_whitens_only_the_torso_column
+* test_hero_ring_scene
+* test_archer_and_tank_props_and_clips
+* test_role_scenes_within_budget
+* test_role_scenes_hold_only_their_own_models
+[33m    73 Orphans[0m
+[33m        * [Visual:<Node3D#427970007187>(kaykit_visual.gd)] + 26
+        * [Visual:<Node3D#426728493225>(kaykit_visual.gd)] + 22
+        * [Visual:<Node3D#429211521256>(kaykit_visual.gd)] + 22[0m
+* test_guard_atlases_keep_the_hero_and_traveler_colours_out
+* test_tank_is_steel_and_archer_is_green
+* test_traveler_visual_swaps_bodies_and_keeps_animating
+* test_exactly_one_visible_mesh_instance_per_role_visual
+[33m73 orphans[0m
+[1m23/23 passed.
+[0m[4m
+
+res://tests/unit/test_art_materials.gd
+[0m* test_every_surface_uses_a_shared_material
+[1m1/1 passed.
+[0m[4m
+
+res://tests/unit/test_asset_validator.gd
+[0m* test_licenses_ok
+* test_licenses_missing_file_row_count_sha_and_noncc0
+* test_candidates_folder_is_skipped
+* test_licenses_other_underscore_folder_and_loose_file_are_problems
+* test_candidates_skipped_by_every_check
+* test_palette_rule_checks_opaque_pixels_only
+* test_texture_size_rule
+* test_stray_models_rule
+* test_no_enemy_colors_rule
+* test_placeholder_rule
+* test_count_triangles_visible_only
+* test_no_physics_rule
+* test_animation_rule
+* test_count_triangles_hidden_parent_and_mesh_root
+* test_budget_for_longest_prefix
+* test_no_physics_catches_shapes_and_passes_clean_scene
+* test_audio_ok_and_missing_path
+* test_audio_reports_unnamed_file
+* test_audio_reports_total_over_budget
+* test_audio_reports_long_music
+* test_audio_location
+* test_audio_reports_orphan_import
+[1m22/22 passed.
+[0m[4m
+
+res://tests/unit/test_assets.gd
+[0m* test_project_assets_valid
+[1m1/1 passed.
+[0m[4m
+
+res://tests/unit/test_attacker.gd
+[0m* test_fires_immediately_then_on_interval
+* test_moving_mult_slows_rate
+* test_no_target_out_of_range
+* test_dead_target_not_shot
+* test_disabled_does_not_fire
+* test_target_recycled_mid_interval_is_dropped
+* test_projectile_hits_and_releases
+* test_projectile_drops_on_generation_change
+[1m8/8 passed.
+[0m[4m
+
+res://tests/unit/test_audio_buses.gd
+[0m* test_layout_has_three_buses_master_first
+* test_sfx_and_music_buses_exist
+* test_buses_send_to_master
+[1m3/3 passed.
+[0m[4m
+
+res://tests/unit/test_audio_director.gd
+[0m* test_bus_signals_map_to_ids
+* test_gold_delta_sign
+* test_building_changed_plays_nothing
+* test_last_wave_clear_is_silent
+* test_min_gap_drops_repeats
+* test_ring_is_trimmed
+* test_pitch_cycles_the_table
+* test_oldest_voice_reused
+* test_nothing_before_unlock_then_music
+* test_music_follows_phase
+* test_mute_persists_and_sets_master
+* test_mute_before_unlock_review_focus_2
+* test_suspend_across_phase_change_review_focus_3
+* test_audio_flag_disables
+* test_suspended_plays_no_sfx
+* test_focus_pause_changed_suspends
+* test_hero_fire_requests_throw
+* test_boar_take_hit_requests_hit
+* test_freezer_tick_requests_take
+* test_counter_tick_requests_stock
+* test_empty_ticks_are_silent
+* test_music_streams_stay_referenced_and_are_not_reloaded
+* test_preload_music_caches_the_stream_and_registers_nothing_off_web
+[1m23/23 passed.
+[0m[4m
+
+res://tests/unit/test_audio_manifest.gd
+[0m* test_every_entry_meets_its_class_target
+* test_every_id_the_spec_names_exists
+* test_music_loops
+[1m3/3 passed.
+[0m[4m
+
+res://tests/unit/test_autosave.gd
+[0m* test_new_game_writes_its_night_snapshot
+* test_no_writes_at_night
+* test_offer_pick_build_and_day_writes
+* test_close_up_writes_the_restore_point
+[33m    14 Orphans[0m
+[33m        * [Guard_archer:<Node3D#821043402385>(guard.gd)] + 12[0m
+* test_throttled_day_writes
+* test_hidden_flushes_when_dirty
+* test_night1_retry_writes_during_the_fail_flow
+* test_day_fail_restore_writes_the_new_mercy
+* test_main_create_has_no_store
+* test_empty_offer_dawn_writes_day
+* test_nothing_written_during_a_day_snapshot_fail
+* test_throttle_holds_while_paused
+[1m12/12 passed.
+[0m[4m
+
+res://tests/unit/test_bake_static.gd
+[0m* test_one_surface_per_material
+* test_triangle_count_is_the_sum
+* test_aabb_matches_merged_source
+* test_normals_unit_and_outward_on_non_uniform_scale
+* test_negative_scale_keeps_outward_normals_and_winding
+* test_hidden_piece_is_excluded
+* test_deterministic
+* test_uvs_and_colors_are_kept
+* test_index_offsets_across_boxes_on_one_material
+* test_normals_use_the_inverse_transpose
+* test_material_sources_and_order
+* test_uvs_equal_source_and_colors_backfill_white
+* test_non_indexed_array_mesh
+* test_missing_normals_get_flat_face_normals
+* test_deterministic_across_separate_builds
+[1m15/15 passed.
+[0m[4m
+
+res://tests/unit/test_balance.gd
+[0m* test_spec_values_loaded
+* test_reset_discards_mutation
+* test_inject_replaces_data
+* test_inject_ui_semantics
+* test_s2_card_balance_defaults
+* test_s2_guard_balance_defaults
+* test_s2_thresholds_and_ui
+* test_s2_reset_deep_copies_guard_stats
+* test_s3_tuning_defaults
+[1m9/9 passed.
+[0m[4m
+
+res://tests/unit/test_boar.gd
+[0m* test_walks_to_zone_and_hits_diner
+* test_standing_fence_blocks_and_takes_damage
+* test_rubble_does_not_block
+* test_priority_is_data_driven
+* test_death_reports_once
+* test_hp_mult_applies
+* test_listed_but_unregistered_fence_kind_does_not_stall
+* test_reuse_resets_state
+* test_pool_sizes_from_balance
+* test_guard_arm_damages_the_guard_and_stops_the_boar
+* test_mercy_scales_fence_arm_damage
+* test_mercy_scales_guard_arm_damage
+[1m12/12 passed.
+[0m[4m
+
+res://tests/unit/test_boar_visual.gd
+[0m* test_mesh_shape
+* test_tusks_flare_at_55_degrees
+* test_single_mesh_instance
+* test_flash_is_pink_white_not_white
+* test_materials_are_shared
+* test_motion_and_flash_pick_materials
+* test_attack_finishes_within_015
+* test_hit_squash_returns
+* test_die_squashes_body_not_root
+* test_pool_reuse_after_death_mid_lunge_and_flash
+* test_boar_release_then_spawn_is_clean
+* test_boar_registers_in_shadow_field_while_spawned
+[1m12/12 passed.
+[0m[4m
+
+res://tests/unit/test_bots.gd
+[0m* test_bot_walks_route_and_stops_at_goal
+* test_parked_bot_stays_home
+* test_naive_bot_heads_for_main_lane_at_night_start
+* test_route_reset_on_restore
+* test_naive_bot_redecides_right_after_restore
+* test_route_reset_on_hero_placement
+* test_stuck_hero_warns_and_reroutes
+WARNING: BotBase stuck at (-1.167862, -4.400937) -> home
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+* test_naive_bot_picks_most_enemies_then_lane_order
+* test_naive_bot_picks_lane_with_more_enemies
+* test_card_policies
+* test_planner_fills_to_effective_carry_capacity
+* test_fast_hero_arrives_without_overshoot
+* test_bot_picks_one_tick_after_the_offer
+* test_debug_skip_leaves_a_stale_bot_pick_ignored
+[1m14/14 passed.
+[0m[4m
+
+res://tests/unit/test_build_pay.gd
+[0m* test_fence_builds_and_keeps_paying
+* test_partial_payment_persists_after_leaving
+* test_partial_payment_survives_dawn
+* test_pays_only_what_gold_allows
+* test_max_level_spot_takes_nothing
+* test_ring_shows_paid_over_cost
+* test_dawn_inside_zone_needs_reentry
+* test_no_payment_at_night
+[1m8/8 passed.
+[0m[4m
+
+res://tests/unit/test_build_spot_art.gd
+[0m* test_tower_levels_grow_to_the_scale_table
+* test_fence_height_is_the_scale_table
+* test_fence_levels_differ
+* test_every_runtime_scene_is_one_mesh_instance_within_its_target
+* test_triangle_budgets
+* test_ballista_shares_the_tower_atlas
+* test_committed_bakes_match_their_sources
+* test_star_is_one_gold_mesh
+* test_unbuilt_spot_has_no_model
+* test_each_level_swaps_the_model
+* test_no_instancing_on_payment_ticks_or_fence_hits
+* test_level_scale_is_identity_once_the_pop_is_over
+* test_pips_sit_above_the_model_top
+* test_pips_face_the_camera
+* test_marker_only_level0_in_day
+* test_marker_exists_from_setup
+* test_resume_day_shows_saved_level_model
+* test_sign_is_the_baked_model_with_a_world_label
+* test_telegraph_flag_uses_the_enemy_red_override
+* test_lane_gate_stands_at_the_entrance_facing_along_the_lane
+[1m20/20 passed.
+[0m[4m
+
+res://tests/unit/test_build_spots.gd
+[0m* test_five_spots_at_layout_positions
+* test_tower_inactive_until_built
+* test_built_tower_kills_boar
+* test_unbuilt_tower_does_not_shoot
+* test_upgrade_changes_tower_stats
+* test_label_shows_remaining_cost_then_max
+* test_label_after_partial_payment
+* test_restore_into_built_state
+* test_fence_rubble_and_restore
+[1m9/9 passed.
+[0m[4m
+
+res://tests/unit/test_camera_rig.gd
+[0m* test_camera_lens_follows_d145
+* test_snap_matches_camera_math
+* test_shake_has_cooldown
+[33m    --- Awaiting 0.5 seconds  ---
+[0m* test_lens_reapplied_on_resize_d145
+* test_shake_decays_to_rest
+[33m    --- Awaiting 0.5 seconds  ---
+[0m* test_fell_shake_ignores_cooldown
+* test_shake_disabled
+* test_damaged_after_fell_is_full_strength
+[33m    --- Awaiting 0.5 seconds  ---
+[0m[33m    --- Awaiting 0.5 seconds  ---
+[0m[1m8/8 passed.
+[0m[4m
+
+res://tests/unit/test_card_catalog.gd
+[0m* test_ids_kinds_and_order
+* test_every_card_has_text_and_glyph
+* test_level_and_banner_text
+[1m3/3 passed.
+[0m[4m
+
+res://tests/unit/test_card_effects.gd
+[0m* test_level_zero_is_base
+* test_upgrades_at_every_level
+* test_guard_stats_scale_per_level
+[1m3/3 passed.
+[0m[4m
+
+res://tests/unit/test_card_offer.gd
+[0m* test_golden_offers
+* test_first_offer_is_archer_tank_and_one_upgrade_for_any_seed
+* test_zero_level_entries_still_mean_first_offer
+* test_later_offers_are_distinct_and_eligible
+* test_fewer_eligible_means_fewer_cards
+* test_all_maxed_is_empty
+* test_levels_above_max_are_ineligible
+* test_deterministic_per_seed_and_day
+[1m8/8 passed.
+[0m[4m
+
+res://tests/unit/test_card_pick_overlay.gd
+[0m* test_hidden_until_offer_then_panels_match
+* test_tap_release_on_same_panel_picks
+* test_press_one_release_other_does_nothing
+* test_input_guard_ignores_early_taps
+* test_keys_pick_after_guard
+* test_mouse_click_picks_and_emulated_mouse_is_ignored
+* test_held_stick_release_over_panel_does_not_pick
+* test_after_debug_skip_overlay_hides_and_press_reaches_joystick
+* test_pause_then_resume_still_picks
+* test_layout_fits_landscape_and_two_cards
+[33m    14 Orphans[0m
+[33m        * [Guard_archer:<Node3D#3165877443331>(guard.gd)] + 12[0m
+* test_state_restored_hides_the_overlay
+* test_cancelled_touch_does_not_pick
+* test_each_panel_has_a_portrait_of_its_card
+[33m    14 Orphans[0m
+[33m        * [Guard_archer:<Node3D#3249495087786>(guard.gd)] + 12[0m
+* test_card_entrance_fits_input_guard
+* test_card_entrance_fades_rises_and_lands_on_final_rect
+* test_card_entrance_is_staggered
+* test_tap_at_final_rect_after_entrance_picks
+* test_relayout_cancels_the_entrance
+[1m18/18 passed.
+[0m[4m
+
+res://tests/unit/test_card_strip.gd
+[0m* test_empty_at_start
+* test_icons_and_levels_in_catalog_order
+* test_clears_on_new_game
+[33m    28 Orphans[0m
+[33m        * [Guard_archer:<Node3D#3474460776613>(guard.gd)] + 12
+        * [Guard_tank:<Node3D#3468873964412>(guard.gd)] + 12[0m
+* test_hud_icons_are_present
+* test_strip_after_restore_with_cards
+[33m    14 Orphans[0m
+[33m        * [Guard_archer:<Node3D#3526033937120>(guard.gd)] + 12[0m
+* test_every_card_has_an_atlas_cell
+[33m    14 Orphans[0m
+[33m        * [Guard_archer:<Node3D#3548750289570>(guard.gd)] + 12[0m
+[33m56 orphans[0m
+[1m6/6 passed.
+[0m[4m
+
+res://tests/unit/test_character_bake.gd
+[0m* test_every_baked_mesh_is_one_surface_inside_the_budget
+* test_committed_bake_is_current
+* test_hero_pan_and_hat_placement_idle
+    PROP hero pan_A motion 0.0: AABB delta 0.00000 m (size (0.167442, 0.439417, 0.656446))
+    PROP hero ChefHat motion 0.0: AABB delta 0.00000 m (size (0.663023, 0.71736, 0.663023))
+* test_hero_pan_and_hat_placement_running
+    PROP hero pan_A motion 1.0: AABB delta 0.00000 m (size (0.235367, 0.531007, 0.564747))
+    PROP hero ChefHat motion 1.0: AABB delta 0.00000 m (size (0.662251, 0.776587, 0.710594))
+* test_archer_crossbow_placement_idle
+    PROP archer 2H_Crossbow motion 0.0: AABB delta 0.00000 m (size (0.858302, 1.023183, 0.348764))
+* test_archer_crossbow_placement_running
+    PROP archer 2H_Crossbow motion 1.0: AABB delta 0.00000 m (size (0.816065, 0.679565, 0.749083))
+* test_tank_sword_shield_helmet_placement_idle
+    PROP tank Badge_Shield motion 0.0: AABB delta 0.00000 m (size (0.236381, 0.574453, 0.655727))
+    PROP tank 1H_Sword motion 0.0: AABB delta 0.00000 m (size (0.208957, 0.327248, 1.140448))
+    PROP tank Knight_Helmet motion 0.0: AABB delta 0.00000 m (size (0.741272, 0.881322, 0.814625))
+* test_tank_sword_shield_helmet_placement_running
+    PROP tank Badge_Shield motion 1.0: AABB delta 0.00000 m (size (0.246282, 0.712022, 0.732474))
+    PROP tank 1H_Sword motion 1.0: AABB delta 0.00000 m (size (0.178781, 0.794529, 0.871465))
+    PROP tank Knight_Helmet motion 1.0: AABB delta 0.00000 m (size (0.741886, 0.935135, 0.819801))
+* test_prop_uvs_sample_the_colour_the_prop_had
+* test_hero_props_are_retargeted_onto_the_apron_atlas
+* test_a_colour_missing_from_the_role_atlas_fails_with_its_name
+[1m11/11 passed.
+[0m[4m
+
+res://tests/unit/test_coin_mesh.gd
+[0m* test_one_surface_and_few_triangles
+* test_cached
+* test_size_and_material
+* test_vertex_colours_are_only_gold_and_gold_dark
+* test_coin_scene_uses_the_shared_mesh
+[1m5/5 passed.
+[0m[4m
+
+res://tests/unit/test_components.gd
+[0m* test_health_dies_once
+* test_damage_ignores_non_positive
+* test_pool_prewarm_acquire_release
+* test_pool_grows_and_warns
+WARNING: NodePool @Node@48847 grew to 2
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] acquire (res://components/node_pool.gd:20)
+         [1] test_pool_grows_and_warns (res://tests/unit/test_components.gd:46)
+         [2] _run_test (res://addons/gut/gut.gd:622)
+         [3] _test_the_scripts (res://addons/gut/gut.gd:835)
+* test_pool_release_is_idempotent
+[1m5/5 passed.
+[0m[4m
+
+res://tests/unit/test_debug_scenes.gd
+[0m* test_parse
+* test_has_fresh_start_key
+* test_apply_grants_cards_and_opens_pick
+* test_parse_decodes_uri_escapes
+[33m    14 Orphans[0m
+[33m        * [Guard_tank:<Node3D#3775930569670>(guard.gd)] + 12[0m
+* test_deferred_apply_runs_after_the_first_night_starts
+[1m5/5 passed.
+[0m[4m
+
+res://tests/unit/test_diner_art.gd
+[0m* test_diner_instantiates_with_board
+* test_no_physics_and_no_multimesh
+* test_one_mesh_and_surfaces_within_target
+* test_diner_within_triangle_budget
+* test_every_surface_uses_a_shared_material
+* test_roof_top_is_the_archer_perch
+* test_diner_footprint_and_height
+* test_counter_and_freezer_match_their_footprints
+* test_committed_bake_is_current
+* test_tall_vertices_lie_inside_the_occluder_boxes
+[1m10/10 passed.
+[0m[4m
+
+res://tests/unit/test_economy.gd
+[0m* test_level_costs
+* test_drain_per_tick
+* test_night_yield
+* test_economy_check_night1_covers_tower_plus_fence_with_margin
+[1m4/4 passed.
+[0m[4m
+
+res://tests/unit/test_edge_clamp.gd
+[0m* test_inside_point_unchanged
+* test_far_right_lands_on_right_edge
+* test_far_below_lands_on_bottom_edge
+* test_corner_direction_lands_on_boundary
+[1m4/4 passed.
+[0m[4m
+
+res://tests/unit/test_focus_pause.gd
+[0m* test_focus_out_and_in_emit_changed_only
+* test_window_focus_out_and_in
+* test_visibility_hidden_and_visible
+* test_two_focus_outs_emit_changed_once
+* test_never_touches_a_foreign_pause
+* test_process_mode_always
+* test_main_wires_focus_pause_first
+* test_changed_signal_follows_focus
+* test_changed_not_repeated_for_same_state
+[1m9/9 passed.
+[0m[4m
+
+res://tests/unit/test_fx.gd
+[0m* test_fly_is_visual_only_and_releases
+* test_fly_arc_peaks_at_apex
+* test_recall_mid_flight_kills_tween
+* test_wired_world_has_fly_fx
+* test_wired_fly_is_visual_only_and_releases
+* test_freezer_transfer_spawns_fly
+* test_counter_transfer_spawns_fly
+* test_build_pop_overshoots
+* test_hit_flash
+* test_flash_reset_on_release_and_spawn
+* test_night_hides_partial_payment_ring
+* test_night_hides_build_cost_labels
+* test_build_pop_tween_killed_on_refresh
+[1m13/13 passed.
+[0m[4m
+
+res://tests/unit/test_fx_field.gd
+[0m* test_burst_fills_quads
+* test_life_ends_quads
+* test_capacity_never_exceeded_oldest_replaced
+* test_one_multimesh_with_custom_aabb
+* test_deterministic
+* test_listens_to_fx_requested
+* test_unknown_kind_is_ignored
+* test_every_kind_uses_a_known_cell_and_palette_colour
+* test_atlas_is_256x64_with_four_cells
+* test_burst_position_is_world_space_under_a_moved_parent
+* test_idle_field_is_hidden_and_a_burst_shows_it
+* test_oldest_slots_are_replaced_first_lowest_index_first
+* test_gravity_pulls_velocity_down
+[1m13/13 passed.
+[0m[4m
+
+res://tests/unit/test_game_state.gd
+[0m* test_new_game_defaults
+* test_round_trip_identity
+* test_round_trip_through_json_keeps_ints
+* test_from_dict_emits_state_restored
+* test_new_game_emits_state_restored
+* test_carry_capacity_and_transfers
+* test_counter_capacity
+* test_sell_is_atomic_and_partial
+* test_collect_pile
+* test_pay_builds_and_levels
+* test_diner_fell_once
+* test_fence_damage_rubble_and_dawn
+* test_advance_day_makes_new_plan
+* test_new_game_clears_cards
+* test_offer_and_pick
+* test_clear_offer_emits_nothing
+* test_debug_grant_card_drops_a_maxed_card_from_the_restored_offer
+* test_tank_gets_hp_archer_does_not
+* test_damage_knockout_once_then_noop_and_revive
+* test_dawn_heals_guards_with_signal
+* test_card_offered_emits_a_copy
+* test_debug_grant_keeps_an_open_offer
+* test_card_effects_reach_economy
+* test_round_trip_v2_through_json
+* test_night_fails_and_mercy_factor
+* test_round_trip_v3_carries_night_fails
+[1m26/26 passed.
+[0m[4m
+
+res://tests/unit/test_geometry.gd
+[0m* test_helpers
+* test_A_prime_no_reachable_position_hits_all_three_lanes
+    A': 28148 reachable positions, max lanes reached = 2
+    A' info: 2-lane positions per pair = { "west+north": 16, "north+east": 16 }
+    info only: enclosing radius of zone corners = 5.412
+* test_B_towers_reach_adjacent_zones
+* test_C_towers_reach_adjacent_fences
+* test_D_stop_points_inside_zone
+* test_E_paths_clear_towers_and_diner
+* test_home_and_night1_start_are_clear
+* test_fence_spots_match_spec
+* test_zone_axis_matches_end_perp
+* test_offset_blend_never_crosses_centerline
+* test_tank_post_on_west_lane
+* test_every_west_boar_comes_within_reach_of_the_tank
+* test_tank_is_behind_the_fence_stop_and_hits_fence_held_boars
+* test_tank_range_covers_its_attackers
+* test_archer_covers_lane_ends_and_north_east_fence_stops
+* test_tank_return_path_is_clear
+[1m16/16 passed.
+[0m[4m
+
+res://tests/unit/test_glyphs.gd
+[0m* test_nunito_has_all_glyphs
+* test_world_label_uses_nunito
+* test_theme_font_wired
+[1m3/3 passed.
+[0m[4m
+
+res://tests/unit/test_ground_art.gd
+[0m* test_hash_is_deterministic_and_varies
+* test_ground_colours_stay_between_grass_and_grass_dark
+* test_ground_mesh_covers_the_rect_in_one_surface
+* test_ground_faces_up_in_godot_winding
+* test_lane_strip_faces_up_for_every_lane
+* test_edge_stones_flank_the_strip
+* test_ground_cache_returns_the_same_mesh
+* test_world_static_draws
+[1m8/8 passed.
+[0m[4m
+
+res://tests/unit/test_ground_coverage.gd
+[0m* test_ground_rect_contains_bounds
+* test_every_camera_view_hits_ground_inside_rect
+    aspect 0.300 focus (-17.0, -20.0): farthest hit (-29.97269, -72.78909), 49.15 m past bounds
+    aspect 0.300 focus (17.0, 8.0): farthest hit (29.97268, -44.78907), 21.63 m past bounds
+    aspect 0.300 focus (-17.0, 8.0): farthest hit (-29.97268, -44.78907), 21.63 m past bounds
+    aspect 0.300 focus (17.0, -20.0): farthest hit (29.97269, -72.78909), 49.15 m past bounds
+    aspect 0.429 focus (-17.0, -20.0): farthest hit (-35.5081, -72.6787), 50.02 m past bounds
+    aspect 0.429 focus (17.0, 8.0): farthest hit (35.5081, -44.6787), 23.67 m past bounds
+    aspect 0.429 focus (-17.0, 8.0): farthest hit (-35.5081, -44.6787), 23.67 m past bounds
+    aspect 0.429 focus (17.0, -20.0): farthest hit (35.5081, -72.6787), 50.02 m past bounds
+    aspect 0.462 focus (-17.0, -20.0): farthest hit (-33.53552, -63.71957), 40.85 m past bounds
+    aspect 0.462 focus (17.0, 8.0): farthest hit (33.53552, -35.71956), 15.11 m past bounds
+    aspect 0.462 focus (-17.0, 8.0): farthest hit (-33.53552, -35.71956), 15.11 m past bounds
+    aspect 0.462 focus (17.0, -20.0): farthest hit (33.53552, -63.71957), 40.85 m past bounds
+    aspect 0.562 focus (-17.0, -20.0): farthest hit (-30.23261, -48.71829), 25.49 m past bounds
+    aspect 0.562 focus (17.0, 8.0): farthest hit (30.23261, -20.71829), 6.23 m past bounds
+    aspect 0.562 focus (-17.0, 8.0): farthest hit (-30.23261, -20.71829), 6.23 m past bounds
+    aspect 0.562 focus (17.0, -20.0): farthest hit (30.23261, -48.71829), 25.49 m past bounds
+    aspect 1.778 focus (-17.0, -20.0): farthest hit (-58.82975, -48.71828), 42.71 m past bounds
+    aspect 1.778 focus (17.0, 8.0): farthest hit (58.82975, -20.71828), 34.83 m past bounds
+    aspect 1.778 focus (-17.0, 8.0): farthest hit (-58.82975, -20.71828), 34.83 m past bounds
+    aspect 1.778 focus (17.0, -20.0): farthest hit (58.82975, -48.71828), 42.71 m past bounds
+    aspect 2.333 focus (-17.0, -20.0): farthest hit (-71.88522, -48.71215), 53.89 m past bounds
+    aspect 2.333 focus (17.0, 8.0): farthest hit (71.88522, -20.71214), 47.89 m past bounds
+    aspect 2.333 focus (-17.0, 8.0): farthest hit (-71.88522, -20.71214), 47.89 m past bounds
+    aspect 2.333 focus (17.0, -20.0): farthest hit (71.88522, -48.71215), 53.89 m past bounds
+    aspect 3.556 focus (-17.0, -20.0): farthest hit (-58.75613, -34.33702), 36.26 m past bounds
+    aspect 3.556 focus (17.0, 8.0): farthest hit (58.75612, -6.337015), 34.76 m past bounds
+    aspect 3.556 focus (-17.0, 8.0): farthest hit (-58.75612, -6.337015), 34.76 m past bounds
+    aspect 3.556 focus (17.0, -20.0): farthest hit (58.75613, -34.33702), 36.26 m past bounds
+    max distance past bounds over all corners/aspects: 53.89 m
+[1m2/2 passed.
+[0m[4m
+
+res://tests/unit/test_guards.gd
+[0m* test_hire_spawns_guards_at_posts
+* test_upgrade_card_spawns_no_guard
+[33m    28 Orphans[0m
+[33m        * [Guard_archer:<Node3D#4352227939591>(guard.gd)] + 12
+        * [Guard_tank:<Node3D#4353050024493>(guard.gd)] + 12[0m
+* test_archer_is_never_targeted
+* test_archer_kills_a_north_boar
+* test_tank_stops_a_west_boar_and_takes_damage
+* test_boar_walks_on_after_tank_knockout
+* test_knockout_respawn_at_door_then_return
+* test_knockout_and_revive_restore_visual
+* test_guard_bar_is_palette_boxes_outside_the_visual
+[33m    14 Orphans[0m
+[33m        * [Guard_tank:<Node3D#4734698132189>(guard.gd)] + 12[0m
+* test_guard_visual_follows_motion_and_attacks
+* test_hp_bar_follows_signals
+[33m    14 Orphans[0m
+[33m        * [Guard_tank:<Node3D#4828398884297>(guard.gd)] + 12[0m
+* test_respawn_timer_pauses_with_the_tree
+* test_dawn_restores_a_downed_tank
+* test_level_up_reconfigures
+[33m    14 Orphans[0m
+[33m        * [Guard_tank:<Node3D#4935051645522>(guard.gd)] + 12[0m
+* test_occluder_points_include_visible_guards
+* test_priority_fence_then_guard_then_diner
+[33m    28 Orphans[0m
+[33m        * [Guard_archer:<Node3D#4990936551850>(guard.gd)] + 12
+        * [Guard_tank:<Node3D#4991758636091>(guard.gd)] + 12[0m
+[33m28 orphans[0m
+[1m16/16 passed.
+[0m[4m
+
+res://tests/unit/test_guide.gd
+[0m* test_snapshot_matches_the_game
+* test_walked_integrates_velocity_and_ignores_teleports
+* test_evaluates_four_times_a_second_of_game_time
+* test_move_rule_shows_the_ghost_stick_and_no_pointer
+* test_offscreen_target_shows_an_edge_arrow_pointing_at_it
+* test_onscreen_target_shows_the_world_pointer
+* test_landscape_resize_keeps_arrow_and_label_in_the_safe_rect
+* test_every_control_ignores_the_mouse
+* test_layer_is_twelve
+* test_pointer_is_one_surface_one_draw
+* test_debug_force_shows_each_rule
+* test_completes_at_night_two_not_at_night_one
+* test_shows_nothing_while_the_night_is_failing
+* test_fight_pointer_follows_its_boar_between_evaluations
+* test_night_two_saves_guide_done_and_frees_the_guide
+* test_completion_without_a_store_is_null_safe
+* test_resumed_day_five_without_the_key_shows_nothing_then_completes
+* test_maybe_build_guide_respects_flag_and_done
+* test_maybe_build_guide_skips_when_done_or_flag_zero
+* test_guide_built_before_the_run_starts_reads_nothing
+[1m20/20 passed.
+[0m[4m
+
+res://tests/unit/test_guide_rules.gd
+[0m* test_texts_have_at_most_three_words
+* test_move_on_night_one_until_walked
+* test_fight_targets_smallest_remaining
+* test_fight_tie_goes_to_lower_spawn_index
+* test_boar_in_range_is_a_quiet_state
+* test_grab_after_the_kill
+* test_night_two_has_no_rule
+* test_dawn_has_no_rule
+* test_build_picks_lowest_next_cost_then_order
+* test_maxed_spot_is_not_build
+* test_build_target_is_stable_while_paying
+* test_collect_when_the_pile_makes_a_spot_affordable
+* test_collect_yields_to_take_when_filling_up_at_the_freezer
+* test_collect_with_empty_hands_and_nothing_to_take
+* test_take_cases
+* test_take_waits_for_room_for_a_full_load
+* test_take_reachable_when_carry_exceeds_counter
+* test_stock_not_when_counter_full
+* test_close_only_on_pulse
+* test_day_five_shows_nothing
+* test_collect_clause_one_cases
+[1m21/21 passed.
+[0m[4m
+
+res://tests/unit/test_hero.gd
+[0m* test_moves_at_speed
+* test_blocked_by_diner
+* test_still_time_counts
+* test_magnet_picks_steaks_up_to_capacity
+* test_magnet_collects_gold_pile
+* test_starts_at_home
+* test_move_speed_card_applies
+* test_attack_cards_reconfigure_attacker_and_restore_resets
+* test_input_blocked_in_dawn_only
+* test_visual_and_ring_are_siblings
+[33m    14 Orphans[0m
+[33m        * [Guard_archer:<Node3D#5846692009773>(guard.gd)] + 12[0m
+* test_visual_follows_motion_and_stands_still
+* test_attack_fires_the_throw_and_dawn_cheers
+[1m12/12 passed.
+[0m[4m
+
+res://tests/unit/test_hero_combat.gd
+[0m* test_hero_kills_boar_in_range
+* test_projectile_never_hits_recycled_boar
+* test_projectile_in_flight_never_hits_reused_boar_same_index
+* test_is_moving_false_on_tick_after_teleport
+* test_attacker_uses_is_moving_from_hero
+[1m5/5 passed.
+[0m[4m
+
+res://tests/unit/test_hud.gd
+[0m* test_gold_label_follows_gold
+* test_moons_fill_and_reset
+* test_day_label_and_moons_visibility
+* test_arrows_hidden_when_night_ends_mid_wave
+* test_moons_match_lane_plan
+* test_diner_bar
+* test_banner_shows_then_hides
+* test_arrows_follow_wave_events_and_stay_on_screen
+* test_safe_area_insets_non_negative_and_applied
+* test_safe_area_reapplied_on_resize
+* test_offscreen_arrow_is_pinned_inside_root_space
+* test_banner_is_horizontally_centred_and_wraps
+* test_top_column_is_centred_at_any_width
+* test_diner_bar_shake_returns_to_rest
+* test_diner_bar_is_visible_with_real_size_and_styles
+* test_banner_has_readable_backing
+* test_arrows_stay_below_the_top_hud
+* test_second_banner_shortens_the_first_then_plays_in_full
+* test_queued_banners_play_in_order
+* test_queue_survives_state_restored
+* test_arrow_rect_top_clears_the_hud
+* test_empty_card_strip_does_not_push_the_arrow_rect_down
+[33m    14 Orphans[0m
+[33m        * [Guard_tank:<Node3D#6619635128320>(guard.gd)] + 12[0m
+* test_hover_point_is_clamped_below_the_hud
+[33m    14 Orphans[0m
+[33m        * [Guard_tank:<Node3D#6646797441717>(guard.gd)] + 12[0m
+* test_card_strip_lists_owned_cards_in_catalog_order
+[33m    14 Orphans[0m
+[33m        * [Guard_tank:<Node3D#6677667517678>(guard.gd)] + 12[0m
+* test_day_label_shows_new_day_on_offer
+* test_queued_banner_shown_late_plays_min_time
+* test_moon_tint_lit_and_unlit_after_a_wave_clears
+* test_banner_slides_down_and_label_fades_in
+* test_banner_rest_offsets_are_stable_across_banners
+[1m29/29 passed.
+[0m[4m
+
+res://tests/unit/test_hud_layout.gd
+[0m* test_blocks_inside_safe_rect_no_insets
+* test_blocks_inside_safe_rect_notch_portrait
+* test_blocks_inside_safe_rect_notch_landscape
+* test_settings_buttons_inside_safe_rect_landscape
+* test_resize_portrait_to_landscape_relayouts_inside_the_safe_rect
+* test_card_strip_gap_below_coin_row_and_diner_bar
+* test_label_under_top_column_dims_and_recovers
+* test_label_owned_by_occluder_fade_is_never_dimmed
+* test_safe_area_override_returns_a_copy
+* test_lane_arrows_are_not_polygons_and_are_drawn_by_hud_icons
+[1m10/10 passed.
+[0m[4m
+
+res://tests/unit/test_icons.gd
+[0m* test_every_card_icon_exists_and_is_256
+* test_hud_icons_exist_and_are_256
+* test_icons_are_loadable_textures
+* test_icons_are_on_the_palette
+* test_only_the_heart_uses_enemy_colours
+* test_every_icon_is_substantial
+* test_atlas_is_a_grid_of_every_icon
+* test_atlas_cell_matches_its_icon_file
+* test_atlas_only_uses_the_enemy_colours_in_the_heart_cell
+* test_every_shape_cell_is_not_blank
+[1m10/10 passed.
+[0m[4m
+
+res://tests/unit/test_joystick.gd
+[0m* test_drag_moves_full_right
+* test_up_is_north
+* test_deadzone
+* test_release_stops
+* test_second_finger_ignored
+* test_edge_strip_touch_ignored
+* test_mouse_drag_works
+* test_move_reapplied_every_physics_tick
+* test_idle_stick_leaves_input_alone
+* test_pause_notification_ends_stick
+* test_buttonless_mouse_motion_ends_stick
+* test_mouse_release_ends_stick
+* test_repress_with_active_index_restarts_at_new_base
+* test_first_finger_lift_ends_while_second_held
+* test_real_tree_pause_ends_stick
+* test_main_wires_joystick_in_input_layer
+* test_blocked_input_ends_stick_and_ignores_new_press
+* test_draw_uses_atlas_cells_only
+* test_active_stick_draws_without_error
+[1m19/19 passed.
+[0m[4m
+
+res://tests/unit/test_kaykit_import.gd
+[0m* test_library_has_every_clip
+* test_character_imports_carry_no_animations
+* test_imported_character_scene_size
+[1m3/3 passed.
+[0m[4m
+
+res://tests/unit/test_lane_planner.gd
+[0m* test_day1_single_lane_and_wave0_north
+* test_day2_plus_main_differs_from_side
+* test_counts_match_wave_math
+* test_all_lanes_and_pairs_reachable
+* test_plan_golden
+* test_same_seed_same_plan
+* test_plan_varies_across_seeds
+* test_threat_and_marker_scale
+[1m8/8 passed.
+[0m[4m
+
+res://tests/unit/test_lane_visibility.gd
+[0m* test_camera_centers_focus
+* test_visible_width_about_14m
+    half width at focus = 6.95 m
+* test_boar_visible_two_seconds_before_range
+    west @ aspect 0.300: min 3.10 s on screen before range
+    north @ aspect 0.300: min 7.40 s on screen before range
+    east @ aspect 0.300: min 3.10 s on screen before range
+    west @ aspect 0.429: min 10.25 s on screen before range
+    north @ aspect 0.429: min 7.40 s on screen before range
+    east @ aspect 0.429: min 10.25 s on screen before range
+    west @ aspect 0.562: min 10.25 s on screen before range
+    north @ aspect 0.562: min 7.40 s on screen before range
+    east @ aspect 0.562: min 10.25 s on screen before range
+    west @ aspect 1.778: min 11.18 s on screen before range
+    north @ aspect 1.778: min 7.40 s on screen before range
+    east @ aspect 1.778: min 11.18 s on screen before range
+    west @ aspect 2.333: min 11.18 s on screen before range
+    north @ aspect 2.333: min 7.40 s on screen before range
+    east @ aspect 2.333: min 11.18 s on screen before range
+    west @ aspect 3.556: min 5.42 s on screen before range
+    north @ aspect 3.556: min 4.75 s on screen before range
+    east @ aspect 3.556: min 5.42 s on screen before range
+* test_projection_matches_godot_camera
+* test_lens_clamp_and_continuity
+[1m5/5 passed.
+[0m[4m
+
+res://tests/unit/test_lighting_director.gd
+[0m* test_night_is_dimmer_than_day
+* test_night_sun_energy_is_lower
+* test_night_stays_readable
+* test_dawn_equals_day
+* test_setup_applies_the_day_target
+* test_tween_reaches_the_night_target
+* test_back_to_day_after_dawn
+* test_first_phase_snaps_when_resuming_into_night
+[1m8/8 passed.
+[0m[4m
+
+res://tests/unit/test_mercy.gd
+[0m* test_night1_fail_adds_mercy_and_snapshots_it
+* test_day_fail_carries_mercy_and_dawn_clears_it
+* test_mercy_scales_boar_hp_and_damage
+* test_snapshot_taken_emits_a_copy
+* test_fail_banner_sequence_end_to_end
+[1m5/5 passed.
+[0m[4m
+
+res://tests/unit/test_no_global_rand.gd
+[0m* test_no_global_randomness
+* test_ban_regex_catches_and_allows
+[1m2/2 passed.
+[0m[4m
+
+res://tests/unit/test_occluder_fade.gd
+[0m* test_hero_at_north_zone_center_fades
+* test_fade_takes_fade_time_not_instant
+* test_boar_in_north_zone_with_hero_at_home_fades
+* test_nothing_occluded_stays_opaque_without_override_change
+* test_no_targets_stays_opaque
+* test_fades_back_and_restores_opaque_material
+* test_faded_material_does_not_leak_into_shared_cache
+* test_far_boar_hidden_only_at_its_own_aim_height
+* test_surface_material_meshes_fade_and_restore_to_null
+* test_mesh_without_any_material_is_skipped_safely
+WARNING: OccluderFade: /root/GutRunner/@Node@104429/Visual/@MeshInstance3D@104472 has no BaseMaterial3D to fade; it stays opaque
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _make_entry (res://components/occluder_fade.gd:179)
+         [1] _apply (res://components/occluder_fade.gd:125)
+         [2] _process (res://components/occluder_fade.gd:89)
+         [3] _run (res://tests/unit/test_occluder_fade.gd:34)
+         [4] test_mesh_without_any_material_is_skipped_safely (res://tests/unit/test_occluder_fade.gd:173)
+         [5] _run_test (res://addons/gut/gut.gd:622)
+         [6] _test_the_scripts (res://addons/gut/gut.gd:835)
+* test_missing_camera_is_safe
+* test_wired_hero_at_north_zone_center_fades_world_diner
+* test_real_diner_bounds_cover_roof_parts_and_board_fades
+* test_board_box_hides_a_target_and_fades_the_label
+* test_archer_on_roof_never_fades_the_diner
+* test_hero_at_night1_start_leaves_the_diner_opaque
+* test_far_north_boar_with_hero_home_leaves_the_diner_opaque
+* test_hero_serving_at_the_counter_does_not_fade_the_diner
+* test_south_face_stays_clear_of_where_the_hero_can_stand
+* test_setup_merges_a_passed_box_and_empty_box_is_ignored
+[1m20/20 passed.
+[0m[4m
+
+res://tests/unit/test_overlays.gd
+[0m* test_perf_overlay_stats
+* test_perf_warmup_records_nothing
+* test_perf_straddling_frame_is_not_recorded
+* test_perf_freezes_one_window_and_ignores_later_phases
+PERF phase=NIGHT day=3 window=60s avg_fps=59.8 worst_ms=250.0 proc_ms=126.82 phys_ms=61.85 dc=0 slow_pct=0.0 delta_worst_ms=150.0 top3=250@30.2s(w-1,-1) 17@0.0s(w-1,-1) 17@0.0s(w-1,-1) pre3=300@2.2s 17@0.0s 17@0.0s
+* test_debug_overlay_hotkey_gold
+* test_main_does_not_preload_debug
+* test_build_label_off_web_is_dev
+* test_main_adds_build_label_once
+* test_main_gates_overlays_by_build_and_feature
+* test_d157_export_keeps_tres_as_text
+* test_fade_alpha_cycles_three_values_and_writes_balance
+* test_real_o_key_event_cycles_exactly_once_and_button_shows_value
+* test_active_occluder_fade_follows_live_alpha_change
+* test_button_rect_is_bottom_right_inside_safe_area_clear_of_edge_strips
+* test_touch_on_button_cycles_and_does_not_start_the_stick
+* test_stick_released_over_button_still_ends
+* test_touch_elsewhere_still_starts_the_stick
+* test_mouse_click_on_button_cycles_once_and_skips_stick
+* test_emulated_mouse_event_on_button_is_ignored
+* test_stale_owned_finger_does_not_swallow_the_stick_release
+* test_perf_warmup_tracks_pre3_and_adds_nothing_to_the_window
+[1m21/21 passed.
+[0m[4m
+
+res://tests/unit/test_palette.gd
+[0m* test_size_names_unique_hex_valid
+* test_lookup
+* test_png_matches_constants
+* test_r3_traveler_colours_muted
+[1m4/4 passed.
+[0m[4m
+
+res://tests/unit/test_palette_math.gd
+[0m* test_oklab_white_and_black
+* test_nearest_picks_closest_and_ties_lowest
+* test_remap_image_maps_every_pixel_and_keeps_alpha
+* test_override_retargets_a_swatch
+* test_remap_is_deterministic_and_does_not_mutate_input
+[1m5/5 passed.
+[0m[4m
+
+res://tests/unit/test_pause_reasons.gd
+[0m* test_focus_out_pauses_and_in_resumes
+* test_settings_held_across_focus_in
+* test_settings_held_across_focus_out
+* test_freeing_focus_pause_clears_the_focus_reason
+* test_direct_pause_is_not_overwritten
+* test_focus_out_with_settings_held_still_suspends_audio
+* test_freeing_main_while_a_reason_is_held_unpauses
+[1m7/7 passed.
+[0m[4m
+
+res://tests/unit/test_perf_fixture.gd
+[0m* test_fixtures_decode
+* test_night_fixture_resumes_into_night
+* test_closeup_fixture_resumes_into_day
+[33m    28 Orphans[0m
+[33m        * [Guard_tank:<Node3D#7945790167044>(guard.gd)] + 12
+        * [Guard_archer:<Node3D#7944968083781>(guard.gd)] + 12[0m
+[33m28 orphans[0m
+[1m3/3 passed.
+[0m[4m
+
+res://tests/unit/test_phase_controller.gd
+[0m* test_phase_controller_uses_only_the_narrow_interface
+[33m    28 Orphans[0m
+[33m        * [Guard_archer:<Node3D#7974378543703>(guard.gd)] + 12
+        * [Guard_tank:<Node3D#7975200627697>(guard.gd)] + 12[0m
+* test_new_game_starts_night_with_night_snapshot
+* test_dawn_steps_in_order
+* test_early_wave_clear_is_not_dawn
+[33m    14 Orphans[0m
+[33m        * [Guard_archer:<Node3D#8057895525278>(guard.gd)] + 12[0m
+* test_close_up_collects_and_snapshots_day
+* test_close_up_ignored_at_night
+[33m    14 Orphans[0m
+[33m        * [Guard_archer:<Node3D#8113025456619>(guard.gd)] + 12[0m
+* test_fail_night1_restarts_night
+* test_fail_after_close_up_returns_to_day
+* test_fall_and_clear_same_tick_fail_wins
+* test_review_focus_3_diner_falls_then_wave_clears_through_wave_director
+* test_review_focus_3_wave_clears_then_diner_falls_through_wave_director
+* test_new_game_during_fail_banner_cancels_stale_restore
+* test_new_game_recalls_pools
+* test_debug_skip_to_day_runs_dawn
+* test_invalid_stale_and_night_choices_are_ignored
+* test_pick_shows_banner
+[33m    14 Orphans[0m
+[33m        * [Guard_tank:<Node3D#8471286127541>(guard.gd)] + 12[0m
+* test_empty_offer_skips_to_day
+[33m    14 Orphans[0m
+[33m        * [Guard_archer:<Node3D#8500763690672>(guard.gd)] + 12[0m
+* test_no_dawn_banner_when_an_offer_opens
+[33m    28 Orphans[0m
+[33m        * [Guard_archer:<Node3D#8527976339578>(guard.gd)] + 12
+        * [Guard_tank:<Node3D#8528798423490>(guard.gd)] + 12[0m
+* test_debug_skip_grants_no_card_from_night_and_from_pick
+* test_new_game_during_pick_resets_substate
+[33m28 orphans[0m
+[1m20/20 passed.
+[0m[4m
+
+res://tests/unit/test_piles.gd
+[0m* test_zero_cap_and_clamp
+* test_one_instance_per_slot_and_starts_empty
+* test_each_pile_is_one_multimesh
+* test_carry_stack_shows_the_max_capacity_exactly
+* test_stations_at_zero_and_cap
+* test_fly_items_prebuild_both_kinds_and_never_instance
+* test_pickup_field_set_and_clear_slot
+* test_pickup_field_grow_keeps_slots
+* test_slot_transform_places_and_turns
+* test_slot_transform_scale_applies_on_top_of_the_item
+* test_ground_steak_draws_at_the_tuned_scale_and_piles_do_not
+* test_ground_steaks_are_one_field_with_no_mesh_of_their_own
+* test_steak_slots_are_stable_and_unique
+* test_pool_growth_grows_the_field
+WARNING: NodePool SteakPool grew to 174
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] acquire (res://components/node_pool.gd:20)
+         [1] test_pool_growth_grows_the_field (res://tests/unit/test_piles.gd:181)
+         [2] _run_test (res://addons/gut/gut.gd:622)
+         [3] _test_the_scripts (res://addons/gut/gut.gd:835)
+WARNING: NodePool SteakPool grew to 175
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] acquire (res://components/node_pool.gd:20)
+         [1] test_pool_growth_grows_the_field (res://tests/unit/test_piles.gd:181)
+         [2] _run_test (res://addons/gut/gut.gd:622)
+         [3] _test_the_scripts (res://addons/gut/gut.gd:835)
+[34m[ExpectedError][0m
+* test_slot_transforms_order_and_offsets
+* test_steak_item_sits_on_the_floor_centred
+* test_coin_item_lies_flat_centred_and_thin
+* test_pickup_meshes_use_the_shared_material_with_no_override
+[1m18/18 passed.
+[0m[4m
+
+res://tests/unit/test_planner_choice.gd
+[0m* test_first_buy_is_fence_on_top_side_lane
+* test_then_adjacent_tower
+* test_nothing_if_unaffordable
+* test_unbuilt_tower_ne_competes
+* test_tower_score_is_max_not_sum
+* test_upgrade_highest_threat_lane_first
+* test_hysteresis
+* test_hysteresis_released_on_completion
+* test_hysteresis_not_held_while_walking
+[1m9/9 passed.
+[0m[4m
+
+res://tests/unit/test_projectile_art.gd
+[0m* test_art_kind_selects_scene
+* test_kind_flips_never_instance_again
+* test_same_kind_keeps_the_instance
+* test_attacker_defaults_to_arrow_and_hero_to_knife
+* test_art_nose_points_along_minus_z
+* test_art_orients_to_flight_and_knife_spins
+* test_flight_unchanged_by_art
+[1m7/7 passed.
+[0m[4m
+
+res://tests/unit/test_props_layout.gd
+[0m* test_there_are_about_sixty_items
+* test_outside_the_play_bounds_and_on_the_ground
+* test_near_diner_items_are_off_every_footprint
+* test_off_every_lane_path
+* test_off_stations_roads_and_spots
+* test_every_model_exists_and_is_a_mesh
+* test_item_fields
+* test_props_node_is_two_static_meshes_without_collision
+[1m8/8 passed.
+[0m[4m
+
+res://tests/unit/test_pulse.gd
+[0m* test_pulses_when_nothing_to_do
+* test_each_stock_blocks_pulse
+* test_affordable_build_blocks_pulse
+* test_partial_paid_counts
+* test_max_level_spots_ignored
+* test_one_upgradable_spot_among_maxed_decides_pulse
+[1m6/6 passed.
+[0m[4m
+
+res://tests/unit/test_reactions.gd
+[0m* test_enemy_killed_poof
+* test_boar_hit_burst
+* test_sale_coin_and_gold_sparkle
+* test_build_completed_and_dawn_sparkle
+* test_build_dust_every_fourth_paid_tick
+* test_hero_running_dust
+[33m    --- Awaiting 0.8 seconds  ---
+[0m[33m    --- Awaiting 0.8 seconds  ---
+[0m* test_carry_squash_on_steak_picked
+* test_traveler_hops_on_sale
+* test_traveler_release_resets_hop
+* test_diner_bar_flash_and_arrow_punch
+* test_card_strip_pop
+[1m11/11 passed.
+[0m[4m
+
+res://tests/unit/test_restore_world.gd
+[0m* test_restore_rebuilds_world_from_snapshot
+* test_from_dict_alone_rebuilds_every_view
+* test_restore_piles_show_exact_counts
+* test_restore_from_json_round_trip_at_full_precision
+* test_fail_flow_restore_rebuilds_world
+* test_night_restart_restore_rebuilds_world
+* test_restore_cancels_a_camera_shake_in_progress
+* test_restore_unfades_the_diner
+* test_restore_brings_back_cards_and_guards
+* test_new_game_from_the_open_card_pick
+[33m    14 Orphans[0m
+[33m        * [Guard_tank:<Node3D#9695100148807>(guard.gd)] + 12[0m
+* test_new_game_removes_guards
+[1m11/11 passed.
+[0m[4m
+
+res://tests/unit/test_resume.gd
+[0m* test_no_save_starts_a_new_game
+* test_day_resumes_at_home_with_same_state
+* test_card_pick_resumes_with_same_offer_and_overlay
+* test_night_save_resumes_night1_start
+* test_quit_mid_night_resumes_the_day_without_mercy
+* test_quit_during_night1_retry_keeps_mercy
+* test_corrupt_primary_uses_backup_and_both_corrupt_starts_fresh
+* test_newer_save_starts_fresh_and_keeps_it
+WARNING: SaveStore: a newer build's save was found; autosave is off for this session
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _warn (res://world/save/save_store.gd:84)
+         [1] read (res://world/save/save_store.gd:56)
+         [2] _boot (res://world/main.gd:158)
+         [3] _boot (res://tests/unit/test_resume.gd:24)
+         [4] test_newer_save_starts_fresh_and_keeps_it (res://tests/unit/test_resume.gd:127)
+         [5] _run_test (res://addons/gut/gut.gd:622)
+         [6] _test_the_scripts (res://addons/gut/gut.gd:835)
+* test_debug_fresh_start_wipes
+* test_debug_r_key_wipes_and_restarts
+[1m10/10 passed.
+[0m[4m
+
+res://tests/unit/test_rng.gd
+[0m* test_golden_seeds_distinct_and_stable
+* test_golden_first_values
+* test_fnv1a32_known_vectors
+* test_same_inputs_same_sequence
+* test_streams_differ_by_name_day_and_seed
+* test_new_run_seed_is_nonzero
+[1m6/6 passed.
+[0m[4m
+
+res://tests/unit/test_save_codec.gd
+[0m* test_round_trip_is_exact_after_from_dict
+* test_tampered_state_fails_the_check
+* test_bad_json_and_formats
+* test_newer_version_is_flagged
+* test_older_version_migrates_through_the_hook
+* test_content_rejects_bad_ids_levels_and_phase
+* test_envelope_edge_cases
+* test_migration_that_does_not_raise_v_is_rejected
+* test_content_rejects_card_pick_with_empty_or_maxed_offer
+* test_v_as_json_string_is_a_json_failure
+* test_migration_that_jumps_past_the_current_version_is_rejected
+[1m11/11 passed.
+[0m[4m
+
+res://tests/unit/test_save_store.gd
+[0m* test_write_then_read
+* test_backup_rotation_and_corrupt_primary
+* test_read_seeds_rotation
+* test_wipe_after_newer_read_restores_writes_and_removes_corrupt
+WARNING: SaveStore: a newer build's save was found; autosave is off for this session
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _warn (res://world/save/save_store.gd:84)
+         [1] read (res://world/save/save_store.gd:56)
+         [2] test_wipe_after_newer_read_restores_writes_and_removes_corrupt (res://tests/unit/test_save_store.gd:57)
+         [3] _run_test (res://addons/gut/gut.gd:622)
+         [4] _test_the_scripts (res://addons/gut/gut.gd:835)
+* test_both_corrupt_is_none
+* test_newer_save_is_never_overwritten
+WARNING: SaveStore: a newer build's save was found; autosave is off for this session
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _warn (res://world/save/save_store.gd:84)
+         [1] read (res://world/save/save_store.gd:56)
+         [2] test_newer_save_is_never_overwritten (res://tests/unit/test_save_store.gd:87)
+         [3] _run_test (res://addons/gut/gut.gd:622)
+         [4] _test_the_scripts (res://addons/gut/gut.gd:835)
+* test_wipe_clears_everything_and_resets
+* test_keys_are_prefixed_by_path
+* test_js_call_escapes_keys_and_values
+[1m9/9 passed.
+[0m[4m
+
+res://tests/unit/test_settings_layer.gd
+[0m* test_gear_tap_opens_panel_and_joystick_stays_idle
+* test_panel_swallows_presses_behind_it
+* test_sound_toggles_audio_and_display
+* test_new_game_arm_guard_and_expiry
+* test_new_game_arm_expires
+* test_new_game_arm_counts_game_time_while_paused
+* test_full_new_game_through_main
+* test_fresh_start_wipes_save_and_keeps_settings
+* test_close_unpauses
+* test_close_while_unfocused_stays_paused
+* test_freeing_the_layer_while_open_releases_its_reason
+* test_gear_over_open_card_overlay
+* test_landscape_resize_keeps_rects_inside
+* test_hud_arrow_rect_is_below_the_gear
+* test_reserved_rect_pushes_the_arrow_rect_down
+* test_freed_layer_does_not_break_the_hud
+* test_click_sound_fires_on_press_not_release
+[1m17/17 passed.
+[0m[4m
+
+res://tests/unit/test_settings_store.gd
+[0m* test_defaults_when_missing
+* test_round_trip
+* test_corrupt_value_gives_defaults
+* test_wrong_types_give_defaults_per_field
+* test_save_wipe_leaves_settings
+* test_web_key_is_separate_from_save_keys
+[1m6/6 passed.
+[0m[4m
+
+res://tests/unit/test_shadow_field.gd
+[0m* test_one_instance_per_visible_registered_node_following_them
+* test_radius_and_scale
+* test_follows_the_nodes_height
+* test_freed_and_removed_nodes_leave_the_field
+* test_grows_past_its_start_capacity
+* test_is_one_multimesh_instance_with_the_blob_material
+* test_a_released_pooled_traveler_leaves_the_field
+* test_the_world_owns_one_field_and_the_actors_register_with_it
+* test_a_guard_is_registered_and_skipped_once_poofed_away
+[1m9/9 passed.
+[0m[4m
+
+res://tests/unit/test_sign_and_telegraph.gd
+[0m* test_standing_on_sign_starts_night_after_hold
+* test_hold_resets_when_leaving
+* test_restore_to_day_does_not_close_up
+* test_pulse_follows_predicate
+* test_telegraph_scales_and_visibility
+[1m5/5 passed.
+[0m[4m
+
+res://tests/unit/test_smoke.gd
+[0m* test_autoloads_registered
+* test_physics_rate_is_60
+* test_main_scene_loads
+[1m3/3 passed.
+[0m[4m
+
+res://tests/unit/test_stations.gd
+[0m* test_freezer_fills_carry_to_capacity
+* test_freezer_inactive_at_night
+* test_teleport_into_zone_does_not_arm
+* test_inside_when_zone_activates_needs_reentry
+* test_moving_hero_does_not_transfer
+* test_counter_fills_up_to_capacity
+* test_leaving_ends_stand
+* test_labels_follow_state
+* test_phase_change_disarms_armed_hero
+* test_state_restored_disarms
+* test_ring_shows_stand_still_charge
+* test_freezer_body_blocks_hero
+* test_counter_body_blocks_hero
+[1m13/13 passed.
+[0m[4m
+
+res://tests/unit/test_targeting.gd
+[0m* test_nearest_in_range_wins
+* test_out_of_range_ignored
+* test_tie_breaks_by_lower_spawn_index_regardless_of_order
+* test_height_is_ignored
+* test_candidate_exactly_at_range_is_selected
+[1m5/5 passed.
+[0m[4m
+
+res://tests/unit/test_theme.gd
+[0m* test_theme_loads_with_nunito_default_font
+* test_every_stylebox_uses_only_palette_colours
+* test_base_styles_exist
+* test_progress_bar_colours
+* test_card_panel_variations_have_a_left_band
+* test_banner_and_label_variations
+* test_project_applies_the_theme_and_keeps_the_font
+* test_default_font_is_nunito_at_weight_800
+* test_every_theme_colour_is_a_palette_colour
+* test_committed_theme_matches_the_builder
+[1m10/10 passed.
+[0m[4m
+
+res://tests/unit/test_traveler_variants.gd
+[0m* test_six_distinct_variants
+* test_variants_are_muted
+* test_travelers_less_saturated_than_guard_green_and_capped_in_value
+* test_variant_wraps_and_neighbours_differ
+* test_every_variant_material_exists_and_uses_its_own_atlas
+* test_variant_atlases_are_skin_plus_one_muted_tone
+[1m6/6 passed.
+[0m[4m
+
+res://tests/unit/test_travelers.gd
+[0m* test_no_travelers_at_night
+* test_spawn_and_queue_cap_in_day
+* test_purchase_is_atomic_after_service_time
+* test_empty_counter_front_waits
+* test_close_up_sends_everyone_away_and_stops
+* test_clear_queue_recalls_everyone
+* test_same_seed_gives_the_same_traveler_spawns
+* test_factory_counter_gives_looks_n_mod_6
+* test_traveler_walks_in_and_idles_at_its_slot
+* test_gold_pile_visual
+[1m10/10 passed.
+[0m[4m
+
+res://tests/unit/test_url_flags.gd
+[0m* test_parse_flags
+* test_parse_empty
+* test_parse_decodes
+* test_get_flag_after_set_for_tests
+* test_reset_clears_flags
+[1m5/5 passed.
+[0m[4m
+
+res://tests/unit/test_warmup.gd
+[0m* test_run_builds_and_frees_without_touching_state
+WARMUP built=12 track=night
+* test_boot_without_warmup_is_synchronous
+* test_music_track_follows_the_resume_phase
+* test_fade_material_is_a_transparent_copy
+* test_boot_fade_waits_for_fade_out
+* test_boot_fade_lifts_after_stable_frames
+BOOTFADE done=0.16 frames=10
+* test_boot_fade_slow_frame_resets_the_count
+BOOTFADE done=1.15 frames=20
+* test_boot_fade_cap_lifts_anyway
+BOOTFADE done=4.10 frames=20
+* test_boot_fade_out_before_ready_is_harmless
+BOOTFADE done=0.16 frames=10
+* test_warmup_nodes_sit_inside_the_camera_frustum
+WARMUP built=12 track=night
+* test_music_track_is_night_without_a_phase
+* test_boot_fade_runs_while_the_tree_is_paused
+* test_boot_fade_safety_cap_lifts_without_fade_out
+BOOTFADE done=0.00 frames=0
+[1m13/13 passed.
+[0m[4m
+
+res://tests/unit/test_wave_director.gd
+[0m* test_first_wave_starts_after_delay
+* test_spawns_follow_schedule_and_spawn_out
+* test_clear_breather_next_wave
+* test_main_group_dead_before_side_spawns_is_not_clear
+* test_kill_drops_steaks_near_the_boar
+* test_same_seed_same_offsets
+* test_stop_halts_everything
+* test_stop_mid_wave_no_clear
+* test_stop_in_cleared_handler_starts_no_breather
+* test_stop_in_spawned_out_handler_is_not_a_clear
+[1m10/10 passed.
+[0m[4m
+
+res://tests/unit/test_wave_math.gd
+[0m* test_day1_totals
+* test_day2_reference_values
+* test_day1_has_no_side_group
+* test_side_share_curve_and_cap
+* test_cap_overflows_into_hp
+* test_side_at_least_one_from_day2
+[1m6/6 passed.
+[0m[4m
+
+res://tests/unit/test_wave_schedule.gd
+[0m* test_main_only_schedule
+* test_side_group_starts_after_delay
+* test_clear_rule_requires_all_spawned
+* test_main_first_on_ties
+[1m4/4 passed.
+[0m[4m
+
+res://tests/unit/test_waypoint_graph.gd
+[0m* test_all_nodes_connected
+* test_edges_traversable_against_colliders
+* test_route_home_to_zone_north_goes_around
+* test_route_from_position_ends_at_goal
+* test_tower_stand_points_inside_build_radius
+* test_route_home_to_zone_east_uses_e_mid
+* test_shortest_unknown_node_returns_empty
+[1m7/7 passed.
+[0m[4m
+
+res://tests/unit/test_world_build.gd
+[0m* test_main_builds_world_without_starting
+* test_lane_curve_matches_layout
+[1m2/2 passed.
+[0m
+
+
+
+[33m==============================================[0m
+[33m= 73 Orphans[0m
+[33m==============================================[0m
+test_actor_visual.gd
+    - test_role_scenes_hold_only_their_own_models
+[33m        * [Visual:<Node3D#427970007187>(kaykit_visual.gd)] + 26
+        * [Visual:<Node3D#426728493225>(kaykit_visual.gd)] + 22
+        * [Visual:<Node3D#429211521256>(kaykit_visual.gd)] + 22[0m
+
+
+[33m==============================================
+[0m[33m= Run Summary
+[0m[33m==============================================
+[0m
+Totals
+------
+Scripts              88
+Tests               865
+Passing Tests       865
+Asserts           50908
+Orphans              73
+Time              14.505s
+
+
+[32m---- All tests passed! ----
+[0m
+ERROR: Pages in use exist at exit in PagedAllocator: N20RasterizerSceneDummy21GeometryInstanceDummyE
+   at: ~PagedAllocator (./core/templates/paged_allocator.h:170)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: Leaked instance dependency: Bug - did not call instance_notify_deleted when freeing.
+   at: ~Dependency (servers/rendering/storage/utilities.cpp:56)
+WARNING: 154 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 77 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)
+ERROR: 3 RID allocations of type 'N13RendererDummy15MaterialStorage13DummyMaterialE' were leaked at exit.
+ERROR: 1 RID allocations of type 'N13RendererDummy15MaterialStorage11DummyShaderE' were leaked at exit.
+ERROR: 63 RID allocations of type 'N13RendererDummy9DummyMeshE' were leaked at exit.
+ERROR: 3 RID allocations of type 'PN13RendererDummy14TextureStorage12DummyTextureE' were leaked at exit.
+ERROR: 39 RID allocations of type 'N17RendererSceneCull8InstanceE' were leaked at exit.

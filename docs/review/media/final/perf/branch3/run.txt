@@ -1,0 +1,14 @@
+cpu idle 61% < 75%, waiting
+cpu idle 70% < 75%, waiting
+cpu idle 66% < 75%, waiting
+cpu_idle_before=78%
+cpu_idle_mid=66% phase=day
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: DDD09C46-3AE3-46FD-9E9F-27859F96E489 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/final/docs/review/media/final/perf/branch3/day_peak.png
+cpu_idle_mid=64% phase=night
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: DDD09C46-3AE3-46FD-9E9F-27859F96E489 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/final/docs/review/media/final/perf/branch3/night3_80s.png
+ios: docs/review/media/final/perf/branch3/night3_80s.png
+cpu_idle_after=44%

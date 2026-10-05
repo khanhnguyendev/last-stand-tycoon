@@ -1,0 +1,23 @@
+cpu idle 56% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu idle 57% < 75%, waiting
+cpu idle 47% < 75%, waiting
+cpu idle 48% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu idle 64% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu idle 59% < 75%, waiting
+cpu idle 58% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu_idle_before=75%
+cpu_idle_mid=63% phase=day
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 76EF95E2-ED4D-4632-BAE0-8CFE412BC4E9 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/final/docs/review/media/final/perf/main2/day_peak.png
+cpu_idle_mid=51% phase=night
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 76EF95E2-ED4D-4632-BAE0-8CFE412BC4E9 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/final/docs/review/media/final/perf/main2/night3_80s.png
+ios: docs/review/media/final/perf/main2/night3_80s.png
+cpu_idle_after=47%

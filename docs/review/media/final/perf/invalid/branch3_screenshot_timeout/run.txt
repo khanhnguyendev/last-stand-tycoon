@@ -1,0 +1,11 @@
+cpu idle 66% < 75%, waiting
+cpu idle 66% < 75%, waiting
+cpu idle 58% < 75%, waiting
+cpu idle 68% < 75%, waiting
+cpu_idle_before=82%
+cpu_idle_mid=62% phase=day
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: DDD09C46-3AE3-46FD-9E9F-27859F96E489 (screenID: 1, name: LCD)
+An error was encountered processing the command (domain=NSPOSIXErrorDomain, code=60):
+The operation couldn’t be completed. Timeout waiting for screen surfaces
+Timeout waiting for screen surfaces

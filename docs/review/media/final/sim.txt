@@ -1,0 +1,65 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+---  GUT  ---
+[1m[INFO]:  [0musing [/Users/ryan/Library/Application Support/Godot/app_userdata/Last Stand Tycoon] for temporary output.
+Godot version:  4.7.2
+GUT version:  9.7.1
+[4m
+
+res://tests/sim/test_day_sims.gd
+[0m* test_night2_naive_unaided_is_hard_and_deterministic
+    night2 naive: { "day": 2, "failed": false, "cleared": true, "diner_frac": 0.3, "kills": 24, "steaks": 84, "day1_seconds": 4.43333333333308, "closeup": { "v": 3, "resume_phase": "DAY", "run_seed": 20260930, "day": 2, "gold": 0, "gold_pile": 0, "freezer_steaks": 30, "counter_steaks": 0, "carried_steaks": 6, "diner_hp": 300.0, "buildings": { "tower_nw": { "level": 0, "paid": 0, "hp": 0.0 }, "tower_ne": { "level": 0, "paid": 0, "hp": 0.0 }, "fence_w": { "level": 0, "paid": 0, "hp": 0.0 }, "fence_n": { "level": 0, "paid": 0, "hp": 0.0 }, "fence_e": { "level": 0, "paid": 0, "hp": 0.0 } }, "lane_plan": [{ "main": "north", "side": "east", "main_count": 4, "side_count": 1, "hp_mult": 1.15 }, { "main": "north", "side": "west", "main_count": 6, "side_count": 2, "hp_mult": 1.15 }, { "main": "north", "side": "west", "main_count": 9, "side_count": 2, "hp_mult": 1.15 }], "cards": { "archer": 1 }, "card_offer": [], "guards": {  }, "night_fails": 0 }, "lane_plan": [{ "main": "north", "side": "east", "main_count": 4, "side_count": 1, "hp_mult": 1.15 }, { "main": "north", "side": "west", "main_count": 6, "side_count": 2, "hp_mult": 1.15 }, { "main": "north", "side": "west", "main_count": 9, "side_count": 2, "hp_mult": 1.15 }] }
+* test_night2_planner_is_comfortable
+    night2 planner: { "day": 2, "failed": false, "cleared": true, "diner_frac": 1.0, "kills": 24, "steaks": 48, "day1_seconds": 108.433333333379, "closeup": { "v": 3, "resume_phase": "DAY", "run_seed": 20260930, "day": 2, "gold": 8, "gold_pile": 0, "freezer_steaks": 0, "counter_steaks": 0, "carried_steaks": 0, "diner_hp": 300.0, "buildings": { "tower_nw": { "level": 1, "paid": 0, "hp": 0.0 }, "tower_ne": { "level": 1, "paid": 0, "hp": 0.0 }, "fence_w": { "level": 1, "paid": 0, "hp": 120.0 }, "fence_n": { "level": 0, "paid": 0, "hp": 0.0 }, "fence_e": { "level": 0, "paid": 0, "hp": 0.0 } }, "lane_plan": [{ "main": "north", "side": "east", "main_count": 4, "side_count": 1, "hp_mult": 1.15 }, { "main": "north", "side": "west", "main_count": 6, "side_count": 2, "hp_mult": 1.15 }, { "main": "north", "side": "west", "main_count": 9, "side_count": 2, "hp_mult": 1.15 }], "cards": { "tank": 1 }, "card_offer": [], "guards": { "tank": { "hp": 160.0 } }, "night_fails": 0 }, "lane_plan": [{ "main": "north", "side": "east", "main_count": 4, "side_count": 1, "hp_mult": 1.15 }, { "main": "north", "side": "west", "main_count": 6, "side_count": 2, "hp_mult": 1.15 }, { "main": "north", "side": "west", "main_count": 9, "side_count": 2, "hp_mult": 1.15 }] }
+[1m2/2 passed.
+[0m[4m
+
+res://tests/sim/test_guide_sim.gd
+[0m* test_guide_bot_canonical_seed
+    seed 20260930 night1: { "day": 1, "failed": false, "cleared": true, "diner_frac": 0.88333333333333, "kills": 18 } (move walked 89.3 m, fight checks 65)
+    seed 20260930 max no-rule gap on day 2: 20.00 s (checked at each evaluation)
+    seed 20260930 day2 done at 173.5 sim s, spots built 3
+    timing: 2.0 s wall
+* test_guide_bot_second_seed
+    second seed: 1
+    seed 1 night1: { "day": 1, "failed": false, "cleared": true, "diner_frac": 0.93333333333333, "kills": 18 } (move walked 85.3 m, fight checks 62)
+    seed 1 max no-rule gap on day 2: 13.33 s (checked at each evaluation)
+    seed 1 day2 done at 166.1 sim s, spots built 3
+    timing: 1.9 s wall
+[1m2/2 passed.
+[0m[4m
+
+res://tests/sim/test_night_sims.gd
+[0m* test_first_combat_within_30s
+    first combat at 12.45 s (on paper ~12 s from NIGHT1_START, D-126)
+* test_night1_naive_bot_holds
+    night1 naive: { "day": 1, "failed": false, "cleared": true, "diner_frac": 0.66666666666667, "kills": 18 }
+* test_night1_parked_bot_falls
+    night1 parked: { "day": 1, "failed": true, "cleared": false, "diner_frac": 0.0, "kills": 0 }
+* test_first_combat_idle_player_within_30s
+    idle first combat at 12.28 s
+* test_night1_fail_restarts_night
+* test_night1_deterministic
+    determinism: [{ "day": 1, "failed": false, "cleared": true, "diner_frac": 0.66666666666667, "kills": 18, "plan": [{ "main": "north", "side": "", "main_count": 4, "side_count": 0, "hp_mult": 1.0 }, { "main": "east", "side": "", "main_count": 6, "side_count": 0, "hp_mult": 1.0 }, { "main": "west", "side": "", "main_count": 8, "side_count": 0, "hp_mult": 1.0 }], "steaks": 36 }, { "day": 1, "failed": false, "cleared": true, "diner_frac": 0.66666666666667, "kills": 18, "plan": [{ "main": "north", "side": "", "main_count": 4, "side_count": 0, "hp_mult": 1.0 }, { "main": "east", "side": "", "main_count": 6, "side_count": 0, "hp_mult": 1.0 }, { "main": "west", "side": "", "main_count": 8, "side_count": 0, "hp_mult": 1.0 }], "steaks": 36 }]
+* test_parked_retry_has_mercy_hp
+[1m7/7 passed.
+[0m
+
+
+
+[33m==============================================
+[0m[33m= Run Summary
+[0m[33m==============================================
+[0m
+Totals
+------
+Scripts               3
+Tests                11
+Passing Tests        11
+Asserts              52
+Time              13.086s
+
+
+[32m---- All tests passed! ----
+[0m
+SIM SUITE: 14s (budget 60s)
