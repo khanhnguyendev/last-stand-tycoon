@@ -64,7 +64,7 @@ func test_carry_capacity_and_transfers() -> void:
 	assert_eq(GameState.freezer_steaks, 4)
 
 func test_counter_capacity() -> void:
-	var cap := Balance.data.economy.counter_capacity
+	var cap := StationEffects.counter_capacity(0, Balance.data.stations)
 	GameState.counter_steaks = cap - 1  # test-only setup write
 	GameState.carried_steaks = 3
 	assert_eq(GameState.move_carry_to_counter(3), 1)
