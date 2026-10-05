@@ -10,3 +10,4 @@ extends Resource
 @export var sim: SimThresholds = SimThresholds.new()
 @export var cards: CardBalance = CardBalance.new()
 @export var guards: GuardBalance = GuardBalance.new()
+@export var stations: StationBalance = StationBalance.new()
