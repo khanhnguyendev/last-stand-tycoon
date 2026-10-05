@@ -56,7 +56,7 @@ Reference feel (mechanics only, no assets or names): My Little Universe, Alien I
 
 **Day (the tycoon)**
 - Haul steaks from the freezer to the counter, sell to queued travelers, collect gold, and spend it
-  on towers and fences (the only gold sink). No day timer.
+  on towers, fences and station upgrades (D-222). No day timer.
 - Start the night by standing still on the "Close up" sign. It pulses when nothing is left to do.
 - No cooking, seating, orders or serving minigame: the day is only haul, sell, build.
 

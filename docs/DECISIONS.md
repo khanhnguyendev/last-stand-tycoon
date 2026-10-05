@@ -2041,3 +2041,32 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 - Debug builds gain `?autoplay=1` (bots play; used to record the gameplay video in the input-less Simulator) and
   `?nooverlay=1`. Both live under `ui/debug/` and are absent from release and profile packs.
 - v0.1 stops here for the author's review (D-159). S6 starts only after approval.
+
+## 2026-10-05: E1 station upgrades (brainstorm with the author)
+
+**D-222 Expansion split (author).** The author's expansion ideas (upgrade the counter and the freezer, hire staff, more
+equipment, a bigger map) are four expansions, each with its own spec, plan and build: E1 station upgrades, E2 staff,
+E3 new equipment, E4 map expansion. Only E1 is built before the v0.1 friend playtest; the playtest decides the order
+of the rest. IDEA.md is amended: stations are a gold sink next to towers and fences.
+
+**D-223 Counter upgrade = more customers (author).** A longer queue, faster arrivals and a bigger pile. No higher
+price: it overlaps the gold-per-steak card and inflates gold.
+
+**D-224 Freezer upgrade = bigger hauls (author).** Extra carry and more steaks per load tick. The freezer keeps no
+capacity limit; spoilage stays in "Later".
+
+**D-225 Five levels, cost doubles per level (author).** Base 30 (counter) and 25 (freezer). Starting values; tuned by
+the sims.
+
+**D-226 Station state is separate from `GameState.buildings`.** `buildings` means tower or fence in the lane code, the
+dawn heal, the save validation and `Economy.level_cost`. Stations get `GameState.stations`, `StationBalance` and
+`StationEffects`. Save schema 4, with the first migration (3 to 4).
+
+**D-227 The counter upgrade also shortens the service time.** Service (1.0 s) plus the step-up (about 0.6 s) is the
+real limit on traveler flow, so a shorter arrival interval alone would only fill the queue.
+
+**D-228 Level 0 is today's game.** Every level-0 value equals the S5 value, and `NaiveBot` and `PlannerBot` never buy
+station upgrades, so the S4 determinism baseline stays identical. A new `UpgraderBot` covers the upgraded game.
+
+**D-229 No per-level station art in E1.** A level shows as the existing model, a pop and star pips, as towers do.
+Reversible; goes to `docs/REVIEW_QUEUE.md` when it ships.
