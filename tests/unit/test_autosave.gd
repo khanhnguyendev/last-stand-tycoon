@@ -153,3 +153,13 @@ func test_throttle_holds_while_paused() -> void:
 	for i in 10:
 		await get_tree().physics_frame
 	assert_eq(main.autosave.writes, w + 1)
+
+func test_a_station_upgrade_writes_at_once() -> void:
+	pc.start_new_game(9)
+	pc.debug_skip_to_day()
+	var cost := GameState.station_next_cost(&"counter")
+	GameState.add_gold(cost)
+	var before: int = main.autosave.writes
+	GameState.pay_into_station(&"counter", cost)
+	assert_gt(main.autosave.writes, before, "station_upgraded writes at once")
+	assert_eq(int(_saved().stations.counter.level), 1)

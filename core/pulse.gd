@@ -14,4 +14,11 @@ static func should_pulse(state: Dictionary, bd: BalanceData) -> bool:
 			continue
 		if gold >= cost - int(b.paid):
 			return false
+	# E1: an affordable station upgrade is something left to do. No `stations` key = none (the guide passes that).
+	var stations: Dictionary = state.get("stations", {})
+	for id in stations:
+		var st: Dictionary = stations[id]
+		var cost := StationEffects.level_cost(StringName(id), int(st.level), bd.stations)
+		if cost >= 0 and gold >= cost - int(st.paid):
+			return false
 	return true
