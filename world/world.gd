@@ -185,7 +185,7 @@ func _build_stations() -> void:
 	gold_pile = GoldPile.new()
 	add_child(gold_pile)
 	gold_pile.setup(self)
-	traveler_pool.setup(_make_traveler, Balance.data.economy.queue_max * 2)
+	traveler_pool.setup(_make_traveler, StationEffects.traveler_pool_size(Balance.data.stations, Balance.data.economy))
 	traveler_spawner.setup(traveler_pool, fly_fx)
 	closeup_sign = CloseUpSign.new()
 	add_child(closeup_sign)
