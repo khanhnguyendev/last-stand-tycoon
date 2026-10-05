@@ -27,6 +27,10 @@ signal gold_changed(gold: int, delta: int)
 signal building_changed(spot_id: StringName, level: int, paid: int)
 ## GameState -> fx. A level was completed.
 signal build_completed(spot_id: StringName, level: int)
+## E1: a station's level or paid amount changed.
+signal station_changed(id: StringName, level: int, paid: int)
+## E1: a station finished a level (emitted after station_changed).
+signal station_upgraded(id: StringName, level: int)
 ## GameState -> fx.
 signal steak_picked(carried: int)
 ## GameState -> fx, sims.

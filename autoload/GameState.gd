@@ -20,6 +20,8 @@ var card_offer: Array[StringName] = []
 var guards := {}
 ## Consecutive failures of the current night (S3 mercy, D-175).
 var night_fails := 0
+## E1: station upgrades (StringName -> {level, paid}). Empty until the first new_game.
+var stations := {}
 
 func new_game(seed: int = 0) -> void:
 	run_seed = seed if seed != 0 else Rng.new_run_seed()
@@ -34,6 +36,7 @@ func new_game(seed: int = 0) -> void:
 	buildings = {}
 	for id in MapLayout.SPOT_IDS:
 		buildings[id] = {"level": 0, "paid": 0, "hp": 0.0}
+	stations = _fresh_stations()
 	cards = {}
 	card_offer = []
 	guards = {}
@@ -68,6 +71,7 @@ func from_dict(d: Dictionary) -> void:
 	for id in d.buildings:
 		var b: Dictionary = d.buildings[id]
 		buildings[String(id)] = {"level": int(b.level), "paid": int(b.paid), "hp": float(b.hp)}
+	stations = _fresh_stations()
 	lane_plan = []
 	for w in d.lane_plan:
 		lane_plan.append({
@@ -128,7 +132,7 @@ func move_freezer_to_carry(n: int = 1) -> int:
 	return m
 
 func move_carry_to_counter(n: int = 1) -> int:
-	var m := mini(n, mini(carried_steaks, Balance.data.economy.counter_capacity - counter_steaks))
+	var m := mini(n, mini(carried_steaks, counter_capacity() - counter_steaks))
 	if m <= 0:
 		return 0
 	carried_steaks -= m
@@ -200,6 +204,58 @@ func damage_diner(amount: float) -> void:
 func diner_fraction() -> float:
 	return diner_hp / Balance.data.build.diner_max_hp
 
+# --- stations (E1) ---------------------------------------------------------
+
+static func _fresh_stations() -> Dictionary:
+	var out := {}
+	for id in StationEffects.IDS:
+		out[id] = {"level": 0, "paid": 0}
+	return out
+
+## 0 before the first new_game (the world is built and ticks while `stations` is still empty).
+func station_level(id: StringName) -> int:
+	assert(id in StationEffects.IDS, "unknown station %s" % id)
+	return int(stations[id].level) if stations.has(id) else 0
+
+func station_next_cost(id: StringName) -> int:
+	assert(id in StationEffects.IDS, "unknown station %s" % id)
+	if not stations.has(id):
+		return -1
+	return StationEffects.level_cost(id, int(stations[id].level), Balance.data.stations)
+
+func station_remaining_cost(id: StringName) -> int:
+	var cost := station_next_cost(id)
+	return -1 if cost < 0 else cost - int(stations[id].paid)
+
+func counter_capacity() -> int:
+	return StationEffects.counter_capacity(station_level(&"counter"), Balance.data.stations)
+
+func pay_into_station(id: StringName, amount: int) -> int:
+	var cost := station_next_cost(id)
+	if cost < 0:
+		return 0
+	var s: Dictionary = stations[id]
+	var pay := mini(amount, mini(gold, cost - int(s.paid)))
+	if pay <= 0:
+		return 0
+	gold -= pay
+	s.paid = int(s.paid) + pay
+	EventBus.gold_changed.emit(gold, -pay)
+	if int(s.paid) >= cost:
+		s.level = int(s.level) + 1
+		s.paid = 0
+		EventBus.station_changed.emit(id, s.level, s.paid)
+		EventBus.station_upgraded.emit(id, s.level)
+	else:
+		EventBus.station_changed.emit(id, s.level, s.paid)
+	return pay
+
+## Tests, sims and fixtures only.
+func debug_set_station_level(id: StringName, level: int) -> void:
+	assert(id in StationEffects.IDS, "unknown station %s" % id)
+	stations[id] = {"level": clampi(level, 0, Balance.data.stations.max_level), "paid": 0}
+	EventBus.station_changed.emit(id, int(stations[id].level), 0)
+
 # --- dawn -----------------------------------------------------------------
 
 func heal_for_dawn() -> void:
@@ -230,7 +286,8 @@ func card_level(id: StringName) -> int:
 	return int(cards.get(id, 0))
 
 func carry_capacity() -> int:
-	return CardEffects.carry_capacity(Balance.data.hero.carry_capacity, cards, Balance.data.cards)
+	return CardEffects.carry_capacity(Balance.data.hero.carry_capacity, cards, Balance.data.cards) \
+		+ StationEffects.carry_bonus(station_level(&"freezer"), Balance.data.stations)
 
 func gold_per_steak() -> int:
 	return CardEffects.gold_per_steak(Balance.data.economy.gold_per_steak, cards, Balance.data.cards)
