@@ -2019,3 +2019,12 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 - Web console: no new error or warning against a baseline recorded from `main`.
 - Audio is verified by state on web (suspended before a gesture, running after, mute persists), not by ear. Its
   CPU cost is reported from a Chromium A/B and is not gated.
+
+**D-220 S5 results and the end-of-S5 perf reading.**
+- S5 is complete: results in the S5 spec §13 and `docs/review/media/s5/perf_final/README.md`.
+- Gates met: night-3 fps (59.6), size, console, web audio state, baseline identical, onboarding sim.
+- Gates not met: night-3 worst frame (108 ms; D-215) and, at the end of S5 only, day-3 no-regression by 0.4 fps.
+- The end-of-S5 perf runs were taken while another project's jobs loaded the Mac between the idle check and the end of
+  a run. D-209 treats such readings as weak, so they are reported as measured and not acted on: no tuning in S5. The
+  final review package re-runs the six-run comparison on a quiet Mac, and the perf harness gains an idle check at the
+  end of a run.
