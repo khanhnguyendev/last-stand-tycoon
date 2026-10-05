@@ -53,6 +53,7 @@ func _ready() -> void:
 	EventBus.steak_sold.connect(func(_c, _g): play(&"coin"))
 	EventBus.gold_changed.connect(_on_gold_changed)
 	EventBus.build_completed.connect(func(_id, _lv): play(&"build_done"))
+	EventBus.station_upgraded.connect(func(_id, _lv): play(&"build_done"))
 	EventBus.card_offered.connect(func(_o): play(&"card_open"))
 	EventBus.card_picked.connect(func(_id, _lv): play(&"card_pick"))
 	EventBus.wave_incoming.connect(func(_w, _m, _s): play(&"horn"))

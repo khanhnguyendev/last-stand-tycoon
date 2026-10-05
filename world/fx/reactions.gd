@@ -10,6 +10,7 @@ func _ready() -> void:
 	EventBus.steak_sold.connect(_on_steak_sold)
 	EventBus.gold_changed.connect(_on_gold_changed)
 	EventBus.build_completed.connect(_on_build_completed)
+	EventBus.station_upgraded.connect(_on_station_upgraded)
 	EventBus.phase_changed.connect(_on_phase_changed)
 
 func _on_enemy_killed(_spawn_index: int, _lane: StringName, pos: Vector3) -> void:
@@ -24,6 +25,9 @@ func _on_gold_changed(_gold: int, delta: int) -> void:
 
 func _on_build_completed(spot_id: StringName, _level: int) -> void:
 	EventBus.fx_requested.emit(&"sparkle", MapLayout.to3(MapLayout.spot_position(String(spot_id)), 1.0))
+
+func _on_station_upgraded(id: StringName, _level: int) -> void:
+	EventBus.fx_requested.emit(&"sparkle", MapLayout.to3(MapLayout.STATION_PADS[id], 1.0))
 
 func _on_phase_changed(phase: int, _day: int) -> void:
 	if phase == Phase.DAWN:
