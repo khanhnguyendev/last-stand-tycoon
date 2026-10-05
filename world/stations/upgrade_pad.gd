@@ -5,9 +5,11 @@ extends Node3D
 const MARKER_SCENE := preload("res://art/env/spot_marker.tscn")
 const PIP_Y := 1.1
 const LABEL_Y := 1.6
+const NAME_Y := LABEL_Y + 0.45
 
 var station_id: StringName
 var label: WorldLabel
+var name_label: WorldLabel
 var zone: StationZone
 var marker: Node3D
 var _pips: Array = []
@@ -23,6 +25,9 @@ func setup(id: StringName, world: World) -> void:
 	label = WorldLabel.make("", 40)
 	label.position = Vector3(0, LABEL_Y, 0)
 	add_child(label)
+	name_label = WorldLabel.make(tr("Counter") if id == &"counter" else tr("Freezer"), 32)
+	name_label.position = Vector3(0, NAME_Y, 0)
+	add_child(name_label)
 	marker = MARKER_SCENE.instantiate()
 	add_child(marker)
 	_pips = LevelPips.make(self, Balance.data.stations.max_level, PIP_Y)
@@ -70,6 +75,7 @@ func refresh() -> void:
 	else:
 		label.text = str(cost - paid)
 	label.visible = day
+	name_label.visible = day
 	marker.visible = day and known and cost >= 0
 	if zone != null:
 		var progress := 0.0 if cost <= 0 else float(paid) / float(cost)

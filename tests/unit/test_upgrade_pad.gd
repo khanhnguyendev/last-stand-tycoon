@@ -30,9 +30,11 @@ func test_both_pads_exist_at_their_layout_positions() -> void:
 func test_hidden_at_night_shown_by_day() -> void:
 	assert_false(pad.label.visible, "night 1")
 	assert_false(pad.marker.visible)
+	assert_false(pad.name_label.visible)
 	main.phase_controller.debug_skip_to_day()
 	await _ticks(1)
 	assert_true(pad.label.visible)
+	assert_true(pad.name_label.visible)
 	assert_true(pad.marker.visible)
 	assert_eq(pad.label.text, str(GameState.station_next_cost(&"counter")))
 
@@ -91,3 +93,14 @@ func test_build_spots_keep_their_pips() -> void:
 	var spot: BuildSpot = main.world.build_spots["tower_nw"]
 	assert_eq(spot._pips.size(), Balance.data.build.max_level)
 	assert_eq(spot._pips[0].name, "Pip0")
+
+func test_each_pad_names_its_station() -> void:
+	assert_eq(main.world.upgrade_pads[&"counter"].name_label.text, tr("Counter"))
+	assert_eq(main.world.upgrade_pads[&"freezer"].name_label.text, tr("Freezer"))
+
+func test_standing_on_the_pad_at_night_pays_nothing() -> void:
+	GameState.add_gold(30)
+	await TestHelpers.walk_in(main.hero, MapLayout.STATION_PADS[&"counter"])
+	await _ticks(_pay_ticks(10))
+	assert_eq(int(GameState.stations[&"counter"].paid), 0)
+	assert_eq(GameState.gold, 30)
