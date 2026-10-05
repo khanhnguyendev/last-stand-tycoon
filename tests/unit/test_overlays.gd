@@ -185,6 +185,17 @@ func test_touch_on_button_cycles_and_does_not_start_the_stick() -> void:
 	_touch(main.get_viewport(), c, false)
 	assert_almost_eq(Balance.ui.occluder_alpha, 0.60, 1e-4, "release does not cycle")
 
+func test_hidden_button_does_not_take_taps() -> void:
+	if not OS.is_debug_build():
+		pass_test("debug build only")
+		return
+	var pair := _main_with_overlay()
+	var main: Main = pair[0]
+	pair[1].fade_button.visible = false
+	_touch(main.get_viewport(), pair[1].button_rect().get_center(), true)
+	assert_almost_eq(Balance.ui.occluder_alpha, 0.45, 1e-4, "hidden button must not cycle")
+	assert_true(main.joystick.is_active(), "the tap reaches the stick")
+
 func test_stick_released_over_button_still_ends() -> void:
 	if not OS.is_debug_build():
 		pass_test("debug build only")

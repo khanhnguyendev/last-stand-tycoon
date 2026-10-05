@@ -2030,3 +2030,14 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
   the perf harness also samples idle mid-run (the "after" figure is always low while Safari still plays).
 - The day-3 gate is judged against S4 main (c8cce18), as §1.6 says. The P2 checkpoint compared with main at P2
   (37d14b3, S5 P1 merged), so its "pass" was not that gate.
+
+## 2026-10-05: final review package
+
+**D-221 Final review package and final perf reading.**
+- `docs/review/FINAL_REVIEW.md` is the hand-over page; data and media are in `docs/review/media/final/`.
+- Final perf (3 runs each, ≥ 75% idle before every run, mid-run idle now logged): night-3 59.9 fps (pass); night-3 worst
+  frame 106 ms (fail; S4 main 119); day-3 52.9 against 54.0 (fail by 0.1). The end-of-S5 reading and this one agree, so both
+  misses are treated as real and go to the author as known issues; nothing was tuned.
+- Debug builds gain `?autoplay=1` (bots play; used to record the gameplay video in the input-less Simulator) and
+  `?nooverlay=1`. Both live under `ui/debug/` and are absent from release and profile packs.
+- v0.1 stops here for the author's review (D-159). S6 starts only after approval.

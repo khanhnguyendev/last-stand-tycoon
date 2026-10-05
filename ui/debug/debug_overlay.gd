@@ -47,12 +47,24 @@ func setup(main: Main) -> void:
 		_scene_query = scenes.parse(raw)
 		if scenes.has_fresh_start_key(raw):
 			main.debug_fresh_start = true
+		var flags := UrlFlags.parse(raw)
+		if flags.get("autoplay", "") == "1":
+			_attach_autoplay.call_deferred()  # ?autoplay=1: the hero plays itself (recordings)
+		if flags.get("nooverlay", "") == "1":
+			_label.visible = false  # ?nooverlay=1: hide the debug readout and button for recordings
+			fade_button.visible = false
 		EventBus.phase_changed.connect(_on_first_phase, CONNECT_ONE_SHOT)
 
 ## The URL scene waits for the game's first NIGHT (Main starts it deferred) and then runs deferred, so it never
 ## re-enters PhaseController while _enter_night is still emitting phase_changed.
 func _on_first_phase(_phase: int, _day: int) -> void:
 	_apply_scene.call_deferred()
+
+func _attach_autoplay() -> void:
+	var bot: BotBase = load("res://ui/debug/autoplay.gd").new()
+	bot.name = "Autoplay"
+	_main.add_child(bot)
+	bot.setup(_main)
 
 func _apply_scene() -> void:
 	load("res://ui/debug/debug_scenes.gd").apply(_main, _scene_query)
@@ -106,6 +118,8 @@ func cycle_occluder_alpha() -> void:
 ## this button owns that finger, so the release of a stick touch that ends over the button still reaches
 ## the joystick.
 func _input(event: InputEvent) -> void:
+	if not fade_button.visible:
+		return  # ?nooverlay=1 hides the button; a hidden button must not take taps
 	var idx := -1
 	var pressed := false
 	if event is InputEventScreenTouch:
