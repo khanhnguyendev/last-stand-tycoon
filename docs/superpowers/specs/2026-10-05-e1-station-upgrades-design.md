@@ -265,16 +265,18 @@ func debug_set_station_level(id: StringName, level: int) -> void   # tests, sims
   - 6.3: one `UpgraderBot` run through night 3.
 - Sweep: `sweep.gd` takes `--bot=upgrader` (default `planner`) and then writes `tests/sim/out/sweep_upgrader.csv`. The
   default invocation's CSV and stdout do not change. The sweep stays manual.
-- Perf: `tests/sim/make_save.gd` can also write `export/fixtures/day3_counter5.save.json` (DAY phase 3, counter at
-  level 5), and `export/perf_night3.sh` accepts the fixture name. Day perf with a level 5 counter is measured once
+- Perf: `tests/sim/make_save.gd` can also write `export/fixtures/day3_counter5.save.json` (the close-up state before
+  night 3, as the existing day fixture; counter at level 5 and stocked), and `export/perf_night3.sh` accepts the fixture name. Day perf with a level 5 counter is measured once
   and recorded next to the D-221 reading.
 
 ### 5.7 Hot files and wiring (D-136, D-139)
 
 - `autoload/GameState.gd`, `autoload/EventBus.gd` and `balance/*` are edited by implementers only in tasks where that
-  file is the task's main purpose (the state task, the balance task); those tasks are serialized.
-- Every other touch of a hot file (`world/world.gd` pad creation and pool size, `balance_data.gd` export) is reported
-  as a wiring note and applied by the main session.
+  file is the task's main purpose; those tasks are serialized. In the plan: Task 1 owns `station_balance.gd` and the
+  `stations` export in `balance_data.gd`; Tasks 3 and 4 own the autoloads; Task 6 owns the removal of the four fields
+  from `economy_balance.gd`.
+- Every other touch of a hot file (`world/world.gd`: pad creation and pool size) is reported as a wiring note and
+  applied by the main session.
 
 ## 6. Error handling
 

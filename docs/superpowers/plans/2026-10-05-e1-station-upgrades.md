@@ -27,15 +27,18 @@ named in each task before starting it.
 - Gameplay in `_physics_process` only. Only `GameState` methods mutate game data. Tweens are visual only.
 - Every number in `balance/`; every user string through `tr()`.
 - Station ids are `StringName` (`&"counter"`, `&"freezer"`) everywhere in memory and `String` in snapshots.
+- Read the E1 spec's section 9 first: it lists what changed after the spec review.
 - **Hot files** (D-136, D-139): `project.godot`, `CLAUDE.md`, `run_tests.sh`, `.github/workflows/*`, `autoload/*`,
   `balance/*`, `world/main.gd`, `world/main.tscn`, `world/world.gd`. A task edits and commits a hot file only when its
   **Files** list marks it `(main purpose)`. Any other hot-file change: the implementer writes it, saves it with
   `git diff -- <hot files> > /tmp/wiring_e1_t<NN>.patch`, keeps it applied locally for its test runs, never commits
   it, and pastes the patch text in its report. The main session applies and commits it after review.
+- New scripts come with a `.gd.uid` file (Godot writes it on import); commit it with the script. Before each commit
+  `git status --short` shows nothing but the wiring patch's hot files.
 - **Commits:** one per task on the phase branch; message `feat(e1): …`, `test(e1): …` or `docs(e1): …`; trailer = the
   `Co-Authored-By` line from your own session's attribution, then
   `Claude-Session: https://claude.ai/code/session_019nNyHrXgHzKVKBtdqy9Hez`.
-- **Branches (D-133):** `e1/p1-core` (Tasks 1 to 4), `e1/p2-world` (Tasks 5 to 7), `e1/p3-sims` (Tasks 8 to 10), each
+- **Branches (D-133):** `e1/p1-core` (Tasks 1 to 4), `e1/p2-world` (Tasks 5 to 7), `e1/p3-sims` (Tasks 8, 8b, 9, 10), each
   from an up-to-date `main`. P1 and P2 are self-merged by the main session when CI is green and every task passed its
   reviewer (D-137). **P3 ends at a checkpoint:** the author plays the preview URL before the merge.
 - Tests create the game with `Main.create()`, never `Main.new()`. Read state after `await get_tree().physics_frame`.
@@ -87,7 +90,7 @@ Spec 4, 5.1, 5.2.
 
 **Files:**
 - Create: `balance/station_balance.gd` (main purpose)
-- Modify: `balance/balance_data.gd` (main purpose)
+- Modify: `balance/balance_data.gd` (main purpose: spec 5.7 gives this export to Task 1)
 - Create: `core/station_effects.gd`
 - Test: `tests/unit/test_station_effects.gd`
 
@@ -276,7 +279,7 @@ Expected: all pass, 0 errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add balance/station_balance.gd balance/balance_data.gd core/station_effects.gd tests/unit/test_station_effects.gd
+git add balance/station_balance.gd balance/station_balance.gd.uid balance/balance_data.gd core/station_effects.gd core/station_effects.gd.uid tests/unit/test_station_effects.gd tests/unit/test_station_effects.gd.uid
 git commit -m "feat(e1): StationBalance and StationEffects"
 ```
 
@@ -287,7 +290,7 @@ git commit -m "feat(e1): StationBalance and StationEffects"
 Spec 5.2.
 
 **Files:**
-- Modify: `core/map_layout.gd` (the `QUEUE_SLOTS` line and one new block after `STATION_RADIUS`)
+- Modify: `core/map_layout.gd` (the `QUEUE_SLOTS` line and one new block after the `BUILD_RADIUS` line)
 - Test: `tests/unit/test_station_layout.gd` (new), `tests/unit/test_props_layout.gd` (one line)
 
 **Interfaces:**
@@ -380,6 +383,14 @@ func test_pads_are_inside_the_bounds() -> void:
 	for id in StationEffects.IDS:
 		assert_true(play.has_point(MapLayout.STATION_PADS[id]), String(id))
 
+func test_no_node_a_bot_stands_on_is_inside_a_pad() -> void:
+	# D-228: front_e and se are inside a pad radius; bots only pass through them, and a zone needs a still hero.
+	var g := WaypointGraph.create_default()
+	for n in ["home", "sign", "gold_pile", "counter_drop", "freezer", "zone_west", "zone_north", "zone_east",
+			"fence_w", "fence_n", "fence_e", "tower_nw", "tower_ne"]:
+		for id in StationEffects.IDS:
+			assert_gt(g.position_of(n).distance_to(MapLayout.STATION_PADS[id]), MapLayout.BUILD_RADIUS, "%s is on the %s pad" % [n, id])
+
 func test_the_default_waypoint_graph_is_unchanged() -> void:
 	# D-230: a new node would change nearest() and the planner's routes, and so the determinism baseline.
 	var g := WaypointGraph.create_default()
@@ -432,7 +443,7 @@ Expected: all pass. `test_travelers.gd` still passes: at level 0 only slots 0 to
 - [ ] **Step 5: Commit**
 
 ```bash
-git add core/map_layout.gd tests/unit/test_station_layout.gd tests/unit/test_props_layout.gd
+git add core/map_layout.gd tests/unit/test_station_layout.gd tests/unit/test_station_layout.gd.uid tests/unit/test_props_layout.gd
 git commit -m "feat(e1): upgrade pad positions and a 9-slot traveler queue"
 ```
 
@@ -512,6 +523,7 @@ func test_before_the_first_new_game_everything_reads_as_level_0() -> void:
 		assert_eq(GameState.pay_into_station(id, 10), 0)
 	assert_eq(GameState.carry_capacity(), Balance.data.hero.carry_capacity)
 	assert_eq(GameState.counter_capacity(), sb.counter_capacity[0])
+	GameState.new_game(1234)  # leave a whole state behind
 
 func test_partial_payment() -> void:
 	GameState.add_gold(100)
@@ -709,7 +721,7 @@ Expected: sims pass; `baseline identical`.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add autoload/GameState.gd autoload/EventBus.gd tests/unit/test_game_state_stations.gd
+git add autoload/GameState.gd autoload/EventBus.gd tests/unit/test_game_state_stations.gd tests/unit/test_game_state_stations.gd.uid
 git commit -m "feat(e1): station state, payment and signals in GameState"
 ```
 
@@ -722,7 +734,8 @@ Spec 5.5, Review Focus 1.
 **Files:**
 - Modify: `autoload/GameState.gd` (main purpose: `SCHEMA_VERSION`, `to_dict`, `from_dict`)
 - Modify: `core/save_codec.gd`
-- Modify: `tests/unit/test_save_codec.gd` (the test `test_older_version_migrates_through_the_hook` only)
+- Modify: `tests/unit/test_save_codec.gd` (the test `test_older_version_migrates_through_the_hook` only),
+  `tests/unit/test_game_state.gd` (one assertion)
 - Modify: `docs/superpowers/specs/2026-10-05-e1-station-upgrades-design.md` (one bullet in 5.5)
 - Test: `tests/unit/test_save_stations.gd` (new)
 
@@ -958,6 +971,9 @@ only** with `2`, and inside its lambda, next to `st.night_fails = 0`, add:
 Keep every assertion. The two other tests that register `MIGRATIONS[GameState.SCHEMA_VERSION - 1]` stay as they are:
 a registered step overrides the built-in one.
 
+In `tests/unit/test_game_state.gd`, `test_round_trip_v3_carries_night_fails`: replace `assert_eq(int(d.v), 3)` with
+`assert_eq(int(d.v), GameState.SCHEMA_VERSION)`.
+
 - [ ] **Step 6: Amend the spec line**
 
 In the spec, section 5.5, replace the bullet that starts "Validation: both ids present" with:
@@ -977,7 +993,7 @@ the report.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add autoload/GameState.gd core/save_codec.gd tests/unit/test_save_stations.gd tests/unit/test_save_codec.gd docs/superpowers/specs/2026-10-05-e1-station-upgrades-design.md
+git add autoload/GameState.gd core/save_codec.gd tests/unit/test_save_stations.gd tests/unit/test_save_stations.gd.uid tests/unit/test_save_codec.gd tests/unit/test_game_state.gd docs/superpowers/specs/2026-10-05-e1-station-upgrades-design.md
 git commit -m "feat(e1): save schema 4 with a built-in 3-to-4 migration"
 ```
 
@@ -1107,9 +1123,6 @@ func test_build_spots_keep_their_pips() -> void:
 	assert_eq(spot._pips.size(), Balance.data.build.max_level)
 	assert_eq(spot._pips[0].name, "Pip0")
 ```
-
-If `EventBus.closeup_requested` does not start the night from a unit test in this harness, use the way
-`tests/unit/test_stations.gd` or `test_restore_world.gd` enters NIGHT from DAY and say which in the report.
 
 - [ ] **Step 2: Run it and see it fail**
 
@@ -1281,9 +1294,13 @@ label, the sign or the freezer stack.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add world/build_spots/level_pips.gd world/build_spots/build_spot.gd world/stations/upgrade_pad.gd tests/unit/test_upgrade_pad.gd docs/review/media/e1/task05
+git add world/build_spots/level_pips.gd world/build_spots/level_pips.gd.uid world/build_spots/build_spot.gd world/stations/upgrade_pad.gd world/stations/upgrade_pad.gd.uid tests/unit/test_upgrade_pad.gd tests/unit/test_upgrade_pad.gd.uid docs/review/media/e1/task05
 git commit -m "feat(e1): upgrade pads for the counter and the freezer"
 ```
+
+- [ ] **Step 9 (main session, after the reviewer pass):** apply `/tmp/wiring_e1_t05.patch`, run
+  `./run_tests.sh all && tools/baseline_diff.sh`, then `git add world/world.gd` and commit
+  `feat(e1): wire the upgrade pads into World (D-139)`. Task 6 is dispatched only after this commit.
 
 ---
 
@@ -1294,8 +1311,9 @@ Spec 5.1, 5.4, Review Focus 2 and 5.
 **Files:**
 - Modify: `world/stations/counter.gd`, `world/stations/freezer.gd`, `world/traveler_spawner.gd`,
   `components/carry_stack.gd`, `actors/bots/planner_bot.gd` (line 18 only), `ui/guide/guide.gd` (line 120 only)
-- Modify: `balance/economy_balance.gd` (main purpose: remove 4 fields)
-- Wiring note: `world/world.gd:188` (hot)
+- Modify: `balance/economy_balance.gd` (main purpose: spec 5.7 gives the removal of the 4 fields to Task 6)
+- Wiring note: `world/world.gd` (hot)
+- Modify: `tests/sim/capture.gd` (three capture arguments, Step 10)
 - Modify tests that read the removed fields: `tests/unit/test_travelers.gd`, `test_reactions.gd`, `test_piles.gd`,
   `test_stations.gd`, `test_game_state.gd`, `test_guide.gd`, `test_restore_world.gd`, `test_station_effects.gd`
 - Test: `tests/unit/test_station_world.gd` (new)
@@ -1373,10 +1391,13 @@ func test_the_queue_grows_with_the_counter_level() -> void:
 func test_upgrading_while_a_traveler_is_served() -> void:
 	# Review Focus 5
 	main.phase_controller.debug_skip_to_day()
-	GameState.counter_steaks = 12  # test-only setup
 	var sp := main.world.traveler_spawner
-	await _ticks(_secs(sb.queue_max[0] * 3.0))
+	await _ticks(_secs(sb.queue_max[0] * 3.0 + 10.0))  # empty counter: nobody is served, the queue fills and stays full
 	assert_eq(sp.queue.size(), sb.queue_max[0], "full at level 0")
+	assert_true((sp.queue[0] as Traveler).at_target(), "precondition: the front traveler is at the counter")
+	GameState.counter_steaks = 12  # test-only setup
+	await _ticks(5)
+	assert_gt((sp.queue[0] as Traveler).service_timer, 0.0, "precondition: a traveler is mid-service")
 	GameState.debug_set_station_level(&"counter", 4)
 	await _ticks(_secs(20.0))
 	assert_gt(sp.queue.size(), sb.queue_max[0], "the cap rose at once")
@@ -1411,9 +1432,6 @@ func test_an_upgrade_pops_the_visual_not_the_body() -> void:
 	assert_almost_eq(main.world.counter.body_visual.scale.x, 1.0, 0.001)
 ```
 
-If `World` holds the counter body under another path than `get_node("CounterBody")`, use the path
-`add_static_box` gives it (`world/world.gd:152-170`) and say so in the report.
-
 - [ ] **Step 2: Run it and see it fail**
 
 Run: `./run_tests.sh unit 2>&1 | grep -E "test_station_world" | head`
@@ -1431,7 +1449,8 @@ In `world/stations/counter.gd`:
 	body_visual = body.get_child(1) as Node3D  # add_static_box: child 0 is the shape, child 1 the visual root
 ```
 
-- Replace the slot loop with (the first 12 slots are exactly today's):
+- Replace from `var slots := PackedVector3Array()` through the `slots.append(...)` line with (the first 12 slots are
+  exactly today's):
 
 ```gdscript
 	var sb := Balance.data.stations
@@ -1462,11 +1481,11 @@ func _on_station_upgraded(id: StringName, _level: int) -> void:
 - [ ] **Step 4: Freezer**
 
 In `world/stations/freezer.gd`: the same `body_visual` capture on the `FreezerBody` line, the same `_pop` member, the
-same handler with `id != &"freezer"`, and the same `connect`. In `_on_tick` replace
-`GameState.move_freezer_to_carry(1)` with:
+same handler with `id != &"freezer"`, and the same `connect`. In `_on_tick`, replace only the argument `1` in
+`if GameState.move_freezer_to_carry(1) > 0:`, so the line reads:
 
 ```gdscript
-	GameState.move_freezer_to_carry(StationEffects.load_per_tick(GameState.station_level(&"freezer"), Balance.data.stations))
+	if GameState.move_freezer_to_carry(StationEffects.load_per_tick(GameState.station_level(&"freezer"), Balance.data.stations)) > 0:
 ```
 
 - [ ] **Step 5: Traveler spawner**
@@ -1503,9 +1522,10 @@ and replace `e.queue_max` with `StationEffects.queue_max(counter_level, sb)` and
 - `actors/bots/planner_bot.gd:18`: `var counter_cap := GameState.counter_capacity()`
 - `ui/guide/guide.gd:120`: `"counter_capacity": gs.counter_capacity(),`
 
-- [ ] **Step 7: Wiring note for `world/world.gd:188`**
+- [ ] **Step 7: Wiring note for `world/world.gd`**
 
-Apply locally, save as `/tmp/wiring_e1_t06.patch`, do not commit:
+Replace the line `traveler_pool.setup(_make_traveler, Balance.data.economy.queue_max * 2)` with the line below. Apply
+locally, save as `/tmp/wiring_e1_t06.patch`, do not commit:
 
 ```gdscript
 	traveler_pool.setup(_make_traveler, StationEffects.traveler_pool_size(Balance.data.stations, Balance.data.economy))
@@ -1549,17 +1569,46 @@ Expected: pass; `baseline identical`.
 - [ ] **Step 10: Shots**
 
 Run: `tools/shots.sh docs/review/media/e1/task06`
-Plus one extra capture with a level 5 counter, 42 steaks on it, a full 9-traveler queue and a 26-steak carry (use
-`GameState.debug_set_station_level` in the capture script the way `tests/sim/capture.gd` sets up its other scenes).
+Then one extra capture: a level 5 counter with 42 steaks, a full 9-traveler queue and a 26-steak carry. It needs
+three small edits in `tests/sim/capture.gd`:
+
+- Next to the `--cards` block:
+
+```gdscript
+	if _args.has("stations"):  # --stations=counter:5,freezer:5 (E1)
+		var gs_st = root.get_node("GameState")
+		for pair in String(_args.stations).split(",", false):
+			var sp := pair.split(":")
+			gs_st.debug_set_station_level(StringName(sp[0]), int(sp[1]))
+```
+
+- Replace `await _wait(12.0)` with `await _wait(float(_args.get("day-wait", "12")))`.
+- Before `var dbg = main.get_node_or_null("DebugOverlay")`:
+
+```gdscript
+	if _args.has("stock"):  # --stock=<counter>,<carried>: set right before the grab (E1)
+		var sv := String(_args.stock).split(",")
+		var gs_sk = root.get_node("GameState")
+		gs_sk.counter_steaks = int(sv[0])
+		gs_sk.carried_steaks = int(sv[1])
+		root.get_node("EventBus").stocks_changed.emit()
+```
+
+Run: `"$GODOT" --path . --resolution 720x1280 -s res://tests/sim/capture.gd -- --out=docs/review/media/e1/task06/level5.png --phase=day --day-wait=24 --stations=counter:5,freezer:5 --cards=carry_capacity:5 --stock=42,26`
+
 The main session checks: the pile does not hide the counter label, the queue's second row reads as a line, and the
 carry stack stays on screen. If the stack leaves the screen: report it; do not cap it in this task (spec 8).
 
 - [ ] **Step 11: Commit**
 
 ```bash
-git add world/stations/counter.gd world/stations/freezer.gd world/traveler_spawner.gd components/carry_stack.gd actors/bots/planner_bot.gd ui/guide/guide.gd balance/economy_balance.gd tests/unit docs/review/media/e1/task06
+git add world/stations/counter.gd world/stations/freezer.gd world/traveler_spawner.gd components/carry_stack.gd actors/bots/planner_bot.gd ui/guide/guide.gd balance/economy_balance.gd tests/unit tests/sim/capture.gd docs/review/media/e1/task06
 git commit -m "feat(e1): stations, travelers and carry read the upgraded values"
 ```
+
+- [ ] **Step 12 (main session, after the reviewer pass):** apply `/tmp/wiring_e1_t06.patch`, run
+  `./run_tests.sh all && tools/baseline_diff.sh`, then `git add world/world.gd` and commit
+  `feat(e1): size the traveler pool for a level 5 queue (D-139)`. Task 7 is dispatched only after this commit.
 
 ---
 
@@ -1594,6 +1643,8 @@ func test_an_affordable_station_blocks_the_pulse() -> void:
 	var sb := Balance.data.stations
 	var cheapest := mini(sb.counter_cost, sb.freezer_cost)
 	var s := _with_stations(_state())
+	for id in MapLayout.SPOT_IDS:
+		s.buildings[id].level = Balance.data.build.max_level  # no spot is buyable: only the stations decide
 	s.gold = cheapest
 	assert_false(Pulse.should_pulse(s, Balance.data))
 	s.gold = cheapest - 1
@@ -1601,6 +1652,8 @@ func test_an_affordable_station_blocks_the_pulse() -> void:
 
 func test_a_partly_paid_station_counts_what_is_left() -> void:
 	var s := _with_stations(_state())
+	for id in MapLayout.SPOT_IDS:
+		s.buildings[id].level = Balance.data.build.max_level
 	s.gold = 1
 	s.stations.counter.paid = Balance.data.stations.counter_cost - 1
 	assert_false(Pulse.should_pulse(s, Balance.data))
@@ -1679,20 +1732,19 @@ func test_the_guide_snapshot_ignores_stations() -> void:
 For the guide test, follow how `tests/unit/test_guide.gd` builds its `Guide` (settings store first, then `setup`); if
 it differs from the lines above, copy that file's helper and keep the three assertions.
 
-Add to `tests/unit/test_autosave.gd`, next to `test_offer_pick_build_and_day_writes` and using that file's own
-helpers (`_saved()` and its day setup):
+Add to `tests/unit/test_autosave.gd` (it uses that file's own `main`, `pc` and `_saved()`):
 
 ```gdscript
 func test_a_station_upgrade_writes_at_once() -> void:
-	# the same setup as test_offer_pick_build_and_day_writes up to the DAY phase, then:
-	GameState.add_gold(30)
-	var before: int = autosave.writes
-	GameState.pay_into_station(&"counter", 30)
-	assert_gt(autosave.writes, before, "station_upgraded writes at once")
+	pc.start_new_game(9)
+	pc.debug_skip_to_day()
+	var cost := GameState.station_next_cost(&"counter")
+	GameState.add_gold(cost)
+	var before: int = main.autosave.writes
+	GameState.pay_into_station(&"counter", cost)
+	assert_gt(main.autosave.writes, before, "station_upgraded writes at once")
 	assert_eq(int(_saved().stations.counter.level), 1)
 ```
-
-(`autosave` here is whatever name that file gives its `Autosave` instance.)
 
 - [ ] **Step 2: Run them and see them fail**
 
@@ -1757,7 +1809,7 @@ func _on_station_upgraded(id: StringName, _level: int) -> void:
 - `ui/guide/guide.gd` `snapshot()`: before the `return {`, add
 
 ```gdscript
-	var spots_only := gs.to_dict()
+	var spots_only: Dictionary = gs.to_dict()
 	spots_only.erase("stations")  # the tutorial never waits for a station upgrade (E1 spec 5.4)
 ```
 
@@ -1772,7 +1824,7 @@ move them; if the diff is not identical, stop and report.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add core/pulse.gd world/stations/closeup_sign.gd world/save/autosave.gd world/audio/audio_director.gd world/fx/reactions.gd ui/guide/guide.gd tests/unit/test_pulse.gd tests/unit/test_station_reactions.gd tests/unit/test_autosave.gd
+git add core/pulse.gd world/stations/closeup_sign.gd world/save/autosave.gd world/audio/audio_director.gd world/fx/reactions.gd ui/guide/guide.gd tests/unit/test_pulse.gd tests/unit/test_station_reactions.gd tests/unit/test_station_reactions.gd.uid tests/unit/test_autosave.gd
 git commit -m "feat(e1): sign pulse, autosave, sound and sparkle react to station upgrades"
 ```
 
@@ -1875,8 +1927,7 @@ func _served_at(level: int) -> int:
 	await get_tree().process_frame
 	Balance.reset()
 	h = SimHarness.new(self)
-	h.start(SEED, ParkedBot)
-	h.main.hero.teleport(Vector2(15, 8))  # away from every zone
+	h.start(SEED, ParkedBot)  # parks the hero at home, off every zone
 	h.main.phase_controller.debug_skip_to_day()
 	GameState.debug_set_station_level(&"counter", level)
 	_served = 0
@@ -1928,11 +1979,9 @@ func test_6_3_the_upgrader_holds_nights_1_to_3() -> void:
 			var d := await h.run_day()
 			assert_true(d.closed, "day %d closes up" % night)
 	gut.p("upgrader stations after night 3: %s, stuck %d" % [GameState.stations, h.bot.stuck_count])
+	assert_gt(GameState.station_level(&"counter") + GameState.station_level(&"freezer"), 0, "the upgrader bought a station level by night 3")
 	assert_eq(h.bot.stuck_count, 0, "the pad routes are walkable")
 ```
-
-If `run_night` returns before the DAY phase is fully entered and `debug_set_station_level` there is too early for the
-spawner's first interval, set the level one `await h.tick()` later; both runs of 6.2 must do the same.
 
 - [ ] **Step 2: Run them and see them fail**
 
@@ -2010,7 +2059,7 @@ Expected: all pass.
 Run: `./run_tests.sh sim 2>&1 | grep -E "served per level|day 1:|upgrader stations|SIM SUITE|passed|failed"`
 
 - 6.2 and 6.3 must pass.
-- 6.1 may fail at this point: that is the dead-level guard working, and tuning is Task 10. **Do not change the
+- 6.1 may fail at this point: that is the dead-level guard working, and tuning is Task 8b (main session). **Do not change the
   tables and do not weaken the test.** Put the printed `served per level` line and the `SIM SUITE` seconds in the
   report. If 6.1 fails, mark the task DONE_WITH_CONCERNS and say which levels fail.
 - If `SIM SUITE` is over 60 s: report the per-test timings and stop (D-132).
@@ -2023,8 +2072,42 @@ Expected: `baseline identical` (the planner's `idle_goal()` returns `"sign"`, as
 - [ ] **Step 8: Commit**
 
 ```bash
-git add actors/bots/upgrader_bot.gd actors/bots/planner_bot.gd tests/unit/test_upgrader_bot.gd tests/sim/test_station_sims.gd
+git add actors/bots/upgrader_bot.gd actors/bots/upgrader_bot.gd.uid actors/bots/planner_bot.gd tests/unit/test_upgrader_bot.gd tests/unit/test_upgrader_bot.gd.uid tests/sim/test_station_sims.gd tests/sim/test_station_sims.gd.uid
 git commit -m "feat(e1): UpgraderBot and the station sims"
+```
+
+---
+
+### Task 8b: Tune the counter tables (main session)
+
+Spec 4. Only if Task 8 reported sim 6.1 failing. The main session does this itself: it holds the balance decisions
+(D-103). The sim suite is green before Task 9 is dispatched.
+
+**Files:**
+- Modify: `balance/station_balance.gd` (main purpose), `docs/DECISIONS.md`
+
+- [ ] **Step 1: Sim 6.1**
+
+Run: `./run_tests.sh sim 2>&1 | grep -E "served per level|SIM SUITE|failed"`
+
+If 6.1 passes, commit nothing and go on to Task 9. If it fails, tune `queue_max`, `traveler_interval` and `service_time` for the failing
+levels in `balance/station_balance.gd`. Rules:
+- Level 0 never changes.
+- Each table stays monotonic (Task 1's test).
+- `queue_max` never exceeds `MapLayout.QUEUE_SLOTS.size()` (9). More slots is a layout change: stop and split.
+- At most 3 rounds (D-103). After the third failing round, stop and bring the `served per level` lines to the author.
+- Never lower `min_level_gain` and never touch the test to make it pass.
+
+Log the final tables and the served counts as a decision in `docs/DECISIONS.md`.
+
+- [ ] **Step 2: Full suites, baseline, commit**
+
+Run: `./run_tests.sh all 2>&1 | tail -8 && tools/baseline_diff.sh`
+Expected: pass, `SIM SUITE` under 60 s, `baseline identical`.
+
+```bash
+git add balance/station_balance.gd docs/DECISIONS.md
+git commit -m "feat(e1): tune the counter tables until every level serves more (D-103)"
 ```
 
 ---
@@ -2056,6 +2139,7 @@ func test_the_level_5_day_fixture_loads() -> void:
 	assert_eq(String(r.state.resume_phase), "DAY")
 	assert_eq(int(r.state.day), 3)
 	assert_eq(int(r.state.stations.counter.level), Balance.data.stations.max_level)
+	assert_gt(int(r.state.counter_steaks), 0, "stocked")
 ```
 
 Run: `./run_tests.sh unit 2>&1 | grep -E "test_perf_fixture" | head`
@@ -2116,7 +2200,9 @@ In `tests/sim/make_save.gd`:
 		# E1 perf: day 3 with a level 5 counter (a 9-traveler queue). The night3_* fixtures stay at schema 3.
 		var s5: Dictionary = state.duplicate(true)
 		s5.resume_phase = "DAY"
-		s5.stations["counter"] = {"level": root.get_node("Balance").data.stations.max_level, "paid": 0}
+		var sb5 = root.get_node("Balance").data.stations
+		s5.stations["counter"] = {"level": sb5.max_level, "paid": 0}
+		s5.counter_steaks = sb5.counter_capacity[sb5.max_level]  # stocked: travelers are served, not only queued
 		_write("day3_counter5", s5)
 		quit(0)
 		return
@@ -2158,8 +2244,8 @@ Expected: `ok`.
 
 - [ ] **Step 6: Run the tests**
 
-Run: `./run_tests.sh unit 2>&1 | tail -6`
-Expected: all pass.
+Run: `./run_tests.sh all 2>&1 | tail -8 && tools/baseline_diff.sh`
+Expected: unit and sim pass; `baseline identical`.
 
 - [ ] **Step 7: Commit**
 
@@ -2170,35 +2256,20 @@ git commit -m "feat(e1): upgrader sweep mode and a level 5 day perf fixture"
 
 ---
 
-### Task 10: Tuning, readings and docs (main session)
+### Task 10: Readings and docs (main session)
 
-Spec 4, 7, 8. The main session does this task itself: it holds the balance decisions (D-103) and the hot files.
+Spec 7, 8. The main session does this task itself: it holds the readings, the decisions and the hot files.
 
 **Files:**
-- Modify: `balance/station_balance.gd` (main purpose, only if 6.1 fails), `docs/REVIEW_QUEUE.md`,
-  `docs/DECISIONS.md`, `CLAUDE.md`
+- Modify: `docs/REVIEW_QUEUE.md`, `docs/DECISIONS.md`, `CLAUDE.md`
 - Create: `docs/review/media/e1/` readings
 
-- [ ] **Step 1: Sim 6.1**
-
-Run: `./run_tests.sh sim 2>&1 | grep -E "served per level|SIM SUITE|failed"`
-
-If 6.1 passes, go to Step 2. If it fails, tune `queue_max`, `traveler_interval` and `service_time` for the failing
-levels in `balance/station_balance.gd`. Rules:
-- Level 0 never changes.
-- Each table stays monotonic (Task 1's test).
-- `queue_max` never exceeds `MapLayout.QUEUE_SLOTS.size()` (9). More slots is a layout change: stop and split.
-- At most 3 rounds (D-103). After the third failing round, stop and bring the `served per level` lines to the author.
-- Never lower `min_level_gain` and never touch the test to make it pass.
-
-Log the final tables and the served counts as a decision in `docs/DECISIONS.md`.
-
-- [ ] **Step 2: Full suites and the baseline**
+- [ ] **Step 1: Full suites and the baseline**
 
 Run: `./run_tests.sh all 2>&1 | tail -8 && tools/baseline_diff.sh`
 Expected: pass, `SIM SUITE` under 60 s, `baseline identical`.
 
-- [ ] **Step 3: The upgrader sweep**
+- [ ] **Step 2: The upgrader sweep**
 
 For each seed in `20260930 11 777`:
 
@@ -2208,7 +2279,7 @@ Compare `first_fail_day` and `hard_break_day` with `tests/sim/baseline/s4_sweep_
 row. Write the comparison (3 lines per seed) into `docs/DECISIONS.md`. If the upgrader breaks more than 2 days earlier
 than the planner on any seed, that is a balance conflict: bring it to the author with the numbers before merging.
 
-- [ ] **Step 4: Day perf at level 5**
+- [ ] **Step 3: Day perf and load time at level 5**
 
 Build the web profile pack (`export/README.md`), then:
 
@@ -2216,9 +2287,14 @@ Run: `DAY_FIXTURE=day3_counter5 export/perf_night3.sh <web_profile_dir> docs/rev
 
 Three runs; read the frozen `PERF phase=DAY` line; take the median (D-199). Record it next to the D-221 day-3 reading
 (52.9 fps) in `docs/DECISIONS.md` and in known issue 1 of `docs/REVIEW_QUEUE.md`. A lower reading is reported, not
-tuned away.
+tuned away. Say in the record what the fixture is: the close-up state before night 3, counter level 5 and stocked
+(42 steaks), so travelers queue and are served.
 
-- [ ] **Step 5: Device check**
+Load time: the traveler pool is prewarmed with about 31 travelers instead of 8. Re-run
+`docs/review/media/final/load_time.mjs` the way D-221 did and record the figure next to the D-221 load figure. A
+slower load is reported to the author.
+
+- [ ] **Step 4: Device check**
 
 Push the branch, wait for the Pages preview, then:
 
@@ -2227,7 +2303,7 @@ Run: `export/device_check.sh https://khanhnguyendev.github.io/last-stand-tycoon/
 Read the screenshots: the pads, labels and pips are readable on the notch iPhone. Android is Playwright Pixel 7,
 labelled **emulated** (D-141).
 
-- [ ] **Step 6: Docs**
+- [ ] **Step 5: Docs**
 
 - `docs/REVIEW_QUEUE.md`, new section "E1 station upgrades":
   1. No per-level station art; a level shows as a pop and star pips (D-229).
@@ -2241,10 +2317,10 @@ labelled **emulated** (D-141).
 - `CLAUDE.md`, "Git workflow", first bullet: the branch pattern reads `s<N>/p<N>-<slug>` or `e<N>/p<N>-<slug>`.
 - `docs/DECISIONS.md`: one decision entry for the task (tuned tables or "tables unchanged", sweep comparison, perf).
 
-- [ ] **Step 7: Commit and open the checkpoint PR**
+- [ ] **Step 6: Commit and open the checkpoint PR**
 
 ```bash
-git add balance/station_balance.gd docs CLAUDE.md
+git add docs CLAUDE.md
 git commit -m "docs(e1): tuning, upgrader sweep, level 5 perf reading, review queue"
 ```
 
@@ -2256,8 +2332,9 @@ try: buy counter level 1 on the first day, watch the queue, buy a freezer level,
 ## Self-review notes
 
 - Spec coverage: criterion 1, 3 (Tasks 3, 5); 2 (Task 6, sim 6.1); 4 (every task's `baseline_diff`, Task 9);
-  5 (Task 4); 6 (Task 8, tuned in Task 10); 7 (Global Constraints, Task 10). Spec 5.4's listeners: Task 7. Spec 5.6
+  5 (Task 4); 6 (Task 8, tuned in Task 8b); 7 (Global Constraints, Task 10). Spec 5.4's listeners: Task 7. Spec 5.6
   perf: Tasks 9 and 10. Spec 8 risks: Task 10's review-queue items.
-- Two deliberate differences from the spec, both written into the tasks that own them: `traveler_pool_size` takes the
+- Three deliberate differences from the spec, all written into the tasks that own them: `traveler_pool_size` takes the
   economy balance as a second argument (Task 1); the `paid < cost` validation rule becomes a clamp on load (Task 4,
-  which amends the spec line).
+  which amends the spec line); the built-in migrations are a `match` function, not a constant table, because a
+  constant cannot hold a Callable (Task 4).
