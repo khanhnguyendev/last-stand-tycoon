@@ -18,14 +18,6 @@ func test_level_0_is_the_s5_game() -> void:
 	assert_eq(StationEffects.carry_bonus(0, sb), 0)
 	assert_eq(StationEffects.load_per_tick(0, sb), 1)
 
-func test_level_0_matches_the_economy_fields_while_they_exist() -> void:
-	# Task 6 deletes the EconomyBalance fields and this test with them.
-	var e := Balance.data.economy
-	assert_eq(StationEffects.queue_max(0, sb), e.queue_max)
-	assert_eq(StationEffects.traveler_interval(0, sb), e.traveler_interval)
-	assert_eq(StationEffects.service_time(0, sb), e.service_time)
-	assert_eq(StationEffects.counter_capacity(0, sb), e.counter_capacity)
-
 func test_level_5_values() -> void:
 	assert_eq(StationEffects.queue_max(5, sb), sb.queue_max[5])
 	assert_eq(StationEffects.counter_capacity(5, sb), sb.counter_capacity[5])
@@ -63,4 +55,4 @@ func test_max_carry_and_pool_size() -> void:
 	var walk := MapLayout.SERVICE_POINT.distance_to(MapLayout.TRAVELER_EXIT) / bd.economy.traveler_speed
 	assert_eq(StationEffects.traveler_pool_size(sb, bd.economy),
 		sb.queue_max[sb.max_level] + int(ceil(walk / sb.service_time[sb.max_level])) + 2)
-	assert_gte(StationEffects.traveler_pool_size(sb, bd.economy), bd.economy.queue_max * 2, "never smaller than today's pool")
+	assert_gte(StationEffects.traveler_pool_size(sb, bd.economy), 8, "never smaller than today's pool")

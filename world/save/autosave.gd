@@ -18,6 +18,8 @@ func _ready() -> void:
 	EventBus.phase_changed.connect(_on_phase)
 	EventBus.night_failed.connect(_on_night_failed)
 	EventBus.build_completed.connect(_on_build_completed)
+	EventBus.station_upgraded.connect(_on_build_completed)  # "after each build" covers station levels (E1)
+	EventBus.station_changed.connect(_mark_dirty.unbind(3))
 	EventBus.stocks_changed.connect(_mark_dirty)
 	EventBus.gold_changed.connect(_mark_dirty.unbind(2))
 	EventBus.building_changed.connect(_mark_dirty.unbind(3))

@@ -54,3 +54,40 @@ func test_one_upgradable_spot_among_maxed_decides_pulse() -> void:
 	assert_false(Pulse.should_pulse(s, Balance.data))
 	s.gold = cost - 1
 	assert_true(Pulse.should_pulse(s, Balance.data))
+
+func _with_stations(s: Dictionary) -> Dictionary:
+	s["stations"] = {"counter": {"level": 0, "paid": 0}, "freezer": {"level": 0, "paid": 0}}
+	return s
+
+func test_a_state_without_stations_ignores_them() -> void:
+	var s := _state()
+	s.gold = 1
+	assert_true(Pulse.should_pulse(s, Balance.data))
+
+func test_an_affordable_station_blocks_the_pulse() -> void:
+	var sb := Balance.data.stations
+	var cheapest := mini(sb.counter_cost, sb.freezer_cost)
+	var s := _with_stations(_state())
+	for id in MapLayout.SPOT_IDS:
+		s.buildings[id].level = Balance.data.build.max_level  # no spot is buyable: only the stations decide
+	s.gold = cheapest
+	assert_false(Pulse.should_pulse(s, Balance.data))
+	s.gold = cheapest - 1
+	assert_true(Pulse.should_pulse(s, Balance.data))
+
+func test_a_partly_paid_station_counts_what_is_left() -> void:
+	var s := _with_stations(_state())
+	for id in MapLayout.SPOT_IDS:
+		s.buildings[id].level = Balance.data.build.max_level
+	s.gold = 1
+	s.stations.counter.paid = Balance.data.stations.counter_cost - 1
+	assert_false(Pulse.should_pulse(s, Balance.data))
+
+func test_maxed_stations_are_ignored() -> void:
+	var s := _with_stations(_state())
+	for id in s.stations:
+		s.stations[id].level = Balance.data.stations.max_level
+	for id in MapLayout.SPOT_IDS:
+		s.buildings[id].level = Balance.data.build.max_level
+	s.gold = 100000
+	assert_true(Pulse.should_pulse(s, Balance.data))

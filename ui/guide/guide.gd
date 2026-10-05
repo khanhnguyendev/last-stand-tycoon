@@ -113,12 +113,14 @@ func snapshot() -> Dictionary:
 	var spots: Array = []
 	for id in MapLayout.SPOT_IDS:
 		spots.append({"id": id, "remaining": gs.remaining_cost(id), "next_cost": gs.next_level_cost(id), "pos": MapLayout.to3(MapLayout.spot_position(id))})
+	var spots_only: Dictionary = gs.to_dict()
+	spots_only.erase("stations")  # the tutorial never waits for a station upgrade (E1 spec 5.4)
 	return {
 		"phase": main.phase_controller.phase, "day": gs.day, "hero_xz": main.hero.xz(), "walked": walked,
 		"attack_range": Balance.data.hero.attack_range, "boars": boars, "steaks": steaks, "carried": gs.carried_steaks,
 		"carry_capacity": gs.carry_capacity(), "freezer": gs.freezer_steaks, "counter": gs.counter_steaks,
-		"counter_capacity": Balance.data.economy.counter_capacity, "gold": gs.gold, "gold_pile": gs.gold_pile,
-		"move_m": Balance.ui.guide_move_m, "spots": spots, "should_pulse": Pulse.should_pulse(gs.to_dict(), Balance.data),
+		"counter_capacity": gs.counter_capacity(), "gold": gs.gold, "gold_pile": gs.gold_pile,
+		"move_m": Balance.ui.guide_move_m, "spots": spots, "should_pulse": Pulse.should_pulse(spots_only, Balance.data),
 	}
 
 func evaluate_now() -> void:

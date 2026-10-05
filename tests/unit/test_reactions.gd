@@ -90,7 +90,7 @@ func test_traveler_hops_on_sale() -> void:
 	main.phase_controller.debug_skip_to_day()
 	GameState.counter_steaks = 5
 	var e := Balance.data.economy
-	var guard := int(ceil((e.traveler_interval + e.traveler_jitter + 12.0) * 60.0))
+	var guard := int(ceil((StationEffects.traveler_interval(0, Balance.data.stations) + e.traveler_jitter + 12.0) * 60.0))
 	var front: Traveler = null
 	while guard > 0:
 		await get_tree().physics_frame
@@ -101,7 +101,7 @@ func test_traveler_hops_on_sale() -> void:
 	assert_not_null(front)
 	var root_y := front.visual.position.y
 	var shadow_y := front.visual.global_position.y  # what the ShadowField reads
-	guard = int(ceil(Balance.data.economy.service_time * 60.0 * 1.5)) + 60
+	guard = int(ceil(StationEffects.service_time(0, Balance.data.stations) * 60.0 * 1.5)) + 60
 	while not front.leaving and guard > 0:
 		await get_tree().physics_frame
 		guard -= 1

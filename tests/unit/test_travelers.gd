@@ -27,10 +27,10 @@ func test_no_travelers_at_night() -> void:
 func test_spawn_and_queue_cap_in_day() -> void:
 	var e := Balance.data.economy
 	main.phase_controller.debug_skip_to_day()
-	await _ticks(_secs(e.traveler_interval + e.traveler_jitter))
+	await _ticks(_secs(StationEffects.traveler_interval(0, Balance.data.stations) + e.traveler_jitter))
 	assert_gt(sp.queue.size(), 0)
-	await _ticks(_secs((e.queue_max + 1) * (e.traveler_interval + e.traveler_jitter)))
-	assert_eq(sp.queue.size(), e.queue_max)
+	await _ticks(_secs((StationEffects.queue_max(0, Balance.data.stations) + 1) * (StationEffects.traveler_interval(0, Balance.data.stations) + e.traveler_jitter)))
+	assert_eq(sp.queue.size(), StationEffects.queue_max(0, Balance.data.stations))
 
 func test_purchase_is_atomic_after_service_time() -> void:
 	var e := Balance.data.economy
@@ -40,7 +40,7 @@ func test_purchase_is_atomic_after_service_time() -> void:
 	assert_true(ok)
 	var front: Traveler = sp.queue[0]
 	var want := front.want
-	var guard := _secs(e.service_time)
+	var guard := _secs(StationEffects.service_time(0, Balance.data.stations))
 	while not front.leaving and guard > 0:
 		assert_eq(GameState.counter_steaks, 5, "nothing sold before the service time")
 		assert_eq(GameState.gold_pile, 0, "no gold before the service time")
@@ -53,25 +53,25 @@ func test_purchase_is_atomic_after_service_time() -> void:
 func test_empty_counter_front_waits() -> void:
 	main.phase_controller.debug_skip_to_day()
 	assert_true(await _wait_front_at_counter())
-	await _ticks(_secs(Balance.data.economy.service_time * 2.0))
+	await _ticks(_secs(StationEffects.service_time(0, Balance.data.stations) * 2.0))
 	assert_false((sp.queue[0] as Traveler).leaving)
 	assert_eq(GameState.gold_pile, 0)
 
 func test_close_up_sends_everyone_away_and_stops() -> void:
 	main.phase_controller.debug_skip_to_day()
-	await _ticks(_secs(Balance.data.economy.traveler_interval * 2.0))
+	await _ticks(_secs(StationEffects.traveler_interval(0, Balance.data.stations) * 2.0))
 	assert_gt(sp.queue.size(), 0, "precondition: someone is queued")
 	main.phase_controller.close_up()
 	assert_eq(sp.queue.size(), 0)
 	assert_gt(sp.leaving.size(), 0)
 	for t in sp.leaving:
 		assert_true(t.leaving)
-	await _ticks(_secs(Balance.data.economy.service_time * 5.0))
+	await _ticks(_secs(StationEffects.service_time(0, Balance.data.stations) * 5.0))
 	assert_eq(sp.queue.size(), 0)
 
 func test_clear_queue_recalls_everyone() -> void:
 	main.phase_controller.debug_skip_to_day()
-	await _ticks(_secs(Balance.data.economy.traveler_interval * 2.0))
+	await _ticks(_secs(StationEffects.traveler_interval(0, Balance.data.stations) * 2.0))
 	assert_gt(sp.queue.size(), 0)
 	sp.clear_queue()
 	assert_eq(sp.queue.size(), 0)
@@ -86,20 +86,20 @@ func _record_spawns() -> Array:
 	main.phase_controller.debug_skip_to_day()
 	var seen := {}
 	var rec: Array = []
-	for tick in _secs(e.queue_max * (e.traveler_interval + e.traveler_jitter)):
+	for tick in _secs(StationEffects.queue_max(0, Balance.data.stations) * (StationEffects.traveler_interval(0, Balance.data.stations) + e.traveler_jitter)):
 		await get_tree().physics_frame
 		for t in sp.queue:
 			if not seen.has(t.get_instance_id()):
 				seen[t.get_instance_id()] = true
 				rec.append([tick, t.want])
-		if rec.size() >= e.queue_max:
+		if rec.size() >= StationEffects.queue_max(0, Balance.data.stations):
 			break
 	return rec
 
 func test_same_seed_gives_the_same_traveler_spawns() -> void:
 	var a := await _record_spawns()
 	var b := await _record_spawns()
-	assert_eq(a.size(), Balance.data.economy.queue_max)
+	assert_eq(a.size(), StationEffects.queue_max(0, Balance.data.stations))
 	assert_eq(a, b)
 
 func test_factory_counter_gives_looks_n_mod_6() -> void:
@@ -113,7 +113,7 @@ func test_factory_counter_gives_looks_n_mod_6() -> void:
 func test_traveler_walks_in_and_idles_at_its_slot() -> void:
 	main.phase_controller.debug_skip_to_day()
 	var e := Balance.data.economy
-	await _ticks(_secs(e.traveler_interval + e.traveler_jitter))
+	await _ticks(_secs(StationEffects.traveler_interval(0, Balance.data.stations) + e.traveler_jitter))
 	assert_gt(sp.queue.size(), 0)
 	var t: Traveler = sp.queue[0]
 	assert_eq(TravelerVariants.signature(t.visual).split("/")[0], ["rogue", "mage"][TravelerVariants.body_index(t.variant)])
@@ -134,7 +134,7 @@ func test_gold_pile_visual() -> void:
 
 func _wait_front_at_counter() -> bool:
 	var e := Balance.data.economy
-	for i in _secs((e.traveler_interval + e.traveler_jitter) + 25.0):
+	for i in _secs((StationEffects.traveler_interval(0, Balance.data.stations) + e.traveler_jitter) + 25.0):
 		if not sp.queue.is_empty() and (sp.queue[0] as Traveler).at_target():
 			return true
 		await get_tree().physics_frame

@@ -63,7 +63,7 @@ func test_snapshot_matches_the_game() -> void:
 	assert_eq(s.counter, 1)
 	assert_eq(s.gold_pile, 7)
 	assert_eq(s.carry_capacity, GameState.carry_capacity())
-	assert_eq(s.counter_capacity, Balance.data.economy.counter_capacity)
+	assert_eq(s.counter_capacity, StationEffects.counter_capacity(0, Balance.data.stations))
 	assert_eq(s.attack_range, Balance.data.hero.attack_range)
 	assert_eq(s.move_m, Balance.ui.guide_move_m)
 	assert_eq(s.hero_xz, main.hero.xz())

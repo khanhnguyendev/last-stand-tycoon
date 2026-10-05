@@ -45,8 +45,8 @@ func test_each_pile_is_one_multimesh() -> void:
 func test_carry_stack_shows_the_max_capacity_exactly() -> void:
 	var m := _main()
 	var cb := Balance.data.cards
-	var cap := CardEffects.carry_capacity(Balance.data.hero.carry_capacity, {&"carry_capacity": cb.max_level}, cb)
-	assert_eq(cap, Balance.data.hero.carry_capacity + cb.carry_step * cb.max_level)
+	var cap := StationEffects.max_carry(Balance.data.hero, Balance.data.cards, Balance.data.stations)
+	assert_eq(cap, Balance.data.hero.carry_capacity + cb.carry_step * cb.max_level + Balance.data.stations.carry_bonus[Balance.data.stations.max_level])
 	assert_eq(m.hero.carry_stack._pile.multimesh.instance_count, cap, "one slot per steak the hero can ever carry")
 	GameState.carried_steaks = cap  # test-only setup write
 	EventBus.stocks_changed.emit()
@@ -57,7 +57,7 @@ func test_carry_stack_shows_the_max_capacity_exactly() -> void:
 
 func test_stations_at_zero_and_cap() -> void:
 	var m := _main()
-	var ecap: int = Balance.data.economy.counter_capacity
+	var ecap: int = StationEffects.counter_capacity(0, Balance.data.stations)
 	GameState.counter_steaks = ecap
 	GameState.freezer_steaks = 10
 	GameState.gold_pile = GoldPile.MAX_COINS

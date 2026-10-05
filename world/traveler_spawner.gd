@@ -36,15 +36,18 @@ func clear_queue() -> void:
 
 func _next_interval() -> float:
 	var e := Balance.data.economy
-	return e.traveler_interval + _rng.randf_range(-e.traveler_jitter, e.traveler_jitter)
+	var base := StationEffects.traveler_interval(GameState.station_level(&"counter"), Balance.data.stations)
+	return base + _rng.randf_range(-e.traveler_jitter, e.traveler_jitter)
 
 func _physics_process(delta: float) -> void:
 	var e := Balance.data.economy
+	var sb := Balance.data.stations
+	var counter_level := GameState.station_level(&"counter")
 	if active:
 		_timer -= delta
 		if _timer <= 0.0:
 			_timer = _next_interval()
-			if queue.size() < e.queue_max:
+			if queue.size() < StationEffects.queue_max(counter_level, sb):
 				var t: Traveler = pool.acquire()
 				t.begin(_rng.randi_range(e.traveler_want_min, e.traveler_want_max))
 				queue.append(t)
@@ -54,7 +57,7 @@ func _physics_process(delta: float) -> void:
 		var front: Traveler = queue[0]
 		if front.at_target() and GameState.counter_steaks > 0:
 			front.service_timer += delta
-			if front.service_timer >= e.service_time - 1e-6:
+			if front.service_timer >= StationEffects.service_time(counter_level, sb) - 1e-6:
 				var sold := GameState.sell_from_counter(front.want)
 				if sold > 0 and _fx != null:
 					_fx.fly("coin", MapLayout.to3(MapLayout.SERVICE_POINT, 1.2), MapLayout.to3(MapLayout.GOLD_PILE, 0.3))
