@@ -1,7 +1,7 @@
 extends Node
 ## The only mutable game data (spec 4, D-096). Only these methods change it; they emit EventBus signals.
 
-const SCHEMA_VERSION := 3
+const SCHEMA_VERSION := 4
 
 var resume_phase := "NIGHT"
 var run_seed := 0
@@ -20,6 +20,8 @@ var card_offer: Array[StringName] = []
 var guards := {}
 ## Consecutive failures of the current night (S3 mercy, D-175).
 var night_fails := 0
+## E1: station upgrades (StringName -> {level, paid}). Empty until the first new_game.
+var stations := {}
 
 func new_game(seed: int = 0) -> void:
 	run_seed = seed if seed != 0 else Rng.new_run_seed()
@@ -34,6 +36,7 @@ func new_game(seed: int = 0) -> void:
 	buildings = {}
 	for id in MapLayout.SPOT_IDS:
 		buildings[id] = {"level": 0, "paid": 0, "hp": 0.0}
+	stations = _fresh_stations()
 	cards = {}
 	card_offer = []
 	guards = {}
@@ -51,6 +54,7 @@ func to_dict() -> Dictionary:
 		"buildings": buildings.duplicate(true), "lane_plan": lane_plan.duplicate(true),
 		"cards": _string_keys(cards), "card_offer": card_offer.map(func(id): return String(id)),
 		"guards": _guards_out(), "night_fails": night_fails,
+		"stations": _stations_out(),
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -68,6 +72,13 @@ func from_dict(d: Dictionary) -> void:
 	for id in d.buildings:
 		var b: Dictionary = d.buildings[id]
 		buildings[String(id)] = {"level": int(b.level), "paid": int(b.paid), "hp": float(b.hp)}
+	stations = _fresh_stations()
+	for id in StationEffects.IDS:
+		var st: Dictionary = d.stations[String(id)]
+		var level := clampi(int(st.level), 0, Balance.data.stations.max_level)
+		var cost := StationEffects.level_cost(id, level, Balance.data.stations)
+		# A paid amount at or above the cost would never complete (pay_into_station pays cost - paid): clamp it.
+		stations[id] = {"level": level, "paid": 0 if cost < 0 else clampi(int(st.paid), 0, cost - 1)}
 	lane_plan = []
 	for w in d.lane_plan:
 		lane_plan.append({
@@ -128,7 +139,7 @@ func move_freezer_to_carry(n: int = 1) -> int:
 	return m
 
 func move_carry_to_counter(n: int = 1) -> int:
-	var m := mini(n, mini(carried_steaks, Balance.data.economy.counter_capacity - counter_steaks))
+	var m := mini(n, mini(carried_steaks, counter_capacity() - counter_steaks))
 	if m <= 0:
 		return 0
 	carried_steaks -= m
@@ -160,17 +171,24 @@ func fence_max_hp(level: int) -> float:
 	assert(level >= 1 and level <= Balance.data.build.fence_hp.size(), "fence_max_hp level out of range")
 	return Balance.data.build.fence_hp[level - 1]
 
+## Shared by pay_into_spot and pay_into_station. Returns the gold taken (0 = nothing happened).
+func _pay_towards(entry: Dictionary, cost: int, amount: int) -> int:
+	var pay := mini(amount, mini(gold, cost - int(entry.paid)))
+	if pay <= 0:
+		return 0
+	gold -= pay
+	entry.paid = int(entry.paid) + pay
+	EventBus.gold_changed.emit(gold, -pay)
+	return pay
+
 func pay_into_spot(spot_id: String, amount: int) -> int:
 	var cost := next_level_cost(spot_id)
 	if cost < 0:
 		return 0
 	var b: Dictionary = buildings[spot_id]
-	var pay := mini(amount, mini(gold, cost - int(b.paid)))
+	var pay := _pay_towards(b, cost, amount)
 	if pay <= 0:
 		return 0
-	gold -= pay
-	b.paid = int(b.paid) + pay
-	EventBus.gold_changed.emit(gold, -pay)
 	if int(b.paid) >= cost:
 		b.level = int(b.level) + 1
 		b.paid = 0
@@ -199,6 +217,55 @@ func damage_diner(amount: float) -> void:
 
 func diner_fraction() -> float:
 	return diner_hp / Balance.data.build.diner_max_hp
+
+# --- stations (E1) ---------------------------------------------------------
+
+static func _fresh_stations() -> Dictionary:
+	var out := {}
+	for id in StationEffects.IDS:
+		out[id] = {"level": 0, "paid": 0}
+	return out
+
+## 0 before the first new_game (the world is built and ticks while `stations` is still empty).
+func station_level(id: StringName) -> int:
+	assert(id in StationEffects.IDS, "unknown station %s" % id)
+	return int(stations[id].level) if stations.has(id) else 0
+
+func station_next_cost(id: StringName) -> int:
+	assert(id in StationEffects.IDS, "unknown station %s" % id)
+	if not stations.has(id):
+		return -1
+	return StationEffects.level_cost(id, int(stations[id].level), Balance.data.stations)
+
+func station_remaining_cost(id: StringName) -> int:
+	var cost := station_next_cost(id)
+	return -1 if cost < 0 else cost - int(stations[id].paid)
+
+func counter_capacity() -> int:
+	return StationEffects.counter_capacity(station_level(&"counter"), Balance.data.stations)
+
+func pay_into_station(id: StringName, amount: int) -> int:
+	var cost := station_next_cost(id)
+	if cost < 0:
+		return 0
+	var s: Dictionary = stations[id]
+	var pay := _pay_towards(s, cost, amount)
+	if pay <= 0:
+		return 0
+	if int(s.paid) >= cost:
+		s.level = int(s.level) + 1
+		s.paid = 0
+		EventBus.station_changed.emit(id, s.level, s.paid)
+		EventBus.station_upgraded.emit(id, s.level)
+	else:
+		EventBus.station_changed.emit(id, s.level, s.paid)
+	return pay
+
+## Tests, sims and fixtures only.
+func debug_set_station_level(id: StringName, level: int) -> void:
+	assert(id in StationEffects.IDS, "unknown station %s" % id)
+	stations[id] = {"level": clampi(level, 0, Balance.data.stations.max_level), "paid": 0}
+	EventBus.station_changed.emit(id, int(stations[id].level), 0)
 
 # --- dawn -----------------------------------------------------------------
 
@@ -230,7 +297,8 @@ func card_level(id: StringName) -> int:
 	return int(cards.get(id, 0))
 
 func carry_capacity() -> int:
-	return CardEffects.carry_capacity(Balance.data.hero.carry_capacity, cards, Balance.data.cards)
+	return CardEffects.carry_capacity(Balance.data.hero.carry_capacity, cards, Balance.data.cards) \
+		+ StationEffects.carry_bonus(station_level(&"freezer"), Balance.data.stations)
 
 func gold_per_steak() -> int:
 	return CardEffects.gold_per_steak(Balance.data.economy.gold_per_steak, cards, Balance.data.cards)
@@ -297,6 +365,12 @@ static func _string_keys(d: Dictionary) -> Dictionary:
 	var out := {}
 	for k in d:
 		out[String(k)] = d[k]
+	return out
+
+func _stations_out() -> Dictionary:
+	var out := {}
+	for id in stations:
+		out[String(id)] = {"level": int(stations[id].level), "paid": int(stations[id].paid)}
 	return out
 
 func _guards_out() -> Dictionary:

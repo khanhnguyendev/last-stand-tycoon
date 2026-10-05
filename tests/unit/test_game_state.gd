@@ -262,7 +262,7 @@ func test_night_fails_and_mercy_factor() -> void:
 func test_round_trip_v3_carries_night_fails() -> void:
 	GameState.set_night_fails(3)
 	var d := GameState.to_dict()
-	assert_eq(int(d.v), 3)
+	assert_eq(int(d.v), GameState.SCHEMA_VERSION)
 	assert_eq(int(d.night_fails), 3)
 	var back = JSON.parse_string(JSON.stringify(d, "", true, true))
 	GameState.new_game(1)

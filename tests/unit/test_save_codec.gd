@@ -51,13 +51,14 @@ func test_newer_version_is_flagged() -> void:
 
 func test_older_version_migrates_through_the_hook() -> void:
 	var s := _state()
-	s.v = GameState.SCHEMA_VERSION - 1
+	s.v = 2
 	s.erase("night_fails")
 	var text := SaveCodec.encode(s, "abc", 1)
 	assert_eq(SaveCodec.decode(text, GameState.SCHEMA_VERSION, bd).reason, "version", "no step registered")
-	SaveCodec.MIGRATIONS[GameState.SCHEMA_VERSION - 1] = func(st: Dictionary) -> Dictionary:
+	SaveCodec.MIGRATIONS[2] = func(st: Dictionary) -> Dictionary:
 		st.v = GameState.SCHEMA_VERSION
 		st.night_fails = 0
+		st.stations = SaveCodec.fresh_stations()
 		return st
 	var r := SaveCodec.decode(text, GameState.SCHEMA_VERSION, bd)
 	assert_true(r.ok, r.reason)
