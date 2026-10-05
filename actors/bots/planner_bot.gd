@@ -36,7 +36,11 @@ func day_think(_delta: float) -> void:
 		go_to("counter_drop")  # wait for travelers
 	else:
 		var spot := next_purchase()
-		go_to(spot if spot != "" else "sign")
+		go_to(spot if spot != "" else idle_goal())
+
+## Where to go when nothing is left to haul, sell or build. The planner closes up.
+func idle_goal() -> String:
+	return "sign"
 
 ## The spot id to build or upgrade next with the gold in hand, or "" (spec 13.3, D-067, D-154).
 ## 1 fence on the top side lane (side lanes ranked by their side-group threat, count x hp_mult; first in
