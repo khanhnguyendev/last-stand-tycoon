@@ -5,7 +5,7 @@ extends Node3D
 const MARKER_SCENE := preload("res://art/env/spot_marker.tscn")
 const PIP_Y := 1.1
 const LABEL_Y := 1.6
-const NAME_Y := LABEL_Y + 0.45
+const NAME_Y := LABEL_Y + 0.55
 
 var station_id: StringName
 var label: WorldLabel
