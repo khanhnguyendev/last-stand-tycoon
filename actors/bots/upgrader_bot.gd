@@ -13,7 +13,8 @@ func _init() -> void:
 	graph.add_edge("pad_freezer", "freezer")
 
 func day_think(delta: float) -> void:
-	# keep standing on a pad that is mid-payment (each tick drains gold, so idle_goal would flip)
+	# Defensive: keep standing on a pad that is mid-payment. While paying, the remaining cost and the gold fall
+	# together, so idle_goal() cannot flip today.
 	if goal.begins_with("pad_") and arrived():
 		var id := StringName(goal.trim_prefix("pad_"))
 		if int(GameState.stations[id].paid) > 0 and GameState.gold > 0 and GameState.station_remaining_cost(id) > 0:

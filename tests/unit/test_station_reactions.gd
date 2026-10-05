@@ -35,8 +35,9 @@ func test_the_sign_pulses_after_the_last_station_level_is_bought() -> void:
 	assert_true(main.world.closeup_sign.pulsing, "nothing is left to buy")
 
 func test_an_upgrade_sparkles_at_the_pad() -> void:
-	GameState.add_gold(30)
-	GameState.pay_into_station(&"counter", 30)
+	var cost := GameState.station_next_cost(&"counter")
+	GameState.add_gold(cost)
+	GameState.pay_into_station(&"counter", cost)
 	var at := MapLayout.to3(MapLayout.STATION_PADS[&"counter"], 1.0)
 	assert_true(_fx.has([&"sparkle", at]), "sparkle at the counter pad: %s" % [_fx])
 
@@ -50,7 +51,9 @@ func test_the_guide_snapshot_ignores_stations() -> void:
 	GameState.add_gold(Balance.data.stations.freezer_cost)  # covers a pad; the loop below leaves no spot to buy
 	for id in MapLayout.SPOT_IDS:
 		GameState.buildings[id].level = Balance.data.build.max_level  # test-only setup: no spot is buyable
+	GameState.debug_set_station_level(&"counter", 1)
 	var snap: Dictionary = guide.snapshot()
 	assert_true(bool(snap.should_pulse), "the tutorial's close rule does not wait for stations")
+	assert_eq(GuideRules.evaluate(snap).rule_id, &"close")
 	assert_false(Pulse.should_pulse(GameState.to_dict(), Balance.data), "the sign itself does wait")
 	assert_eq(int(snap.counter_capacity), GameState.counter_capacity())

@@ -78,7 +78,7 @@ func from_dict(d: Dictionary) -> void:
 		var level := clampi(int(st.level), 0, Balance.data.stations.max_level)
 		var cost := StationEffects.level_cost(id, level, Balance.data.stations)
 		# A paid amount at or above the cost would never complete (pay_into_station pays cost - paid): clamp it.
-		stations[id] = {"level": level, "paid": 0 if cost < 0 else clampi(int(st.paid), 0, cost - 1)}
+		stations[id] = {"level": level, "paid": 0 if cost < 0 else clampi(int(st.paid), 0, maxi(cost - 1, 0))}
 	lane_plan = []
 	for w in d.lane_plan:
 		lane_plan.append({

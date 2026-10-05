@@ -98,6 +98,8 @@ func _play(p_seed: int) -> void:
 	gut.p("seed %d day2 done at %.1f sim s, spots built %d" % [p_seed, h.elapsed, built])
 	assert_gt(built, 0, "at least one spot built by night 2")
 	assert_true(h.main.settings_store.guide_done, "night 2 completed the Guide")
+	for id in StationEffects.IDS:
+		assert_eq(GameState.stations[id], {"level": 0, "paid": 0}, "baseline bots never pay into a pad (%s)" % id)
 
 func test_guide_bot_canonical_seed() -> void:
 	await _play(SEED_A)

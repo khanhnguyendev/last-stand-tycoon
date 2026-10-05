@@ -1,6 +1,6 @@
 class_name Freezer
 extends Node3D
-## Freezer → carry, 1 steak per tick (spec 8.2). Visual stack up to 10 plus a count label.
+## Freezer → carry, `load_per_tick` steaks per tick (spec 8.2, E1 spec 4). Visual stack up to 10 plus a count label.
 
 const FREEZER_ART := preload("res://art/env/freezer_visual.tscn")
 

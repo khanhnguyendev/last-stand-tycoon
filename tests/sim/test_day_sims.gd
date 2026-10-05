@@ -76,3 +76,5 @@ func test_night2_planner_is_comfortable() -> void:
 	assert_lt(int(r.closeup.gold), Balance.data.build.fence_cost, "gold spent down at close-up")
 	assert_true(r.cleared, "night 2 must clear")
 	assert_true(r.diner_frac >= Balance.data.sim.night2_comfort_min, "diner %.2f" % r.diner_frac)
+	for id in StationEffects.IDS:
+		assert_eq(GameState.stations[id], {"level": 0, "paid": 0}, "baseline bots never pay into a pad (%s)" % id)

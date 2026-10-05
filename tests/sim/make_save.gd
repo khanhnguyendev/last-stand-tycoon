@@ -1,9 +1,9 @@
 extends SceneTree
 ## Writes export/fixtures/night3_start.save.json (resume_phase NIGHT: resume_from enters night 3 at once) and
 ## night3_closeup.save.json (resume_phase DAY, day-peak reading) from a PlannerBot run (seed 20260930), using the
-## close-up snapshot that precedes night 3. Run: "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/make_save.gd
-## `-- --fixture=day3_counter5` writes only that fixture. Do not run it without the argument in E1: that would rewrite
-## the night3 fixtures at schema 4, and they are kept at schema 3 as migration tests.
+## close-up snapshot that precedes night 3. Run: "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/make_save.gd -- --fixture=day3_counter5|night3
+## `day3_counter5` writes only that fixture. `night3` rewrites the two night3 fixtures at the current schema and must
+## not be used while they serve as schema-3 migration tests. No argument (or an unknown one) is a usage error.
 
 var _done := false
 var _fixture := ""
@@ -15,6 +15,10 @@ func _run() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--fixture="):
 			_fixture = a.trim_prefix("--fixture=")
+	if _fixture != "day3_counter5" and _fixture != "night3":
+		push_error("usage: -- --fixture=day3_counter5|night3")
+		quit(2)
+		return
 	root.get_node("Balance").reset()
 	var main = load("res://world/main.gd").create()
 	root.add_child(main)
@@ -37,7 +41,7 @@ func _on_snapshot(state: Dictionary) -> void:
 		return
 	_done = true
 	if _fixture == "day3_counter5":
-		# E1 perf: day 3 with a level 5 counter (a 9-traveler queue). The night3_* fixtures stay at schema 3.
+		# E1 perf: day 3 with a level 5 counter (queue_max 9; stocked, so the queue fills once the 42 steaks are sold). The night3_* fixtures stay at schema 3.
 		var s5: Dictionary = state.duplicate(true)
 		s5.resume_phase = "DAY"
 		var sb5 = root.get_node("Balance").data.stations

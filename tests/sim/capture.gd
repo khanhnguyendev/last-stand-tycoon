@@ -154,8 +154,8 @@ func _run() -> void:
 	if _args.has("stock"):  # --stock=<counter>,<carried>: set right before the grab (E1)
 		var sv := String(_args.stock).split(",")
 		var gs_sk = root.get_node("GameState")
-		gs_sk.counter_steaks = int(sv[0])
-		gs_sk.carried_steaks = int(sv[1])
+		gs_sk.counter_steaks = int(sv[0])  # test-only setup
+		gs_sk.carried_steaks = int(sv[1])  # test-only setup
 		root.get_node("EventBus").stocks_changed.emit()
 	var dbg = main.get_node_or_null("DebugOverlay")
 	if dbg != null and not _args.has("debug"):

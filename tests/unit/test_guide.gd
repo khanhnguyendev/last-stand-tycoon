@@ -78,7 +78,9 @@ func test_snapshot_matches_the_game() -> void:
 		assert_eq(s.spots[i].id, id)
 		assert_eq(s.spots[i].remaining, GameState.remaining_cost(id))
 		assert_eq(s.spots[i].next_cost, GameState.next_level_cost(id))
-	assert_eq(s.should_pulse, Pulse.should_pulse(GameState.to_dict(), Balance.data))
+	var pulse_state := GameState.to_dict()
+	pulse_state.erase("stations")  # what the guide passes
+	assert_eq(s.should_pulse, Pulse.should_pulse(pulse_state, Balance.data))
 
 func test_walked_integrates_velocity_and_ignores_teleports() -> void:
 	await _boot()

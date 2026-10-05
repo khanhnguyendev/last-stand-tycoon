@@ -12,6 +12,8 @@ set -euo pipefail
 BUILD="$1"; OUT="$2"; PORT=8765
 TO="/"; [ -z "${QUERY:-}" ] || TO="/%3F${QUERY//&/%26}"
 DAY_FIXTURE="${DAY_FIXTURE:-night3_closeup}"
+[ -f "$(dirname "$0")/fixtures/$DAY_FIXTURE.save.json" ] || { echo "no fixture $DAY_FIXTURE" >&2; exit 1; }
+echo "day_fixture=$DAY_FIXTURE"
 # The reading depends on what else the Mac is doing (S4: 59.5 fps idle vs 51.9 with an editor at 53% CPU), so wait
 # for an idle machine (PERF_MIN_IDLE, default 75%) and print the idle figure next to the reading (D-209).
 cpu_idle() { top -l 2 -n 0 | awk '/CPU usage/ {v=$7} END {gsub("%","",v); print int(v)}'; }

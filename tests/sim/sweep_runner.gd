@@ -13,6 +13,10 @@ func _run() -> void:
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if kv.size() == 2:
 			args[kv[0]] = kv[1]
+	if String(args.bot) != "planner" and String(args.bot) != "upgrader":
+		push_error("unknown --bot=%s (planner|upgrader)" % args.bot)
+		get_tree().quit(2)
+		return
 	Balance.reset()
 	var upgrader := String(args.bot) == "upgrader"
 	var holder := Node.new()

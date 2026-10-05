@@ -70,12 +70,14 @@ func test_6_2_a_level_3_counter_shortens_the_day() -> void:
 
 func test_6_3_the_upgrader_holds_nights_1_to_3() -> void:
 	h.start(SEED, UpgraderBot)
+	var diner_fracs := []
 	for night in range(1, 4):
 		var n := await h.run_night()
+		diner_fracs.append(n.diner_frac)
 		assert_true(n.cleared, "night %d: %s" % [night, n])
 		if night < 3:
 			var d := await h.run_day()
 			assert_true(d.closed, "day %d closes up" % night)
-	gut.p("upgrader stations after night 3: %s, stuck %d" % [GameState.stations, h.bot.stuck_count])
+	gut.p("upgrader stations after night 3: %s, stuck %d, diner_frac per night %s" % [GameState.stations, h.bot.stuck_count, diner_fracs])
 	assert_gt(GameState.station_level(&"counter") + GameState.station_level(&"freezer"), 0, "the upgrader bought a station level by night 3")
-	assert_eq(h.bot.stuck_count, 0, "the pad routes are walkable")
+	assert_eq(h.bot.stuck_count, 0, "no stuck route (the freezer pad was reached)")
