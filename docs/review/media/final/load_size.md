@@ -8,7 +8,9 @@ All load times are **localhost** (`export/serve_nocache.py`, no compression, no 
 | index.wasm | 39,514,754 | 10,054,769 |
 | index.pck | 5,514,672 (5.26 MiB; gate 8 MiB) | 3,685,354 |
 | index.js | 279,815 | 68,480 |
-| wasm+pck+js together | | 13,807,478 (13.17 MiB; gate 16 MiB) |
+| sum of the three separate gzips (what a server sends: each file compressed on its own) | | 13,808,603 (13.17 MiB; gate 16 MiB) |
+| the three files concatenated, then gzip -9 once (not what is served) | | 13,807,478 (13.17 MiB) |
+The gate (D-196, gzip payload of wasm + pck + js) uses the per-file sum, 13,808,603 B; the concatenated figure is 1,125 B lower and is listed only for reference. Re-measured on `build/web_release` (files dated 16:03).
 `grep -a -c ui/debug index.pck` = 0 for release and profile (6 for the debug build, as expected).
 
 ## Chromium (Playwright Pixel 7 profile, headless, software GL), 3 fresh-context runs

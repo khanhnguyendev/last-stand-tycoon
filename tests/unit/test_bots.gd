@@ -136,3 +136,17 @@ func test_debug_skip_leaves_a_stale_bot_pick_ignored() -> void:
 	await h.tick()
 	assert_signal_emit_count(EventBus, "card_chosen", 1)
 	assert_eq(GameState.cards, {})
+
+func test_autoplay_waits_pick_delay_then_takes_first() -> void:
+	var script: GDScript = load("res://ui/debug/autoplay.gd")
+	h.start(11, script)
+	watch_signals(EventBus)
+	EventBus.card_offered.emit([&"tank", &"archer"])
+	var ticks := int(h.bot.PICK_DELAY_S * Engine.physics_ticks_per_second)
+	for i in ticks - 5:
+		await h.tick()
+	assert_signal_not_emitted(EventBus, "card_chosen", "no pick before the delay")
+	for i in 10:
+		await h.tick()
+	assert_signal_emit_count(EventBus, "card_chosen", 1)
+	assert_eq(get_signal_parameters(EventBus, "card_chosen")[0], &"tank", "takes offer[0]")

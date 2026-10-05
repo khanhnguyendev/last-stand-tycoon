@@ -118,6 +118,8 @@ func cycle_occluder_alpha() -> void:
 ## this button owns that finger, so the release of a stick touch that ends over the button still reaches
 ## the joystick.
 func _input(event: InputEvent) -> void:
+	if not fade_button.visible:
+		return  # ?nooverlay=1 hides the button; a hidden button must not take taps
 	var idx := -1
 	var pressed := false
 	if event is InputEventScreenTouch:
