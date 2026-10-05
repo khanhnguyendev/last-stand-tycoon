@@ -2041,3 +2041,45 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 - Debug builds gain `?autoplay=1` (bots play; used to record the gameplay video in the input-less Simulator) and
   `?nooverlay=1`. Both live under `ui/debug/` and are absent from release and profile packs.
 - v0.1 stops here for the author's review (D-159). S6 starts only after approval.
+
+## 2026-10-05: E1 station upgrades (brainstorm with the author)
+
+**D-222 Expansion split (author).** The author's expansion ideas (upgrade the counter and the freezer, hire staff, more
+equipment, a bigger map) are four expansions, each with its own spec, plan and build: E1 station upgrades, E2 staff,
+E3 new equipment, E4 map expansion. Only E1 is built before the v0.1 friend playtest; the playtest decides the order
+of the rest. IDEA.md is amended: stations are a gold sink next to towers and fences.
+
+**D-223 Counter upgrade = more customers (author).** A longer queue, faster arrivals and a bigger pile. No higher
+price: it overlaps the gold-per-steak card and inflates gold.
+
+**D-224 Freezer upgrade = bigger hauls (author).** Extra carry and more steaks per load tick. The freezer keeps no
+capacity limit; spoilage stays in "Later".
+
+**D-225 Five levels, cost doubles per level (author).** Base 30 (counter) and 25 (freezer). Starting values; tuned by
+the sims.
+
+**D-226 Station state is separate from `GameState.buildings`.** `buildings` means tower or fence in the lane code, the
+dawn heal, the save validation and `Economy.level_cost`. Stations get `GameState.stations`, `StationBalance` and
+`StationEffects`. Save schema 4, with the first migration (3 to 4).
+
+**D-227 The counter upgrade also shortens the service time.** [AMENDED by D-230: the limit is the queue size, which
+counts travelers still walking in, together with the interval and the service time.]
+
+**D-228 Level 0 is today's game.** Every level-0 value equals the S5 value, and `NaiveBot` and `PlannerBot` never buy
+station upgrades, so the S4 determinism baseline stays identical. A new `UpgraderBot` covers the upgraded game.
+
+**D-229 No per-level station art in E1.** A level shows as the existing model (not scaled), a pop and star pips, as towers do.
+Reversible; goes to `docs/REVIEW_QUEUE.md` when it ships.
+
+**D-230 E1 spec amended after the spec review.**
+- Success criterion 6 is three sims on seed 20260930: served travelers strictly increase per counter level (by at least
+  `min_level_gain`, 8%); a preset level-3 counter shortens DAY phase 1; `UpgraderBot` holds nights 1 to 3. The first
+  draft compared the upgrader's day 3 with the planner's, which cannot pass: with defense first, 8 to 38 gold is left.
+- Level 5's queue is 9. The first table's level 5 was about 2.5% better than level 4 (hand estimate).
+- The freezer upgrade is comfort (fewer trips, more night pickup), not day speed: selling is about 2.3 s per steak,
+  hauling about 0.5 s. Accepted; the author chose it (D-224).
+- Pad and queue slot coordinates are fixed by unit tests (clearances, the prop rule, on screen at 9:16), not by the spec.
+- The sweep gets `--bot=upgrader` and its own CSV, not a new column: a column would break `baseline_diff.sh`.
+- `WaypointGraph.create_default()` is frozen; `UpgraderBot` extends its own copy.
+- Built-in save migrations live in a constant table, so tests that clear `SaveCodec.MIGRATIONS` cannot remove them.
+- The guide ignores stations; the sign pulse counts them.
