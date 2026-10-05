@@ -1,0 +1,24 @@
+cpu idle 24% < 75%, waiting
+cpu idle 54% < 75%, waiting
+cpu idle 61% < 75%, waiting
+cpu idle 58% < 75%, waiting
+cpu idle 56% < 75%, waiting
+cpu idle 62% < 75%, waiting
+cpu idle 57% < 75%, waiting
+cpu idle 52% < 75%, waiting
+cpu idle 62% < 75%, waiting
+cpu idle 60% < 75%, waiting
+cpu idle 73% < 75%, waiting
+cpu idle 66% < 75%, waiting
+cpu idle 54% < 75%, waiting
+cpu idle 45% < 75%, waiting
+cpu idle 74% < 75%, waiting
+cpu_idle_before=76%
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 76EF95E2-ED4D-4632-BAE0-8CFE412BC4E9 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/s5p5/docs/review/media/s5/perf_final/runs/branch_3/day_peak.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 76EF95E2-ED4D-4632-BAE0-8CFE412BC4E9 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/s5p5/docs/review/media/s5/perf_final/runs/branch_3/night3_80s.png
+ios: docs/review/media/s5/perf_final/runs/branch_3/night3_80s.png
+cpu_idle_after=54%

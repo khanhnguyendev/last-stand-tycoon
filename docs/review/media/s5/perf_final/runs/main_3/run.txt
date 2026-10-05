@@ -1,0 +1,11 @@
+cpu idle 68% < 75%, waiting
+cpu idle 55% < 75%, waiting
+cpu_idle_before=80%
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 76EF95E2-ED4D-4632-BAE0-8CFE412BC4E9 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/s5p5/docs/review/media/s5/perf_final/runs/main_3/day_peak.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 76EF95E2-ED4D-4632-BAE0-8CFE412BC4E9 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/s5p5/docs/review/media/s5/perf_final/runs/main_3/night3_80s.png
+ios: /Users/ryan/ws/1.GAME/lst-wt/s5p5/docs/review/media/s5/perf_final/runs/main_3/night3_80s.png
+cpu_idle_after=55%

@@ -1,0 +1,8 @@
+# tests/sim/test_guide_sim.gd printed lines (Task 11 fix commit d21e7d1, ./run_tests.sh sim, rc 0)
+seed 20260930 night1: {... "cleared": true, "diner_frac": 0.88333333333333, "kills": 18 } (move walked 89.3 m, fight checks 65)
+seed 20260930 max no-rule gap on day 2: 20.00 s (checked at each evaluation)
+seed 20260930 day2 done at 173.5 sim s, spots built 3
+second seed: 1
+seed 1 night1: {... "diner_frac": 0.93333333333333, "kills": 18 } (move walked 85.3 m, fight checks 62)
+seed 1 max no-rule gap on day 2: 13.33 s (checked at each evaluation)
+seed 1 day2 done at 166.1 sim s, spots built 3

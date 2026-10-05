@@ -527,4 +527,63 @@ settings 25, boot fade 90.
 - Damage numbers.
 - A photo mode.
 
-## 13. Results (S5, filled in at the end of S5)
+## 13. Results (S5)
+
+**What shipped.** The game now sounds, reacts, explains itself and has the small UI a released web game needs.
+- **Audio:** 20 CC0 sound effects and two CC0 music tracks (1.02 MB), one manifest, an `AudioDirector` with web
+  unlock, a mute toggle that is remembered, and suspend on a hidden tab.
+- **Juice:** one-draw particles (`FxField`), reactions for kills, hits, sales, gold, builds and dawn, a merged screen
+  shake, banner and card motion.
+- **Boot:** a warm-up that pre-draws first-use visuals, under a fade that holds until frames are stable.
+- **UI:** a settings gear and panel (Sound, New game with a guarded second tap), one owner for pausing, an atlas-drawn
+  joystick and lane arrows, a safe-area HUD, world labels that dim under the HUD.
+- **Onboarding:** a `Guide` pointer with at most three words, driven by pure state rules, with an edge arrow for
+  off-screen targets; it ends at night 2 and never returns on that device.
+
+Gameplay is unchanged: the determinism baseline was identical after every task.
+
+| Result | Value |
+|---|---|
+| Unit / sim tests | 865 unit, 11 sim (sim suite 14 s of 60 s) |
+| Determinism baseline | Identical after every task (S4 baseline, never re-recorded) |
+| Onboarding sim | A bot that only follows the Guide clears night 1 with 0 fails on 2 seeds (diner 0.88 and 0.93), builds 3 spots by night 2, and never waits over 5 s with an empty counter (printed lines: `docs/review/media/s5/task11/guide_sim.txt`) |
+| Night-3 fps, iOS Simulator, profile build (gate ≥ 58, median of 3) | **59.6** at the end of S5; 59.8 at the P2 checkpoint. Pass. The harness sends no input, so audio and running dust are not in this reading |
+| Night-3 worst frame (gate < 60 ms) | **Fail.** 108 ms at the end of S5 (57 / 108 / 110; S4 main 119). 71 ms at the P2 checkpoint (main at P2, 37d14b3: 134). It lands 0.1 s after the perf window opens, about 2.1 s after the night starts, before any wave. Known issue |
+| Day-3 fps (gate: S4 main − 1) | **Fail by 0.4.** End of S5, against S4 main (c8cce18): 52.6 against 54.0; `proc_ms` and `slow_pct` lean the same way (18.7 against 17.5 ms, 16% against 6%). P2 checkpoint, against main with S5 P1 merged and before the fade hold: 53.0 against 52.7. Another project's jobs ran between and during the end-of-S5 runs (idle 0–24% while waiting, in the run logs), which weakens every end-of-S5 reading equally; re-measured for the final review |
+| Load freeze | Found by measurement: a freeze of about 2.1 s after the phase starts without the warm-up, 0.85–0.9 s with it. The boot fade now covers it |
+| Draw calls | +1 while any particle is alive (night 28 → 29, day 50 → 51 on desktop). The base rose by 2 on day since S4 (48 → 50); the D-196 guide (120) is met |
+| WebGL warnings on Chromium | Gone. Cause: the HUD's two `Polygon2D` lane arrows; now atlas-drawn |
+| Web console | No new error or warning against main's baseline (two debug/profile-only log lines) |
+| Web audio | Locked before a tap (`suspended`; `interrupted` on the iOS Simulator), running after; mute survives a reload |
+| Music memory | `lazy` samples: 53–56 MB steady in Chromium, 72.6 MB peak right after a switch |
+| Audio CPU (Chromium, software GL, not gated) | Process time difference inside the noise; physics time +0.6 ms |
+| Release size | pck 5,514,704 B raw (gate 8 MiB); `gzip -9` of wasm + pck + js 13,807,078 B (gate 16 MiB). Audio 1,021,516 B (budget 2.5 MB) |
+| Licences and validator | 7 new CC0 folders, one row each in ASSET_LICENSES; the asset validator (licences, palette, audio manifest, budget, orphan imports) is green in the unit suite |
+| Device check | iOS Simulator and emulated Pixel 7: boot to night 1 with the Guide's "Drag to move"; no debug overlay in release |
+
+**Deviations from the spec, all logged:**
+- Music mode is `lazy`, not one of the three options the spec listed; Godot 4.7.2 cannot unregister a sample (D-212).
+- The "first-wave stall" was a load freeze plus a frame at the perf window's start; the worst-frame gate is not met
+  (D-215).
+- FX kinds were retuned from screenshots (D-214). The traveler's Body hops, not its Visual root.
+- The Guide's edge arrow is 64 px and its rect is inset 62 px; the day-2 gap check samples at evaluations (D-213).
+- Tasks 3 and 8 were split (3a/3b, 8a/8b).
+
+**Skipped nits (D-185):**
+- Audio: `check_audio` doc comment omits orphan imports; the orphan test uses only an audio orphan; settings write off web
+  is not tmp+rename; `v` unread.
+- Juice: redundant `paid == 0` reset in `BuildSpot.refresh()`; `_prime_reads()` not unit-tested; `NIGHT_ONLY` branch not
+  indented.
+- UI: no open-then-focus pause test (order-free set); settings dim uses `ink`; panel backing keeps 0.95 alpha; HUD icons
+  redraw each frame while an arrow shows.
+- Guide: `pw_s5_check` prints total console counts; label gap and fingertip constants stay local.
+- Results: the 18 standard after shots repeat what `task11/` holds; no dust shot shows a clear particle.
+- TDD red step skipped by implementers in Tasks 1, 3b, 8b, 9 (tests written, run after the code; Task 9 checked by mutation).
+
+**Open risks carried to the final review:**
+1. All audio was chosen without listening.
+2. The night-3 worst frame (71–108 ms, once, about 2 s after the night starts) and its unproven cause.
+3. Perf is measured in the Simulator on a shared Mac; a real phone has not been measured. Day-phase fps stays near 53.
+4. Music memory on a low-end phone; the iOS silent switch.
+5. The boot fade must cover the load freeze on a real phone (it holds for stable frames, at most 4 s).
+6. Particle sizes and the Guide's pointer were tuned from screenshots, not on a phone.

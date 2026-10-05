@@ -1,0 +1,41 @@
+cpu idle 51% < 75%, waiting
+cpu idle 53% < 75%, waiting
+cpu idle 64% < 75%, waiting
+cpu idle 63% < 75%, waiting
+cpu idle 58% < 75%, waiting
+cpu idle 60% < 75%, waiting
+cpu idle 60% < 75%, waiting
+cpu idle 22% < 75%, waiting
+cpu idle 24% < 75%, waiting
+cpu idle 52% < 75%, waiting
+cpu idle 53% < 75%, waiting
+cpu idle 70% < 75%, waiting
+cpu idle 51% < 75%, waiting
+cpu idle 47% < 75%, waiting
+cpu idle 66% < 75%, waiting
+cpu idle 69% < 75%, waiting
+cpu idle 62% < 75%, waiting
+cpu idle 50% < 75%, waiting
+cpu idle 62% < 75%, waiting
+cpu idle 61% < 75%, waiting
+cpu idle 59% < 75%, waiting
+cpu idle 52% < 75%, waiting
+cpu idle 60% < 75%, waiting
+cpu idle 61% < 75%, waiting
+cpu idle 58% < 75%, waiting
+cpu idle 57% < 75%, waiting
+cpu idle 61% < 75%, waiting
+cpu idle 70% < 75%, waiting
+cpu idle 70% < 75%, waiting
+cpu idle 72% < 75%, waiting
+cpu idle 71% < 75%, waiting
+cpu idle 70% < 75%, waiting
+cpu_idle_before=79%
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 578FA918-8C0A-466C-9790-9F333F869695 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/s5p5/docs/review/media/s5/perf_final/runs/main_1/day_peak.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 578FA918-8C0A-466C-9790-9F333F869695 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/s5p5/docs/review/media/s5/perf_final/runs/main_1/night3_80s.png
+ios: /Users/ryan/ws/1.GAME/lst-wt/s5p5/docs/review/media/s5/perf_final/runs/main_1/night3_80s.png
+cpu_idle_after=59%
