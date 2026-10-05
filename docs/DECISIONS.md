@@ -2024,7 +2024,9 @@ Full text: `docs/superpowers/specs/2026-10-02-s5-polish-onboarding-audio-juice-d
 - S5 is complete: results in the S5 spec §13 and `docs/review/media/s5/perf_final/README.md`.
 - Gates met: night-3 fps (59.6), size, console, web audio state, baseline identical, onboarding sim.
 - Gates not met: night-3 worst frame (108 ms; D-215) and, at the end of S5 only, day-3 no-regression by 0.4 fps.
-- The end-of-S5 perf runs were taken while another project's jobs loaded the Mac between the idle check and the end of
-  a run. D-209 treats such readings as weak, so they are reported as measured and not acted on: no tuning in S5. The
-  final review package re-runs the six-run comparison on a quiet Mac, and the perf harness gains an idle check at the
-  end of a run.
+- All six end-of-S5 runs met the D-209 idle-before rule (≥ 75%), so they stand as the end-of-S5 reading: night-3 fps
+  passes, the worst frame and day-3 fail. Another project's jobs ran between and during the runs; that weakens all
+  three readings equally. No tuning in S5. The final review package re-runs the six-run comparison on a quiet Mac, and
+  the perf harness also samples idle mid-run (the "after" figure is always low while Safari still plays).
+- The day-3 gate is judged against S4 main (c8cce18), as §1.6 says. The P2 checkpoint compared with main at P2
+  (37d14b3, S5 P1 merged), so its "pass" was not that gate.

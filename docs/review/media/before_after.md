@@ -24,7 +24,7 @@ The 40% copies (`*_40.png`) sit beside each full shot.
 
 ## S5 additions (Task 12)
 After shots for S5 (`after/` = `tools/shots.sh`, re-rendered on the S5 build 6f9b826). No S5 "before" exists for the new
-screens; the S4 shots above are the before for the shared ones. Web checks of the release build: `../review/media/s5/device_check/`.
+screens; the S4 shots above are the before for the shared ones. Web checks of the release build: `s5/device_check/`.
 
 | Screen | After | What it shows |
 |---|---|---|
@@ -32,12 +32,14 @@ screens; the S4 shots above are the before for the shared ones. Web checks of th
 | Settings, 1280x720 | [after](s5/after/settings_landscape.png) | Same panel centred in landscape; coin counter and gear stay in the corners. |
 | Guide move | [after](s5/after/guide_move.png) | Night-1 start, "Drag to move" prompt above a joystick ring. |
 | Guide fight | [after](s5/after/guide_fight.png) | "Stay close" with a yellow arrow over the lane. |
-| Guide take | [after](s5/after/guide_take.png) | "Take steaks" with a yellow arrow pointing into the diner floor. |
+| Guide take | [after](s5/after/guide_take.png) | "Take steaks" with the gold edge arrow for an off-screen target (the freezer). |
+| Guide grab, build, collect, stock, close | [grab](s5/task10/guide_grab.png) · [build](s5/task10/guide_build.png) · [collect](s5/task10/guide_collect.png) · [stock](s5/task10/guide_stock.png) · [close](s5/task10/guide_close.png) | The other five rules, from Task 10. |
+| Standard shots (day, night, build, fail, retry, cardpick, lanes, hud) | [folder](s5/after/) | Re-rendered on the S5 build. |
 | FX poof | [after](s5/after/fx_poof.png) | 8-quad poof 0.1 s old, offset 2 m from the hero. |
 | FX coin | [after](s5/after/fx_coin.png) | Small orange coin burst at the counter offset. |
-| FX hit | [after](s5/after/fx_hit.png) | 4-quad hit spark (shot taken, not individually inspected). |
-| FX sparkle | [after](s5/after/fx_sparkle.png) | Sparkle burst (shot taken, not individually inspected). |
-| FX dust | [after](s5/after/fx_dust.png) | Dust puff (shot taken, not individually inspected). |
+| FX hit | [after](s5/after/fx_hit.png) | 4-quad hit spark; visible. |
+| FX sparkle | [after](s5/after/fx_sparkle.png) | Sparkle burst; visible. |
+| FX dust | [after](s5/after/fx_dust.png) | Dust puff; no particle can be made out at this framing (see `s5/task05/fx_dust_road.png`). |
 | iOS (release) | [after](s5/device_check/ios.png) | Release build in the Simulator: HUD, settings gear, guide prompt, joystick. |
 | Android (emulated) | [after](s5/device_check/android_emulated.png) | Same on the Pixel 7 profile. |
 

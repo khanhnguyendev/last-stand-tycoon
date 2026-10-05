@@ -152,5 +152,5 @@ Software GL runs at about 7 fps here, so `proc_ms` is dominated by the renderer 
 | **mean on / off** | **171.6 / 166.1** | 1.19 / 0.58 | | |
 
 proc_ms: +5.5 ms with audio on (3%), inside the run-to-run noise, so no audio cost can be read from it. phys_ms is the steadier
-instrument: it is about 0.6 ms higher with audio on in both pairs (audio runs inside the physics tick). The real-device reading
-is the iOS Simulator night-3 table in `docs/review/media/s5/perf_final/README.md`.
+instrument: it is about 0.6 ms higher with audio on in both pairs (audio runs inside the physics tick). No device reading
+of audio cost exists: the Simulator harness never unlocks audio (spec §9).

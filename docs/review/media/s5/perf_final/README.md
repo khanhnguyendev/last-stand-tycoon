@@ -2,7 +2,7 @@
 
 Branch = `s5/p5-results` at 6f9b826 (all of S5), profile build. Main = S4 `main` at c8cce18, profile build. iOS Simulator
 "iPhone 17 Pro", `export/perf_night3.sh` (same script and fixtures for both), runs alternating branch, main, branch, ...
-Crops of the PERF lines are in `runs/<name>/day_peak_crop.png` and `night3_80s_crop.png`; `run.log` holds cpu idle.
+Crops of the PERF lines are in `runs/<name>/day_peak_crop.png` and `night3_80s_crop.png`; `run.txt` holds cpu idle.
 Day-3 = frozen `PERF phase=DAY` line (fixture `night3_closeup`), night-3 = frozen `PERF phase=NIGHT` line (`night3_start`).
 
 ## Readings
@@ -29,8 +29,7 @@ run 3 140@0.2s 54@0.3s 48@0.4s / 496@0.5s 42@0.9s 41@1.8s.) pre3 = the three wor
 - Another process on this Mac (a different project's `node exp.mjs` batches, 6 workers at 60-70% CPU each) ran intermittently during this session,
   which the script's idle gate cannot see once a run has started. Its effect shows as the low "idle after" figures (0% for branch 1, 39% for main 2).
   Discarded and repeated: branch 1 first try (load started mid-run, day shot not frozen), main 1 first try (idle before 54%), branch 3 first try (idle before 65%);
-  logs in `invalid/`. Branch 1 (idle before exactly 75%, 0% after, but both lines frozen and its night/day readings in line with the others) was kept.
-  The old 17-hour-spread runs were deleted.
+  logs in `invalid/` (`.txt`). Branch 1 (idle before exactly 75%, 0% after, but both lines frozen and its night/day readings in line with the others) was kept.
 - All six kept runs have idle before >= 75%. "After" is taken while Safari still plays, so it is always lower.
 
 ## Desktop draw calls with FX active (real renderer, macOS, 720x1280)
