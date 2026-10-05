@@ -60,7 +60,7 @@ Fixed during S5: the WebGL warnings on Chromium (the HUD's `Polygon2D` arrows).
 
 ## Sim and sweep results
 
-- Unit 867/867 (865 before the two debug tests added with this package), sim 11/11 (12–14 s), baseline identical: [unit](media/final/unit.txt), [sim](media/final/sim.txt),
+- Unit 867/867 (865 before the two debug tests added with this package), sim 11/11 (12–14 s), baseline identical: [unit](media/final/unit_after.txt), [sim](media/final/sim_after.txt),
   [baseline](media/final/baseline_diff.txt).
 - Sweep, PlannerBot, seeds 20260930, 1, 2 (S2–S4 and the baseline used 20260930, 11, 777; the 20260930 output is
   byte-identical to the S4 baseline) ([sweep.md](media/final/sweep.md)): every seed plays all 14 days. First

@@ -19,7 +19,7 @@ res://tests/sim/test_guide_sim.gd
     seed 20260930 night1: { "day": 1, "failed": false, "cleared": true, "diner_frac": 0.88333333333333, "kills": 18 } (move walked 89.3 m, fight checks 65)
     seed 20260930 max no-rule gap on day 2: 20.00 s (checked at each evaluation)
     seed 20260930 day2 done at 173.5 sim s, spots built 3
-    timing: 1.9 s wall
+    timing: 1.8 s wall
 * test_guide_bot_second_seed
     second seed: 1
     seed 1 night1: { "day": 1, "failed": false, "cleared": true, "diner_frac": 0.93333333333333, "kills": 18 } (move walked 85.3 m, fight checks 62)
@@ -57,13 +57,9 @@ Scripts               3
 Tests                11
 Passing Tests        11
 Asserts              52
-Time              11.655s
+Time              11.508s
 
 
 [32m---- All tests passed! ----
 [0m
-WARNING: 16 ObjectDB instances were leaked at exit (run with `--verbose` for details).
-   at: cleanup (core/object/object.cpp:2536)
-ERROR: 7 resources still in use at exit (run with --verbose for details).
-   at: clear (core/io/resource.cpp:822)
 SIM SUITE: 13s (budget 60s)

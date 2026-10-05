@@ -27,9 +27,9 @@ res://tests/unit/test_actor_visual.gd
 * test_role_scenes_within_budget
 * test_role_scenes_hold_only_their_own_models
 [33m    73 Orphans[0m
-[33m        * [Visual:<Node3D#427970007187>(kaykit_visual.gd)] + 26
-        * [Visual:<Node3D#426728493225>(kaykit_visual.gd)] + 22
-        * [Visual:<Node3D#429211521256>(kaykit_visual.gd)] + 22[0m
+[33m        * [Visual:<Node3D#428439769239>(kaykit_visual.gd)] + 26
+        * [Visual:<Node3D#427198255277>(kaykit_visual.gd)] + 22
+        * [Visual:<Node3D#429681283308>(kaykit_visual.gd)] + 22[0m
 * test_guard_atlases_keep_the_hero_and_traveler_colours_out
 * test_tank_is_steel_and_archer_is_green
 * test_traveler_visual_swaps_bodies_and_keeps_animating
@@ -133,7 +133,7 @@ res://tests/unit/test_autosave.gd
 * test_offer_pick_build_and_day_writes
 * test_close_up_writes_the_restore_point
 [33m    14 Orphans[0m
-[33m        * [Guard_archer:<Node3D#821043402385>(guard.gd)] + 12[0m
+[33m        * [Guard_archer:<Node3D#821781599893>(guard.gd)] + 12[0m
 * test_throttled_day_writes
 * test_hidden_flushes_when_dirty
 * test_night1_retry_writes_during_the_fail_flow
@@ -230,7 +230,8 @@ WARNING: BotBase stuck at (-1.167862, -4.400937) -> home
 * test_fast_hero_arrives_without_overshoot
 * test_bot_picks_one_tick_after_the_offer
 * test_debug_skip_leaves_a_stale_bot_pick_ignored
-[1m14/14 passed.
+* test_autoplay_waits_pick_delay_then_takes_first
+[1m15/15 passed.
 [0m[4m
 
 res://tests/unit/test_build_pay.gd
@@ -336,12 +337,12 @@ res://tests/unit/test_card_pick_overlay.gd
 * test_pause_then_resume_still_picks
 * test_layout_fits_landscape_and_two_cards
 [33m    14 Orphans[0m
-[33m        * [Guard_archer:<Node3D#3165877443331>(guard.gd)] + 12[0m
+[33m        * [Guard_archer:<Node3D#3202133006081>(guard.gd)] + 12[0m
 * test_state_restored_hides_the_overlay
 * test_cancelled_touch_does_not_pick
 * test_each_panel_has_a_portrait_of_its_card
 [33m    14 Orphans[0m
-[33m        * [Guard_archer:<Node3D#3249495087786>(guard.gd)] + 12[0m
+[33m        * [Guard_archer:<Node3D#3285599656677>(guard.gd)] + 12[0m
 * test_card_entrance_fits_input_guard
 * test_card_entrance_fades_rises_and_lands_on_final_rect
 * test_card_entrance_is_staggered
@@ -355,16 +356,16 @@ res://tests/unit/test_card_strip.gd
 * test_icons_and_levels_in_catalog_order
 * test_clears_on_new_game
 [33m    28 Orphans[0m
-[33m        * [Guard_archer:<Node3D#3474460776613>(guard.gd)] + 12
-        * [Guard_tank:<Node3D#3468873964412>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#3504978531954>(guard.gd)] + 12
+        * [Guard_archer:<Node3D#3510565346075>(guard.gd)] + 12[0m
 * test_hud_icons_are_present
 * test_strip_after_restore_with_cards
 [33m    14 Orphans[0m
-[33m        * [Guard_archer:<Node3D#3526033937120>(guard.gd)] + 12[0m
+[33m        * [Guard_archer:<Node3D#3562138506588>(guard.gd)] + 12[0m
 * test_every_card_has_an_atlas_cell
 [33m    14 Orphans[0m
-[33m        * [Guard_archer:<Node3D#3548750289570>(guard.gd)] + 12[0m
-[33m56 orphans[0m
+[33m        * [Guard_archer:<Node3D#3584921965930>(guard.gd)] + 12[0m
+[33m14 orphans[0m
 [1m6/6 passed.
 [0m[4m
 
@@ -409,7 +410,7 @@ res://tests/unit/test_components.gd
 * test_damage_ignores_non_positive
 * test_pool_prewarm_acquire_release
 * test_pool_grows_and_warns
-WARNING: NodePool @Node@48847 grew to 2
+WARNING: NodePool @Node@49313 grew to 2
      at: push_warning (core/variant/variant_utility.cpp:1033)
      GDScript backtrace (most recent call first):
          [0] acquire (res://components/node_pool.gd:20)
@@ -426,7 +427,7 @@ res://tests/unit/test_debug_scenes.gd
 * test_apply_grants_cards_and_opens_pick
 * test_parse_decodes_uri_escapes
 [33m    14 Orphans[0m
-[33m        * [Guard_tank:<Node3D#3775930569670>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#3812102247422>(guard.gd)] + 12[0m
 * test_deferred_apply_runs_after_the_first_night_starts
 [1m5/5 passed.
 [0m[4m
@@ -619,8 +620,8 @@ res://tests/unit/test_guards.gd
 [0m* test_hire_spawns_guards_at_posts
 * test_upgrade_card_spawns_no_guard
 [33m    28 Orphans[0m
-[33m        * [Guard_archer:<Node3D#4352227939591>(guard.gd)] + 12
-        * [Guard_tank:<Node3D#4353050024493>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#4389574023087>(guard.gd)] + 12
+        * [Guard_archer:<Node3D#4388751940151>(guard.gd)] + 12[0m
 * test_archer_is_never_targeted
 * test_archer_kills_a_north_boar
 * test_tank_stops_a_west_boar_and_takes_damage
@@ -629,21 +630,21 @@ res://tests/unit/test_guards.gd
 * test_knockout_and_revive_restore_visual
 * test_guard_bar_is_palette_boxes_outside_the_visual
 [33m    14 Orphans[0m
-[33m        * [Guard_tank:<Node3D#4734698132189>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#4771054360880>(guard.gd)] + 12[0m
 * test_guard_visual_follows_motion_and_attacks
 * test_hp_bar_follows_signals
 [33m    14 Orphans[0m
-[33m        * [Guard_tank:<Node3D#4828398884297>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#4864755112235>(guard.gd)] + 12[0m
 * test_respawn_timer_pauses_with_the_tree
 * test_dawn_restores_a_downed_tank
 * test_level_up_reconfigures
 [33m    14 Orphans[0m
-[33m        * [Guard_tank:<Node3D#4935051645522>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#4971827303030>(guard.gd)] + 12[0m
 * test_occluder_points_include_visible_guards
 * test_priority_fence_then_guard_then_diner
 [33m    28 Orphans[0m
-[33m        * [Guard_archer:<Node3D#4990936551850>(guard.gd)] + 12
-        * [Guard_tank:<Node3D#4991758636091>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#5028534294832>(guard.gd)] + 12
+        * [Guard_archer:<Node3D#5027712211681>(guard.gd)] + 12[0m
 [33m28 orphans[0m
 [1m16/16 passed.
 [0m[4m
@@ -709,7 +710,7 @@ res://tests/unit/test_hero.gd
 * test_input_blocked_in_dawn_only
 * test_visual_and_ring_are_siblings
 [33m    14 Orphans[0m
-[33m        * [Guard_archer:<Node3D#5846692009773>(guard.gd)] + 12[0m
+[33m        * [Guard_archer:<Node3D#5883014681119>(guard.gd)] + 12[0m
 * test_visual_follows_motion_and_stands_still
 * test_attack_fires_the_throw_and_dawn_cheers
 [1m12/12 passed.
@@ -748,13 +749,13 @@ res://tests/unit/test_hud.gd
 * test_arrow_rect_top_clears_the_hud
 * test_empty_card_strip_does_not_push_the_arrow_rect_down
 [33m    14 Orphans[0m
-[33m        * [Guard_tank:<Node3D#6619635128320>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#6655991354839>(guard.gd)] + 12[0m
 * test_hover_point_is_clamped_below_the_hud
 [33m    14 Orphans[0m
-[33m        * [Guard_tank:<Node3D#6646797441717>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#6683153666438>(guard.gd)] + 12[0m
 * test_card_strip_lists_owned_cards_in_catalog_order
 [33m    14 Orphans[0m
-[33m        * [Guard_tank:<Node3D#6677667517678>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#6714023745869>(guard.gd)] + 12[0m
 * test_day_label_shows_new_day_on_offer
 * test_queued_banner_shown_late_plays_min_time
 * test_moon_tint_lit_and_unlit_after_a_wave_clears
@@ -899,7 +900,7 @@ res://tests/unit/test_occluder_fade.gd
 * test_far_boar_hidden_only_at_its_own_aim_height
 * test_surface_material_meshes_fade_and_restore_to_null
 * test_mesh_without_any_material_is_skipped_safely
-WARNING: OccluderFade: /root/GutRunner/@Node@104429/Visual/@MeshInstance3D@104472 has no BaseMaterial3D to fade; it stays opaque
+WARNING: OccluderFade: /root/GutRunner/@Node@104895/Visual/@MeshInstance3D@104938 has no BaseMaterial3D to fade; it stays opaque
      at: push_warning (core/variant/variant_utility.cpp:1033)
      GDScript backtrace (most recent call first):
          [0] _make_entry (res://components/occluder_fade.gd:179)
@@ -927,7 +928,7 @@ res://tests/unit/test_overlays.gd
 * test_perf_warmup_records_nothing
 * test_perf_straddling_frame_is_not_recorded
 * test_perf_freezes_one_window_and_ignores_later_phases
-PERF phase=NIGHT day=3 window=60s avg_fps=59.8 worst_ms=250.0 proc_ms=126.82 phys_ms=61.85 dc=0 slow_pct=0.0 delta_worst_ms=150.0 top3=250@30.2s(w-1,-1) 17@0.0s(w-1,-1) 17@0.0s(w-1,-1) pre3=300@2.2s 17@0.0s 17@0.0s
+PERF phase=NIGHT day=3 window=60s avg_fps=59.8 worst_ms=250.0 proc_ms=77.41 phys_ms=51.53 dc=0 slow_pct=0.0 delta_worst_ms=150.0 top3=250@30.2s(w-1,-1) 17@0.0s(w-1,-1) 17@0.0s(w-1,-1) pre3=300@2.2s 17@0.0s 17@0.0s
 * test_debug_overlay_hotkey_gold
 * test_main_does_not_preload_debug
 * test_build_label_off_web_is_dev
@@ -939,13 +940,14 @@ PERF phase=NIGHT day=3 window=60s avg_fps=59.8 worst_ms=250.0 proc_ms=126.82 phy
 * test_active_occluder_fade_follows_live_alpha_change
 * test_button_rect_is_bottom_right_inside_safe_area_clear_of_edge_strips
 * test_touch_on_button_cycles_and_does_not_start_the_stick
+* test_hidden_button_does_not_take_taps
 * test_stick_released_over_button_still_ends
 * test_touch_elsewhere_still_starts_the_stick
 * test_mouse_click_on_button_cycles_once_and_skips_stick
 * test_emulated_mouse_event_on_button_is_ignored
 * test_stale_owned_finger_does_not_swallow_the_stick_release
 * test_perf_warmup_tracks_pre3_and_adds_nothing_to_the_window
-[1m21/21 passed.
+[1m22/22 passed.
 [0m[4m
 
 res://tests/unit/test_palette.gd
@@ -981,8 +983,8 @@ res://tests/unit/test_perf_fixture.gd
 * test_night_fixture_resumes_into_night
 * test_closeup_fixture_resumes_into_day
 [33m    28 Orphans[0m
-[33m        * [Guard_tank:<Node3D#7945790167044>(guard.gd)] + 12
-        * [Guard_archer:<Node3D#7944968083781>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#8008453068886>(guard.gd)] + 12
+        * [Guard_archer:<Node3D#8007630986399>(guard.gd)] + 12[0m
 [33m28 orphans[0m
 [1m3/3 passed.
 [0m[4m
@@ -990,17 +992,17 @@ res://tests/unit/test_perf_fixture.gd
 res://tests/unit/test_phase_controller.gd
 [0m* test_phase_controller_uses_only_the_narrow_interface
 [33m    28 Orphans[0m
-[33m        * [Guard_archer:<Node3D#7974378543703>(guard.gd)] + 12
-        * [Guard_tank:<Node3D#7975200627697>(guard.gd)] + 12[0m
+[33m        * [Guard_archer:<Node3D#8037041444176>(guard.gd)] + 12
+        * [Guard_tank:<Node3D#8037863528552>(guard.gd)] + 12[0m
 * test_new_game_starts_night_with_night_snapshot
 * test_dawn_steps_in_order
 * test_early_wave_clear_is_not_dawn
 [33m    14 Orphans[0m
-[33m        * [Guard_archer:<Node3D#8057895525278>(guard.gd)] + 12[0m
+[33m        * [Guard_archer:<Node3D#8120608759018>(guard.gd)] + 12[0m
 * test_close_up_collects_and_snapshots_day
 * test_close_up_ignored_at_night
 [33m    14 Orphans[0m
-[33m        * [Guard_archer:<Node3D#8113025456619>(guard.gd)] + 12[0m
+[33m        * [Guard_archer:<Node3D#8175738690683>(guard.gd)] + 12[0m
 * test_fail_night1_restarts_night
 * test_fail_after_close_up_returns_to_day
 * test_fall_and_clear_same_tick_fail_wins
@@ -1012,14 +1014,14 @@ res://tests/unit/test_phase_controller.gd
 * test_invalid_stale_and_night_choices_are_ignored
 * test_pick_shows_banner
 [33m    14 Orphans[0m
-[33m        * [Guard_tank:<Node3D#8471286127541>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#8533512821755>(guard.gd)] + 12[0m
 * test_empty_offer_skips_to_day
 [33m    14 Orphans[0m
-[33m        * [Guard_archer:<Node3D#8500763690672>(guard.gd)] + 12[0m
+[33m        * [Guard_archer:<Node3D#8562990390287>(guard.gd)] + 12[0m
 * test_no_dawn_banner_when_an_offer_opens
 [33m    28 Orphans[0m
-[33m        * [Guard_archer:<Node3D#8527976339578>(guard.gd)] + 12
-        * [Guard_tank:<Node3D#8528798423490>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#8591025116931>(guard.gd)] + 12
+        * [Guard_archer:<Node3D#8590203033481>(guard.gd)] + 12[0m
 * test_debug_skip_grants_no_card_from_night_and_from_pick
 * test_new_game_during_pick_resets_substate
 [33m28 orphans[0m
@@ -1138,7 +1140,7 @@ res://tests/unit/test_restore_world.gd
 * test_restore_brings_back_cards_and_guards
 * test_new_game_from_the_open_card_pick
 [33m    14 Orphans[0m
-[33m        * [Guard_tank:<Node3D#9695100148807>(guard.gd)] + 12[0m
+[33m        * [Guard_tank:<Node3D#9756605422036>(guard.gd)] + 12[0m
 * test_new_game_removes_guards
 [1m11/11 passed.
 [0m[4m
@@ -1434,9 +1436,9 @@ res://tests/unit/test_world_build.gd
 [33m==============================================[0m
 test_actor_visual.gd
     - test_role_scenes_hold_only_their_own_models
-[33m        * [Visual:<Node3D#427970007187>(kaykit_visual.gd)] + 26
-        * [Visual:<Node3D#426728493225>(kaykit_visual.gd)] + 22
-        * [Visual:<Node3D#429211521256>(kaykit_visual.gd)] + 22[0m
+[33m        * [Visual:<Node3D#428439769239>(kaykit_visual.gd)] + 26
+        * [Visual:<Node3D#427198255277>(kaykit_visual.gd)] + 22
+        * [Visual:<Node3D#429681283308>(kaykit_visual.gd)] + 22[0m
 
 
 [33m==============================================
@@ -1446,11 +1448,11 @@ test_actor_visual.gd
 Totals
 ------
 Scripts              88
-Tests               865
-Passing Tests       865
-Asserts           50908
+Tests               867
+Passing Tests       867
+Asserts           50913
 Orphans              73
-Time              14.505s
+Time              14.736s
 
 
 [32m---- All tests passed! ----
