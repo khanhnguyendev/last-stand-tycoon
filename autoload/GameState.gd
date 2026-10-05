@@ -1,7 +1,7 @@
 extends Node
 ## The only mutable game data (spec 4, D-096). Only these methods change it; they emit EventBus signals.
 
-const SCHEMA_VERSION := 3
+const SCHEMA_VERSION := 4
 
 var resume_phase := "NIGHT"
 var run_seed := 0
@@ -54,6 +54,7 @@ func to_dict() -> Dictionary:
 		"buildings": buildings.duplicate(true), "lane_plan": lane_plan.duplicate(true),
 		"cards": _string_keys(cards), "card_offer": card_offer.map(func(id): return String(id)),
 		"guards": _guards_out(), "night_fails": night_fails,
+		"stations": _stations_out(),
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -72,6 +73,12 @@ func from_dict(d: Dictionary) -> void:
 		var b: Dictionary = d.buildings[id]
 		buildings[String(id)] = {"level": int(b.level), "paid": int(b.paid), "hp": float(b.hp)}
 	stations = _fresh_stations()
+	for id in StationEffects.IDS:
+		var st: Dictionary = d.stations[String(id)]
+		var level := clampi(int(st.level), 0, Balance.data.stations.max_level)
+		var cost := StationEffects.level_cost(id, level, Balance.data.stations)
+		# A paid amount at or above the cost would never complete (pay_into_station pays cost - paid): clamp it.
+		stations[id] = {"level": level, "paid": 0 if cost < 0 else clampi(int(st.paid), 0, cost - 1)}
 	lane_plan = []
 	for w in d.lane_plan:
 		lane_plan.append({
@@ -358,6 +365,12 @@ static func _string_keys(d: Dictionary) -> Dictionary:
 	var out := {}
 	for k in d:
 		out[String(k)] = d[k]
+	return out
+
+func _stations_out() -> Dictionary:
+	var out := {}
+	for id in stations:
+		out[String(id)] = {"level": int(stations[id].level), "paid": int(stations[id].paid)}
 	return out
 
 func _guards_out() -> Dictionary:

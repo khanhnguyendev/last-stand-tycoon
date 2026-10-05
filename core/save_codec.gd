@@ -6,9 +6,25 @@ const FORMAT := 1
 const RESUME_PHASES := ["NIGHT", "DAY", "CARD_PICK"]
 const STATE_KEYS := ["v", "resume_phase", "run_seed", "day", "gold", "gold_pile", "freezer_steaks",
 	"counter_steaks", "carried_steaks", "diner_hp", "buildings", "lane_plan", "cards", "card_offer", "guards",
-	"night_fails"]
-## from_version (int) -> Callable(state: Dictionary) -> Dictionary. Empty at ship (no older disk saves exist).
+	"night_fails", "stations"]
+## from_version (int) -> Callable(state: Dictionary) -> Dictionary. A test hook: an entry here overrides the
+## built-in step of the same version (_built_in). Tests may clear it freely.
 static var MIGRATIONS := {}
+
+static func fresh_stations() -> Dictionary:
+	var out := {}
+	for id in StationEffects.IDS:
+		out[String(id)] = {"level": 0, "paid": 0}
+	return out
+
+## The shipped migrations. Returns null when `from_v` has no step.
+static func _built_in(from_v: int, state: Dictionary) -> Variant:
+	match from_v:
+		3:  # E1: station upgrades
+			state.stations = fresh_stations()
+			state.v = 4
+			return state
+	return null
 
 static func encode(state: Dictionary, build: String, now_unix: int) -> String:
 	var sj := JSON.stringify(state, "", true, true)
@@ -39,10 +55,7 @@ static func decode(text: String, current_v: int, bd: BalanceData) -> Dictionary:
 		out.newer = true
 		return out
 	while v < current_v:
-		if not MIGRATIONS.has(v):
-			out.reason = "version"
-			return out
-		state = MIGRATIONS[v].call(state)
+		state = MIGRATIONS[v].call(state) if MIGRATIONS.has(v) else _built_in(v, state)
 		if typeof(state) != TYPE_DICTIONARY or not typeof(state.get("v")) in [TYPE_INT, TYPE_FLOAT] \
 				or int(state.get("v", v)) <= v:
 			out.reason = "version"
@@ -86,7 +99,7 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 	for k in ["freezer_steaks", "counter_steaks", "carried_steaks"]:
 		if float(s[k]) < 0.0:
 			return "range " + k
-	for k in ["buildings", "cards", "guards"]:
+	for k in ["buildings", "cards", "guards", "stations"]:
 		if typeof(s[k]) != TYPE_DICTIONARY:
 			return "type " + str(k)
 	for k in ["lane_plan", "card_offer"]:
@@ -108,6 +121,20 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 	for id in MapLayout.SPOT_IDS:
 		if not s.buildings.has(id):
 			return "missing building " + str(id)
+	for id in s.stations:
+		if typeof(id) != TYPE_STRING or not StringName(id) in StationEffects.IDS:
+			return "station " + str(id)
+	for id in StationEffects.IDS:
+		if not s.stations.has(String(id)):
+			return "missing station " + str(id)
+		var st = s.stations[String(id)]
+		if typeof(st) != TYPE_DICTIONARY or not st.has_all(["level", "paid"]):
+			return "station fields " + str(id)
+		for f in ["level", "paid"]:
+			if not typeof(st[f]) in [TYPE_INT, TYPE_FLOAT]:
+				return "station field type " + str(id)
+		if int(st.level) < 0 or int(st.level) > bd.stations.max_level or float(st.paid) < 0.0:
+			return "range station " + str(id)
 	if s.lane_plan.size() != bd.wave.base_counts.size():
 		return "lane_plan"
 	for w in s.lane_plan:
