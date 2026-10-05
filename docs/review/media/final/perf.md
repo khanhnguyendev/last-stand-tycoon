@@ -2,7 +2,7 @@
 
 Branch = `review/final-package` (main 23b7d7b + this commit's debug-only autoplay and the perf script's mid-run sample; the profile pack excludes `ui/debug`, so the game code is main's). Main = S4 `main` at c8cce18 (temporary worktree, removed afterwards).
 Both builds were run with the same (new) script and the same fixtures (`export/fixtures` is identical in both trees). Runs alternate branch, main, branch, main, ... one run per call. Day-3 = frozen `PERF phase=DAY` (fixture `night3_closeup`), night-3 = frozen `PERF phase=NIGHT` (fixture `night3_start`).
-Crops of the PERF lines: `perf/<run>/day_peak_crop.png`, `night3_80s_crop.png`; full screenshots and the script output (`run.txt`) next to them.
+Crops of the PERF lines: `perf/<run>/day_peak_crop.png`, `night3_80s_crop.png`; the script output (`run.txt`) is next to them.
 The Mac reached >= 75% idle before every kept run (the script waited up to 10 minutes). `cpu_idle_mid` is new: sampled in a background subshell halfway through each wait (45 s of the day wait, 50 s of the night wait) while Safari is playing, so it includes the Simulator's own load and is always lower than "before".
 
 ## Readings
