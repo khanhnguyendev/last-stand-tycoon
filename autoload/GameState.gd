@@ -164,17 +164,24 @@ func fence_max_hp(level: int) -> float:
 	assert(level >= 1 and level <= Balance.data.build.fence_hp.size(), "fence_max_hp level out of range")
 	return Balance.data.build.fence_hp[level - 1]
 
+## Shared by pay_into_spot and pay_into_station. Returns the gold taken (0 = nothing happened).
+func _pay_towards(entry: Dictionary, cost: int, amount: int) -> int:
+	var pay := mini(amount, mini(gold, cost - int(entry.paid)))
+	if pay <= 0:
+		return 0
+	gold -= pay
+	entry.paid = int(entry.paid) + pay
+	EventBus.gold_changed.emit(gold, -pay)
+	return pay
+
 func pay_into_spot(spot_id: String, amount: int) -> int:
 	var cost := next_level_cost(spot_id)
 	if cost < 0:
 		return 0
 	var b: Dictionary = buildings[spot_id]
-	var pay := mini(amount, mini(gold, cost - int(b.paid)))
+	var pay := _pay_towards(b, cost, amount)
 	if pay <= 0:
 		return 0
-	gold -= pay
-	b.paid = int(b.paid) + pay
-	EventBus.gold_changed.emit(gold, -pay)
 	if int(b.paid) >= cost:
 		b.level = int(b.level) + 1
 		b.paid = 0
@@ -235,12 +242,9 @@ func pay_into_station(id: StringName, amount: int) -> int:
 	if cost < 0:
 		return 0
 	var s: Dictionary = stations[id]
-	var pay := mini(amount, mini(gold, cost - int(s.paid)))
+	var pay := _pay_towards(s, cost, amount)
 	if pay <= 0:
 		return 0
-	gold -= pay
-	s.paid = int(s.paid) + pay
-	EventBus.gold_changed.emit(gold, -pay)
 	if int(s.paid) >= cost:
 		s.level = int(s.level) + 1
 		s.paid = 0
