@@ -13,6 +13,7 @@ var lighting: LightingDirector
 var props: Props
 var diner_body: StaticBody3D
 var build_spots := {}
+var upgrade_pads := {}
 var freezer: Freezer
 var counter: Counter
 var gold_pile: GoldPile
@@ -182,6 +183,11 @@ func _build_stations() -> void:
 	counter = Counter.new()
 	add_child(counter)
 	counter.setup(self)
+	for id in StationEffects.IDS:
+		var pad := UpgradePad.new()
+		add_child(pad)
+		pad.setup(id, self)
+		upgrade_pads[id] = pad
 	gold_pile = GoldPile.new()
 	add_child(gold_pile)
 	gold_pile.setup(self)
