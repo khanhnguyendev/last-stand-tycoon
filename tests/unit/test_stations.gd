@@ -76,7 +76,7 @@ func test_moving_hero_does_not_transfer() -> void:
 
 func test_counter_fills_up_to_capacity() -> void:
 	_day()
-	var cap := Balance.data.economy.counter_capacity
+	var cap := StationEffects.counter_capacity(0, Balance.data.stations)
 	GameState.carried_steaks = 3  # test-only setup
 	GameState.counter_steaks = cap - 1
 	await TestHelpers.walk_in(main.hero, MapLayout.COUNTER_DROP)

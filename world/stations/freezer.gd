@@ -8,12 +8,15 @@ var zone: StationZone
 var label: WorldLabel
 var _pile: MultiMeshInstance3D
 var _fx: FlyFx
+var body_visual: Node3D
+var _pop: Tween
 const _stack_cap := 10
 
 func setup(world: World) -> void:
 	name = "Freezer"
 	_fx = world.fly_fx
-	world.add_static_box("FreezerBody", Vector3(MapLayout.FREEZER_SIZE.x, 1.4, MapLayout.FREEZER_SIZE.y), MapLayout.FREEZER, FREEZER_ART)
+	var body := world.add_static_box("FreezerBody", Vector3(MapLayout.FREEZER_SIZE.x, 1.4, MapLayout.FREEZER_SIZE.y), MapLayout.FREEZER, FREEZER_ART)
+	body_visual = body.get_child(1) as Node3D  # add_static_box: child 0 is the shape, child 1 the visual root
 	position = MapLayout.to3(MapLayout.FREEZER_ZONE)
 	zone = StationZone.new()
 	zone.radius = MapLayout.STATION_RADIUS
@@ -30,10 +33,11 @@ func setup(world: World) -> void:
 	add_child(_pile)
 	EventBus.stocks_changed.connect(refresh)
 	EventBus.state_restored.connect(refresh)
+	EventBus.station_upgraded.connect(_on_station_upgraded)
 	refresh()
 
 func _on_tick() -> void:
-	if GameState.move_freezer_to_carry(1) > 0:
+	if GameState.move_freezer_to_carry(StationEffects.load_per_tick(GameState.station_level(&"freezer"), Balance.data.stations)) > 0:
 		EventBus.sfx_requested.emit(&"take")
 		var hero := get_tree().get_first_node_in_group(&"hero") as Node3D
 		if _fx != null and hero != null:
@@ -45,3 +49,13 @@ func refresh() -> void:
 
 func stack_count() -> int:
 	return PileMesh.count(_pile)
+
+## Visual only: the model pops; the StaticBody3D and its shape are never scaled.
+func _on_station_upgraded(id: StringName, _level: int) -> void:
+	if id != &"freezer" or body_visual == null:
+		return
+	if _pop != null and _pop.is_valid():
+		_pop.kill()
+	body_visual.scale = Vector3.ONE * Balance.ui.build_pop_scale
+	_pop = create_tween()
+	_pop.tween_property(body_visual, "scale", Vector3.ONE, Balance.ui.build_pop_time)

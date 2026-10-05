@@ -15,7 +15,7 @@ func choose_card(offer: Array) -> StringName:
 
 func day_think(_delta: float) -> void:
 	var cap := GameState.carry_capacity()
-	var counter_cap := Balance.data.economy.counter_capacity
+	var counter_cap := GameState.counter_capacity()
 	# keep loading / unloading until the stack or the station is done
 	if goal == "freezer" and GameState.freezer_steaks > 0 and GameState.carried_steaks < cap:
 		return

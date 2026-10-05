@@ -74,6 +74,11 @@ func _run() -> void:
 		var tank = main.world.guard_roster.guards.get(&"tank")
 		if tank != null:
 			tank.place_at_post()
+	if _args.has("stations"):  # --stations=counter:5,freezer:5 (E1)
+		var gs_st = root.get_node("GameState")
+		for pair in String(_args.stations).split(",", false):
+			var sp := pair.split(":")
+			gs_st.debug_set_station_level(StringName(sp[0]), int(sp[1]))
 	if _args.get("scene", "") == "cardpick":
 		bot.queue_free()
 		if not _args.has("wait"):
@@ -96,7 +101,7 @@ func _run() -> void:
 		if phase_arg == "day":
 			main.hero.teleport(map_layout.HOME)  # outside every zone (D-122); the queue slots are in frame
 		if phase_arg == "day":  # let travelers queue (spec 9.6.1)
-			await _wait(12.0)
+			await _wait(float(_args.get("day-wait", "12")))
 		else:
 			for i in 30:
 				await physics_frame
@@ -146,6 +151,12 @@ func _run() -> void:
 			main.add_child(guide)
 			guide.setup(main)
 		guide.debug_force(StringName(_args.guide))
+	if _args.has("stock"):  # --stock=<counter>,<carried>: set right before the grab (E1)
+		var sv := String(_args.stock).split(",")
+		var gs_sk = root.get_node("GameState")
+		gs_sk.counter_steaks = int(sv[0])
+		gs_sk.carried_steaks = int(sv[1])
+		root.get_node("EventBus").stocks_changed.emit()
 	var dbg = main.get_node_or_null("DebugOverlay")
 	if dbg != null and not _args.has("debug"):
 		dbg.visible = false

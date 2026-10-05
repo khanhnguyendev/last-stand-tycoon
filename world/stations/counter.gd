@@ -8,11 +8,14 @@ var zone: StationZone
 var label: WorldLabel
 var _pile: MultiMeshInstance3D
 var _fx: FlyFx
+var body_visual: Node3D
+var _pop: Tween
 
 func setup(world: World) -> void:
 	name = "Counter"
 	_fx = world.fly_fx
-	world.add_static_box("CounterBody", Vector3(MapLayout.COUNTER_SIZE.x, 1.0, MapLayout.COUNTER_SIZE.y), MapLayout.COUNTER, COUNTER_ART)
+	var body := world.add_static_box("CounterBody", Vector3(MapLayout.COUNTER_SIZE.x, 1.0, MapLayout.COUNTER_SIZE.y), MapLayout.COUNTER, COUNTER_ART)
+	body_visual = body.get_child(1) as Node3D  # add_static_box: child 0 is the shape, child 1 the visual root
 	position = MapLayout.to3(MapLayout.COUNTER_DROP)
 	zone = StationZone.new()
 	zone.radius = MapLayout.STATION_RADIUS
@@ -21,16 +24,20 @@ func setup(world: World) -> void:
 	label = WorldLabel.make("0")
 	label.position = MapLayout.to3(MapLayout.COUNTER - MapLayout.COUNTER_DROP, 2.2)
 	add_child(label)
+	var sb := Balance.data.stations
 	var slots := PackedVector3Array()
-	for i in Balance.data.economy.counter_capacity:
-		var col := i % 6
-		var row := floori(i / 6.0)
-		slots.append(MapLayout.to3(MapLayout.COUNTER - MapLayout.COUNTER_DROP + Vector2(-1.1 + col * 0.44, -0.2 + row * 0.4), 1.1))
+	for i in StationEffects.counter_capacity(sb.max_level, sb):
+		var layer := floori(i / 12.0)  # 2 rows of 6 per layer; the pile grows upward
+		var j := i % 12
+		var col := j % 6
+		var row := floori(j / 6.0)
+		slots.append(MapLayout.to3(MapLayout.COUNTER - MapLayout.COUNTER_DROP + Vector2(-1.1 + col * 0.44, -0.2 + row * 0.4), 1.1 + layer * 0.18))
 	_pile = PileMesh.steak_pile(slots)
 	_pile.name = "Pile"
 	add_child(_pile)
 	EventBus.stocks_changed.connect(refresh)
 	EventBus.state_restored.connect(refresh)
+	EventBus.station_upgraded.connect(_on_station_upgraded)
 	refresh()
 
 func _on_tick() -> void:
@@ -46,3 +53,13 @@ func refresh() -> void:
 
 func stack_count() -> int:
 	return PileMesh.count(_pile)
+
+## Visual only: the model pops; the StaticBody3D and its shape are never scaled.
+func _on_station_upgraded(id: StringName, _level: int) -> void:
+	if id != &"counter" or body_visual == null:
+		return
+	if _pop != null and _pop.is_valid():
+		_pop.kill()
+	body_visual.scale = Vector3.ONE * Balance.ui.build_pop_scale
+	_pop = create_tween()
+	_pop.tween_property(body_visual, "scale", Vector3.ONE, Balance.ui.build_pop_time)

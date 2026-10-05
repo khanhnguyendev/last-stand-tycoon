@@ -117,7 +117,7 @@ func snapshot() -> Dictionary:
 		"phase": main.phase_controller.phase, "day": gs.day, "hero_xz": main.hero.xz(), "walked": walked,
 		"attack_range": Balance.data.hero.attack_range, "boars": boars, "steaks": steaks, "carried": gs.carried_steaks,
 		"carry_capacity": gs.carry_capacity(), "freezer": gs.freezer_steaks, "counter": gs.counter_steaks,
-		"counter_capacity": Balance.data.economy.counter_capacity, "gold": gs.gold, "gold_pile": gs.gold_pile,
+		"counter_capacity": gs.counter_capacity(), "gold": gs.gold, "gold_pile": gs.gold_pile,
 		"move_m": Balance.ui.guide_move_m, "spots": spots, "should_pulse": Pulse.should_pulse(gs.to_dict(), Balance.data),
 	}
 

@@ -313,11 +313,11 @@ func test_restore_piles_show_exact_counts() -> void:
 	EventBus.stocks_changed.emit()
 	assert_eq(main.world.freezer.stack_count(), 5)
 	var snap := GameState.to_dict()
-	snap.counter_steaks = Balance.data.economy.counter_capacity
+	snap.counter_steaks = StationEffects.counter_capacity(0, Balance.data.stations)
 	snap.freezer_steaks = 0
 	snap.carried_steaks = 3
 	GameState.from_dict(snap)
-	assert_eq(main.world.counter.stack_count(), Balance.data.economy.counter_capacity)
+	assert_eq(main.world.counter.stack_count(), StationEffects.counter_capacity(0, Balance.data.stations))
 	assert_eq(main.world.freezer.stack_count(), 0)
 	assert_eq(main.hero.carry_stack.visible_count(), 3)
 
