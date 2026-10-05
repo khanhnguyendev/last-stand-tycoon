@@ -1,0 +1,9 @@
+cpu_idle_before=75%
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 578FA918-8C0A-466C-9790-9F333F869695 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/s5p5/docs/review/media/s5/perf_final/runs/branch_1/day_peak.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 578FA918-8C0A-466C-9790-9F333F869695 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/lst-wt/s5p5/docs/review/media/s5/perf_final/runs/branch_1/night3_80s.png
+ios: docs/review/media/s5/perf_final/runs/branch_1/night3_80s.png
+cpu_idle_after=0%
