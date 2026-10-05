@@ -55,15 +55,7 @@ func _on_tick() -> void:
 	if paid > 0:
 		# Visual-only counter (S5 Task 5): a dust puff on every build_dust_every-th paid tick.
 		# A tick that completes a level leaves paid == 0: the next level starts counting again.
-		if int(GameState.buildings[spot_id].paid) == 0:
-			_paid_ticks = 0
-		else:
-			_paid_ticks += 1
-		if _paid_ticks > 0 and _paid_ticks % maxi(Balance.ui.build_dust_every, 1) == 0:
-			EventBus.fx_requested.emit(&"dust", global_position)
-		var hero := get_tree().get_first_node_in_group(&"hero") as Node3D
-		if _fx != null and hero != null:
-			_fx.fly("coin", hero.global_position + Vector3(0, 1.2, 0), global_position + Vector3(0, 1.0, 0))
+		_paid_ticks = PayFx.paid_tick(self, _fx, _paid_ticks, int(GameState.buildings[spot_id].paid) == 0, 1.0)
 
 func _on_building_changed(id: StringName, _level: int, _paid: int) -> void:
 	if String(id) == spot_id:

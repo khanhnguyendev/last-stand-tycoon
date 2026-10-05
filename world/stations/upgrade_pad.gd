@@ -43,15 +43,8 @@ func _on_tick() -> void:
 	var paid := GameState.pay_into_station(station_id, Economy.drain_per_tick(cost, Balance.data.build))
 	if paid <= 0:
 		return
-	if GameState.station_remaining_cost(station_id) == GameState.station_next_cost(station_id):
-		_paid_ticks = 0  # this tick completed a level
-	else:
-		_paid_ticks += 1
-	if _paid_ticks > 0 and _paid_ticks % maxi(Balance.ui.build_dust_every, 1) == 0:
-		EventBus.fx_requested.emit(&"dust", global_position)
-	var hero := get_tree().get_first_node_in_group(&"hero") as Node3D
-	if _fx != null and hero != null:
-		_fx.fly("coin", hero.global_position + Vector3(0, 1.2, 0), global_position + Vector3(0, 0.3, 0))
+	# A tick that completes a level leaves remaining == cost: the next level starts counting again.
+	_paid_ticks = PayFx.paid_tick(self, _fx, _paid_ticks, GameState.station_remaining_cost(station_id) == GameState.station_next_cost(station_id), 0.3)
 
 func _on_station_changed(id: StringName, _level: int, _paid: int) -> void:
 	if id == station_id:
