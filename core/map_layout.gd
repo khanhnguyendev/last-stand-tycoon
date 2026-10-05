@@ -40,7 +40,10 @@ const COUNTER := Vector2(0, 4.8)
 const COUNTER_SIZE := Vector2(3, 1)
 const COUNTER_DROP := Vector2(2.2, 4.8)
 const SERVICE_POINT := Vector2(0, 6.0)
-const QUEUE_SLOTS := [Vector2(0, 6.0), Vector2(-1.2, 7.0), Vector2(-2.4, 8.0), Vector2(-3.6, 9.0)]
+## Slots 0-3: the S1 diagonal. Slots 4-8 (E1, D-230): a second row just north of the road, filling eastward, so an
+## arriving traveler never walks through the queue and the whole line is on screen from the counter.
+const QUEUE_SLOTS := [Vector2(0, 6.0), Vector2(-1.2, 7.0), Vector2(-2.4, 8.0), Vector2(-3.6, 9.0),
+	Vector2(-3.0, 10.3), Vector2(-1.8, 10.3), Vector2(-0.6, 10.3), Vector2(0.6, 10.3), Vector2(1.8, 10.3)]
 const GOLD_PILE := Vector2(-2.5, 5.5)
 const FREEZER := Vector2(5.5, 5.0)
 const FREEZER_SIZE := Vector2(1.5, 1.5)
@@ -51,6 +54,9 @@ const TRAVELER_ENTER := Vector2(24, 11)
 const TRAVELER_EXIT := Vector2(-24, 11)
 const STATION_RADIUS := 1.0
 const BUILD_RADIUS := 1.2
+## E1 upgrade pads (radius BUILD_RADIUS) and where the hero stands to use each station (camera test).
+const STATION_PADS := {&"counter": Vector2(2.6, 7.2), &"freezer": Vector2(7.9, 7.0)}
+const STATION_STAND := {&"counter": COUNTER_DROP, &"freezer": FREEZER_ZONE}
 
 ## S2 guard posts (D-163): the Archer on the diner roof; the Tank on the west lane's center line,
 ## TANK_POST_BACK m before the lane end. A knocked-out guard respawns at DINER_DOOR (D-165).

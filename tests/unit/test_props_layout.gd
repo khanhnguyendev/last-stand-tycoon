@@ -34,6 +34,7 @@ func test_off_every_lane_path() -> void:
 func test_off_stations_roads_and_spots() -> void:
 	var points: Array = [MapLayout.COUNTER, MapLayout.FREEZER, MapLayout.GOLD_PILE, MapLayout.SIGN, MapLayout.HOME, MapLayout.DINER_DOOR]
 	points.append_array(MapLayout.QUEUE_SLOTS)
+	points.append_array(MapLayout.STATION_PADS.values())
 	for id in MapLayout.SPOT_IDS:
 		points.append(MapLayout.spot_position(id))
 	for it in PropsLayout.ITEMS:
