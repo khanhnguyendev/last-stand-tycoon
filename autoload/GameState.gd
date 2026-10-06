@@ -84,6 +84,8 @@ func from_dict(d: Dictionary) -> void:
 		lane_plan.append({
 			"main": String(w.main), "side": String(w.side),
 			"main_count": int(w.main_count), "side_count": int(w.side_count), "hp_mult": float(w.hp_mult),
+			# E5: hares and the boss ride in the plan; a wave saved before E5 has none.
+			"fast_main": int(w.get("fast_main", 0)), "fast_side": int(w.get("fast_side", 0)), "boss": bool(w.get("boss", false)),
 		})
 	cards = {}
 	for k in d.cards:
