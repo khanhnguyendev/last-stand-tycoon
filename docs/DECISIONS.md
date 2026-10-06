@@ -2244,7 +2244,7 @@ gold at close-up then grows 223 → 3,999 from day 14 to day 20. Accepted; tier 
 mesh builder and shader (D-192), the boar mesh pinned byte-identical. Reversible; REVIEW_QUEUE.
 
 **D-247 Sim budget split: not needed for slice 1; still the proposal for tiers 3 to 5 (pending the author).** The sim
-suite is 42 s of 60 with the four tier sims. Proposal when it fills: `tests/sim_tier/`, `run_tests.sh sim-tier`, a
+suite is 47 s of 60 on Linux CI (42 s locally) with the four tier sims, so the split is the first thing tier 3 needs. Proposal when it fills: `tests/sim_tier/`, `run_tests.sh sim-tier`, a
 third CI job and required check, each job 60 s. Task 18 of the plan was not run.
 
 ## 2026-10-06: E5 build (subagent-driven; rulings by the main session)
@@ -2309,7 +2309,8 @@ fixture as DAY and retries through the day, as real play does. Fixtures are dete
   14: 2,276 / 1,620 / 2,736). Tier bot: boss night on day 12 / 13 / 12 with 1 / 1 / 0 retries; its first failed night
   is the boss night (none on seed 2); tier-2 nights 1 to 3 need 0 retries; unspent day 14: 223 / 77 / 563; 5 / 4 / 5
   cap nights with 0 retries, lowest diner 0.123 / 0.380 / 0.277. Every spec 8.2 target is met.
-- Suites at the end of phase 4: see the phase PR. Sim suite 42 s of 60.
+- Linux CI (PR #53) prints the same four sim lines digit for digit, so the thin cap margin on seed 20260930 (diner
+  0.037) is a balance fact, not platform noise. Sim suite 47 s of 60 on CI, 42 s locally.
 
 **D-259 Phases were stacked, not merged one by one (deviates from D-137 for E5).** From Task 3 the tier-1 game stops
 growing at day 7, while the tier sign arrives in phase 3; every merge to `main` deploys to Pages. PRs #50, #51, #52

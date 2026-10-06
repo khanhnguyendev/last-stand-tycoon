@@ -647,7 +647,8 @@ Each line names the section it supersedes.
   `boss_night_tier1`).
 - **8.2 The sweep** prints `SWEEP first_fail_day hard_break_day unspent_day14` and, in tier mode,
   `TIER first_tier2_day boss_retries cap_nights cap_retries`; `enemy_count` sums the night's plan.
-- **8.5 The sim suite is 42 s of 60** with the four tier sims; the split (D-247) was not needed for this slice.
+- **8.5 The sim suite is 47 s of 60 on CI** (42 s locally) with the four tier sims; the split (D-247) was not needed
+  for this slice, but 13 s of room means it is the first thing tier 3 needs.
 - **13 Hot files**: for speed the main session authorized implementers to commit specific hot-file lines in several
   tasks (each named in the task's dispatch) instead of applying uncommitted wiring patches; phases were stacked and
   not merged one by one (D-259).
@@ -659,10 +660,10 @@ Each line names the section it supersedes.
 | 1 Days 1 to 7 are today's game | `tools/baseline_rows.sh 7` → `rows 1-7 identical` on seeds 20260930, 11, 777 after every task from Task 3; baseline rows 8 to 14 re-recorded once (`docs/review/media/e5/baseline/`) |
 | 2 Schema 4 save loads at tier 1 | Unit tests; the schema 3 and 4 fixtures load through 3 → 4 → 5 |
 | 3, 4 Pay, boss night, tier 2; a lost boss night keeps the payment | Unit tests (`test_boss_night.gd`, `test_tier_sign.gd`, `test_yards.gd`) and sim 1 |
-| 5 Sims, seed 20260930 (macOS; the Linux CI lines are in the phase-4 PR) | Boss night won after 1 retry (2 allowed), diner 0.193; boss alone 19.0 s (minimum 15); first tier-2 night 0 retries, diner 0.397; full tier-2 build at the cap: 0 retries on 20260930 / 1 / 2, diner 0.037 / 0.59 / 0.933 |
+| 5 Sims, seed 20260930 (macOS and Linux CI give the same numbers, digit for digit) | Boss night won after 1 retry (2 allowed), diner 0.193; boss alone 19.0 s (minimum 15); first tier-2 night 0 retries, diner 0.397; full tier-2 build at the cap: 0 retries on 20260930 / 1 / 2, diner 0.037 / 0.59 / 0.933 |
 | 6 Sweep targets, seeds 20260930, 1, 2 | All met: planner 0 retries over 14 days; tier bot's first failed night is its boss night (none on seed 2); tier-2 nights 1 to 3: 0 retries; unspent gold on day 14: 223 / 77 / 563 against the planner's 2,276 / 1,620 / 2,736; 5 / 4 / 5 cap nights with 0 retries (`docs/review/media/e5/sweep/README.md`) |
 | 7 Perf | Not measured: see the phase-4 PR |
-| 8 Suites | Unit and sim green on every phase head; sim suite 42 s of 60 |
+| 8 Suites | Unit and sim green on every phase head, locally and on Linux CI (PRs #50 to #53); sim suite 47 s of 60 on CI (42 s locally) |
 
 Gold per capped night as measured by the sweep's kill counts: tier 1 56 kills (336 gold without cards), tier 2
 75 kills (450), boss night 57 kills with the 100-steak drop (636).
