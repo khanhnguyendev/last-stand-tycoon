@@ -1,0 +1,6 @@
+run 1: {"t_load":727,"t_engine":6720,"t_first_px":6618,"t_full":10971,"final_mean":104,"frames":105}
+  first samples (ms:mean) 6618:49 9882:49 12377:105 14509:105 16516:106 18936:105 21365:104
+run 2: {"t_load":36,"t_engine":4050,"t_first_px":3997,"t_full":8593,"final_mean":100.7,"frames":124}
+  first samples (ms:mean) 3997:49 7981:49 10249:105 12416:105 14908:104 17753:104 19793:103 22030:104 24663:99
+run 3: {"t_load":32,"t_engine":3662,"t_first_px":3640,"t_full":7923,"final_mean":104.3,"frames":115}
+  first samples (ms:mean) 3640:49 6339:49 8595:105 11232:105 14053:105 18542:103 21618:104 23733:104

@@ -2177,3 +2177,18 @@ Also in this follow-up set: the four E1 test files derive every cost from `Stati
 tuning does not break tests); the counter, freezer and build-spot pop tween share one helper (`PopFx`) and every pop is
 killed on `state_restored`; a unit test pins `World.add_static_box`'s child order (shape, then visual root), which the
 station pop depends on.
+
+**D-235 E1 owed measurements (2026-10-06, `main` at 63b2532).**
+- **Load time** (release build on localhost, Playwright Chromium 1243, Pixel 7 profile, software GL, 3 fresh contexts;
+  `docs/review/media/e1/load/load_time_chromium.txt`): `t_engine` 6720 / 4050 / 3662 ms, `t_first_px` 6618 / 3997 /
+  3640 ms, `t_full` 10971 / 8593 / 7923 ms. D-221: engine 4796 / 3700 / 3582, full 9148 / 7974 / 7941. Medians: engine
+  4.05 s against 3.70 s, full 8.6 s against 8.0 s. Runs 2 and 3 sit inside D-221's spread; run 1 is a cold-start
+  outlier. The Mac was not idle (about 55 to 60%), so this is not a strict comparison; the 31-traveler pool shows no
+  load-time cost larger than the noise. `index.pck` 5,529,580 B (D-221: 5,514,672; gate 8 MiB).
+- **Emulated Android check** (`export/device_check.sh` on the Pages root, D-141): Playwright Pixel 7 renders night 1
+  with the HUD, moons, guide arrow and joystick, build `63b2532 main`; the iOS Simulator (iPhone 17 Pro, Safari) shows
+  the same frame with nothing under the notch (`docs/review/media/e1/device_main/`).
+- **Memory with the 31-traveler pool: still unmeasured.** No script reads heap or GPU memory; left in `REVIEW_QUEUE.md`.
+- **Level 5 day perf idle re-run: postponed by the author.** One attempt on 2026-10-06 never reached the 75% idle gate
+  (vitest and BlueStacks were running) and was stopped before measuring; nothing recorded. `build/web_profile` is
+  rebuilt from 63b2532 and the command is `DAY_FIXTURE=day3_counter5 export/perf_night3.sh build/web_profile <out>`.
