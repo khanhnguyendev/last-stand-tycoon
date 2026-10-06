@@ -25,15 +25,18 @@ static func params(kind: StringName) -> Dictionary:
 	var snout := Palette.color(&"enemy_snout")
 	match kind:
 		&"hare":
-			return {"scale": 0.7, "body_scale": Vector3(0.8, 0.7, 1.25), "upper": snout.lerp(maroon, 0.5),
-				"belly": snout.lerp(maroon, 0.25), "ears": snout, "ear_len": 0.3, "tusks": 0, "ridge": 0, "ridge_h": 1.0,
-				"leg_len": 0.32, "tusk_color": Palette.color(&"stone")}
+			# Lean and long, a small head pushed forward, long flat enemy_red ears laid back over the body (they read from the steep
+			# game camera where upright ears would foreshorten). Body and head enemy_snout: clearly lighter than a boar.
+			return {"scale": 0.6, "body_scale": Vector3(0.65, 0.7, 1.4), "upper": snout, "belly": snout.lerp(maroon, 0.15),
+				"ears": red, "ear_len": 1.2, "tusks": 0, "ridge": 0, "ridge_h": 1.0, "leg_len": 0.32, "leg_xz": Vector2(0.2, 0.42),
+				"head_k": 0.8, "head_dz": 0.22, "tusk_color": Palette.color(&"stone")}
 		&"boss":
 			return {"scale": 2.2, "body_scale": Vector3(1.05, 0.8, 1.15), "upper": maroon.lerp(red, 0.25),
 				"belly": maroon, "ears": snout, "ear_len": 0.0, "tusks": 4, "ridge": 5, "ridge_h": 0.6,
-				"leg_len": 0.25, "tusk_color": Palette.color(&"stone")}
+				"leg_len": 0.25, "leg_xz": Vector2(0.27, 0.3), "head_k": 1.0, "head_dz": 0.0, "tusk_color": Palette.color(&"stone")}
 	return {"scale": 1.0, "body_scale": BODY_SCALE, "upper": maroon.lerp(red, 0.4), "belly": red, "ears": snout,
-		"ear_len": 0.0, "tusks": 2, "ridge": 5, "ridge_h": 1.0, "leg_len": 0.25, "tusk_color": Palette.color(&"apron_white")}
+		"ear_len": 0.0, "tusks": 2, "ridge": 5, "ridge_h": 1.0, "leg_len": 0.25, "leg_xz": Vector2(0.27, 0.3), "head_k": 1.0, "head_dz": 0.0,
+		"tusk_color": Palette.color(&"apron_white")}
 
 ## Cached per kind; `&"boar"` is today's mesh.
 static func get_mesh(kind: StringName = &"boar") -> ArrayMesh:
@@ -140,7 +143,8 @@ static func _build(p: Dictionary) -> ArrayMesh:
 	for lx in [-1.0, 1.0]:
 		for lz in [-1.0, 1.0]:
 			var leg_len: float = p.leg_len
-			_add(acc, _cone(0.095, 0.085, leg_len, 8, [true, false]), _xf(Vector3(lx * 0.27, leg_len * 0.5, lz * 0.3)), ink_soft, true)
+			var leg_xz: Vector2 = p.leg_xz
+			_add(acc, _cone(0.095, 0.085, leg_len, 8, [true, false]), _xf(Vector3(lx * leg_xz.x, leg_len * 0.5, lz * leg_xz.y)), ink_soft, true)
 
 	# tail: a small curl
 	var torus := TorusMesh.new()
@@ -152,7 +156,7 @@ static func _build(p: Dictionary) -> ArrayMesh:
 	_add(acc, torus, _xf(tail_pos + Vector3(0, 0.03, -0.04), Vector3(70.0, 0, 0)), maroon)
 
 	# head: big and low at the front, tilted slightly down
-	var head := _xf(HEAD_POS + Vector3(0.0, lift, 0.0), Vector3(HEAD_TILT_DEG, 0, 0))
+	var head := _xf(HEAD_POS + Vector3(0.0, lift, float(p.head_dz)), Vector3(HEAD_TILT_DEG, 0, 0), Vector3.ONE * float(p.head_k))
 	_add(acc, _sphere(HEAD_R, 12, 6), head * _xf(Vector3.ZERO, Vector3.ZERO, Vector3(1.05, 0.95, 1.0)), upper)
 	_add(acc, _cone(0.14, 0.13, 0.07, 8, [false, true]), head * _xf(Vector3(0, -0.07, 0.275), Vector3(90, 0, 0)), snout)
 	for sx in [-1.0, 1.0]:
@@ -165,8 +169,11 @@ static func _build(p: Dictionary) -> ArrayMesh:
 		if int(p.tusks) >= 4:
 			_tusk(acc, head, sx, Vector3(sx * 0.17, -0.15, 0.18), p.tusk_color, 25.0, 0.7)
 		if float(p.ear_len) > 0.0:
+			# a flat strip from the head's top, 30 deg above horizontal, pointing back and outward
 			var el: float = p.ear_len
-			_add(acc, _cone(0.1, 0.06, el, 6, [false, true]), head * _xf(Vector3(sx * 0.12, 0.2 + el * 0.4, -0.06), Vector3(-40.0, 0.0, -sx * 28.0)), p.ears)
+			var eb := Basis.from_euler(Vector3(deg_to_rad(30.0), deg_to_rad(-sx * 16.0), 0.0))
+			var base: Vector3 = head * Vector3(sx * 0.17, 0.1, -0.05)
+			_add(acc, BoxMesh.new(), Transform3D(eb * Basis.from_scale(Vector3(0.13, 0.03, el)), base + eb * Vector3(0.0, 0.0, -el * 0.5)), p.ears)
 
 	if float(p.scale) != 1.0:
 		var verts: PackedVector3Array = acc.verts
