@@ -5,6 +5,8 @@ extends RefCounted
 
 const CELL := 2.0
 const ROAD_Y := 0.02
+## A yard is a hair above the grass and below the road and the lane strips (z-fight free).
+const YARD_Y := 0.01
 
 static var _material: StandardMaterial3D
 
@@ -99,13 +101,31 @@ static func ground_mesh(rect: Rect2) -> ArrayMesh:
 		_cache[key] = mesh_from(ground_arrays(rect))
 	return _cache[key]
 
-## ONE mesh, ONE surface, ONE draw for the ground, the road and every lane strip (D-201). Cached per rect.
-static func terrain_mesh(rect: Rect2) -> ArrayMesh:
-	var key := "t%s" % [rect]
+## E5 spec 7.3: a yard is a dirt patch in the merged ground, hashed toward dirt_dark like the grass.
+static func yard_arrays(rect: Rect2, cell := 1.0) -> Dictionary:
+	var a := ground_arrays(rect, cell)
+	var cols: PackedColorArray = a.c
+	var verts: PackedVector3Array = a.v
+	var dirt := Palette.color(&"dirt")
+	var dark := Palette.color(&"dirt_dark")
+	for i in verts.size():
+		var v := verts[i]
+		verts[i] = Vector3(v.x, YARD_Y, v.z)
+		cols[i] = dirt.lerp(dark, hash01(v.x, v.z) * 0.5)
+	a.v = verts
+	a.c = cols
+	return a
+
+## ONE mesh, ONE surface, ONE draw for the ground, the road, the lane strips and the open yards (D-201). Cached per
+## (rect, yards); `yards` are MapLayout.YARDS keys. With no yards the mesh is exactly the S4 tier-1 terrain.
+static func terrain_mesh(rect: Rect2, yards: Array = []) -> ArrayMesh:
+	var key := "t%s" % [rect] if yards.is_empty() else "t%s%s" % [rect, yards]
 	if not _cache.has(key):
 		var parts := [ground_arrays(rect), road_arrays(Vector2(MapLayout.BOUNDS_MAX.x - MapLayout.BOUNDS_MIN.x, 2.0), MapLayout.ROAD_Z)]
 		for id in MapLayout.LANE_PATHS:
 			parts.append(LaneStrip.strip_arrays(MapLayout.LANE_PATHS[id]))
+		for y in yards:
+			parts.append(yard_arrays(MapLayout.YARDS[y]))
 		_cache[key] = mesh_from(merge_arrays(parts))
 	return _cache[key]
 
