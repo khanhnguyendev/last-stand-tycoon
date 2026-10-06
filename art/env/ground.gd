@@ -116,10 +116,17 @@ static func yard_arrays(rect: Rect2, cell := 1.0) -> Dictionary:
 	a.c = cols
 	return a
 
+static func _terrain_key(rect: Rect2, yards: Array) -> String:
+	return "t%s" % [rect] if yards.is_empty() else "t%s%s" % [rect, yards]
+
+## True when terrain_mesh(rect, yards) is already built (the warm-up pre-builds the top tier's, E5 Task 12).
+static func is_cached(rect: Rect2, yards: Array = []) -> bool:
+	return _cache.has(_terrain_key(rect, yards))
+
 ## ONE mesh, ONE surface, ONE draw for the ground, the road, the lane strips and the open yards (D-201). Cached per
 ## (rect, yards); `yards` are MapLayout.YARDS keys. With no yards the mesh is exactly the S4 tier-1 terrain.
 static func terrain_mesh(rect: Rect2, yards: Array = []) -> ArrayMesh:
-	var key := "t%s" % [rect] if yards.is_empty() else "t%s%s" % [rect, yards]
+	var key := _terrain_key(rect, yards)
 	if not _cache.has(key):
 		var parts := [ground_arrays(rect), road_arrays(Vector2(MapLayout.BOUNDS_MAX.x - MapLayout.BOUNDS_MIN.x, 2.0), MapLayout.ROAD_Z)]
 		for id in MapLayout.LANE_PATHS:

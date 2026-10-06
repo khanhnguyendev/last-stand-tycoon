@@ -156,3 +156,20 @@ func test_boot_fade_safety_cap_lifts_without_fade_out() -> void:
 	assert_false(f.is_lifting())
 	f._tick(0.6)
 	assert_true(f.is_lifting())
+
+func test_warmup_prebuilds_the_top_tier_terrain_and_props() -> void:
+	_main()
+	var yards := MapLayout.yards_for_tier(TierEffects.top_tier(Balance.data.tiers))
+	var rects: Array[Rect2] = []
+	for id in yards:
+		rects.append(MapLayout.YARDS[id])
+	GroundArt._cache.erase(GroundArt._terrain_key(World.ground_rect(), yards))
+	Props._merged.erase(Props._key(rects))
+	assert_false(GroundArt.is_cached(World.ground_rect(), yards))
+	assert_false(Props.is_cached(rects))
+	var warmup := Warmup.new()
+	main.add_child(warmup)
+	await warmup.run(main)
+	assert_true(GroundArt.is_cached(World.ground_rect(), yards), "tier-2 terrain built by the warm-up")
+	assert_true(Props.is_cached(rects), "tier-2 props merged by the warm-up")
+	assert_eq(warmup.get_child_count(), 0, "no node left behind")

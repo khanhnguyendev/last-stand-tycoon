@@ -31,6 +31,8 @@ var shadow_field: ShadowField
 var pickup_field: PickupField
 ## One draw for every particle (S5 Task 4, D-214). Listens to EventBus.fx_requested.
 var fx_field: FxField
+## E5 Task 12: stages the tier-up (visual only).
+var tier_reveal: TierReveal
 ## E5 Task 10: the merged ground carries the open yards; the stones ring them (one MultiMesh, no collision).
 var ground: MeshInstance3D
 var yard_stones: MultiMeshInstance3D
@@ -96,6 +98,9 @@ func _ready() -> void:
 	var reactions := Reactions.new()
 	reactions.name = "Reactions"
 	add_child(reactions)
+	tier_reveal = TierReveal.new()
+	add_child(tier_reveal)
+	tier_reveal.setup(self)
 	_built_tier = _effective_tier()
 	EventBus.tier_changed.connect(_on_tier_changed)
 	EventBus.tier_reached.connect(_on_tier_reached)

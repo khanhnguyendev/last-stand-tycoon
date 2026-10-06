@@ -77,3 +77,59 @@ func test_damaged_after_fell_is_full_strength() -> void:
 	await wait_seconds(Balance.ui.shake_cooldown)
 	GameState.damage_diner(5.0)
 	assert_almost_eq(rig.shake_amp_now(), Balance.ui.shake_amp, Balance.ui.shake_amp * 0.05)
+
+func test_reveal_zooms_out_holds_and_comes_back() -> void:
+	var rig := main.camera_rig
+	var d0 := Balance.ui.camera_distance
+	rig.reveal(0.2, 0.3, 0.2, 1.25)
+	rig._process(0.1)
+	assert_between(rig.zoom_now(), 1.0, 1.25)
+	rig._process(0.1)
+	assert_almost_eq(rig.zoom_now(), 1.25, 0.001, "out")
+	rig._process(0.2)
+	assert_almost_eq(rig.zoom_now(), 1.25, 0.001, "held")
+	var focus_dist := rig.camera.global_position.distance_to(Vector3(rig._focus.x, 0.0, rig._focus.y))
+	assert_almost_eq(focus_dist, d0 * 1.25, 0.01, "the camera moved along its view line")
+	rig._process(0.15)
+	rig._process(0.2)
+	assert_almost_eq(rig.zoom_now(), 1.0, 0.001, "back")
+	assert_eq(Balance.ui.camera_distance, d0, "UiTuning is never written")
+
+func test_snap_to_and_restore_end_a_reveal() -> void:
+	main.camera_rig.reveal(0.2, 0.3, 0.2, 1.25)
+	main.camera_rig._process(0.2)
+	assert_gt(main.camera_rig.zoom_now(), 1.0)
+	main.camera_rig.snap_to(Vector2(1, 1))
+	assert_eq(main.camera_rig.zoom_now(), 1.0)
+	main.camera_rig.reveal(0.2, 0.3, 0.2, 1.25)
+	main.camera_rig._process(0.2)
+	EventBus.state_restored.emit()
+	assert_eq(main.camera_rig.zoom_now(), 1.0)
+
+func test_reveal_focus_override_moves_and_returns() -> void:
+	var rig := main.camera_rig
+	main.hero.teleport(Vector2(0, 8))
+	rig.snap()
+	var hero_focus := CameraMath.focus_for(Vector2(0, 8))
+	rig.reveal(0.2, 0.3, 0.2, 1.5, Vector2(-5, 2))
+	assert_true(rig.has_focus_override())
+	rig._process(0.2)
+	rig._process(0.1)
+	var held := CameraMath.zoomed_transform(Vector2(-5, 2), Balance.ui, 1.5)
+	assert_true(rig.camera.global_transform.is_equal_approx(held), "held at the reveal focus, as given")
+	rig._process(0.2)
+	rig._process(0.2)
+	assert_false(rig.has_focus_override())
+	assert_true(rig.camera.global_transform.is_equal_approx(CameraMath.camera_transform(hero_focus, Balance.ui)))
+
+func test_snap_to_cancels_the_focus_override() -> void:
+	main.camera_rig.reveal(0.2, 0.3, 0.2, 1.5, Vector2(-5, 2))
+	main.camera_rig.snap_to(Vector2(1, 1))
+	assert_false(main.camera_rig.has_focus_override())
+	assert_eq(main.camera_rig.zoom_now(), 1.0)
+
+func test_the_bus_request_starts_the_reveal() -> void:
+	EventBus.camera_reveal_requested.emit(0.2, 0.3, 0.2, 1.5, Vector2(-5, 2))
+	assert_true(main.camera_rig.has_focus_override())
+	main.camera_rig._process(0.2)
+	assert_almost_eq(main.camera_rig.zoom_now(), 1.5, 0.001)
