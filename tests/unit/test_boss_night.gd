@@ -145,3 +145,18 @@ func test_top_tier_no_op_opens_the_pick_at_once() -> void:
 	if not offered[0].is_empty():
 		# With a non-empty offer, DAY is reachable only when debug_skip_to_day found the pick open and closed it.
 		assert_eq(main.phase_controller.phase, Phase.DAY)
+
+func test_the_boss_drop_is_swept_into_the_freezer_at_dawn() -> void:
+	_pay_and_close()
+	main.hero.teleport(MapLayout.HOME)
+	var drop: int = Balance.data.monsters.stats(&"boss").steaks_per_kill
+	var boss := main.world.wave_director.debug_spawn("north", 0.0, 1.0, &"boss")
+	var freezer0 := GameState.freezer_steaks
+	var before := freezer0 + GameState.carried_steaks
+	boss.take_hit(1e9)
+	await get_tree().physics_frame
+	assert_gte(main.world.steak_pool.active().size(), drop, "the boss dropped its steaks")
+	main.phase_controller.debug_skip_to_day()
+	assert_eq(GameState.freezer_steaks + GameState.carried_steaks - before, drop, "exactly the drop reached the freezer or the hero")
+	assert_gte(GameState.freezer_steaks - freezer0, drop, "the freezer gained at least the drop")
+	assert_eq(main.world.steak_pool.active().size(), 0, "no steak is left on the ground")

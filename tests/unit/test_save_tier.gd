@@ -6,6 +6,10 @@ func before_each() -> void:
 	SaveCodec.MIGRATIONS.clear()
 	GameState.new_game(20260930)
 
+func after_each() -> void:
+	Balance.reset()
+	GameState.new_game(1)
+
 func _v4_state(day := 12) -> Dictionary:
 	# a schema 4 state as E1 wrote it: no tier keys, lane_plan without fast_*/boss
 	var s := GameState.to_dict()

@@ -17,3 +17,8 @@ func test_tier_summary() -> void:
 	]
 	assert_eq(SweepMath.tier_summary(nights), {"first_tier2_day": 9, "boss_retries": 2, "cap_nights": 2, "cap_retries": 1})
 	assert_eq(SweepMath.tier_summary([]).first_tier2_day, -1)
+
+func test_sweep_enemy_count_matches_the_economy_kill_count() -> void:
+	for d in range(1, 9):
+		var plan := LanePlanner.plan(20260930, d, Balance.data.wave)
+		assert_eq(SweepMath.enemy_count(plan), Economy.night_kills(mini(d, 7), Balance.data.wave), "day %d" % d)

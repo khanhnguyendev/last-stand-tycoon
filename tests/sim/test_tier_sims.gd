@@ -82,6 +82,7 @@ func test_2_the_boss_alone_needs_at_least_boss_min_hold_s_to_fell_the_diner() ->
 	assert_true(n.failed, "with no defense the boss fells the diner")
 	assert_gte(h.first_boss_hit_s, 0.0, "the boss hit the diner")
 	assert_eq(h.kills, 0, "the boss was never killed")
+	assert_gte(last_wave_start_s, 0.0, "the last wave started")
 	var hold := h.fell_s - h.first_boss_hit_s
 	gut.p("boss alone (HP %.0f): last wave at %.1f s, first hit at %.1f s (%.1f s later), diner fell at %.1f s, hold %.1f s (min %.1f)" % [boss_hp, last_wave_start_s, h.first_boss_hit_s, h.first_boss_hit_s - last_wave_start_s, h.fell_s, hold, Balance.data.tiers.boss_min_hold_s])
 	assert_gte(hold, Balance.data.tiers.boss_min_hold_s)
@@ -103,6 +104,7 @@ func test_4_a_full_tier2_build_clears_the_cap_with_0_retries_on_three_seeds() ->
 		Balance.reset()
 		h = SimHarness.new(self)
 		h.start_from("tier2_full", NaiveBot, sd)
+		assert_eq(GameState.tier, 2)
 		assert_eq(GameState.pressure(), Balance.data.tiers.tier_cap[GameState.tier], "seed %d is at the tier-2 cap" % sd)
 		assert_eq(GameState.run_seed, sd)
 		var t0 := h.elapsed

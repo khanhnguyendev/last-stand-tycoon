@@ -3,7 +3,7 @@ extends Node
 ## E5 spec 7.5 (D-243): the morning after a won boss night. Visual only: the state is saved and the world rebuilt before
 ## the first step (the tier-up emits tier_changed, which World rebuilds on, before tier_reached); a restore
 ## kills everything. Steps tier_reveal_step_s apart, each with the build sound and a dust puff: the first yard's dust, its
-## stones, the diner pops, the other yards' dust, the yard spot markers pop. The camera pulls back meanwhile.
+## stones, the diner pops, the other yards' dust, the yard spot markers pop. The steps start once the camera has arrived.
 
 var _world: World
 var _tween: Tween
