@@ -44,7 +44,7 @@ func test_default_kind_is_boar_and_stats_follow_the_kind() -> void:
 	var boss := _monster(&"boss")
 	assert_almost_eq(boss.health.max_hp, 800.0, 1e-6)
 
-func test_hp_mult_and_mercy_apply_to_every_kind() -> void:
+func test_spawn_takes_the_merged_multiplier_once() -> void:
 	GameState.set_night_fails(1)
 	var h := Boar.new()
 	h.process_mode = Node.PROCESS_MODE_DISABLED
@@ -88,5 +88,19 @@ func test_boss_breaks_a_fence_by_raw_damage() -> void:
 	_step(boss, 1.0)
 	assert_almost_eq(fence0 - float(GameState.buildings.fence_n.hp), 15.0, 1e-4)
 
-func test_unknown_kind_asserts() -> void:
-	assert_false(Balance.data.monsters.has_kind(&"dragon"))  # Boar.spawn asserts on it; GUT cannot catch asserts, so the guard is tested here
+func test_mercy_scales_a_hares_hit() -> void:
+	GameState.set_night_fails(1)
+	var hare := _monster(&"hare")
+	_step(hare, MapLayout.path_length("north") / 3.6 + 0.2)
+	var hp0 := GameState.diner_hp
+	_step(hare, Balance.data.monsters.stats(&"hare").attack_interval + 0.1)
+	assert_almost_eq(hp0 - GameState.diner_hp, 4.0 * GameState.mercy_factor(), 1e-4)
+
+func test_a_pooled_node_respawned_as_another_kind_takes_that_kinds_stats() -> void:
+	var b := _monster(&"boss")
+	b.spawn("north", 1, 0.0, 1.0, dir)
+	assert_eq(b.kind, &"boar")
+	assert_almost_eq(b.health.max_hp, 30.0, 1e-6)
+	assert_eq(b.stats().reach, 1.2)
+	b.spawn("north", 2, 0.0, 1.0, dir, &"hare")
+	assert_eq(b.stats().speed, 3.6)

@@ -1,6 +1,6 @@
 class_name Boar
 extends Node3D
-## The one S1 monster (spec 7.2). Moved in code along its lane; never uses physics.
+## Every monster (E5 spec 7.1): the kind picks the stats; the class name is kept. Moved in code along its lane; never uses physics.
 
 ## Height above the feet the camera aims at when checking occlusion (D-151); the capsule centre.
 const AIM_HEIGHT := 0.5
@@ -10,6 +10,7 @@ const SHADOW_RADIUS := 0.7
 
 ## E5: which monster this pooled node is right now (spec 4.3); every number is read through stats().
 var kind: StringName = &"boar"
+var _stats: MonsterStats
 var lane := ""
 var spawn_index := -1
 ## Increments on every spawn; projectiles/attackers compare it to detect pool reuse across nights (Review Focus 2).
@@ -40,13 +41,17 @@ func _init() -> void:
 	visual = VISUAL_SCENE.instantiate()
 	add_child(visual)
 
+## Cached at spawn: a balance edit applies to monsters spawned after it.
 func stats() -> MonsterStats:
-	return Balance.data.monsters.stats(kind)
+	if _stats == null:
+		_stats = Balance.data.monsters.stats(kind)
+	return _stats
 
 func spawn(p_lane: String, p_index: int, p_offset: float, hp_mult: float, director: Object, p_kind: StringName = &"boar") -> void:
 	assert(Balance.data.monsters.has_kind(p_kind), "unknown monster kind %s" % p_kind)
 	generation += 1
 	kind = p_kind
+	_stats = Balance.data.monsters.stats(kind)
 	lane = p_lane
 	spawn_index = p_index
 	targetable.spawn_index = p_index
