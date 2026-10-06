@@ -443,7 +443,7 @@ checked by the author's reading (CI does not run the sweep):
 `tests/sim/baseline/s4_sweep_<seed>.csv|.txt` are re-recorded once, in their own task, from the planner sweep at the
 head of the E5 branch. The PR shows: `diff` of each CSV restricted to rows 1 to 7 is empty (a `tools/baseline_rows.sh`
 helper prints it); rows 8 to 14 differ only in the columns the cap changes (`enemy_count`, kills, steaks, gold,
-retries, `diner_frac`, `night_seconds`); the `.txt` `SWEEP` lines lose the target. `tools/baseline_diff.sh` keeps
+retries, `diner_frac`, `night_seconds`, `day_seconds`, `unspent_gold_at_closeup`, `guard_knockouts`); the `.txt` `SWEEP` lines lose the target. `tools/baseline_diff.sh` keeps
 working against the new files; its header comment changes from "never re-record" to "re-recorded once for E5
 (D-237); rows 1 to 7 are the tier-1 identity".
 
