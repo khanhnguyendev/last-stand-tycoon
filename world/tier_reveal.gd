@@ -73,9 +73,6 @@ func _cancel() -> void:
 	_pops.clear()
 	_steps = []
 	_restore()
-	var main := _world.get_parent() as Main if _world != null else null
-	if main != null and main.camera_rig != null:
-		main.camera_rig.cancel_reveal()
 
 func _restore() -> void:
 	if _world == null:
@@ -118,7 +115,8 @@ func _on_tier_reached(tier: int) -> void:
 	if yards.is_empty():
 		_steps.append({"kind": &"diner", "at": Vector3(0.0, MapLayout.DINER_HEIGHT + 0.5, 0.0)})
 	var spot_ids: Array = MapLayout.TIER_SPOTS.get(tier, [])
-	_steps.append({"kind": &"markers", "at": MapLayout.to3(MapLayout.spot_position(spot_ids[0]), 1.0) if not spot_ids.is_empty() else Vector3.ZERO})
+	if not spot_ids.is_empty():
+		_steps.append({"kind": &"markers", "at": MapLayout.to3(MapLayout.spot_position(spot_ids[0]), 1.0)})
 	# hide what the steps bring in
 	if _world.yard_stones != null and not yards.is_empty():
 		_world.yard_stones.visible = false
@@ -129,17 +127,19 @@ func _on_tier_reached(tier: int) -> void:
 			_hidden_spots.append(s)
 	var ui := Balance.ui
 	var hold := minf(float(_steps.size()) * ui.tier_reveal_step_s, Balance.data.tiers.tier_reveal_time - ui.tier_reveal_in_s - ui.tier_reveal_out_s)
-	var main := _world.get_parent() as Main
-	if main != null and main.camera_rig != null:
-		var frame := frame_for(tier, ui)
-		main.camera_rig.reveal(ui.tier_reveal_in_s, maxf(hold, 0.0), ui.tier_reveal_out_s, frame.zoom, frame.focus)
+	var frame := frame_for(tier, ui)
+	EventBus.camera_reveal_requested.emit(ui.tier_reveal_in_s, maxf(hold, 0.0), ui.tier_reveal_out_s, frame.zoom, frame.focus)
 	_tween = create_tween()
 	_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
+	# The steps play inside the camera's hold: the first when the camera has reached its frame (in_s), then step_s apart.
+	# The reveal ends at tier_reveal_time (the card pick opens then), at least build_pop_time after the last step.
+	var last_at := ui.tier_reveal_in_s + float(_steps.size() - 1) * ui.tier_reveal_step_s
+	_tween.tween_interval(ui.tier_reveal_in_s)
 	for i in _steps.size():
 		_tween.tween_callback(_step)
 		if i < _steps.size() - 1:
 			_tween.tween_interval(ui.tier_reveal_step_s)
-	_tween.tween_interval(ui.build_pop_time)
+	_tween.tween_interval(maxf(Balance.data.tiers.tier_reveal_time - last_at, ui.build_pop_time))
 	_tween.tween_callback(_finish)
 
 func _step() -> void:
@@ -147,9 +147,12 @@ func _step() -> void:
 		return
 	var st: Dictionary = _steps.pop_front()
 	EventBus.sfx_requested.emit(&"build_done")
-	EventBus.fx_requested.emit(&"dust", st.at)
+	if st.has("at"):
+		EventBus.fx_requested.emit(&"dust", st.at)
 	match st.kind:
 		&"stones":
+			# yard_stones is ONE MultiMesh for every open yard: a later tier that opens more yards must split it per tier
+			# before this step is reused.
 			if _world.yard_stones != null and is_instance_valid(_world.yard_stones):
 				_world.yard_stones.visible = true
 		&"diner":

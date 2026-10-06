@@ -31,6 +31,7 @@ func _ready() -> void:
 	EventBus.diner_damaged.connect(_on_diner_damaged)
 	EventBus.hero_place_requested.connect(snap_to)
 	EventBus.state_restored.connect(_on_state_restored)
+	EventBus.camera_reveal_requested.connect(reveal)
 	EventBus.diner_fell.connect(func(): shake(Balance.ui.shake_fell_amp, Balance.ui.shake_fell_time, false))
 
 func _apply_lens() -> void:

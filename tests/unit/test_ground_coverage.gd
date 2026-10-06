@@ -70,7 +70,7 @@ func _outside_bounds(p: Vector2) -> float:
 ## a few metres: the world background is the grass colour there (D-153), so the test pins the overshoot, not zero.
 const REVEAL_STRICT_MIN := 9.0 / 19.5
 const REVEAL_STRICT_MAX := 16.0 / 9.0 + 1e-6
-const REVEAL_EDGE_SLACK := 40.0
+const REVEAL_EDGE_SLACK := 25.0
 
 func test_the_reveal_frame_hits_ground_inside_rect() -> void:
 	var ui := Balance.ui

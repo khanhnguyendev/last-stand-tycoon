@@ -45,6 +45,12 @@ func _frames(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 
+func _in_frames() -> int:
+	return int(round(Balance.ui.tier_reveal_in_s * 60.0))
+
+func _total_frames() -> int:
+	return int(round(Balance.data.tiers.tier_reveal_time * 60.0))
+
 func _step_frames() -> int:
 	return int(round(Balance.ui.tier_reveal_step_s * 60.0))
 
@@ -80,8 +86,10 @@ func test_steps_run_in_order_one_sound_each_and_things_reappear() -> void:
 	assert_false(main.world.yard_stones.visible, "stones hidden at the start")
 	for s in _new_spots():
 		assert_false(s.marker.visible, "markers hidden at the start")
-	# step 1 runs on the first tween tick
-	await _frames(2)
+	# step 1 runs when the camera has reached its frame (tier_reveal_in_s)
+	await _frames(_in_frames() - 5)
+	assert_eq(sfx.count(&"build_done") - base, 0, "nothing plays while the camera is still moving in")
+	await _frames(8)
 	assert_eq(sfx.count(&"build_done") - base, 1)
 	assert_eq(fx[fx0][1], west, "dust at the west yard")
 	assert_false(main.world.yard_stones.visible)
@@ -106,7 +114,7 @@ func test_steps_run_in_order_one_sound_each_and_things_reappear() -> void:
 
 func test_after_the_last_step_nothing_is_left_hidden() -> void:
 	_tier_up()
-	await _frames(_step_frames() * 5 + 30)
+	await _frames(_total_frames() + 5)
 	assert_false(_reveal().running())
 	assert_true(main.world.yard_stones.visible)
 	for s in _new_spots():
@@ -143,14 +151,14 @@ func test_restore_before_the_stones_step_restores_visibility() -> void:
 
 func test_a_second_tier_reached_restarts_cleanly() -> void:
 	_tier_up()
-	await _frames(_step_frames() * 2 + 3)
+	await _frames(_in_frames() + _step_frames() * 2 + 3)
 	var left := _reveal().steps_left()
 	assert_lt(left, 5)
 	EventBus.tier_reached.emit(2)
 	assert_eq(_reveal().steps_left(), 5, "restarted")
 	assert_true(_reveal().running())
 	assert_false(main.world.yard_stones.visible)
-	await _frames(_step_frames() * 5 + 30)
+	await _frames(_total_frames() + 5)
 	assert_false(_reveal().running())
 	assert_true(main.world.yard_stones.visible)
 
@@ -175,6 +183,8 @@ func test_the_whole_camera_move_fits_the_reveal_time() -> void:
 func test_the_reveal_never_writes_game_state() -> void:
 	var src := FileAccess.get_file_as_string("res://world/tier_reveal.gd")
 	assert_false("GameState" in src, "no GameState access at all")
+	assert_false("get_parent()" in src, "no reaching into another system's nodes")
+	assert_false("camera_rig" in src, "the camera is asked through the bus")
 	assert_false("Rng." in src)
 	assert_false("randf" in src or "randi" in src)
 
@@ -206,11 +216,20 @@ func test_fit_with_no_yards_is_the_diner_alone() -> void:
 	assert_eq(f.focus, Vector2.ZERO)
 	assert_almost_eq(f.zoom, 1.0, 1e-6)
 
-func test_held_camera_frames_the_subject() -> void:
+func test_held_camera_frames_the_subject_at_the_first_and_the_last_step() -> void:
 	_tier_up()
-	await _frames(int((Balance.ui.tier_reveal_in_s + 0.3) * 60.0))
-	var cam := main.camera_rig.camera
-	assert_true(_subject_on_screen(cam.global_transform, CameraMath.ASPECT, 2), "diner and yards on screen while held")
+	var frame := TierReveal.frame_for(2, Balance.ui)
+	var base := sfx.count(&"build_done")
+	while sfx.count(&"build_done") == base:
+		await get_tree().physics_frame
+	await get_tree().process_frame
+	assert_almost_eq(main.camera_rig.zoom_now(), frame.zoom, 0.02, "at the first step the camera is at its frame")
+	assert_true(_subject_on_screen(main.camera_rig.camera.global_transform, CameraMath.ASPECT, 2), "first step on screen")
+	while sfx.count(&"build_done") - base < 5:
+		await get_tree().physics_frame
+	await get_tree().process_frame
+	assert_almost_eq(main.camera_rig.zoom_now(), frame.zoom, 0.02, "at the last step the camera still holds")
+	assert_true(_subject_on_screen(main.camera_rig.camera.global_transform, CameraMath.ASPECT, 2), "last step on screen")
 
 func test_after_the_reveal_the_focus_follows_the_hero_again() -> void:
 	_tier_up()
@@ -227,9 +246,47 @@ func test_restore_cancels_zoom_and_focus_override() -> void:
 	assert_eq(main.camera_rig.zoom_now(), 1.0)
 	assert_false(main.camera_rig.has_focus_override())
 
-func test_markers_stay_shown_until_the_reveal_ends() -> void:
+func test_markers_stay_shown_until_the_reveal_ends_at_tier_reveal_time() -> void:
 	_tier_up()
-	await _frames(_step_frames() * 4 + 10)  # step 5 has run, the end has not
+	await _frames(int(2.5 * 60.0))
 	assert_true(_reveal().running())
 	for s in _new_spots():
-		assert_true(s.marker.visible, "shown from their step until the end")
+		assert_true(s.marker.visible, "shown at 2.5 s")
+	await _frames(int(0.4 * 60.0) - 6)  # about 2.9 s
+	assert_true(_reveal().running(), "still running at 2.9 s")
+	await _frames(int(Balance.data.tiers.tier_reveal_time * 60.0) - int(2.9 * 60.0) + 8)
+	assert_false(_reveal().running(), "ended just after tier_reveal_time")
+	assert_false(main.phase_controller.reveal_pending, "the card pick opened too")
+
+func test_the_last_step_and_its_pop_fit_before_the_card_pick() -> void:
+	var ui := Balance.ui
+	var n := 5
+	assert_lte(ui.tier_reveal_in_s + (n - 1) * ui.tier_reveal_step_s + ui.build_pop_time, Balance.data.tiers.tier_reveal_time)
+
+func test_a_tier_with_no_yards_and_no_spots_runs_the_diner_step_only() -> void:
+	_tier_up()
+	await _frames(_total_frames() + 5)
+	sfx.clear()
+	fx.clear()
+	banners.clear()
+	EventBus.tier_reached.emit(3)
+	assert_true(banners.has(tr("The diner grows!")))
+	assert_true(_reveal().running())
+	assert_eq(_reveal().steps_left(), 1)
+	await _frames(_total_frames() + 5)
+	assert_false(_reveal().running())
+	assert_eq(sfx.count(&"build_done"), 1, "the diner step")
+	for f in fx:
+		assert_ne(f[1], Vector3.ZERO, "no dust at the origin")
+
+func test_the_fit_numbers_are_pinned() -> void:
+	var f := TierReveal.frame_for(2, Balance.ui)
+	assert_almost_eq(f.zoom, 2.15, 1e-3)
+	assert_almost_eq(f.focus.x, -0.25, 1e-3)
+	assert_almost_eq(f.focus.y, 2.0, 1e-3)
+	var xf := CameraMath.zoomed_transform(f.focus, Balance.ui, f.zoom - 0.05)
+	assert_false(_subject_on_screen(xf, CameraMath.ASPECT, 2), "one step less does not fit")
+
+func test_step_gap_is_longer_than_the_build_done_min_gap() -> void:
+	var gap: float = AudioManifest.SFX[&"build_done"].min_gap_s
+	assert_gt(Balance.ui.tier_reveal_step_s, gap, "a retune must not drop the step sounds")

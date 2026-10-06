@@ -127,3 +127,9 @@ func test_snap_to_cancels_the_focus_override() -> void:
 	main.camera_rig.snap_to(Vector2(1, 1))
 	assert_false(main.camera_rig.has_focus_override())
 	assert_eq(main.camera_rig.zoom_now(), 1.0)
+
+func test_the_bus_request_starts_the_reveal() -> void:
+	EventBus.camera_reveal_requested.emit(0.2, 0.3, 0.2, 1.5, Vector2(-5, 2))
+	assert_true(main.camera_rig.has_focus_override())
+	main.camera_rig._process(0.2)
+	assert_almost_eq(main.camera_rig.zoom_now(), 1.5, 0.001)
