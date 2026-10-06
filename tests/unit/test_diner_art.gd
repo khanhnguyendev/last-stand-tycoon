@@ -195,6 +195,10 @@ func test_tier2_diner_adds_nothing_tall_over_a_lane_zone() -> void:
 		for id in MapLayout.ZONE_RECTS:
 			var d := Geometry.dist_point_rect(Vector2(v.x, v.z), MapLayout.ZONE_RECTS[id])
 			assert_gte(d, 0.5, "vertex %s is %.2f m from the %s zone" % [v, d, id])
+			# Where the camera sees it land on the ground: a point at height y projects north by y / tan(pitch).
+			var lean := v.y * tan(deg_to_rad(90.0 - absf(Balance.ui.camera_pitch)))
+			var dp := Geometry.dist_point_rect(Vector2(v.x, v.z - lean), MapLayout.ZONE_RECTS[id])
+			assert_gte(dp, 0.3, "vertex %s seen from the camera lands %.2f m from the %s zone" % [v, dp, id])
 	assert_gt(checked, 0, "the awnings exist")
 
 func test_tier2_diner_stays_inside_its_envelope() -> void:
@@ -252,3 +256,20 @@ func test_swapping_the_diner_while_faded_ends_opaque() -> void:
 	assert_null(body.material_override)
 	for i in body.mesh.get_surface_count():
 		assert_null(body.get_surface_override_material(i), "surface %d is back to its shared material" % i)
+
+func test_tier2_terraces_are_diner_cream() -> void:
+	var t2: ArrayMesh = load("res://art/env/baked/diner_t2.res")
+	var want := Palette.color(&"diner_cream")
+	var checked := 0
+	for s in t2.get_surface_count():
+		var arr := t2.surface_get_arrays(s)
+		var img := ((t2.surface_get_material(s) as BaseMaterial3D).albedo_texture as Texture2D).get_image()
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+		for i in v.size():
+			if v[i].y > 0.13 or absf(v[i].x) <= 4.0 + 1e-3:
+				continue
+			checked += 1
+			var c := img.get_pixel(clampi(int(uv[i].x * img.get_width()), 0, img.get_width() - 1), clampi(int(uv[i].y * img.get_height()), 0, img.get_height() - 1))
+			assert_lt(absf(c.r - want.r) + absf(c.g - want.g) + absf(c.b - want.b), 0.03, "vertex %s samples %s, not diner_cream" % [v[i], c])
+	assert_gt(checked, 0, "the terraces exist")
