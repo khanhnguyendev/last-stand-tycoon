@@ -3,6 +3,8 @@ extends RefCounted
 
 const ENTRIES := [
 	{"in": "res://art/env/src/diner_src.tscn", "out": "res://art/env/baked/diner.res"},
+	# E5 Task 11: the tier-2 diner (flank terraces, corner awnings).
+	{"in": "res://art/env/src/diner_t2_src.tscn", "out": "res://art/env/baked/diner_t2.res"},
 	{"in": "res://art/env/src/counter_src.tscn", "out": "res://art/env/baked/counter.res"},
 	{"in": "res://art/env/src/freezer_src.tscn", "out": "res://art/env/baked/freezer.res"},
 	# Task 12: towers, fences, rubble, spot marker, close-up sign, telegraph flag, lane gate.
