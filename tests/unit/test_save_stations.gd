@@ -111,3 +111,4 @@ func test_the_v3_fixtures_still_load() -> void:
 		var r := SaveCodec.decode(text, GameState.SCHEMA_VERSION, bd)
 		assert_true(r.ok, "%s: %s" % [name, r.reason])
 		assert_eq(r.state.stations, SaveCodec.fresh_stations())
+		assert_eq(int(JSON.parse_string(JSON.parse_string(text).state_json).v), 3, "regenerating the fixtures removes the migration proof")

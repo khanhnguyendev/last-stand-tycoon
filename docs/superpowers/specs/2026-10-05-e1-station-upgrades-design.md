@@ -241,7 +241,7 @@ func debug_set_station_level(id: StringName, level: int) -> void   # tests, sims
 ### 5.5 Save
 
 - `SCHEMA_VERSION` becomes 4. `to_dict` and `from_dict` carry `stations`; `"stations"` joins `SaveCodec.STATE_KEYS`.
-- Built-in migrations live in a constant table in `SaveCodec`. `decode` uses `MIGRATIONS[from]` when a test registered
+- Built-in migrations live in `SaveCodec._built_in(from_v, state)` (a `match`; a constant cannot hold a Callable). `decode` uses `MIGRATIONS[from]` when a test registered
   one and the built-in step otherwise, so tests that clear `MIGRATIONS` cannot remove a real step.
 - The 3 to 4 step adds `stations` with both ids at level 0, paid 0, and sets `v` to 4.
 - `test_save_codec.gd`'s "no step registered for `SCHEMA_VERSION - 1`" assertion changes to cover the built-in step.

@@ -19,10 +19,13 @@ func test_level_0_is_the_s5_game() -> void:
 	assert_eq(StationEffects.load_per_tick(0, sb), 1)
 
 func test_level_5_values() -> void:
-	assert_eq(StationEffects.queue_max(5, sb), sb.queue_max[5])
-	assert_eq(StationEffects.counter_capacity(5, sb), sb.counter_capacity[5])
-	assert_eq(StationEffects.carry_bonus(5, sb), sb.carry_bonus[5])
-	assert_eq(StationEffects.load_per_tick(5, sb), sb.load_per_tick[5])
+	var m := sb.max_level
+	assert_eq(StationEffects.queue_max(m, sb), sb.queue_max[m])
+	assert_eq(StationEffects.traveler_interval(m, sb), sb.traveler_interval[m])
+	assert_eq(StationEffects.service_time(m, sb), sb.service_time[m])
+	assert_eq(StationEffects.counter_capacity(m, sb), sb.counter_capacity[m])
+	assert_eq(StationEffects.carry_bonus(m, sb), sb.carry_bonus[m])
+	assert_eq(StationEffects.load_per_tick(m, sb), sb.load_per_tick[m])
 
 func test_tables_never_get_worse_with_level() -> void:
 	for l in range(1, sb.max_level + 1):
@@ -52,6 +55,7 @@ func test_max_carry_and_pool_size() -> void:
 	var bd := Balance.data
 	assert_eq(StationEffects.max_carry(bd.hero, bd.cards, sb),
 		bd.hero.carry_capacity + bd.cards.carry_step * bd.cards.max_level + sb.carry_bonus[sb.max_level])
+	assert_eq(StationEffects.max_carry(bd.hero, bd.cards, sb), 26)
 	var walk := MapLayout.SERVICE_POINT.distance_to(MapLayout.TRAVELER_EXIT) / bd.economy.traveler_speed
 	assert_eq(StationEffects.traveler_pool_size(sb, bd.economy),
 		sb.queue_max[sb.max_level] + int(ceil(walk / sb.service_time[sb.max_level])) + 2)

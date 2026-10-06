@@ -62,6 +62,21 @@ direction, and anything that deviates from IDEA.md. Ranked by impact, highest fi
 3. Did the diner and the defenses look like they grew as you upgraded them?
 4. Was anything hard to see at night?
 
+## E1 station upgrades (2026-10-05)
+
+Reversible decisions from the E1 build, highest impact first. Media: `docs/review/media/e1/`.
+
+1. Station upgrades are a mid-game gold sink: with defense bought first, a player has 8 to 38 gold left in days 1 to 3, so the first levels land around days 2 to 7 (upgrader sweep). Too late to feel? And station spending eats carry-over gold, so some mid-game nights run closer (night 9, seed 20260930: diner 3% against 8%) — [D-230](DECISIONS.md), [D-231](DECISIONS.md)
+2. The freezer upgrade is comfort (fewer trips, more night pickup), not day speed — [D-224](DECISIONS.md), [D-230](DECISIONS.md)
+3. No per-level station art: a level shows as a pop, a sparkle and star pips on the pad — [D-229](DECISIONS.md)
+4. Each pad shows its station's name above the cost ("Counter", "Freezer"); the freezer pad is off screen when the hero stands at the sign — [D-231](DECISIONS.md), `e1/shots_head/day3_counter0.png`, `e1/shots_head/day3_counter5.png`
+5. A long queue (5 to 9 travelers) forms a second row on the road's north edge, around the hero's home spot — [D-230](DECISIONS.md), `e1/task06/level5.png`
+6. A full carry (26 steaks: all carry cards plus a max freezer) is a tall stack that covers the "Close up" label when the hero stands by the sign; not capped — `e1/task06/level5.png`
+7. The traveler pool is 31 instead of 8, so travelers appear in a different look order than before E1 (visual only) — [D-231](DECISIONS.md)
+8. Known issue: a level 5 counter day runs about 5 to 9 fps below a level 0 day in the iOS Simulator (39 to 43 against 48 on a loaded Mac; not a valid gate reading, idle re-run owed). Options if it holds: cap the queue at 6 or 7, or cheaper traveler visuals — [D-231](DECISIONS.md)
+9. Owed measurements: load time and memory with the 31-traveler pool, and the emulated Android check (Playwright Chromium needs a one-time install by the author) — [D-231](DECISIONS.md)
+10. Playtest question: "Did you notice you could upgrade the counter and the freezer? Did you want to?"
+
 ## Final review playtest questions (S5)
 
 1. Did you know what to do in your first minute without reading anything?

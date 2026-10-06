@@ -26,6 +26,7 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - `export GODOT=/Users/ryan/Applications/Godot-4.7.2-stable/Godot.app/Contents/MacOS/Godot` (D-116)
 - `./run_tests.sh unit` · `./run_tests.sh sim` · `./run_tests.sh all` · `./run_tests.sh --quick` (unit + night-1 sims; after Task 20)
 - Sweep: `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/sweep.gd`
+- Upgrader sweep (E1): the same command with `-- --bot=upgrader`; writes `tests/sim/out/sweep_upgrader.csv`
 - Web export: see `export/README.md`
 - S4 shots: `tools/shots.sh <out_dir>` (rendered 720x1280 + 40% copies); determinism: `tools/baseline_diff.sh` (must print `baseline identical`)
 - Night-3 perf (iOS Simulator, profile build): `export/perf_night3.sh <web_profile_dir> <out_dir>`; read the frozen `PERF phase=NIGHT` line; the gate is the median of 3 runs (D-199)
@@ -42,7 +43,7 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - Tests and tools create the game with `Main.create()` (instantiates `main.tscn`), never `Main.new()`.
 
 ## Git workflow (D-133)
-- One branch and one PR per plan phase: `s1/p<N>-<slug>` (the table is in the plan), from an up-to-date `main`. One commit per task inside it.
+- One branch and one PR per plan phase: `s<N>/p<N>-<slug>` or `e<N>/p<N>-<slug>` (the table is in the plan), from an up-to-date `main`. One commit per task inside it.
 - The `reviewer` subagent reviews every task; the author reviews the checkpoint phases' PRs.
 - Before CI exists, the PR body carries the local test output. After CI exists, `unit` and `sim` must be green.
 - Every push deploys a web build to GitHub Pages: `main` at https://khanhnguyendev.github.io/last-stand-tycoon/, other branches at `preview/<slug>/` (slug = the branch name with every character outside `[A-Za-z0-9._-]` replaced by `-`) (D-135). Phone tests use those URLs; plain-http LAN doesn't work (D-120).

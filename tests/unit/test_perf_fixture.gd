@@ -52,3 +52,36 @@ func test_closeup_fixture_resumes_into_day() -> void:
 	main.phase_controller.resume_from(_decode("night3_closeup").state)
 	assert_true(_events.has([Phase.DAY, 3]), "phase_changed(DAY, 3) emitted: %s" % [_events])
 	assert_eq(GameState.day, 3)
+
+func test_the_level_5_day_fixture_loads() -> void:
+	var text := FileAccess.get_file_as_string("res://export/fixtures/day3_counter5.save.json")
+	assert_ne(text, "", "generate it: make_save.gd -- --fixture=day3_counter5")
+	var r := SaveCodec.decode(text, GameState.SCHEMA_VERSION, Balance.data)
+	assert_true(r.ok, r.reason)
+	if not r.ok:
+		return
+	assert_eq(String(r.state.resume_phase), "DAY")
+	assert_eq(int(r.state.day), 3)
+	assert_eq(int(r.state.stations.counter.level), Balance.data.stations.max_level)
+	assert_gt(int(r.state.counter_steaks), 0, "stocked")
+
+func test_the_level_5_fixture_resumes_maxed_and_a_new_game_resets_the_pad() -> void:
+	var main: Main = Main.create()
+	add_child_autofree(main)
+	await get_tree().physics_frame
+	var r := _decode("day3_counter5")
+	assert_true(r.ok, r.reason)
+	if not r.ok:
+		return
+	main.phase_controller.resume_from(r.state)
+	var max_level: int = Balance.data.stations.max_level
+	assert_eq(GameState.station_level(&"counter"), max_level)
+	var pad: UpgradePad = main.world.upgrade_pads[&"counter"]
+	assert_eq(pad.label.text, tr("MAX"))
+	assert_eq(pad._pips.filter(func(p): return p.visible).size(), max_level, "all pips visible")
+	assert_eq(main.world.counter.stack_count(), GameState.counter_steaks)
+	main.phase_controller.start_new_game(8)
+	main.phase_controller.debug_skip_to_day()
+	assert_eq(GameState.station_level(&"counter"), 0)
+	assert_eq(pad._pips.filter(func(p): return p.visible).size(), 0, "no pips on a new game")
+	assert_eq(pad.label.text, str(GameState.station_next_cost(&"counter")))
