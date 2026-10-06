@@ -53,7 +53,7 @@ func test_standing_on_the_pad_buys_a_level() -> void:
 func test_the_ring_shows_paid_over_cost() -> void:
 	main.phase_controller.debug_skip_to_day()
 	var cost := GameState.station_next_cost(&"counter")
-	var held := cost / 2
+	var held := floori(cost / 2.0)
 	GameState.add_gold(held)
 	await TestHelpers.walk_in(main.hero, MapLayout.STATION_PADS[&"counter"])
 	await _ticks(_pay_ticks(cost))

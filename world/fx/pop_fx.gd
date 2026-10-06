@@ -10,6 +10,7 @@ static func pop(owner: Node, target: Node3D, base: Vector3, prev: Tween) -> Twee
 	t.tween_property(target, "scale", base, Balance.ui.build_pop_time)
 	return t
 
+## Kills `t` if it is still running; null and finished tweens are ignored.
 static func kill(t: Tween) -> void:
 	if t != null and t.is_valid():
 		t.kill()

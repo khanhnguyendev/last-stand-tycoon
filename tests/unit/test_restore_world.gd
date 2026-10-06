@@ -211,6 +211,8 @@ func _assert_pops_killed() -> void:
 	for id in MapLayout.SPOT_IDS:
 		var spot: BuildSpot = main.world.build_spots[id]
 		assert_false(spot._pop != null and spot._pop.is_valid(), "%s: pop tween killed by restore" % id)
+	for st in [main.world.counter, main.world.freezer]:
+		assert_false(st._pop != null and st._pop.is_valid(), "%s: pop tween killed by restore" % st.name)
 
 ## Visual tweens that outlive the restore would show up a little later: wait them out.
 func _assert_no_late_visuals(snap: Dictionary) -> void:

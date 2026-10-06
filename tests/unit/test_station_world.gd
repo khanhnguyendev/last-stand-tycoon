@@ -103,17 +103,23 @@ func test_an_upgrade_pops_the_visual_not_the_body() -> void:
 func test_a_restore_mid_pop_kills_the_pop_and_resets_the_scale() -> void:
 	var vis: Node3D = main.world.counter.body_visual
 	EventBus.station_upgraded.emit(&"counter", 1)
-	assert_gt(vis.scale.x, 1.0)
+	await _ticks(2)
+	assert_gt(vis.scale.x, 1.0, "mid-pop")
 	EventBus.state_restored.emit()
+	var t: Tween = main.world.counter._pop
+	assert_false(t != null and t.is_valid(), "pop killed by restore")
 	assert_eq(vis.scale, Vector3.ONE)
-	await _ticks(_secs(Balance.ui.build_pop_time))
+	await _ticks(2)
 	assert_eq(vis.scale, Vector3.ONE)
 
 func test_a_restore_mid_pop_kills_the_freezer_pop_and_resets_the_scale() -> void:
 	var vis: Node3D = main.world.freezer.body_visual
 	EventBus.station_upgraded.emit(&"freezer", 1)
-	assert_gt(vis.scale.x, 1.0)
+	await _ticks(2)
+	assert_gt(vis.scale.x, 1.0, "mid-pop")
 	EventBus.state_restored.emit()
+	var t: Tween = main.world.freezer._pop
+	assert_false(t != null and t.is_valid(), "pop killed by restore")
 	assert_eq(vis.scale, Vector3.ONE)
-	await _ticks(_secs(Balance.ui.build_pop_time))
+	await _ticks(2)
 	assert_eq(vis.scale, Vector3.ONE)

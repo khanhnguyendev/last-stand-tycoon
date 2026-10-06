@@ -76,6 +76,7 @@ Reversible decisions from the E1 build, highest impact first. Media: `docs/revie
 8. Known issue: a level 5 counter day runs about 5 to 9 fps below a level 0 day in the iOS Simulator (39 to 43 against 48 on a loaded Mac; not a valid gate reading, idle re-run owed). Options if it holds: cap the queue at 6 or 7, or cheaper traveler visuals — [D-231](DECISIONS.md)
 9. Owed measurements: load time and memory with the 31-traveler pool, and the emulated Android check (Playwright Chromium needs a one-time install by the author) — [D-231](DECISIONS.md)
 10. Playtest question: "Did you notice you could upgrade the counter and the freezer? Did you want to?"
+11. Follow-up: a saved station level above `max_level` is clamped on load (D-234), but a saved tower or fence level above `build.max_level` is still rejected (`SaveCodec.validate`). Lowering `build.max_level` later would lose saves; same fix as D-234 if it ever matters.
 
 ## Final review playtest questions (S5)
 

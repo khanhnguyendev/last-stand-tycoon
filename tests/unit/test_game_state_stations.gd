@@ -45,7 +45,7 @@ func test_before_the_first_new_game_everything_reads_as_level_0() -> void:
 
 func test_partial_payment() -> void:
 	var cost := GameState.station_next_cost(&"counter")
-	var part := cost / 3
+	var part := floori(cost / 3.0)
 	GameState.add_gold(cost + 70)
 	_events = []
 	assert_eq(GameState.pay_into_station(&"counter", part), part)
