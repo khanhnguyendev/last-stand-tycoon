@@ -2243,9 +2243,31 @@ gold at close-up then grows 223 → 3,999 from day 14 to day 20. Accepted; tier 
 **D-246 Procedural hare and Boar King.** No monster models exist in the CC0 packs in use; both come from the Boar's
 mesh builder and shader (D-192), the boar mesh pinned byte-identical. Reversible; REVIEW_QUEUE.
 
-**D-247 Sim budget split: not needed for slice 1; still the proposal for tiers 3 to 5 (pending the author).** The sim
-suite is 47 s of 60 on Linux CI (42 s locally) with the four tier sims, so the split is the first thing tier 3 needs. Proposal when it fills: `tests/sim_tier/`, `run_tests.sh sim-tier`, a
-third CI job and required check, each job 60 s. Task 18 of the plan was not run.
+**D-247 Sim suite split and budget enforcement (approved by the author 2026-10-07; amends D-132).** The first form of
+this decision ("not needed for slice 1") was wrong within a day: after the E5 merge the `sim` job on `main` failed
+three attempts on wall time alone (69, 71, 61 s; 18 of 18 sims passing) while the same tree ran in 27 to 52 s on the
+PR runs. Every sim file was about 1.7 times slower on the slow runs: runner speed, not a test.
+- **Split.** The four tier sims live in `tests/sim_tier/` and run in a third parallel CI job, `sim-tiers`
+  (`./run_tests.sh sim-tiers`). `unit`, `sim`, `sim-tiers` and Pages `deploy` are the required checks. `--quick` is
+  unchanged (unit + night-1 sims). Later tiers add their sims to `tests/sim_tier/`.
+- **Wall time, per sim job.** Over 60 s is a warning annotation, not a failure. Over 150 s is a hard failure (a
+  runaway sim). Reason (the author's): wall time on shared runners varies about 2x for the same tree, so a hard 60 s
+  limit is flaky, and splitting again each time the suite grows does not scale.
+- **Tick budget (deterministic).** A GUT pre-run hook (`tests/sim/tick_budget_hook.gd`) records the physics ticks each
+  sim test simulates. The job fails if a test exceeds its expected count by more than 20%, if a sim has no expected
+  count, or if a sim in the golden file did not run. Expected counts are committed in `tests/sim_ticks.golden.json`
+  and updated deliberately with `TICK_BUDGET_UPDATE=1 ./run_tests.sh sim` (or `sim-tiers`); the diff of that file is
+  the review surface for "this sim got longer".
+- **Unchanged:** never drop, skip or weaken a test (D-132). CI stays canonical for sim thresholds (D-105).
+- **Guards:** an empty suite directory fails; a golden key without a sim, or a sim without a golden key, fails in
+  `unit` as well; `TICK_BUDGET_UPDATE` is refused in CI and never writes after a failing run; a watchdog kills a suite
+  still running 30 s past the hard limit (GUT never exits when its pre-run hook does not compile).
+- **Evidence:** Linux CI (PR #54) gives the same 18 tick counts as the macOS recording. One sim
+  (`test_night1_fail_restarts_night`) reads 2280 or 2281 between local runs: GUT's paint pause between tests depends on
+  wall time and shifts the phase the next test starts in by one frame. Counts are stable to within 1 tick, not
+  byte-identical; a 1-tick golden diff is not a regression.
+- Cost if wrong: a slow-but-not-runaway regression in engine or script cost per tick no longer fails CI; it shows as
+  the warning annotation and in the perf readings. Reversible (one script, one workflow, one golden file).
 
 ## 2026-10-06: E5 build (subagent-driven; rulings by the main session)
 
@@ -2315,3 +2337,9 @@ fixture as DAY and retries through the day, as real play does. Fixtures are dete
 **D-259 Phases were stacked, not merged one by one (deviates from D-137 for E5).** From Task 3 the tier-1 game stops
 growing at day 7, while the tier sign arrives in phase 3; every merge to `main` deploys to Pages. PRs #50, #51, #52
 and the phase-4 PR are stacked and merge together after the author's checkpoint.
+
+**D-260 Perf and device measurements wait for the end (the author, 2026-10-07).** No iOS Simulator perf runs between
+phases: one measurement after every task, milestone and phase is done. A run started on 2026-10-07 was stopped by the
+author before it completed; no number from it is recorded. The real-device check of the tier sign, the boss bar and
+the boss moon is on the FINAL REVIEW phone checklist and blocks no merge. What is owed is listed in
+`docs/E5_FOLLOWUPS.md`.
