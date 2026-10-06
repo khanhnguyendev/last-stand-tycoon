@@ -1,0 +1,20 @@
+{
+  "res://tests/sim/test_day_sims.gd::test_night2_naive_unaided_is_hard_and_deterministic": 20686,
+  "res://tests/sim/test_day_sims.gd::test_night2_planner_is_comfortable": 15604,
+  "res://tests/sim/test_guide_sim.gd::test_guide_bot_canonical_seed": 10412,
+  "res://tests/sim/test_guide_sim.gd::test_guide_bot_second_seed": 9967,
+  "res://tests/sim/test_night_sims.gd::test_first_combat_idle_player_within_30s": 737,
+  "res://tests/sim/test_night_sims.gd::test_first_combat_within_30s": 747,
+  "res://tests/sim/test_night_sims.gd::test_night1_deterministic": 9694,
+  "res://tests/sim/test_night_sims.gd::test_night1_fail_restarts_night": 2281,
+  "res://tests/sim/test_night_sims.gd::test_night1_naive_bot_holds": 4847,
+  "res://tests/sim/test_night_sims.gd::test_night1_parked_bot_falls": 1861,
+  "res://tests/sim/test_night_sims.gd::test_parked_retry_has_mercy_hp": 2281,
+  "res://tests/sim/test_station_sims.gd::test_6_1_every_counter_level_serves_more_than_the_one_below": 21601,
+  "res://tests/sim/test_station_sims.gd::test_6_2_a_level_3_counter_shortens_the_day": 20840,
+  "res://tests/sim/test_station_sims.gd::test_6_3_the_upgrader_holds_nights_1_to_3": 28929,
+  "res://tests/sim_tier/test_tier_sims.gd::test_1_the_tier_bot_wins_the_boss_night_within_the_allowed_retries": 12739,
+  "res://tests/sim_tier/test_tier_sims.gd::test_2_the_boss_alone_needs_at_least_boss_min_hold_s_to_fell_the_diner": 3643,
+  "res://tests/sim_tier/test_tier_sims.gd::test_3_the_tier_bot_holds_the_first_tier2_night": 5889,
+  "res://tests/sim_tier/test_tier_sims.gd::test_4_a_full_tier2_build_clears_the_cap_with_0_retries_on_three_seeds": 17495
+}
