@@ -100,7 +100,7 @@ Reversible decisions from the E5 build, highest impact first. Media: `docs/revie
 15. Lane strips and lane edge stones draw across the cream terraces where the west and east lanes meet the wall — `e5/task11/diner_t2_west_zone_night.png`
 16. Playtest question: "Did you understand what the sign was selling, and did the boss night feel like a test you could prepare for?"
 
-Not measured in this slice: perf on the iOS Simulator for the `tier2_night` and `boss_night_tier1` fixtures (spec 8.4), and the device check of the sign, the boss bar and the boss moon. See the phase-4 PR for what was and was not run.
+Not measured in this slice: perf on the iOS Simulator for the `tier2_night` and `boss_night_tier1` fixtures (spec 8.4), and the device check of the sign, the boss bar and the boss moon (one attempt timed out on a loaded Mac). Open items: `docs/E5_FOLLOWUPS.md`.
 
 ## Final review playtest questions (S5)
 
