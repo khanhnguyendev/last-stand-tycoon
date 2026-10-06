@@ -14,5 +14,9 @@ func _init() -> void:
 	position.y = 0.03
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
+## The last value given to set_progress (0..1), readable for tests.
+var progress := 0.0
+
 func set_progress(p: float) -> void:
+	progress = clampf(p, 0.0, 1.0)
 	(material_override as ShaderMaterial).set_shader_parameter("progress", clampf(p, 0.0, 1.0))

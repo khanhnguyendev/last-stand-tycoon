@@ -18,6 +18,7 @@ var freezer: Freezer
 var counter: Counter
 var gold_pile: GoldPile
 var closeup_sign: CloseUpSign
+var tier_sign: TierSign
 var telegraph_markers := {}
 var fly_fx: FlyFx
 var occluder_fade: OccluderFade
@@ -270,6 +271,9 @@ func _build_stations() -> void:
 	closeup_sign = CloseUpSign.new()
 	add_child(closeup_sign)
 	closeup_sign.setup(self)
+	tier_sign = TierSign.new()
+	add_child(tier_sign)
+	tier_sign.setup(self)
 	for id in LanePlanner.LANES:
 		var m := TelegraphMarker.new()
 		add_child(m)
