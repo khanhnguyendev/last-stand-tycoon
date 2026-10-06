@@ -2,7 +2,7 @@ class_name Props
 extends Node3D
 ## The hand-placed props (S4 Task 13, D-201): every item's transform is baked into static meshes, one MeshInstance3D per
 ## atlas material (castle atlas, tower-defense atlas): 2 draws for all of them. No collision. Visual only: no Rng, no
-## gameplay state. The merge runs once at build() (62 small meshes, a few ms).
+## gameplay state. The merge runs once per distinct exclusion (62 small meshes, a few ms).
 
 ## The merged meshes are built once per run per exclusion and shared by every Props node (tests create Main many times).
 ## Key "" is the whole layout (tier 1).
@@ -10,9 +10,10 @@ static var _merged := {}
 
 var _built_key := "<none>"
 
+const CLEAR_DIST := 1.0
+
 ## The layout items that stay when the `exclude` rects (open yards) are cleared: an item whose position lies within
 ## CLEAR_DIST of a rect is hidden (E5 Task 10). No exclusion: the whole layout.
-const CLEAR_DIST := 1.0
 
 static func items_for(exclude: Array = []) -> Array:
 	if exclude.is_empty():

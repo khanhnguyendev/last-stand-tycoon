@@ -33,15 +33,19 @@ func test_tier_reached_opens_the_yards_and_adds_the_spots() -> void:
 	assert_true(main.world.build_spots["tower_w"] is TowerSpot)
 	assert_eq(_ground_meshes().size(), 1, "still one ground draw")
 	assert_eq((_ground_meshes()[0] as MeshInstance3D).mesh, GroundArt.terrain_mesh(World.ground_rect(), ["west", "east"]))
-	assert_eq(main.world.find_children("*", "StaticBody3D", true, false).filter(func(b): return b.name.begins_with("Yard")).size(), 0, "no collision on yards or stones")
+	assert_eq(stones.find_children("*", "CollisionObject3D", true, false).size(), 0, "no collision on the stones")
+	assert_eq(stones.get_child_count(), 0)
 
 func test_debug_set_tier_updates_the_world_too() -> void:
 	GameState.debug_set_tier(2, 3)
 	assert_eq(main.world.yard_ids(), ["west", "east"])
 	assert_true(main.world.build_spots.has("tower_w"))
 	assert_not_null(main.world.get_node_or_null("YardStones"))
+	var stones := main.world.yard_stones
+	var spot = main.world.build_spots["tower_w"]
 	GameState.debug_set_tier(2, 3)
-	assert_eq(main.world.find_children("YardStones", "", true, false).size(), 1, "a repeat tier_changed rebuilds nothing")
+	assert_same(main.world.yard_stones, stones, "a repeat tier_changed rebuilds nothing")
+	assert_same(main.world.build_spots["tower_w"], spot)
 
 func test_restore_rebuilds_for_the_saved_tier() -> void:
 	GameState.debug_set_tier(2, 9)
@@ -75,8 +79,11 @@ func test_yard_spots_take_payment_like_any_tower() -> void:
 	await get_tree().process_frame
 	GameState.add_gold(40)
 	await TestHelpers.walk_in(main.hero, WaypointGraph.create_for_tier(2).position_of("tower_w"))
-	while GameState.gold > 0:
+	var frames := 0
+	while GameState.gold > 0 and frames < 600:
 		await get_tree().physics_frame
+		frames += 1
+	assert_eq(GameState.gold, 0)
 	assert_eq(int(GameState.buildings["tower_w"].level), 1)
 
 func test_props_items_at_tier1_are_the_whole_layout() -> void:
