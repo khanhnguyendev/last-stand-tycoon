@@ -6,6 +6,8 @@
   the S4 determinism baseline, the upgrader sweep, the E1 perf fixtures.
 - **Status:** brainstormed with the author on 2026-10-06. The author chose every option in sections 1 to 3 and the
   design below; the numbers are starting values for the sims.
+  **Built on 2026-10-06 (phases 1 to 4). Sections 15 and 16 record what the build changed and measured; where they
+  differ from sections 1 to 14, sections 15 and 16 are current.**
 - **Decision log:** `docs/DECISIONS.md` D-236 to D-247 (the texts are in section 12).
 - **Name:** the tier ladder is its own expansion (D-233). It is E5; E2, E3 and E4 become content it unlocks.
 
@@ -610,3 +612,52 @@ points; the design and every number are unchanged.
   tier 1 is therefore rejected, not clamped: the limit of the clamp rule, pinned by a test.
 - **TierBalance array length** is `tier_costs.size() + 1` (index 0 unused, tiers 1 to the top = `tier_costs.size()`);
   the first draft said `+ 2`, an off-by-one caught in Task 1 (ruling in the SDD ledger).
+
+### Changes made while building (2026-10-06, D-248 to D-259)
+
+Each line names the section it supersedes.
+
+- **4.3, 7.1 Monster stats are cached at spawn** on the `Boar` (`_stats`), not read per call. The hare is scale 0.6
+  (0.72 m tall, 1.02 m long), `enemy_snout` body, two flat `enemy_red` ears laid back; the boss's upper body is the
+  D-192 lerp at 0.25, with four `stone` tusks.
+- **6.1 Paying the tier in full marks the CURRENT lane plan's last wave with the boss** (`with_boss`), so the night
+  that follows the payment is the boss night. `advance_day` keeps the mark while pending; `from_dict` re-applies it.
+- **6.1, 6.4 `GameState.stash_card_offer(offer)`** stores the dawn offer without a signal. On a won boss night
+  `_run_dawn` draws the offer once, stashes it, calls `complete_tier_up()`, and the autosave on `tier_reached` writes
+  `CARD_PICK` (or `DAY` when the offer is empty). A top-tier no-op opens the pick at once.
+- **6.3 Validation** also checks the types of the wave keys; the 4 → 5 step ignores a `lane_plan` that is not an array.
+- **7.2 The tier sign** is a small procedural sign (cream board, wood posts, a gold star; `tools/make_tier_sign_src.gd`),
+  not a kitbash; its label sits at 2.9 m.
+- **7.3 The tier-2 diner has no awnings**: the tier-1 diner plus two `diner_cream` terraces, top at y 0.015
+  (D-254). Props within 1 m of an open yard are hidden. The world also rebuilds on `tier_changed` when the tier
+  differs (so `debug_set_tier` updates it).
+- **7.5 The reveal**: `EventBus.camera_reveal_requested(in_s, hold_s, out_s, zoom, focus)`; the camera frames the
+  diner and the new yards (zoom fitted at 9:16, 2.15 at tier 2, cap 2.25) and returns to the hero; steps at 0.60,
+  0.95, 1.30, 1.65, 2.00 s (dust at the first yard, stones appear, diner pop, dust at the next yard, spot markers
+  pop); the reveal ends at `tier_reveal_time`; the ground is never scaled; `CameraMath` gained one pure helper
+  (`zoomed_transform`). The sound id is `build_done`.
+- **8.1 Bots and sims**: `TierBot.next_purchase()` is the planner's first, then the yard spots; its graph is
+  `create_for_tier(2)` from the start. Sim 1 resumes `boss_night_tier1` as DAY and retries through the day. Fixtures:
+  `boss_night_tier1`, `boss_only`, `tier2_night1`, `tier2_full`, `tier2_night` (8.4's `boss_night` is
+  `boss_night_tier1`).
+- **8.2 The sweep** prints `SWEEP first_fail_day hard_break_day unspent_day14` and, in tier mode,
+  `TIER first_tier2_day boss_retries cap_nights cap_retries`; `enemy_count` sums the night's plan.
+- **8.5 The sim suite is 42 s of 60** with the four tier sims; the split (D-247) was not needed for this slice.
+- **13 Hot files**: for speed the main session authorized implementers to commit specific hot-file lines in several
+  tasks (each named in the task's dispatch) instead of applying uncommitted wiring patches; phases were stacked and
+  not merged one by one (D-259).
+
+## 16. Results (2026-10-06, starting values, no tuning round)
+
+| Criterion (section 1) | Result |
+|---|---|
+| 1 Days 1 to 7 are today's game | `tools/baseline_rows.sh 7` → `rows 1-7 identical` on seeds 20260930, 11, 777 after every task from Task 3; baseline rows 8 to 14 re-recorded once (`docs/review/media/e5/baseline/`) |
+| 2 Schema 4 save loads at tier 1 | Unit tests; the schema 3 and 4 fixtures load through 3 → 4 → 5 |
+| 3, 4 Pay, boss night, tier 2; a lost boss night keeps the payment | Unit tests (`test_boss_night.gd`, `test_tier_sign.gd`, `test_yards.gd`) and sim 1 |
+| 5 Sims, seed 20260930 | Boss night won after 1 retry (2 allowed), diner 0.193; boss alone 19.0 s (minimum 15); first tier-2 night 0 retries, diner 0.397; full tier-2 build at the cap: 0 retries on 20260930 / 1 / 2, diner 0.037 / 0.59 / 0.933 |
+| 6 Sweep targets, seeds 20260930, 1, 2 | All met: planner 0 retries over 14 days; tier bot's first failed night is its boss night (none on seed 2); tier-2 nights 1 to 3: 0 retries; unspent gold on day 14: 223 / 77 / 563 against the planner's 2,276 / 1,620 / 2,736; 5 / 4 / 5 cap nights with 0 retries (`docs/review/media/e5/sweep/README.md`) |
+| 7 Perf | Not measured: see the phase-4 PR |
+| 8 Suites | Unit and sim green on every phase head; sim suite 42 s of 60 |
+
+Gold per capped night as measured by the sweep's kill counts: tier 1 56 kills (336 gold without cards), tier 2
+75 kills (450), boss night 57 kills with the 100-steak drop (636).
