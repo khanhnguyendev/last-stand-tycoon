@@ -118,6 +118,8 @@ func _mutate_everything(snap: Dictionary) -> void:
 	EventBus.stocks_changed.emit()
 	assert_eq(GameState.buildings.tower_ne.level, 2, "precondition: tower_ne is level 2")
 	assert_gt(main.world.build_spots.tower_ne.visual.scale.x, 1.001, "precondition: the build pop is running")
+	EventBus.station_upgraded.emit(&"counter", 1)  # a station pop too (visual only, GameState unchanged)
+	assert_gt(main.world.counter.body_visual.scale.x, 1.001, "precondition: the counter pop is running")
 	# visual-only leftovers: a transfer in flight, arrows on screen, hit flashes, a camera shake
 	main.world.fly_fx.fly("coin", Vector3.ZERO, Vector3(2, 0, 2))
 	assert_eq(main.world.fly_fx.in_flight(), 1, "precondition: a transfer is in flight")
@@ -211,6 +213,8 @@ func _assert_pops_killed() -> void:
 	for id in MapLayout.SPOT_IDS:
 		var spot: BuildSpot = main.world.build_spots[id]
 		assert_false(spot._pop != null and spot._pop.is_valid(), "%s: pop tween killed by restore" % id)
+	for st in [main.world.counter, main.world.freezer]:
+		assert_false(st._pop != null and st._pop.is_valid(), "%s: pop tween killed by restore" % st.name)
 
 ## Visual tweens that outlive the restore would show up a little later: wait them out.
 func _assert_no_late_visuals(snap: Dictionary) -> void:
@@ -221,6 +225,7 @@ func _assert_no_late_visuals(snap: Dictionary) -> void:
 		var lvl := int(snap.buildings[id].level)
 		var expect_scale := Vector3.ONE * pow(Balance.ui.build_level_scale, maxi(lvl - 1, 0))
 		assert_almost_eq(main.world.build_spots[id].visual.scale, expect_scale, Vector3.ONE * 0.0001, "%s scale after the pop time" % id)
+	assert_eq(main.world.counter.body_visual.scale, Vector3.ONE, "counter scale after the pop time")
 	for b in _boars:
 		assert_false(b.flash_active())
 

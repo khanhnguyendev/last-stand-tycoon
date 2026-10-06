@@ -32,7 +32,7 @@ func setup(world: World) -> void:
 	_pile.name = "Pile"
 	add_child(_pile)
 	EventBus.stocks_changed.connect(refresh)
-	EventBus.state_restored.connect(refresh)
+	EventBus.state_restored.connect(_on_state_restored)
 	EventBus.station_upgraded.connect(_on_station_upgraded)
 	refresh()
 
@@ -54,8 +54,12 @@ func stack_count() -> int:
 func _on_station_upgraded(id: StringName, _level: int) -> void:
 	if id != &"freezer" or body_visual == null:
 		return
-	if _pop != null and _pop.is_valid():
-		_pop.kill()
-	body_visual.scale = Vector3.ONE * Balance.ui.build_pop_scale
-	_pop = create_tween()
-	_pop.tween_property(body_visual, "scale", Vector3.ONE, Balance.ui.build_pop_time)
+	_pop = PopFx.pop(self, body_visual, Vector3.ONE, _pop)
+
+## A restore mid-pop must not leave the model scaled or a tween running.
+func _on_state_restored() -> void:
+	PopFx.kill(_pop)
+	_pop = null
+	if body_visual != null:
+		body_visual.scale = Vector3.ONE
+	refresh()

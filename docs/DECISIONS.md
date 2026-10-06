@@ -2136,3 +2136,59 @@ Reversible; goes to `docs/REVIEW_QUEUE.md` when it ships.
   The traveler pool went from 8 to 31 prewarmed travelers, so boot time and memory are unmeasured for E1.
 - **Device check:** iOS Simulator (iPhone 17 Pro, Safari) on the preview build: night 1 loads, nothing clipped by the
   notch (`docs/review/media/e1/device/ios.png`). No Android reading (same Playwright problem).
+
+## 2026-10-06: E2 staff (brainstorm with the author)
+
+**D-232 E2 starts before the friend playtest (author).** D-222 left the order of E2 to E4 to the playtest. The playtest
+is postponed, and the author chose to keep building meanwhile; E2 (staff) goes first because it builds most directly on
+E1's day loop (freezer, counter, traveler flow). D-222's "the playtest decides the order of the rest" is amended to
+"the playtest decides the order of E3 and E4".
+
+**D-233 E2 staff: brainstorm paused; a diner tier ladder comes first (author).** The E2 brainstorm stopped after three
+questions because staff hang from a progression layer that is not in the repo yet: one global diner tier (1 to 5),
+bought by standing on a new sign and confirmed by a boss night; each tier grows the diner and unlocks land, build spots
+and monster types, and difficulty follows the tier instead of the day number. That ladder is its own expansion, specced
+and built before E2; E2, E3 and E4 become content unlocked by tier (seller at tier 4, hauler at tier 5). Its first
+slice is the tier system plus tier 2 only. D-232's "E2 goes first" is amended: the tier ladder goes first.
+
+Notes the later E2 spec starts from (author's choices, 2026-10-06):
+- **Hauler = pure automation.** It walks freezer to counter and keeps the counter stocked. It reads the freezer's
+  `carry_bonus` and `load_per_tick` (the hero keeps the bonus too), so the freezer upgrade becomes the hauler's
+  capacity. The spec never claims the hauler shortens the day: hauling is about 0.5 s per steak, selling about 2.3 s,
+  and the day is limited by traveler flow.
+- **Seller = throughput.** It shortens service or adds a second service lane, so the day gets shorter while gold per
+  day stays the same (steaks per night are fixed). This is what makes the hauler's speed, and so the freezer level,
+  matter.
+- **Order: seller one tier before the hauler** (tier 4, then tier 5). For one tier the hero hauls for a faster counter.
+  The E2 plan adds a sim proving a hero without a hauler can keep the counter stocked at the seller's throughput; if
+  it cannot, the author is told before the order changes.
+- **"A day where you watch" is accepted:** staff arrive at tiers 4 and 5, when the hero has more build spots, station
+  pads and the tier sign to use. Giving the hero a new day action instead is out of E2's scope.
+- Open (not decided): how many staff, whether they level up, one-time price or wage, where they are hired, what they
+  do at night, how they look, day perf with more animated characters (each KayKit character is about 5k triangles).
+
+## 2026-10-06: E1 follow-ups (owed from the E1 final review)
+
+**D-234 A station level above `max_level` is clamped on load, not rejected.** `SaveCodec.validate` accepted
+`0 <= level <= max_level`, so lowering `stations.max_level` in a later build would have rejected every save that had
+reached the old maximum. Validation now checks only `level >= 0`; `GameState.from_dict` already clamps the level to
+`max_level` (and `paid` to `cost - 1`, D-231). Same rule as `paid`: a later balance change never loses a save.
+Also in this follow-up set: the four E1 test files derive every cost from `StationEffects` instead of literals (so cost
+tuning does not break tests); the counter, freezer and build-spot pop tween share one helper (`PopFx`) and every pop is
+killed on `state_restored`; a unit test pins `World.add_static_box`'s child order (shape, then visual root), which the
+station pop depends on.
+
+**D-235 E1 owed measurements (2026-10-06, `main` at 63b2532).**
+- **Load time** (release build on localhost, Playwright Chromium 1243, Pixel 7 profile, software GL, 3 fresh contexts;
+  `docs/review/media/e1/load/load_time_chromium.txt`): `t_engine` 6720 / 4050 / 3662 ms, `t_first_px` 6618 / 3997 /
+  3640 ms, `t_full` 10971 / 8593 / 7923 ms. D-221: engine 4796 / 3700 / 3582, full 9148 / 7974 / 7941. Medians: engine
+  4.05 s against 3.70 s, full 8.6 s against 8.0 s. Runs 2 and 3 sit inside D-221's spread; run 1 is a cold-start
+  outlier. The Mac was not idle (about 55 to 60%), so this is not a strict comparison; the 31-traveler pool shows no
+  load-time cost larger than the noise. `index.pck` 5,529,580 B (D-221: 5,514,672; gate 8 MiB).
+- **Emulated Android check** (`export/device_check.sh` on the Pages root, D-141): Playwright Pixel 7 renders night 1
+  with the HUD, moons, guide arrow and joystick, build `63b2532 main`; the iOS Simulator (iPhone 17 Pro, Safari) shows
+  the same frame with nothing under the notch (`docs/review/media/e1/device_main/`).
+- **Memory with the 31-traveler pool: still unmeasured.** No script reads heap or GPU memory; left in `REVIEW_QUEUE.md`.
+- **Level 5 day perf idle re-run: postponed by the author.** One attempt on 2026-10-06 never reached the 75% idle gate
+  (vitest and BlueStacks were running) and was stopped before measuring; nothing recorded. `build/web_profile` is
+  rebuilt from 63b2532 and the command is `DAY_FIXTURE=day3_counter5 export/perf_night3.sh build/web_profile <out>`.

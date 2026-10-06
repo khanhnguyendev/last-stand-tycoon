@@ -17,21 +17,27 @@ func test_its_graph_is_the_default_plus_two_pads() -> void:
 func test_idle_goal_is_the_cheapest_station_it_can_finish() -> void:
 	var bot := UpgraderBot.new()
 	autofree(bot)
+	var sb := Balance.data.stations
+	var freezer_cost := StationEffects.level_cost(&"freezer", 0, sb)
+	var counter_cost := StationEffects.level_cost(&"counter", 0, sb)
+	assert_lt(freezer_cost, counter_cost, "this sequence assumes the freezer is the cheaper first level")
+	assert_lt(counter_cost, StationEffects.level_cost(&"freezer", 1, sb), "level 2 costs more than level 1")
+	assert_lt(counter_cost, StationEffects.level_cost(&"counter", 1, sb), "level 2 costs more than level 1")
 	assert_eq(bot.idle_goal(), "sign", "no gold")
-	GameState.add_gold(25)
+	GameState.add_gold(freezer_cost)
 	assert_eq(bot.idle_goal(), "pad_freezer")
-	GameState.add_gold(5)
+	GameState.add_gold(counter_cost - freezer_cost)
 	assert_eq(bot.idle_goal(), "pad_freezer", "still the cheapest")
-	GameState.debug_set_station_level(&"freezer", 1)  # next costs 50
+	GameState.debug_set_station_level(&"freezer", 1)
 	assert_eq(bot.idle_goal(), "pad_counter")
-	GameState.debug_set_station_level(&"counter", 1)  # next costs 60
-	assert_eq(bot.idle_goal(), "sign", "30 gold finishes nothing")
+	GameState.debug_set_station_level(&"counter", 1)
+	assert_eq(bot.idle_goal(), "sign", "the gold held finishes nothing")
 
 func test_ties_go_to_the_counter() -> void:
 	var bot := UpgraderBot.new()
 	autofree(bot)
 	Balance.data.stations.freezer_cost = Balance.data.stations.counter_cost
-	GameState.add_gold(100)
+	GameState.add_gold(Balance.data.stations.counter_cost + 1)
 	assert_eq(bot.idle_goal(), "pad_counter")
 
 func test_the_planner_still_idles_at_the_sign() -> void:
