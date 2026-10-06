@@ -197,9 +197,9 @@ entries, zones, stations, pads). Additions, drafts fixed by the tests of 5.3:
 
 ```gdscript
 const TIER_SPOTS := {2: ["tower_w", "tower_e"]}        # spots a tier unlocks; appended to spots_for_tier
-TOWER_SPOTS += {"tower_w": Vector2(-11.0, 1.5), "tower_e": Vector2(11.0, 1.5)}
+TOWER_SPOTS += {"tower_w": Vector2(-10.6, 0.6), "tower_e": Vector2(8.8, 1.1)}   # final (tests moved the drafts)
 TOWER_LANES += {"tower_w": ["west"], "tower_e": ["east"]}
-const YARDS := {"west": Rect2(-13.5, -2.5, 4.5, 10.5), "east": Rect2(9.5, -2.5, 4.0, 8.0)}
+const YARDS := {"west": Rect2(-13.5, -2.5, 4.5, 10.5), "east": Rect2(8.0, -0.5, 5.0, 3.5)}   # final
 const YARD_TIER := {"west": 2, "east": 2}
 const TIER_SIGN := Vector2(-10.0, 7.5)                   # on the west yard: the sign stands on the next land
 const ALL_SPOT_IDS: Array[String]                        # SPOT_IDS + every TIER_SPOTS list, in tier order
@@ -213,9 +213,10 @@ static func spot_tier(spot_id: String) -> int             # 1 for SPOT_IDS
 bots iterate `buildings.keys()` or `spots_for_tier`, never `SPOT_IDS`, except the planner bot, which stays tier-1 only
 and keeps `SPOT_IDS`.
 
-The east yard is shaped around the freezer pad (7.9, 7.0, radius 1.2): it stops at z 5.5 and starts at x 9.5. The west
-yard's inner edge is x = −9.0 so its north-inner corner clears the west lane by about 2.2 m (the author's arithmetic
-put an x = −8.5 corner at 1.75 m). The yards do not mirror each other.
+The coordinates above are the final ones (D-240); the tests of 5.3 moved the drafts. The east yard is small
+(5.0 x 3.5 m) because the props near the diner and the 3 m prop rule left that much room for `tower_e`, and it stays
+clear of the freezer pad (7.9, 7.0, radius 1.2). The west yard's inner edge is x = -9.0, so its north-inner corner
+clears the west lane by about 2.2 m. The yards do not mirror each other.
 
 ### 5.2 WaypointGraph
 
@@ -290,8 +291,8 @@ argument so the HUD boss moon and the sweep can tell the boss apart.
   re-made at dawn, and a `boss_only` fixture carries it without a payment).
 - **A tier above `top_tier(tb)` is clamped on load, not rejected** (the same rule as D-234): a save from a later build
   that reached tier 3 loads at the top tier this build knows, keeping its buildings; `complete_tier_up` is then a no-op
-  at the top. The spots of the clamped-away tier are kept in `buildings` only if `ALL_SPOT_IDS` knows them; unknown
-  ids are still rejected (nothing to place them on).
+  at the top. A spot whose tier is above the top this build knows is rejected ("building tier <id>"), and an id the
+  build does not know at all is rejected ("building <id>"): there is nothing to place either on.
 - **Accepted effect:** a tier-1 save past day 7 faces day-7 pressure after the update (its old `lane_plan` is used for
   one night as saved, then `advance_day` re-plans at the cap). The `export/fixtures/*.save.json` stay at schema 3 and 4
   and prove the chain 3 → 4 → 5.
@@ -403,12 +404,13 @@ affordable (the existing fixtures keep their meaning).
   `tier_reached`.
 - Fixtures (`tests/sim/make_save.gd --fixture=…`, schema 5, seed 20260930, written from a `TierBot` run and edited by
   `debug_set_*`):
-  - `boss_night_tier1`: `resume_phase` NIGHT, day 8, tier 1, `boss_pending`, the upgrader sweep's day-7 defense and
+  - `boss_night_tier1`: `resume_phase` NIGHT, day 12 (the day the tier bot's boss night falls on), tier 1,
+    `boss_pending`, the tier bot's own defense (every tower and fence at level 3) and
     stations, Tank and Archer, `night_fails` 0.
   - `boss_only`: the same day, no builds, no guards, `lane_plan` with `main_count 0`, `side_count 0` in waves 1 and 2
     and `boss` only in wave 3 (an explicitly constructed plan; `validate` allows zero counts).
-  - `tier2_night1`: `resume_phase` NIGHT, day 9, tier 2 entered day 9, yards open, yard towers at level 0.
-  - `tier2_full`: tier 2, day 12 (pressure at cap), every tower and fence at L3 including the yards, stations as the
+  - `tier2_night1`: `resume_phase` NIGHT, day 13, tier 2 entered day 13, yards open, yard towers at level 0.
+  - `tier2_full`: tier 2, day 16 with `tier_day` 13 (pressure at cap), every tower and fence at L3 including the yards, stations as the
     tier sweep has them at that day, Tank and Archer at the sweep's levels.
 - Sims (`tests/sim/test_tier_sims.gd`, one night each):
   1. `boss_night_tier1` + `TierBot`: wins within 2 retries; prints `boss night won after N retries`.
@@ -506,7 +508,9 @@ traveler route have to be designed together.
   small (0.15) so the night teaches before it punishes. If sim 3 fails, lower `fast_share_start` first.
 - **Steak density:** 100 steaks in a 2.5 m ring may hide the boss's death spot and the hero; the device shot decides;
   fallback is a wider `scatter` (balance). The dawn sweep guarantees nothing is lost.
-- **Day perf** is already at the E1 known issue; this slice adds no day cost except the yard stones (1 draw).
+- **Day perf** is already at the E1 known issue. This slice adds, on every day, the tier sign (a mesh, a label, a
+  marker and a stand-still zone), and at tier 2 the yard stones (1 draw) and two tower spots with their labels.
+  Not measured (section 16).
 - **Baseline re-record** is a one-time trust event; the row 1 to 7 proof is the guard against hiding an accidental
   change inside it.
 
@@ -602,7 +606,8 @@ points; the design and every number are unchanged.
 - **`LanePlanner.plan(run_seed, day, wb, tier := 1, tier_day := 1, tb := null)`**: the day stays the second argument
   (the lanes still come from the day's stream) and the pressure is derived inside; `LanePlanner.with_boss(plan)` marks
   the last wave. Section 4.1's signature is replaced by this one.
-- **The reveal's camera pull-back** lasts the whole step sequence (about 3 s) instead of 0.6 s out and 0.8 s back.
+- **The reveal's camera** eases in over 0.6 s, holds for 1.6 s and eases back over 0.8 s (3.0 s in all); see the
+  building changes below for the framing.
 - **The sweep** prints `unspent_day14` on the `SWEEP` line and a `TIER` line (`first_tier2_day`, `boss_retries`) in
   tier mode, so the gold criterion and the boss retries are read from the lines, not only the CSV.
 - **`SimThresholds.boss_night_max_retries`** (2) holds sim 1's allowance; the retired `break_day_*` fields are removed.
@@ -654,7 +659,7 @@ Each line names the section it supersedes.
 | 1 Days 1 to 7 are today's game | `tools/baseline_rows.sh 7` → `rows 1-7 identical` on seeds 20260930, 11, 777 after every task from Task 3; baseline rows 8 to 14 re-recorded once (`docs/review/media/e5/baseline/`) |
 | 2 Schema 4 save loads at tier 1 | Unit tests; the schema 3 and 4 fixtures load through 3 → 4 → 5 |
 | 3, 4 Pay, boss night, tier 2; a lost boss night keeps the payment | Unit tests (`test_boss_night.gd`, `test_tier_sign.gd`, `test_yards.gd`) and sim 1 |
-| 5 Sims, seed 20260930 | Boss night won after 1 retry (2 allowed), diner 0.193; boss alone 19.0 s (minimum 15); first tier-2 night 0 retries, diner 0.397; full tier-2 build at the cap: 0 retries on 20260930 / 1 / 2, diner 0.037 / 0.59 / 0.933 |
+| 5 Sims, seed 20260930 (macOS; the Linux CI lines are in the phase-4 PR) | Boss night won after 1 retry (2 allowed), diner 0.193; boss alone 19.0 s (minimum 15); first tier-2 night 0 retries, diner 0.397; full tier-2 build at the cap: 0 retries on 20260930 / 1 / 2, diner 0.037 / 0.59 / 0.933 |
 | 6 Sweep targets, seeds 20260930, 1, 2 | All met: planner 0 retries over 14 days; tier bot's first failed night is its boss night (none on seed 2); tier-2 nights 1 to 3: 0 retries; unspent gold on day 14: 223 / 77 / 563 against the planner's 2,276 / 1,620 / 2,736; 5 / 4 / 5 cap nights with 0 retries (`docs/review/media/e5/sweep/README.md`) |
 | 7 Perf | Not measured: see the phase-4 PR |
 | 8 Suites | Unit and sim green on every phase head; sim suite 42 s of 60 |

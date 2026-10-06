@@ -2265,8 +2265,9 @@ payment; the plan only marked the boss at the next dawn, so no boss night would 
 boss always rides tonight's plan (a hand-edited save cannot skip it). Telegraph flags refresh when the tier is paid.
 
 **D-251 Save schema 5.** Built-in step 4 → 5; validation of the tier fields and of the new wave keys (types before
-use); a tier above what the build knows is clamped on load, but a spot id the build does not know is still rejected
-("building tier"): a tier-2 save on a tier-1-only build does not load (pinned by a test).
+use); a tier above what the build knows is clamped on load, but a spot above the build's top tier is still rejected
+("building tier <id>"; an id the build does not know at all is "building <id>"): a tier-2 save on a tier-1-only build
+does not load (pinned by a test).
 
 **D-252 The hare was redesigned after its first shots failed the silhouette rule (R1).** Lighter `enemy_snout` body,
 lean and long, two flat `enemy_red` ears laid back for the top-down camera; scale 0.6 (0.72 m tall). The Boar King
