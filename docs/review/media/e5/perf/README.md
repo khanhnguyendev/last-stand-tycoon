@@ -1,5 +1,8 @@
 # E5 perf readings (spec 8.4): OWED
 
+**D-260 (the author, 2026-10-07): measure once, after every task, milestone and phase is done. Do not run this
+between phases.** A run started on 2026-10-07 was stopped before it completed; nothing from it is recorded.
+
 Not measured on 2026-10-06. The method (D-199, D-209) needs the Mac at 75% idle or more before each run; during the
 E5 build it was at about 35% (sweeps, test suites and other programs), the same situation as E1's postponed re-run
 (D-235). No number was recorded, so none can be mistaken for a gate reading.

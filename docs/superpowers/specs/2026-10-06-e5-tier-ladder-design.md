@@ -647,8 +647,10 @@ Each line names the section it supersedes.
   `boss_night_tier1`).
 - **8.2 The sweep** prints `SWEEP first_fail_day hard_break_day unspent_day14` and, in tier mode,
   `TIER first_tier2_day boss_retries cap_nights cap_retries`; `enemy_count` sums the night's plan.
-- **8.5 The sim suite is 47 s of 60 on CI** (42 s locally) with the four tier sims; the split (D-247) was not needed
-  for this slice, but 13 s of room means it is the first thing tier 3 needs.
+- **8.5 Sim budget: D-247 was applied after the merge.** The suite fitted on the PR runs (27 to 52 s) but failed on
+  `main` on slower runners (61 to 71 s, every sim passing). The tier sims now run in a third job (`sim-tiers`), wall
+  time warns at 60 s and fails at 150 s, and a per-sim physics-tick budget (`tests/sim_ticks.golden.json`, +20%) is
+  the deterministic gate.
 - **13 Hot files**: for speed the main session authorized implementers to commit specific hot-file lines in several
   tasks (each named in the task's dispatch) instead of applying uncommitted wiring patches; phases were stacked and
   not merged one by one (D-259).

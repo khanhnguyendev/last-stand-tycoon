@@ -5,20 +5,24 @@ reviews and the final whole-branch review; none blocked the checkpoint. Decision
 D-259; feel questions are in `docs/REVIEW_QUEUE.md`, section "E5 diner tier ladder, slice 1". Delete a line here when
 it is done.
 
-## Owed measurements
+## Owed measurements (one run, after all tasks, milestones and phases are done: D-260)
 
-1. **Perf on the iOS Simulator** for `tier2_night` and `boss_night_tier1` (spec 8.4): not measured, the Mac was not
-   idle. Commands and gate: `docs/review/media/e5/perf/README.md`.
-2. **Device check** of the tier sign, the boss bar, the boss moon and the tier-2 diner on the preview URL. One attempt
-   on 2026-10-06 timed out in the Simulator on a loaded Mac
-   (`export/device_check.sh https://khanhnguyendev.github.io/last-stand-tycoon/preview/e5-p4-sims/ <out_dir>`).
-   No boss-night HUD shot exists.
-3. **The tier-up dawn on a phone**: ground mesh swap, props re-merge, five pops and the camera move in one dawn. The
+1. **Perf on the iOS Simulator** for `tier2_night` and `boss_night_tier1`, with the night-3 reference taken the same
+   day (spec 8.4): not measured. Commands and gate: `docs/review/media/e5/perf/README.md`. Do not run it between
+   phases.
+2. **The tier-up dawn on a phone**: ground mesh swap, props re-merge, five pops and the camera move in one dawn. The
    warm-up pre-builds the terrain and props; whether it hitches is unmeasured.
+
+## FINAL REVIEW phone checklist (E5 items; blocks no merge)
+
+- The tier sign: readable, findable from the home spot, the pay ring and the "boss tonight" state.
+- The boss bar during a boss night and the boss moon on the HUD (no screenshot of either exists from a device).
+- The tier-2 diner and the two yards after the reveal; the reveal's camera move on a notch phone.
+- An earlier Simulator attempt (2026-10-06) timed out on a loaded Mac; nothing was captured.
 
 ## Before tier 3
 
-4. **Sim budget**: 47 s of 60 on CI. Apply D-247 (a `tests/sim_tier/` suite, a third CI job) before adding tier-3 sims.
+4. **Sim budget**: done (D-247). New tier sims go in `tests/sim_tier/` with an entry in `tests/sim_ticks.golden.json`.
 5. `tests/sim/sweep_runner.gd` `at_cap` and `actors/bots/tier_bot.gd` `create_for_tier(2)` hard-code tier 2.
 6. `world/tier_reveal.gd`: `yard_stones` is one MultiMesh for every open yard; a tier that opens more yards must split
    it per tier before reusing the stones step.
