@@ -336,9 +336,11 @@ func test_a_restore_clears_the_breathing_moon() -> void:
 	await _boss_night()
 	EventBus.wave_started.emit(2, &"north", &"")
 	assert_true(hud.icons.boss_alive)
+	hud.icons.boss_moon = -1  # test-only setup
 	EventBus.state_restored.emit()
 	assert_false(hud.icons.boss_alive)
-	assert_eq(hud.icons.boss_moon, hud.boss_moon_index())
+	assert_eq(hud.icons.boss_moon, GameState.lane_plan.size() - 1)
+	assert_gte(hud.icons.boss_moon, 0)
 
 func _icons_with_cells(n: int) -> HudIcons:
 	var ic := HudIcons.new()
@@ -366,6 +368,8 @@ func test_boss_disc_is_centred_larger_and_holds_the_moon() -> void:
 	assert_almost_eq(d.get_center().x, cell.get_center().x, 1e-4)
 	assert_almost_eq(d.get_center().y, cell.get_center().y, 1e-4)
 	assert_almost_eq(d.size.x, cell.size.x + grow * 2.0, 1e-4)
+	assert_almost_eq(d.size.y, cell.size.y + grow * 2.0, 1e-4)
 	assert_true(d.encloses(ic.moon_rect(2)), "at rest")
-	ic._t = 0.0
+	ic._t = 0.25 / Balance.ui.pulse_hz
+	assert_true(d.encloses(ic.moon_rect(2)), "at the breath's peak")
 	assert_false(d.intersects(ic.disc_rect(1)))

@@ -40,12 +40,22 @@ func test_warmup_covers_every_monster_kind_and_the_boss_bar() -> void:
 	_main()
 	var warmup := Warmup.new()
 	main.add_child(warmup)
-	await warmup.run(main)
+	warmup.run(main)  # no await: runs to its first process_frame, the temporary nodes are in the tree
+	var kinds := {}
+	var mats: Array = []
+	for c in warmup.get_children():
+		if c is BoarVisual:
+			assert_true(c.is_visible_in_tree())
+			assert_eq(c._mesh_node.mesh, BoarMesh.get_mesh(c.kind), "%s mesh is on the node" % c.kind)
+			kinds[c.kind] = true
+		elif c is MeshInstance3D:
+			mats.append(c.material_override)
 	for k in MonsterBalance.KINDS:
-		assert_true(warmup.warmed_kinds.has(k), "visual for %s" % k)
-		assert_not_null(BoarMesh.get_mesh(k))
-	assert_true(warmup.warmed_materials.has(BossBar.back_material()))
-	assert_true(warmup.warmed_materials.has(BossBar.fill_material()))
+		assert_true(kinds.has(k), "visual for %s" % k)
+	assert_true(mats.has(BossBar.back_material()))
+	assert_true(mats.has(BossBar.fill_material()))
+	await warmup.finished
+	assert_eq(warmup.get_child_count(), 0)
 
 func test_boot_without_warmup_is_synchronous() -> void:
 	_main()
