@@ -11,6 +11,13 @@ var _shake_time := 0.0
 var _shake_amp := 0.0
 var _cooldown := 0.0
 var _t := 0.0
+var _zoom := 1.0
+var _rv_active := false
+var _rv_t := 0.0
+var _rv_in := 0.0
+var _rv_hold := 0.0
+var _rv_out := 0.0
+var _rv_zoom := 1.0
 
 func _ready() -> void:
 	camera = Camera3D.new()
@@ -42,16 +49,20 @@ func snap() -> void:
 
 func snap_to(p: Vector2) -> void:
 	_focus = CameraMath.focus_for(p)
+	cancel_reveal()
 	camera.global_transform = CameraMath.camera_transform(_focus, Balance.ui)
 
 func _process(delta: float) -> void:
 	if _hero == null:
 		return
 	_t += delta
+	_zoom_step(delta)
 	_cooldown -= delta
 	var goal := CameraMath.focus_for(_hero.xz())
 	_focus = _focus.lerp(goal, 1.0 - exp(-Balance.ui.camera_follow_rate * delta))
 	var xf := CameraMath.camera_transform(_focus, Balance.ui)
+	if not is_equal_approx(_zoom, 1.0):
+		xf.origin = _zoomed_origin(xf.origin)
 	if _shake_left > 0.0:
 		_shake_left -= delta
 		xf.origin += Vector3(sin(_t * 97.0), cos(_t * 89.0), 0.0) * shake_amp_now()
@@ -63,6 +74,43 @@ func _on_state_restored() -> void:
 	_shake_amp = 0.0
 	_shake_time = 0.0
 	_cooldown = 0.0
+	cancel_reveal()
+
+## E5 spec 7.5: a visual pull-back (the camera moves away from the focus along its view line, x zoom): eased out over
+## seconds_in, held for hold_s, eased back over seconds_out. Runs in _process; writes nothing but the camera transform.
+func reveal(seconds_in: float, hold_s: float, seconds_out: float, zoom: float) -> void:
+	_rv_in = maxf(seconds_in, 1e-3)
+	_rv_hold = maxf(hold_s, 0.0)
+	_rv_out = maxf(seconds_out, 1e-3)
+	_rv_zoom = zoom
+	_rv_t = 0.0
+	_rv_active = true
+
+func zoom_now() -> float:
+	return _zoom
+
+## Ends a reveal at once: zoom 1.0 (a restore, snap_to).
+func cancel_reveal() -> void:
+	_rv_active = false
+	_rv_t = 0.0
+	_zoom = 1.0
+
+func _zoom_step(delta: float) -> void:
+	if not _rv_active:
+		return
+	_rv_t += delta
+	if _rv_t < _rv_in:
+		_zoom = lerpf(1.0, _rv_zoom, ease(_rv_t / _rv_in, -2.0))
+	elif _rv_t < _rv_in + _rv_hold:
+		_zoom = _rv_zoom
+	elif _rv_t < _rv_in + _rv_hold + _rv_out:
+		_zoom = lerpf(_rv_zoom, 1.0, ease((_rv_t - _rv_in - _rv_hold) / _rv_out, -2.0))
+	else:
+		cancel_reveal()
+
+func _zoomed_origin(origin: Vector3) -> Vector3:
+	var target := Vector3(_focus.x, 0.0, _focus.y)
+	return target + (origin - target) * _zoom
 
 func _on_diner_damaged(_amount: float, _hp_left: float) -> void:
 	shake(Balance.ui.shake_amp, Balance.ui.shake_time, true)

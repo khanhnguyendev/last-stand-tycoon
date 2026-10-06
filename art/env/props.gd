@@ -32,15 +32,14 @@ static func items_for(exclude: Array = []) -> Array:
 ## Builds the MeshInstance3D children for the layout minus the props near the `exclude` rects. Idempotent for the same
 ## exclusion; a different one swaps the (cached) meshes: still one MeshInstance3D per atlas material.
 func build(exclude: Array[Rect2] = []) -> void:
-	var key := "" if exclude.is_empty() else str(exclude)
+	var key := _key(exclude)
 	if key == _built_key:
 		return
 	_built_key = key
 	for c in get_children():
 		remove_child(c)
 		c.queue_free()
-	if not _merged.has(key):
-		_merged[key] = _merge_all(items_for(exclude))
+	prebuild(exclude)
 	for merged: ArrayMesh in _merged[key]:
 		var mat := merged.surface_get_material(0)
 		var mi := MeshInstance3D.new()
@@ -48,6 +47,19 @@ func build(exclude: Array[Rect2] = []) -> void:
 		mi.mesh = merged
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mi)
+
+static func _key(exclude: Array) -> String:
+	return "" if exclude.is_empty() else str(exclude)
+
+## True when the merged meshes for this exclusion are already built.
+static func is_cached(exclude: Array = []) -> bool:
+	return _merged.has(_key(exclude))
+
+## Fills the merge cache for this exclusion without adding nodes (the warm-up calls this, E5 Task 12).
+static func prebuild(exclude: Array = []) -> void:
+	var key := _key(exclude)
+	if not _merged.has(key):
+		_merged[key] = _merge_all(items_for(exclude))
 
 static func _merge_all(items: Array) -> Array[ArrayMesh]:
 	var out: Array[ArrayMesh] = []

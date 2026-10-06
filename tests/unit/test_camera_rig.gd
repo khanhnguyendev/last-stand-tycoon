@@ -77,3 +77,31 @@ func test_damaged_after_fell_is_full_strength() -> void:
 	await wait_seconds(Balance.ui.shake_cooldown)
 	GameState.damage_diner(5.0)
 	assert_almost_eq(rig.shake_amp_now(), Balance.ui.shake_amp, Balance.ui.shake_amp * 0.05)
+
+func test_reveal_zooms_out_holds_and_comes_back() -> void:
+	var rig := main.camera_rig
+	var d0 := Balance.ui.camera_distance
+	rig.reveal(0.2, 0.3, 0.2, 1.25)
+	rig._process(0.1)
+	assert_between(rig.zoom_now(), 1.0, 1.25)
+	rig._process(0.1)
+	assert_almost_eq(rig.zoom_now(), 1.25, 0.001, "out")
+	rig._process(0.2)
+	assert_almost_eq(rig.zoom_now(), 1.25, 0.001, "held")
+	var focus_dist := rig.camera.global_position.distance_to(Vector3(rig._focus.x, 0.0, rig._focus.y))
+	assert_almost_eq(focus_dist, d0 * 1.25, 0.01, "the camera moved along its view line")
+	rig._process(0.15)
+	rig._process(0.2)
+	assert_almost_eq(rig.zoom_now(), 1.0, 0.001, "back")
+	assert_eq(Balance.ui.camera_distance, d0, "UiTuning is never written")
+
+func test_snap_to_and_restore_end_a_reveal() -> void:
+	main.camera_rig.reveal(0.2, 0.3, 0.2, 1.25)
+	main.camera_rig._process(0.2)
+	assert_gt(main.camera_rig.zoom_now(), 1.0)
+	main.camera_rig.snap_to(Vector2(1, 1))
+	assert_eq(main.camera_rig.zoom_now(), 1.0)
+	main.camera_rig.reveal(0.2, 0.3, 0.2, 1.25)
+	main.camera_rig._process(0.2)
+	EventBus.state_restored.emit()
+	assert_eq(main.camera_rig.zoom_now(), 1.0)

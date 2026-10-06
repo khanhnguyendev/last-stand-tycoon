@@ -63,3 +63,34 @@ func _outside_bounds(p: Vector2) -> float:
 	var dx := maxf(maxf(lo.x - p.x, p.x - hi.x), 0.0)
 	var dy := maxf(maxf(lo.y - p.y, p.y - hi.y), 0.0)
 	return Vector2(dx, dy).length()
+
+## E5 spec 7.5: the tier-up reveal pulls the camera back by tier_reveal_zoom along its view line; the ground still covers it.
+func test_the_reveal_pull_back_still_hits_ground_inside_rect() -> void:
+	var ui := Balance.ui
+	var rect := World.ground_rect()
+	var max_dist := 0.0
+	for aspect in ASPECTS:
+		var size := Vector2(maxf(roundf(1280.0 * aspect), 1.0), 1280.0)
+		var vp := SubViewport.new()
+		vp.size = Vector2i(size)
+		add_child_autofree(vp)
+		var cam := Camera3D.new()
+		CameraMath.apply_lens(cam, ui, size.x / size.y)
+		vp.add_child(cam)
+		for focus in _corners():
+			var xf := CameraMath.camera_transform(focus, ui)
+			var target := Vector3(focus.x, 0.0, focus.y)
+			xf.origin = target + (xf.origin - target) * ui.tier_reveal_zoom
+			cam.global_transform = xf
+			for p in _sample_points(size):
+				var o := cam.project_ray_origin(p)
+				var d := cam.project_ray_normal(p)
+				if d.y >= 0.0:
+					assert_lt(d.y, 0.0, "ray points downward")
+					continue
+				var hit := o + d * (-o.y / d.y)
+				var hit_xz := Vector2(hit.x, hit.z)
+				assert_true(rect.has_point(hit_xz), "zoomed hit %s inside %s: aspect %.3f focus %s" % [hit_xz, rect, aspect, focus])
+				max_dist = maxf(max_dist, _outside_bounds(hit_xz))
+	gut.p("zoomed: max distance past bounds %.2f m" % max_dist)
+	assert_lt(max_dist, World.GROUND_MARGIN - 5.0, "headroom inside the ground margin")
