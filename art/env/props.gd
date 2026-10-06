@@ -2,18 +2,46 @@ class_name Props
 extends Node3D
 ## The hand-placed props (S4 Task 13, D-201): every item's transform is baked into static meshes, one MeshInstance3D per
 ## atlas material (castle atlas, tower-defense atlas): 2 draws for all of them. No collision. Visual only: no Rng, no
-## gameplay state. The merge runs once at build() (62 small meshes, a few ms).
+## gameplay state. The merge runs once per distinct exclusion (62 small meshes, a few ms).
 
-## The merged meshes are built once per run and shared by every Props node (tests create Main many times).
-static var _merged: Array[ArrayMesh] = []
+## The merged meshes are built once per run per exclusion and shared by every Props node (tests create Main many times).
+## Key "" is the whole layout (tier 1).
+static var _merged := {}
 
-## Builds the MeshInstance3D children once (idempotent).
-func build() -> void:
-	if get_child_count() > 0:
+var _built_key := "<none>"
+
+const CLEAR_DIST := 1.0
+
+## The layout items that stay when the `exclude` rects (open yards) are cleared: an item whose position lies within
+## CLEAR_DIST of a rect is hidden (E5 Task 10). No exclusion: the whole layout.
+
+static func items_for(exclude: Array = []) -> Array:
+	if exclude.is_empty():
+		return PropsLayout.ITEMS
+	var out := []
+	for it in PropsLayout.ITEMS:
+		var hidden := false
+		for r in exclude:
+			if Geometry.dist_point_rect(it.pos, r) <= CLEAR_DIST:
+				hidden = true
+				break
+		if not hidden:
+			out.append(it)
+	return out
+
+## Builds the MeshInstance3D children for the layout minus the props near the `exclude` rects. Idempotent for the same
+## exclusion; a different one swaps the (cached) meshes: still one MeshInstance3D per atlas material.
+func build(exclude: Array[Rect2] = []) -> void:
+	var key := "" if exclude.is_empty() else str(exclude)
+	if key == _built_key:
 		return
-	if _merged.is_empty():
-		_merged = _merge_all()
-	for merged in _merged:
+	_built_key = key
+	for c in get_children():
+		remove_child(c)
+		c.queue_free()
+	if not _merged.has(key):
+		_merged[key] = _merge_all(items_for(exclude))
+	for merged: ArrayMesh in _merged[key]:
 		var mat := merged.surface_get_material(0)
 		var mi := MeshInstance3D.new()
 		mi.name = "Props_" + (mat.resource_path.get_file().get_basename() if mat != null and mat.resource_path != "" else str(get_child_count()))
@@ -21,11 +49,11 @@ func build() -> void:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mi)
 
-static func _merge_all() -> Array[ArrayMesh]:
+static func _merge_all(items: Array) -> Array[ArrayMesh]:
 	var out: Array[ArrayMesh] = []
 	var groups := {}  # Material -> {v, n, uv, i}
 	var order: Array[Material] = []
-	for it in PropsLayout.ITEMS:
+	for it in items:
 		var mesh := load(it.model) as ArrayMesh
 		var p: Vector2 = it.pos
 		var xf := Transform3D(Basis(Vector3.UP, float(it.rot)).scaled(Vector3.ONE * float(it.scale)), MapLayout.to3(p))

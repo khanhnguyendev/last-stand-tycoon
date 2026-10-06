@@ -81,3 +81,57 @@ func test_world_static_draws() -> void:
 		assert_eq((w.lanes[id] as Node3D).find_children("*", "MultiMeshInstance3D", false, false).size(), 0)
 	assert_eq(w.props.find_children("*", "MeshInstance3D", false, false).size(), 2)
 	assert_eq(w.lighting.get_class(), "Node")
+
+func _array_hash(a) -> int:
+	return hash(a.to_byte_array().hex_encode())
+
+## E5 Task 10 ruling 6: the tier-1 terrain (no yards) is byte-identical to the S4 ground, pinned from the pre-E5 build.
+func test_tier1_terrain_is_unchanged_by_the_yards_feature() -> void:
+	var m := GroundArt.terrain_mesh(World.ground_rect(), [])
+	assert_eq(m, GroundArt.terrain_mesh(World.ground_rect()), "the default argument is the same cached mesh")
+	var a := m.surface_get_arrays(0)
+	assert_eq((a[Mesh.ARRAY_VERTEX] as PackedVector3Array).size(), 10536)
+	assert_eq((a[Mesh.ARRAY_INDEX] as PackedInt32Array).size(), 61872)
+	assert_eq(_array_hash(a[Mesh.ARRAY_VERTEX]), 2768925050)
+	assert_eq(_array_hash(a[Mesh.ARRAY_COLOR]), 599500315)
+	assert_eq(_array_hash(a[Mesh.ARRAY_INDEX]), 1529329421)
+
+func test_yard_cells_are_dirt_and_inside_the_rect() -> void:
+	var r := Rect2(2, 2, 4, 6)
+	var a := GroundArt.yard_arrays(r)
+	assert_gt((a.v as PackedVector3Array).size(), 0)
+	var dirt := Palette.color(&"dirt")
+	var dark := Palette.color(&"dirt_dark")
+	for i in (a.v as PackedVector3Array).size():
+		var v: Vector3 = a.v[i]
+		assert_true(r.grow(1e-4).has_point(Vector2(v.x, v.z)), str(v))
+		assert_almost_eq(v.y, GroundArt.YARD_Y, 1e-6)
+		var c: Color = a.c[i]
+		assert_true(c.is_equal_approx(dirt.lerp(dark, GroundArt.hash01(v.x, v.z) * 0.5)), "dirt hashed toward dirt_dark, palette only")
+
+func test_terrain_with_yards_is_one_surface_and_cached() -> void:
+	var m := GroundArt.terrain_mesh(World.ground_rect(), ["west"])
+	assert_eq(m.get_surface_count(), 1)
+	assert_eq(m, GroundArt.terrain_mesh(World.ground_rect(), ["west"]))
+	assert_ne(m, GroundArt.terrain_mesh(World.ground_rect(), []))
+
+func test_yard_stones_ring_the_outline() -> void:
+	var r: Rect2 = MapLayout.YARDS["west"]
+	var xfs := YardStones.transforms(r)
+	assert_gt(xfs.size(), 10)
+	for xf in xfs:
+		var p := Vector2(xf.origin.x, xf.origin.z)
+		assert_lte(Geometry.dist_point_rect(p, r), 0.4, "on the outline")
+		assert_gte(Geometry.dist_point_rect(p, r.grow(-0.5)), 0.1, "not inside the yard")
+
+func test_yard_stones_keep_clear_of_the_tier_sign() -> void:
+	var r: Rect2 = MapLayout.YARDS["west"]
+	for xf in YardStones.transforms(r):
+		assert_gte(Vector2(xf.origin.x, xf.origin.z).distance_to(MapLayout.TIER_SIGN), YardStones.SIGN_CLEAR)
+	# A synthetic rect whose top edge passes 0.2 m from the sign: 6 x 3 m gives 2 * (5 + 2) = 14 stones without the guard.
+	var near := Rect2(MapLayout.TIER_SIGN - Vector2(3, 0.2), Vector2(6, 3))
+	var xfs := YardStones.transforms(near)
+	assert_lt(xfs.size(), 14, "the stone under the sign is dropped")
+	assert_gt(xfs.size(), 10, "the rest of the ring stays")
+	for xf in xfs:
+		assert_gte(Vector2(xf.origin.x, xf.origin.z).distance_to(MapLayout.TIER_SIGN), YardStones.SIGN_CLEAR)
