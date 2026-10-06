@@ -69,8 +69,8 @@ func test_night2_planner_is_comfortable() -> void:
 	var fence: String = MapLayout.LANE_FENCE[side_lane]
 	assert_gte(int(b[fence].level), 1, "side-lane fence built at close-up")
 	var tower_ok := false
-	for t in MapLayout.TOWER_LANES:
-		if side_lane in MapLayout.TOWER_LANES[t] and int(b[t].level) >= 1:
+	for t in b:
+		if MapLayout.spot_kind(t) == "tower" and side_lane in MapLayout.TOWER_LANES[t] and int(b[t].level) >= 1:
 			tower_ok = true
 	assert_true(tower_ok, "a tower next to the side lane built at close-up")
 	assert_lt(int(r.closeup.gold), Balance.data.build.fence_cost, "gold spent down at close-up")
