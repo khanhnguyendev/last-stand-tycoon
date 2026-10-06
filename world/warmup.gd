@@ -46,7 +46,15 @@ func run(main: Main, resume_phase := "") -> void:
 	_origin = xf.origin - xf.basis.z * DISTANCE
 	_right = xf.basis.x
 	_up = xf.basis.y
-	_place(BOAR.VISUAL_SCENE.instantiate())
+	for k in MonsterBalance.KINDS:
+		var v: BoarVisual = BOAR.VISUAL_SCENE.instantiate()
+		_place(v)
+		v.set_kind(k)
+	for mat in [BossBar.back_material(), BossBar.fill_material()]:
+		var bar := MeshInstance3D.new()
+		bar.mesh = BoxMesh.new()
+		bar.material_override = mat
+		_place(bar)
 	for path in SCENES:
 		_place((load(path) as PackedScene).instantiate())
 	_place(_steak_field())

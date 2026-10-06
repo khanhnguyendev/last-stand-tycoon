@@ -193,6 +193,9 @@ func _refresh_all() -> void:
 	gold_label.text = str(GameState.gold)
 	diner_bar.value = GameState.diner_hp
 	day_label.text = tr("Day %d") % GameState.day
+	icons.boss_alive = false
+	icons.boss_moon = boss_moon_index()
+	icons.queue_redraw()
 
 func _on_gold_changed(gold: int, _delta: int) -> void:
 	gold_label.text = str(gold)
