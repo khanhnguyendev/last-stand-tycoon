@@ -5,6 +5,7 @@
 # Sim budget (D-247): the deterministic check is a per-test physics-tick budget (tests/sim_ticks.golden.json, +20%),
 # enforced by tests/sim/tick_budget_hook.gd. Wall time only warns above SIM_WARN_S (default 60) and fails above
 # SIM_FAIL_S (default 150). Update the golden file deliberately: TICK_BUDGET_UPDATE=1 ./run_tests.sh sim|sim-tiers
+# (refused in CI). A watchdog kills a sim suite that is still running SIM_FAIL_S + 30 s after it started (a hang).
 # Fails on test failures AND on GUT errors (missing scripts, parse errors, nothing run).
 # .gutconfig.json is ignored by this runner (-gconfig=); dirs come from the flags below.
 set -euo pipefail
@@ -17,7 +18,7 @@ run_gut() {
   local log rc; log="$(mktemp)"
   trap 'rm -f "$log"' RETURN INT TERM
   local wd=()
-  if [ -n "${WATCHDOG_S:-}" ]; then wd=(perl -e 'alarm shift; exec @ARGV' "$WATCHDOG_S"); fi
+  if [ -n "${WATCHDOG_S:-}" ]; then wd=(perl -e 'alarm shift; exec @ARGV or die "exec $ARGV[0]: $!\n"' "$WATCHDOG_S"); fi
   set +e
   ${wd[@]+"${wd[@]}"} "$GODOT" --headless --path . --fixed-fps 60 -s res://addons/gut/gut_cmdln.gd \
     -gconfig= -ginclude_subdirs -gprefix=test_ "$@" -gexit 2>&1 | tee "$log"
@@ -50,7 +51,7 @@ run_sim_suite() {
   # GUT hangs (never exits) on a missing hook script, so fail fast here instead.
   if [ ! -f "${hook#res://}" ]; then echo "Tick budget hook missing: $hook; failing"; return 1; fi
   start=$SECONDS
-  WATCHDOG_S=$((fail + 30)) WATCHDOG_MODE="$mode" TICK_CHECK=1 TICK_BUDGET_DIR="res://$dir" run_gut -gdir="res://$dir" -gpre_run_script="$hook" || rc=$?
+  WATCHDOG_S=$((10#$fail + 30)) WATCHDOG_MODE="$mode" TICK_CHECK=1 TICK_BUDGET_DIR="res://$dir" run_gut -gdir="res://$dir" -gpre_run_script="$hook" || rc=$?
   elapsed=$((SECONDS - start))
   echo "SIM SUITE $mode: ${elapsed}s (warn ${warn}s, fail ${fail}s)"
   [ "$rc" -eq 0 ] || return "$rc"

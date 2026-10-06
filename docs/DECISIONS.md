@@ -2259,6 +2259,13 @@ PR runs. Every sim file was about 1.7 times slower on the slow runs: runner spee
   and updated deliberately with `TICK_BUDGET_UPDATE=1 ./run_tests.sh sim` (or `sim-tiers`); the diff of that file is
   the review surface for "this sim got longer".
 - **Unchanged:** never drop, skip or weaken a test (D-132). CI stays canonical for sim thresholds (D-105).
+- **Guards:** an empty suite directory fails; a golden key without a sim, or a sim without a golden key, fails in
+  `unit` as well; `TICK_BUDGET_UPDATE` is refused in CI and never writes after a failing run; a watchdog kills a suite
+  still running 30 s past the hard limit (GUT never exits when its pre-run hook does not compile).
+- **Evidence:** Linux CI (PR #54) gives the same 18 tick counts as the macOS recording. One sim
+  (`test_night1_fail_restarts_night`) reads 2280 or 2281 between local runs: GUT's paint pause between tests depends on
+  wall time and shifts the phase the next test starts in by one frame. Counts are stable to within 1 tick, not
+  byte-identical; a 1-tick golden diff is not a regression.
 - Cost if wrong: a slow-but-not-runaway regression in engine or script cost per tick no longer fails CI; it shows as
   the warning annotation and in the perf readings. Reversible (one script, one workflow, one golden file).
 

@@ -32,6 +32,18 @@ it is done.
 9. Determinism pins that only hold for shipped balance: the boss-first order relies on `boss_lead > 0`; the lane RNG
    draw order relies on `tier_base[1] == 1` (both pinned by unit tests; make the code robust before tuning either).
 
+## Tick budget (D-247, from its review)
+
+- The start phase of a sim depends on GUT's wall-clock paint pause after a very short previous test (1-tick jitter on
+  `test_night1_fail_restarts_night`). Hardening: `await get_tree().process_frame` first in each sim's `before_each`,
+  or `-gpaint_after=0.001` for sim suites; confirm with repeat runs.
+- `tests/sim/tick_budget_hook.gd`: a parameterized sim would record only its last parameter (GUT emits `start_test`
+  per parameter, `end_test` once); keep the first start. No sim is parameterized today.
+- `tests/unit/test_tick_budget.gd`: the coverage scan keys an inner-class test as `path::test_x`; the hook uses
+  `path::Inner::test_x`. Align them before the first inner-class sim.
+- A sim hollowed out to an early `return` still passes the tick budget (fewer ticks are allowed); the guard is the
+  golden file's diff in review.
+
 ## From the task reviews (deferred minor findings, as logged)
 
 Copied from the build ledger in the order they were logged. Some were fixed later in the build (the phase-2 follow-up
