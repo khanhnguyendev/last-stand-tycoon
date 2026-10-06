@@ -587,3 +587,24 @@ against the re-recorded files; rows 1 to 7 proven identical to the old files.
 **Device:** `export/device_check.sh` on the preview URL: the tier sign, the boss bar and the boss moon readable at
 720×1280 on the notch iPhone; the yards and the tier-2 diner visible from `HOME`; 100 steaks on the ground do not hide
 the hero (section 11).
+
+## 15. Changes made while planning (2026-10-06)
+
+The implementation plan (`docs/superpowers/plans/2026-10-06-e5-tier-ladder.md`) departs from the text above in these
+points; the design and every number are unchanged.
+
+- **`EnemyBalance` and `WaveBalance.target_priority` stay** as the Boar's numbers (about 40 tests read
+  `Balance.data.enemy`). `MonsterBalance.stats(&"boar")` is a live view built from them, so each number still has one
+  source; the hare and the boss are exported `MonsterStats`. Section 4.3's "that resource is folded" and
+  "`WaveBalance.target_priority` is removed" do not apply.
+- **`LanePlanner.plan(run_seed, day, wb, tier := 1, tier_day := 1, tb := null)`**: the day stays the second argument
+  (the lanes still come from the day's stream) and the pressure is derived inside; `LanePlanner.with_boss(plan)` marks
+  the last wave. Section 4.1's signature is replaced by this one.
+- **The reveal's camera pull-back** lasts the whole step sequence (about 3 s) instead of 0.6 s out and 0.8 s back.
+- **The sweep** prints `unspent_day14` on the `SWEEP` line and a `TIER` line (`first_tier2_day`, `boss_retries`) in
+  tier mode, so the gold criterion and the boss retries are read from the lines, not only the CSV.
+- **`SimThresholds.boss_night_max_retries`** (2) holds sim 1's allowance; the retired `break_day_*` fields are removed.
+- **The yard stones** are spaced 1.2 m along the outline, scale 0.55, yaw by position hash.
+- **Save validation** accepts a `tier` up to `max_tier` and `GameState.from_dict` clamps it to the top this build
+  knows; a spot id the build does not know is still rejected ("building"). A tier-2 save on a build that only knows
+  tier 1 is therefore rejected, not clamped: the limit of the clamp rule, pinned by a test.
