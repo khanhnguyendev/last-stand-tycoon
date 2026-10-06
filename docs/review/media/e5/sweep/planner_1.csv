@@ -1,0 +1,15 @@
+day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked
+1,0.667,0,18,36,108,tower_nw:0|tower_ne:0|fence_w:0|fence_n:0|fence_e:0,18,80.8,96.3,8,tank:1,0,tank
+2,0.883,0,24,48,144,tower_nw:1|tower_ne:1|fence_w:1|fence_n:0|fence_e:0,24,75.9,141.2,32,hero_damage:1|tank:1,0,hero_damage
+3,0.817,0,31,62,186,tower_nw:2|tower_ne:1|fence_w:1|fence_n:1|fence_e:1,31,84.4,161.2,18,hero_damage:1|attack_speed:1|tank:1,0,attack_speed
+4,0.900,0,36,72,216,tower_nw:2|tower_ne:2|fence_w:2|fence_n:1|fence_e:2,36,92.7,199.2,34,hero_damage:1|attack_speed:1|archer:1|tank:1,0,archer
+5,1.000,0,43,86,258,tower_nw:2|tower_ne:3|fence_w:2|fence_n:1|fence_e:1,43,88.0,217.6,12,hero_damage:2|attack_speed:1|archer:1|tank:1,0,hero_damage
+6,1.000,0,50,100,300,tower_nw:3|tower_ne:3|fence_w:3|fence_n:2|fence_e:1,50,89.8,236.7,52,hero_damage:2|attack_speed:1|archer:1|tank:2,0,tank
+7,0.850,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,97.2,256.7,248,hero_damage:2|attack_speed:1|archer:1|tank:3,0,tank
+8,1.000,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,96.7,229.2,584,hero_damage:2|attack_speed:1|archer:1|tank:4,0,tank
+9,0.933,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,99.0,290.6,640,hero_damage:2|attack_speed:1|archer:1|tank:5,0,tank
+10,1.000,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,98.4,261.3,836,hero_damage:2|attack_speed:1|archer:2|tank:5,0,archer
+11,1.000,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,97.9,261.1,1032,hero_damage:2|attack_speed:1|archer:3|tank:5,0,archer
+12,1.000,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,96.9,242.6,1368,hero_damage:2|attack_speed:2|archer:3|tank:5,0,attack_speed
+13,0.833,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,97.9,267.6,1424,hero_damage:3|attack_speed:2|archer:3|tank:5,0,hero_damage
+14,0.867,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,98.4,247.9,1620,hero_damage:3|attack_speed:2|archer:4|tank:5,0,archer

@@ -1,0 +1,20 @@
+--- old/s4_sweep_777.csv	2026-10-06 17:32:05
++++ ../../../../../tests/sim/baseline/s4_sweep_777.csv	2026-10-06 17:35:26
+@@ -6,10 +6,10 @@
+ 5,0.950,0,43,86,258,tower_nw:2|tower_ne:2|fence_w:2|fence_n:2|fence_e:1,43,90.8,234.5,12,hero_damage:1|archer:1|tank:3,0,archer
+ 6,0.483,0,50,100,300,tower_nw:3|tower_ne:2|fence_w:3|fence_n:1|fence_e:1,50,94.0,242.9,12,hero_damage:1|archer:1|tank:4,0,tank
+ 7,0.567,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:1,56,99.3,243.5,88,hero_damage:1|attack_speed:1|archer:1|tank:4,0,attack_speed
+-8,0.867,0,63,126,378,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,63,104.8,298.1,186,hero_damage:1|attack_speed:1|archer:2|tank:4,0,archer
+-9,0.650,0,68,136,408,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,68,110.9,344.0,314,hero_damage:1|attack_speed:1|archer:2|tank:5,1,tank
+-10,0.150,1,72,144,432,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,72,115.4,331.6,466,hero_damage:2|attack_speed:1|archer:2|tank:5,0,hero_damage
+-11,0.632,1,75,150,450,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,75,116.4,350.9,496,hero_damage:3|attack_speed:1|archer:2|tank:5,0,hero_damage
+-12,0.802,2,78,156,468,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,78,116.2,355.3,684,hero_damage:4|attack_speed:1|archer:2|tank:5,0,hero_damage
+-13,0.498,2,81,162,486,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,81,118.7,384.9,890,hero_damage:4|attack_speed:1|archer:3|tank:5,0,archer
+-14,0.807,3,82,164,492,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,82,114.9,348.7,1102,hero_damage:5|attack_speed:1|archer:3|tank:5,0,hero_damage
++8,0.583,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,100.9,266.0,144,hero_damage:1|attack_speed:1|archer:2|tank:4,0,archer
++9,1.000,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,97.4,270.2,340,hero_damage:1|attack_speed:1|archer:2|tank:5,0,tank
++10,0.950,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,97.2,263.9,536,hero_damage:2|attack_speed:1|archer:2|tank:5,0,hero_damage
++11,1.000,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,91.9,229.6,872,hero_damage:3|attack_speed:1|archer:2|tank:5,0,hero_damage
++12,1.000,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,95.6,237.8,1208,hero_damage:4|attack_speed:1|archer:2|tank:5,0,hero_damage
++13,1.000,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,94.6,252.1,1544,hero_damage:4|attack_speed:1|archer:3|tank:5,0,archer
++14,0.950,0,56,112,336,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,96.4,242.4,1740,hero_damage:5|attack_speed:1|archer:3|tank:5,0,hero_damage
