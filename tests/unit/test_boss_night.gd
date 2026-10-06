@@ -23,10 +23,11 @@ func after_each() -> void:
 func _on_banner(t: String) -> void: banners.append(t)
 func _on_offered(o: Array) -> void: offered.append(o)
 
-func _pay_and_close() -> void:
+func _pay_and_close(extra := 0) -> void:
 	main.phase_controller.debug_skip_to_day()
-	GameState.add_gold(500)
-	GameState.pay_into_tier(500)
+	var cost := GameState.tier_next_cost()
+	GameState.add_gold(cost + extra)
+	GameState.pay_into_tier(cost)
 	banners.clear()
 	offered.clear()
 	main.phase_controller.debug_skip_to_night()
@@ -47,7 +48,7 @@ func test_normal_night_has_no_boss_banner() -> void:
 	assert_false(banners.has(tr("The Boar King comes")))
 
 func test_lost_boss_night_restores_with_the_payment_kept() -> void:
-	_pay_and_close()
+	_pay_and_close(50)
 	GameState.damage_diner(1e9)
 	for i in int(ceil(Balance.ui.banner_time * 60.0)) + 3:
 		await get_tree().physics_frame
@@ -56,7 +57,9 @@ func test_lost_boss_night_restores_with_the_payment_kept() -> void:
 	assert_true(GameState.is_boss_night(), "the boss wave is back in the plan")
 	assert_eq(GameState.tier, 1)
 	assert_eq(GameState.night_fails, 1, "mercy counts the loss")
-	assert_eq(GameState.pay_into_tier(50), 0, "no refund, no double payment")
+	assert_eq(GameState.gold, 50, "no refund")
+	assert_eq(GameState.pay_into_tier(50), 0, "no double payment")
+	assert_eq(GameState.gold, 50)
 
 func test_won_boss_night_tiers_up_at_dawn_and_delays_the_card_pick() -> void:
 	_pay_and_close()
@@ -74,8 +77,8 @@ func test_won_boss_night_tiers_up_at_dawn_and_delays_the_card_pick() -> void:
 	for i in _reveal_ticks():
 		await get_tree().physics_frame
 	assert_false(main.phase_controller.reveal_pending)
-	assert_eq(main.phase_controller.dawn_substate, "CARD_PICK")
-	assert_eq(offered.size(), 1)
+	# debug_skip_to_day closes the pick it finds open, so the pick's proof is the offer emitted on the same frame.
+	assert_eq(offered.size(), 1, "the pick opened at once, no reveal")
 
 func test_normal_dawn_has_no_delay_and_no_tier_up() -> void:
 	main.phase_controller.debug_skip_to_day()
@@ -103,6 +106,7 @@ func test_new_game_during_the_reveal_cancels_the_pick() -> void:
 	_pay_and_close()
 	main.phase_controller.debug_skip_to_day()
 	main.phase_controller.start_new_game(7)
+	assert_false(main.phase_controller.reveal_pending)
 	for i in _reveal_ticks():
 		await get_tree().physics_frame
 	assert_eq(offered, [])
@@ -122,3 +126,18 @@ func test_old_tier1_save_past_day_7_replans_at_the_cap_on_its_next_dawn() -> voi
 	assert_eq(GameState.day, 13)
 	assert_eq(GameState.pressure(), 7)
 	assert_eq(GameState.lane_plan[0].main_count + GameState.lane_plan[0].side_count, WaveMath.total_count(7, 0, Balance.data.wave))
+
+func test_top_tier_no_op_opens_the_pick_at_once() -> void:
+	main.phase_controller.debug_skip_to_day()
+	GameState.debug_set_tier(2, GameState.day)
+	GameState.boss_pending = true  # test-only setup: a clamped save pending at the top tier
+	GameState.lane_plan = LanePlanner.with_boss(GameState.lane_plan)  # test-only setup
+	banners.clear()
+	offered.clear()
+	main.phase_controller.debug_skip_to_night()
+	main.phase_controller.debug_skip_to_day()
+	assert_false(main.phase_controller.reveal_pending)
+	assert_eq(GameState.tier, 2)
+	assert_false(GameState.boss_pending)
+	# debug_skip_to_day closes the pick it finds open, so the pick's proof is the offer emitted on the same frame.
+	assert_eq(offered.size(), 1, "the pick opened at once, no reveal")

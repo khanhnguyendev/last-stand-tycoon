@@ -93,9 +93,12 @@ func _run_dawn() -> void:
 	if won_boss:
 		# E5 spec 6.4: the new day's plan is already at the new tier. The offer is stored first so a save written
 		# during the reveal resumes at the card pick; the pick itself waits for the reveal.
-		if not offer.is_empty():
-			GameState.stash_card_offer(offer)
+		GameState.stash_card_offer(offer)  # unconditional: an empty offer clears a stale one
+		var tier0 := GameState.tier
 		GameState.complete_tier_up()
+		if GameState.tier == tier0:  # the top-tier no-op: no tier_reached, nothing to reveal
+			_card_pick(offer)
+			return
 		reveal_pending = true
 		_reveal_id += 1
 		get_tree().create_timer(Balance.data.tiers.tier_reveal_time, false, true).timeout.connect(_on_reveal_timer.bind(_reveal_id))
