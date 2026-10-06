@@ -1,3 +1,5 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
 day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked
 1,0.667,0,18,36,108,tower_nw:0|tower_ne:0|fence_w:0|fence_n:0|fence_e:0,18,80.8,108.4,8,tank:1,0,tank
 2,1.000,0,24,48,144,tower_nw:1|tower_ne:1|fence_w:1|fence_n:0|fence_e:0,24,70.9,127.0,32,archer:1|tank:1,0,archer
@@ -13,3 +15,5 @@ day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_co
 12,0.800,0,56,112,448,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,97.2,258.8,1520,hero_damage:4|gold_per_steak:1|archer:2|tank:5,0,hero_damage
 13,0.850,0,56,112,448,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,97.3,254.3,1828,hero_damage:4|gold_per_steak:1|archer:3|tank:5,0,archer
 14,1.000,0,56,112,448,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,97.3,237.8,2276,hero_damage:4|gold_per_steak:1|archer:4|tank:5,0,archer
+SWEEP first_fail_day=-1 hard_break_day=-1 unspent_day14=2276
+RETRIES days=14 median=0.0 max_before_day8=0 max=0 target_ok=true

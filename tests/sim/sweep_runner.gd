@@ -1,6 +1,7 @@
 extends Node
 ## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1-14 by default -> tests/sim/out/sweep.csv.
 ## `--bot=upgrader` runs the UpgraderBot and writes `sweep_upgrader.csv` with a `stations` column (E1).
+## `--bot=tier` runs the TierBot -> `sweep_tier.csv` (+ tier,boss_night,boss_retries) and prints a TIER line (E5).
 ## After the SWEEP line it prints a RETRIES line (days, median, max_before_day8, max, target_ok) for the D-184 retries-per-night target.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
 
@@ -13,28 +14,34 @@ func _run() -> void:
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if kv.size() == 2:
 			args[kv[0]] = kv[1]
-	if String(args.bot) != "planner" and String(args.bot) != "upgrader":
-		push_error("unknown --bot=%s (planner|upgrader)" % args.bot)
+	if not String(args.bot) in ["planner", "upgrader", "tier"]:
+		push_error("unknown --bot=%s (planner|upgrader|tier)" % args.bot)
 		get_tree().quit(2)
 		return
 	Balance.reset()
-	var upgrader := String(args.bot) == "upgrader"
+	var tier_mode := String(args.bot) == "tier"
+	var upgrader := String(args.bot) == "upgrader" or tier_mode
 	var holder := Node.new()
 	get_tree().root.add_child(holder)
 	var h := SimHarness.new(holder)
-	h.start(int(args.seed), UpgraderBot if upgrader else PlannerBot)
+	h.start(int(args.seed), TierBot if tier_mode else (UpgraderBot if upgrader else PlannerBot))
 	EventBus.steak_sold.connect(_on_sold)
 	EventBus.card_picked.connect(_on_picked)
 	EventBus.guard_knocked_out.connect(_on_knockout)
-	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked" + (",stations" if upgrader else "")]
+	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked" + (",stations" if upgrader else "") + (",tier,boss_night,boss_retries" if tier_mode else "")]
 	var first_fail_day := -1
 	var hard_break_day := -1
 	var retries_per_day: Array = []
+	var nights: Array = []
+	var unspent_day14 := -1
 	for day in range(1, int(args.days) + 1):
 		var retries := 0
 		_picked = ""
 		_knockouts = 0
-		var enemy_count := Economy.night_kills(GameState.day, Balance.data.wave)
+		var enemy_count := SweepMath.enemy_count(GameState.lane_plan)  # the night's own plan (capped past day 7)
+		var boss_night := GameState.is_boss_night()
+		var start_tier := GameState.tier
+		var at_cap := start_tier == 2 and GameState.pressure() == int(Balance.data.tiers.tier_cap[2])
 		var defending := _builds()  # what stands when the night starts (spent during the day before)
 		var stock0 := GameState.freezer_steaks + GameState.carried_steaks
 		var t0 := h.elapsed
@@ -53,20 +60,24 @@ func _run() -> void:
 			_knockouts = 0  # per attempt: the row reports the last attempt's knockouts
 			n = await h.run_night()
 		retries_per_day.append(retries)  # hard-break days count too
+		nights.append({"day": day, "tier": start_tier, "boss_night": boss_night, "retries": retries, "at_cap": at_cap})
+		var tcols := _tier_cols(tier_mode, start_tier, boss_night, retries)
 		var night_s := h.elapsed - t0
 		if n.failed:
 			hard_break_day = day
-			rows.append("%d,%.3f,%d,%d,0,0,%s,%d,%.1f,,,%s,%d," % [day, n.diner_frac, retries, n.kills, defending, enemy_count, night_s, _cards(), _knockouts] + _stations(upgrader))
+			rows.append("%d,%.3f,%d,%d,0,0,%s,%d,%.1f,,,%s,%d," % [day, n.diner_frac, retries, n.kills, defending, enemy_count, night_s, _cards(), _knockouts] + _stations(upgrader) + tcols)
 			break
 		# dawn moved the night's steaks to the freezer (freezer + carried, as test_night_sims counts); gold is what the day's sales pay out
 		var steaks := GameState.freezer_steaks + GameState.carried_steaks - stock0
 		_gold_sold = 0
 		var d := await h.run_day()
 		if not d.closed:
-			rows.append("%d,STALL" % day + _stations(upgrader))
+			rows.append("%d,STALL" % day + _stations(upgrader) + tcols)
 			break
 		rows.append("%d,%.3f,%d,%d,%d,%d,%s,%d,%.1f,%.1f,%d,%s,%d,%s" % [day, n.diner_frac, retries, n.kills, steaks,
-			_gold_sold, defending, enemy_count, night_s, d.seconds, int(h.main.phase_controller.snapshot.gold), _cards(), _knockouts, _picked] + _stations(upgrader))
+			_gold_sold, defending, enemy_count, night_s, d.seconds, int(h.main.phase_controller.snapshot.gold), _cards(), _knockouts, _picked] + _stations(upgrader) + tcols)
+		if day == 14:
+			unspent_day14 = int(h.main.phase_controller.snapshot.gold)
 	if EventBus.steak_sold.is_connected(_on_sold):
 		EventBus.steak_sold.disconnect(_on_sold)
 	if EventBus.card_picked.is_connected(_on_picked):
@@ -77,11 +88,11 @@ func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	var gi := FileAccess.open(out_dir.path_join(".gdignore"), FileAccess.WRITE)  # keep Godot from importing out/
 	gi.close()
-	var f := FileAccess.open(out_dir.path_join("sweep_upgrader.csv" if upgrader else "sweep.csv"), FileAccess.WRITE)
+	var f := FileAccess.open(out_dir.path_join("sweep_tier.csv" if tier_mode else ("sweep_upgrader.csv" if upgrader else "sweep.csv")), FileAccess.WRITE)
 	f.store_string("\n".join(rows) + "\n")
 	f.close()
 	print("\n".join(rows))
-	print("SWEEP first_fail_day=%d hard_break_day=%d target=%d±%d" % [first_fail_day, hard_break_day, Balance.data.sim.break_day_target, Balance.data.sim.break_day_tolerance])
+	print("SWEEP first_fail_day=%d hard_break_day=%d unspent_day14=%d" % [first_fail_day, hard_break_day, unspent_day14])
 	var sorted_r := retries_per_day.duplicate()
 	sorted_r.sort()
 	var median := 0.0
@@ -94,6 +105,9 @@ func _run() -> void:
 	for i in range(mini(7, retries_per_day.size())):
 		max_early = maxi(max_early, retries_per_day[i])
 	print("RETRIES days=%d median=%s max_before_day8=%d max=%d target_ok=%s" % [retries_per_day.size(), median, max_early, max_r, str(median == 0.0 and max_early <= 2).to_lower()])
+	if tier_mode:
+		var ts := SweepMath.tier_summary(nights)
+		print("TIER first_tier2_day=%d boss_retries=%d cap_nights=%d cap_retries=%d" % [ts.first_tier2_day, ts.boss_retries, ts.cap_nights, ts.cap_retries])
 	h.finish()
 	get_tree().quit(0)
 
@@ -119,8 +133,9 @@ func _on_sold(_count: int, gold: int) -> void:
 
 func _builds() -> String:
 	var parts: Array = []
-	for id in MapLayout.SPOT_IDS:
-		parts.append("%s:%d" % [id, int(GameState.buildings[id].level)])
+	for id in MapLayout.ALL_SPOT_IDS:
+		if GameState.buildings.has(id):
+			parts.append("%s:%d" % [id, int(GameState.buildings[id].level)])
 	return "|".join(parts)
 
 ## "" for the planner (its CSV must stay byte-identical to the S4 baseline); the station levels for the upgrader.
@@ -131,3 +146,9 @@ func _stations(upgrader: bool) -> String:
 	for id in StationEffects.IDS:
 		parts.append("%s:%d" % [id, GameState.station_level(id)])
 	return "," + "|".join(parts)
+
+## "" unless the tier bot runs: the tier at the night's start, whether it was a boss night, and its retries then.
+func _tier_cols(tier_mode: bool, start_tier: int, boss_night: bool, retries: int) -> String:
+	if not tier_mode:
+		return ""
+	return ",%d,%d,%d" % [start_tier, 1 if boss_night else 0, retries if boss_night else 0]
