@@ -65,14 +65,10 @@ func _on_build_completed(id: StringName, _level: int) -> void:
 	if String(id) != spot_id:
 		return
 	_kill_pop()
-	var base := visual.scale
-	visual.scale = base * Balance.ui.build_pop_scale
-	_pop = create_tween()
-	_pop.tween_property(visual, "scale", base, Balance.ui.build_pop_time)
+	_pop = PopFx.pop(self, visual, visual.scale, _pop)
 
 func _kill_pop() -> void:
-	if _pop != null and _pop.is_valid():
-		_pop.kill()
+	PopFx.kill(_pop)
 	_pop = null
 
 ## Task 23 review: partial-payment rings don't glow on the lanes during combat.

@@ -247,7 +247,7 @@ func debug_set_station_level(id: StringName, level: int) -> void   # tests, sims
 - `test_save_codec.gd`'s "no step registered for `SCHEMA_VERSION - 1`" assertion changes to cover the built-in step.
 - `export/fixtures/night3_*.save.json` stay at schema 3: `test_perf_fixture.gd` and `test_lighting_director.gd` now
   also prove the migration on real files.
-- Validation: both ids present and no unknown id, `0 <= level <= max_level`, `paid >= 0`. On load, `paid` is clamped
+- Validation: both ids present and no unknown id, `level >= 0` (clamped to `max_level` on load, D-234), `paid >= 0`. On load, `paid` is clamped
   to `cost - 1` (0 at max level): a save written before a cost was lowered still loads and its pad still completes.
 - `counter_steaks` above the current capacity is not an error (capacity only limits adding).
 

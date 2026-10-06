@@ -80,7 +80,7 @@ func test_validation() -> void:
 	assert_eq(_bad(func(s): s.stations.counter = {"level": 0}), "content")
 	assert_eq(_bad(func(s): s.stations.counter.level = "1"), "content")
 	assert_eq(_bad(func(s): s.stations.counter.level = -1), "content")
-	assert_eq(_bad(func(s): s.stations.counter.level = bd.stations.max_level + 1), "content")
+	assert_eq(_bad(func(s): s.stations.counter.level = bd.stations.max_level + 1), "", "clamped on load (D-234)")
 	assert_eq(_bad(func(s): s.stations.counter.paid = -1), "content")
 	assert_eq(_bad(func(s): s.stations.counter.level = bd.stations.max_level), "")
 
@@ -96,6 +96,16 @@ func test_a_paid_amount_above_the_cost_loads_and_the_pad_still_works() -> void:
 	assert_eq(int(GameState.stations[&"counter"].paid), cost - 1)
 	assert_eq(GameState.pay_into_station(&"counter", 5), 1)
 	assert_eq(GameState.station_level(&"counter"), 1)
+
+func test_a_level_above_max_is_clamped_on_load() -> void:
+	var s := GameState.to_dict()
+	s.stations.counter.level = bd.stations.max_level + 3
+	var r := _decode(s)
+	assert_true(r.ok, r.reason)
+	GameState.from_dict(r.state)
+	assert_eq(GameState.station_level(&"counter"), bd.stations.max_level)
+	assert_eq(int(GameState.stations[&"counter"].paid), 0)
+	assert_eq(GameState.station_next_cost(&"counter"), -1)
 
 func test_paid_at_max_level_is_dropped_on_load() -> void:
 	var s := GameState.to_dict()

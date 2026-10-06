@@ -2166,3 +2166,14 @@ Notes the later E2 spec starts from (author's choices, 2026-10-06):
   pads and the tier sign to use. Giving the hero a new day action instead is out of E2's scope.
 - Open (not decided): how many staff, whether they level up, one-time price or wage, where they are hired, what they
   do at night, how they look, day perf with more animated characters (each KayKit character is about 5k triangles).
+
+## 2026-10-06: E1 follow-ups (owed from the E1 final review)
+
+**D-234 A station level above `max_level` is clamped on load, not rejected.** `SaveCodec.validate` accepted
+`0 <= level <= max_level`, so lowering `stations.max_level` in a later build would have rejected every save that had
+reached the old maximum. Validation now checks only `level >= 0`; `GameState.from_dict` already clamps the level to
+`max_level` (and `paid` to `cost - 1`, D-231). Same rule as `paid`: a later balance change never loses a save.
+Also in this follow-up set: the four E1 test files derive every cost from `StationEffects` instead of literals (so cost
+tuning does not break tests); the counter, freezer and build-spot pop tween share one helper (`PopFx`) and every pop is
+killed on `state_restored`; a unit test pins `World.add_static_box`'s child order (shape, then visual root), which the
+station pop depends on.

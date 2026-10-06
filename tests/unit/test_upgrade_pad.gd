@@ -40,9 +40,10 @@ func test_hidden_at_night_shown_by_day() -> void:
 
 func test_standing_on_the_pad_buys_a_level() -> void:
 	main.phase_controller.debug_skip_to_day()
-	GameState.add_gold(30)
+	var cost := GameState.station_next_cost(&"counter")
+	GameState.add_gold(cost)
 	await TestHelpers.walk_in(main.hero, MapLayout.STATION_PADS[&"counter"])
-	await _ticks(_pay_ticks(30))
+	await _ticks(_pay_ticks(cost))
 	assert_eq(GameState.station_level(&"counter"), 1)
 	assert_eq(GameState.gold, 0)
 	assert_true(pad._pips[0].visible)
@@ -51,12 +52,14 @@ func test_standing_on_the_pad_buys_a_level() -> void:
 
 func test_the_ring_shows_paid_over_cost() -> void:
 	main.phase_controller.debug_skip_to_day()
-	GameState.add_gold(15)
+	var cost := GameState.station_next_cost(&"counter")
+	var held := floori(cost / 2.0)
+	GameState.add_gold(held)
 	await TestHelpers.walk_in(main.hero, MapLayout.STATION_PADS[&"counter"])
-	await _ticks(_pay_ticks(30))
-	assert_eq(int(GameState.stations[&"counter"].paid), 15, "all the gold held, level not complete")
+	await _ticks(_pay_ticks(cost))
+	assert_eq(int(GameState.stations[&"counter"].paid), held, "all the gold held, level not complete")
 	assert_true(pad.zone.ring.visible)
-	assert_eq(pad.label.text, "15")
+	assert_eq(pad.label.text, str(cost - held))
 
 func test_max_level_reads_max_and_takes_nothing() -> void:
 	main.phase_controller.debug_skip_to_day()
@@ -71,11 +74,12 @@ func test_max_level_reads_max_and_takes_nothing() -> void:
 func test_night_stops_a_payment_and_keeps_the_partial() -> void:
 	# Review Focus 3
 	main.phase_controller.debug_skip_to_day()
-	GameState.add_gold(30)
+	var cost := GameState.station_next_cost(&"counter")
+	GameState.add_gold(cost)
 	await TestHelpers.walk_in(main.hero, MapLayout.STATION_PADS[&"counter"])
 	await _ticks(_pay_ticks(3))
 	var paid := int(GameState.stations[&"counter"].paid)
-	assert_between(paid, 1, 29)
+	assert_between(paid, 1, cost - 1)
 	EventBus.closeup_requested.emit()
 	await _ticks(_pay_ticks(20))
 	assert_eq(main.phase_controller.phase, Phase.NIGHT)
@@ -99,8 +103,9 @@ func test_each_pad_names_its_station() -> void:
 	assert_eq(main.world.upgrade_pads[&"freezer"].name_label.text, tr("Freezer"))
 
 func test_standing_on_the_pad_at_night_pays_nothing() -> void:
-	GameState.add_gold(30)
+	var cost := GameState.station_next_cost(&"counter")
+	GameState.add_gold(cost)
 	await TestHelpers.walk_in(main.hero, MapLayout.STATION_PADS[&"counter"])
 	await _ticks(_pay_ticks(10))
 	assert_eq(int(GameState.stations[&"counter"].paid), 0)
-	assert_eq(GameState.gold, 30)
+	assert_eq(GameState.gold, cost)
