@@ -77,8 +77,8 @@ func test_won_boss_night_tiers_up_at_dawn_and_delays_the_card_pick() -> void:
 	for i in _reveal_ticks():
 		await get_tree().physics_frame
 	assert_false(main.phase_controller.reveal_pending)
-	# debug_skip_to_day closes the pick it finds open, so the pick's proof is the offer emitted on the same frame.
-	assert_eq(offered.size(), 1, "the pick opened at once, no reveal")
+	assert_eq(main.phase_controller.dawn_substate, "CARD_PICK")
+	assert_eq(offered.size(), 1)
 
 func test_normal_dawn_has_no_delay_and_no_tier_up() -> void:
 	main.phase_controller.debug_skip_to_day()
@@ -129,7 +129,8 @@ func test_old_tier1_save_past_day_7_replans_at_the_cap_on_its_next_dawn() -> voi
 
 func test_top_tier_no_op_opens_the_pick_at_once() -> void:
 	main.phase_controller.debug_skip_to_day()
-	GameState.debug_set_tier(2, GameState.day)
+	var top := TierEffects.top_tier(Balance.data.tiers)
+	GameState.debug_set_tier(top, GameState.day)
 	GameState.boss_pending = true  # test-only setup: a clamped save pending at the top tier
 	GameState.lane_plan = LanePlanner.with_boss(GameState.lane_plan)  # test-only setup
 	banners.clear()
@@ -137,7 +138,10 @@ func test_top_tier_no_op_opens_the_pick_at_once() -> void:
 	main.phase_controller.debug_skip_to_night()
 	main.phase_controller.debug_skip_to_day()
 	assert_false(main.phase_controller.reveal_pending)
-	assert_eq(GameState.tier, 2)
+	assert_eq(GameState.tier, top)
 	assert_false(GameState.boss_pending)
 	# debug_skip_to_day closes the pick it finds open, so the pick's proof is the offer emitted on the same frame.
 	assert_eq(offered.size(), 1, "the pick opened at once, no reveal")
+	if not offered[0].is_empty():
+		# With a non-empty offer, DAY is reachable only when debug_skip_to_day found the pick open and closed it.
+		assert_eq(main.phase_controller.phase, Phase.DAY)
