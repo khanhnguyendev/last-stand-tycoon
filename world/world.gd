@@ -7,6 +7,7 @@ extends Node3D
 const GROUND_MARGIN := 80.0
 ## S4 art (D-194, D-201): the diner is one baked mesh plus its rooftop board; instanced once.
 const DINER_ART := preload("res://art/env/diner.tscn")
+const DINER_ART_T2 := preload("res://art/env/diner_t2.tscn")
 
 var lanes := {}
 var lighting: LightingDirector
@@ -167,6 +168,10 @@ func _set_yard_stones(yards: Array) -> void:
 		yard_stones = YardStones.build(yards)
 		add_child(yard_stones)
 
+## E5 Task 11: the tier-2 diner (the flank terraces) from tier 2; tier 1 keeps DINER_ART.
+static func diner_scene_for(tier: int) -> PackedScene:
+	return DINER_ART_T2 if tier >= 2 else DINER_ART
+
 ## E5 spec 7.3: the ground mesh, the yard stones, the props and the spot set follow the tier (tier_changed, tier_reached,
 ## restore, new game). Visual only; cheap to call: nothing happens unless the tier changed.
 func rebuild_for_tier() -> void:
@@ -188,9 +193,25 @@ func rebuild_for_tier() -> void:
 	for id in want:
 		if not build_spots.has(id):
 			_make_spot(id)
+	_swap_diner_art(tier)
+
+## Replaces only the DinerArt child of the diner's Visual (the OccluderFade stays), as child 0, when the scene differs.
+func _swap_diner_art(tier: int) -> void:
+	var vis := diner_body.get_node("Visual")
+	var want := diner_scene_for(tier)
+	var art := vis.get_node_or_null("DinerArt")
+	if art != null and art.scene_file_path == want.resource_path:
+		return
+	if art != null:
+		vis.remove_child(art)  # at once: the fade's find_children must not see the old art
+		art.queue_free()
+	var fresh := want.instantiate()
+	vis.add_child(fresh)
+	vis.move_child(fresh, 0)
+	occluder_fade.refresh_bounds()
 
 func _build_diner() -> void:
-	diner_body = add_static_box("Diner", Vector3(8, MapLayout.DINER_HEIGHT, 8), Vector2.ZERO, DINER_ART)
+	diner_body = add_static_box("Diner", Vector3(8, MapLayout.DINER_HEIGHT, 8), Vector2.ZERO, diner_scene_for(_effective_tier()))
 	# D-151: the diner fades while it hides the hero or a Boar from the camera.
 	occluder_fade = OccluderFade.new()
 	occluder_fade.name = "OccluderFade"
