@@ -1,7 +1,7 @@
 extends Node
 ## The only mutable game data (spec 4, D-096). Only these methods change it; they emit EventBus signals.
 
-const SCHEMA_VERSION := 4
+const SCHEMA_VERSION := 5
 
 var resume_phase := "NIGHT"
 var run_seed := 0
@@ -22,6 +22,12 @@ var guards := {}
 var night_fails := 0
 ## E1: station upgrades (StringName -> {level, paid}). Empty until the first new_game.
 var stations := {}
+## E5: the diner tier (spec 6.1). tier_day = the day the tier was entered; tier_paid = the sign's partial payment;
+## boss_pending = paid in full, the coming night is a boss night.
+var tier := 1
+var tier_day := 1
+var tier_paid := 0
+var boss_pending := false
 
 func new_game(seed: int = 0) -> void:
 	run_seed = seed if seed != 0 else Rng.new_run_seed()
@@ -33,15 +39,19 @@ func new_game(seed: int = 0) -> void:
 	counter_steaks = 0
 	carried_steaks = 0
 	diner_hp = Balance.data.build.diner_max_hp
+	tier = 1
+	tier_day = 1
+	tier_paid = 0
+	boss_pending = false
 	buildings = {}
-	for id in MapLayout.SPOT_IDS:
+	for id in MapLayout.spots_for_tier(tier):
 		buildings[id] = {"level": 0, "paid": 0, "hp": 0.0}
 	stations = _fresh_stations()
 	cards = {}
 	card_offer = []
 	guards = {}
 	night_fails = 0
-	lane_plan = LanePlanner.plan(run_seed, day, Balance.data.wave)
+	lane_plan = _plan_today()
 	EventBus.state_restored.emit()
 
 # --- snapshot -------------------------------------------------------------
@@ -55,6 +65,7 @@ func to_dict() -> Dictionary:
 		"cards": _string_keys(cards), "card_offer": card_offer.map(func(id): return String(id)),
 		"guards": _guards_out(), "night_fails": night_fails,
 		"stations": _stations_out(),
+		"tier": tier, "tier_day": tier_day, "tier_paid": tier_paid, "boss_pending": boss_pending,
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -68,6 +79,12 @@ func from_dict(d: Dictionary) -> void:
 	counter_steaks = int(d.counter_steaks)
 	carried_steaks = int(d.carried_steaks)
 	diner_hp = float(d.diner_hp)
+	tier = clampi(int(d.tier), 1, TierEffects.top_tier(Balance.data.tiers))
+	tier_day = int(d.tier_day)
+	boss_pending = bool(d.boss_pending)
+	var tcost := TierEffects.tier_cost(tier, Balance.data.tiers)
+	# A paid amount at or above the cost would never complete (D-231's rule for pads); 0 at the top or while pending.
+	tier_paid = 0 if (tcost < 0 or boss_pending) else clampi(int(d.tier_paid), 0, maxi(tcost - 1, 0))
 	buildings = {}
 	for id in d.buildings:
 		var b: Dictionary = d.buildings[id]
@@ -291,7 +308,81 @@ func reset_destroyed_fences() -> void:
 
 func advance_day() -> void:
 	day += 1
-	lane_plan = LanePlanner.plan(run_seed, day, Balance.data.wave)
+	lane_plan = _plan_today()
+
+# --- diner tier (E5) --------------------------------------------------------
+
+func _plan_today() -> Array:
+	var p := LanePlanner.plan(run_seed, day, Balance.data.wave, tier, tier_day, Balance.data.tiers)
+	return LanePlanner.with_boss(p) if boss_pending else p
+
+func pressure() -> int:
+	return WaveMath.pressure(day, tier, tier_day, Balance.data.tiers)
+
+func is_boss_night() -> bool:
+	return not lane_plan.is_empty() and bool(lane_plan[lane_plan.size() - 1].get("boss", false))
+
+## -1 when this build has no next tier. Also -1 before the first new_game (buildings is empty while the world warms up).
+func tier_next_cost() -> int:
+	if buildings.is_empty():
+		return -1
+	return TierEffects.tier_cost(tier, Balance.data.tiers)
+
+## 0 once paid in full (boss pending), -1 at the top.
+func tier_remaining_cost() -> int:
+	var cost := tier_next_cost()
+	if cost < 0:
+		return -1
+	return 0 if boss_pending else cost - tier_paid
+
+## The tier sign's stand-still payment. Same rule as pads and spots (_pay_towards). Nothing while the boss is pending.
+func pay_into_tier(amount: int) -> int:
+	var cost := tier_next_cost()
+	if cost < 0 or boss_pending:
+		return 0
+	var entry := {"paid": tier_paid}
+	var pay := _pay_towards(entry, cost, amount)
+	if pay <= 0:
+		return 0
+	tier_paid = int(entry.paid)
+	if tier_paid >= cost:
+		tier_paid = 0
+		boss_pending = true
+		EventBus.tier_changed.emit(tier, tier_paid, boss_pending)
+		EventBus.tier_paid_up.emit(tier + 1)
+	else:
+		EventBus.tier_changed.emit(tier, tier_paid, boss_pending)
+	return pay
+
+## Dawn after a won boss night (PhaseController, after advance_day). No-op at the top (a clamped save).
+func complete_tier_up() -> void:
+	assert(boss_pending, "complete_tier_up without a pending boss")
+	boss_pending = false
+	tier_paid = 0
+	if tier >= TierEffects.top_tier(Balance.data.tiers):
+		lane_plan = _plan_today()
+		EventBus.tier_changed.emit(tier, 0, false)
+		return
+	tier += 1
+	tier_day = day
+	for id in MapLayout.TIER_SPOTS.get(tier, []):
+		buildings[id] = {"level": 0, "paid": 0, "hp": 0.0}
+		EventBus.building_changed.emit(StringName(id), 0, 0)
+	lane_plan = _plan_today()
+	EventBus.tier_changed.emit(tier, 0, false)
+	EventBus.tier_reached.emit(tier)
+
+## Tests, sims and fixtures only: jump to a tier as if it had been entered on `day_entered`.
+func debug_set_tier(p_tier: int, day_entered: int) -> void:
+	tier = clampi(p_tier, 1, TierEffects.top_tier(Balance.data.tiers))
+	tier_day = 1 if tier == 1 else maxi(day_entered, 1)  # tier 1 always starts on day 1 (the lane RNG order depends on it)
+	tier_paid = 0
+	boss_pending = false
+	for id in MapLayout.spots_for_tier(tier):
+		if not buildings.has(id):
+			buildings[id] = {"level": 0, "paid": 0, "hp": 0.0}
+	lane_plan = _plan_today()
+	EventBus.tier_changed.emit(tier, 0, false)
 
 # --- cards and guards (S2) ------------------------------------------------
 
