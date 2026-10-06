@@ -198,18 +198,6 @@ transform = Transform3D(3, 0, 0, 0, 1, 0, 0, 0, 2, 0, 1.5, 3.8)
 [node name="awning3" parent="." instance=ExtResource("7")]
 transform = Transform3D(3, 0, 0, 0, 1, 0, 0, 0, 2, 2.4, 1.5, 3.8)
 
-[node name="awning_e_s" parent="." instance=ExtResource("7")]
-transform = Transform3D(0, 0, 9.46, 0, 1, 0, -0.75, 0, 0, 3.054, 2.2, 3.95)
-
-[node name="awning_e_n" parent="." instance=ExtResource("7")]
-transform = Transform3D(0, 0, 9.46, 0, 1, 0, -1.5, 0, 0, 3.054, 2.2, -3.3)
-
-[node name="awning_w_s" parent="." instance=ExtResource("7")]
-transform = Transform3D(0, 0, -9.46, 0, 1, 0, 0.75, 0, 0, -3.054, 2.2, 3.95)
-
-[node name="awning_w_n" parent="." instance=ExtResource("7")]
-transform = Transform3D(0, 0, -9.46, 0, 1, 0, 1.5, 0, 0, -3.054, 2.2, -3.3)
-
 [node name="terrace_e" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.8, 0, 0)
 mesh = ExtResource("8")

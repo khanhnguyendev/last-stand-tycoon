@@ -1,12 +1,16 @@
 extends SceneTree
-## Writes art/env/src/terrace_slab.res (E5 Task 11): one flat box, 1.6 x 0.12 x 8.0, centred on x = 0 with its base at
-## y = 0, every vertex UV on the diner_cream texel of the shared fantasy-town atlas, so the slab is on palette and uses
+## Writes art/env/src/terrace_slab.res (E5 Task 11): one flat box, 1.6 x 0.015 x 8.0, centred on x = 0 with its base at
+## y = 0 (top at 0.015: under the blob shadows at +0.04 and the ground steaks at 0.02), every vertex UV on the diner_cream texel of the shared fantasy-town atlas, so the slab is on palette and uses
 ## a shared material. Run: "$GODOT" --headless --path . -s res://tools/make_terrace_src.gd
 const ATLAS := "res://art/palette/atlas/kenney-fantasy-town__colormap.png"
-const SIZE := Vector3(1.6, 0.12, 8.0)
+const SIZE := Vector3(1.6, 0.015, 8.0)
 
 func _initialize() -> void:
 	var img := Image.load_from_file(ProjectSettings.globalize_path(ATLAS))
+	if img == null:
+		push_error("cannot load " + ATLAS)
+		quit(1)
+		return
 	var want := Palette.color(&"diner_cream")
 	var texel := Vector2i(-1, -1)
 	for y in img.get_height():
@@ -55,7 +59,11 @@ func _initialize() -> void:
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 	mesh.surface_set_material(0, load("res://art/materials/kenney-fantasy-town__colormap.tres"))
-	ResourceSaver.save(mesh, "res://art/env/src/terrace_slab.res")
+	var err := ResourceSaver.save(mesh, "res://art/env/src/terrace_slab.res")
+	if err != OK:
+		push_error("cannot save terrace_slab.res: %d" % err)
+		quit(1)
+		return
 	quit(0)
 
 static func _near(a: Color, b: Color) -> bool:

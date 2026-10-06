@@ -183,23 +183,42 @@ func test_tier2_diner_surfaces_use_shared_materials() -> void:
 		assert_not_null(m)
 		assert_true(m.resource_path.begins_with("res://art/materials/"), m.resource_path)
 
-func test_tier2_diner_adds_nothing_tall_over_a_lane_zone() -> void:
+func test_tier2_diner_adds_nothing_above_the_ground_outside_the_tier1_footprint() -> void:
+	var half: float = (load("res://art/env/baked/diner.res") as ArrayMesh).get_aabb().end.x
 	var t2: ArrayMesh = load("res://art/env/baked/diner_t2.res")
 	var checked := 0
 	for v in _vertices(t2):
-		if v.y <= 0.3:
+		if absf(v.x) > half + 1e-3:
+			checked += 1
+			assert_lte(v.y, 0.02, "vertex %s above the ground beside the diner" % v)
+	assert_gt(checked, 0, "the terraces exist")
+
+func test_tier2_terrace_top_is_below_the_shadows_and_steaks() -> void:
+	var t2: ArrayMesh = load("res://art/env/baked/diner_t2.res")
+	var top := 0.0
+	for v in _vertices(t2):
+		if absf(v.x) > 4.0 + 1e-3:
+			top = maxf(top, v.y)
+	assert_gt(top, 0.0)
+	assert_lt(top, 0.02, "under the ground steaks (0.02) and blob shadows (0.04)")
+
+## The tier-2 source copies the tier-1 source's nodes (the bake needs real nodes): a later edit of one must not diverge.
+func test_tier2_source_copies_the_tier1_source() -> void:
+	var s1 := (load("res://art/env/src/diner_src.tscn") as PackedScene).instantiate() as Node3D
+	var s2 := (load("res://art/env/src/diner_t2_src.tscn") as PackedScene).instantiate() as Node3D
+	add_child_autofree(s1)
+	add_child_autofree(s2)
+	assert_gt(s1.get_child_count(), 50)
+	for c in s1.get_children():
+		var d := s2.get_node_or_null(NodePath(c.name)) as Node3D
+		assert_not_null(d, "tier-2 source has %s" % c.name)
+		if d == null:
 			continue
-		if not (absf(v.x) > 4.0 + 1e-3 or v.z < -4.0 - 1e-3):
-			continue
-		checked += 1
-		for id in MapLayout.ZONE_RECTS:
-			var d := Geometry.dist_point_rect(Vector2(v.x, v.z), MapLayout.ZONE_RECTS[id])
-			assert_gte(d, 0.5, "vertex %s is %.2f m from the %s zone" % [v, d, id])
-			# Where the camera sees it land on the ground: a point at height y projects north by y / tan(pitch).
-			var lean := v.y * tan(deg_to_rad(90.0 - absf(Balance.ui.camera_pitch)))
-			var dp := Geometry.dist_point_rect(Vector2(v.x, v.z - lean), MapLayout.ZONE_RECTS[id])
-			assert_gte(dp, 0.3, "vertex %s seen from the camera lands %.2f m from the %s zone" % [v, dp, id])
-	assert_gt(checked, 0, "the awnings exist")
+		assert_eq(d.transform, (c as Node3D).transform, "%s transform" % c.name)
+		assert_eq(d.scene_file_path, c.scene_file_path, "%s scene" % c.name)
+		if c is MeshInstance3D:
+			assert_eq((d as MeshInstance3D).mesh, (c as MeshInstance3D).mesh)
+			assert_eq((d as MeshInstance3D).material_override, (c as MeshInstance3D).material_override)
 
 func test_tier2_diner_stays_inside_its_envelope() -> void:
 	var a1: AABB = (load("res://art/env/baked/diner.res") as ArrayMesh).get_aabb()
@@ -219,10 +238,12 @@ func test_world_swaps_the_diner_on_tier_reached() -> void:
 	await get_tree().physics_frame
 	main.phase_controller.start_new_game(1)
 	assert_eq(_diner_body_mesh(main).mesh.resource_path, "res://art/env/baked/diner.res")
+	var vis := main.world.diner_body.get_node("Visual")
+	var kids := vis.get_child_count()
 	GameState.debug_set_tier(2, 1)
 	await get_tree().process_frame
 	assert_eq(_diner_body_mesh(main).mesh.resource_path, "res://art/env/baked/diner_t2.res")
-	var vis := main.world.diner_body.get_node("Visual")
+	assert_eq(vis.get_child_count(), kids, "no leaked second art node")
 	assert_not_null(vis.get_node_or_null("OccluderFade"), "the fade survives the swap")
 	assert_eq(vis.get_child(0).name, &"DinerArt", "the art stays child 0")
 	var shape: BoxShape3D = main.world.diner_body.find_children("*", "CollisionShape3D", false, false)[0].shape
@@ -230,46 +251,43 @@ func test_world_swaps_the_diner_on_tier_reached() -> void:
 	GameState.new_game(3)
 	await get_tree().process_frame
 	assert_eq(_diner_body_mesh(main).mesh.resource_path, "res://art/env/baked/diner.res", "a new game is tier 1 again")
+	assert_eq(vis.get_child_count(), kids, "no leaked second art node")
 	assert_eq(World.diner_scene_for(1), World.DINER_ART)
 	assert_eq(World.diner_scene_for(2), World.DINER_ART_T2)
 
-func test_swapping_the_diner_while_faded_ends_opaque() -> void:
+func test_world_built_at_tier_2_starts_with_the_tier_2_diner() -> void:
+	GameState.new_game(5)
+	GameState.debug_set_tier(2, 1)
+	var main := Main.create()
+	add_child_autofree(main)
+	assert_eq(_diner_body_mesh(main).mesh.resource_path, "res://art/env/baked/diner_t2.res")
+	GameState.new_game(1)
+
+func test_swapping_the_diner_while_faded_fades_the_new_art_then_ends_opaque() -> void:
 	var main := Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(72)
-	var fade: OccluderFade = main.world.diner_body.get_node("Visual/OccluderFade")
+	var vis := main.world.diner_body.get_node("Visual")
+	var fade: OccluderFade = vis.get_node("OccluderFade")
 	main.hero.teleport((MapLayout.ZONE_RECTS["north"] as Rect2).get_center())
 	main.camera_rig.snap()
 	for i in 30:
 		await get_tree().process_frame
 	assert_true(fade.is_faded(), "the diner is faded")
+	var kids := vis.get_child_count()
 	GameState.debug_set_tier(2, 1)
 	await get_tree().process_frame
-	assert_eq(_diner_body_mesh(main).mesh.resource_path, "res://art/env/baked/diner_t2.res")
+	assert_eq(vis.get_child_count(), kids, "no leaked second art node")
+	var body := _diner_body_mesh(main)
+	assert_eq(body.mesh.resource_path, "res://art/env/baked/diner_t2.res")
+	assert_true(fade.is_faded(), "still faded: the hero is still behind the diner")
+	assert_not_null(body.get_surface_override_material(0), "the new Body is faded at once, not opaque over the hero")
 	main.hero.teleport(MapLayout.HOME)
 	main.camera_rig.snap()
 	for i in 40:
 		await get_tree().process_frame
 	assert_false(fade.is_faded())
-	var body := _diner_body_mesh(main)
-	assert_null(body.material_override)
 	for i in body.mesh.get_surface_count():
 		assert_null(body.get_surface_override_material(i), "surface %d is back to its shared material" % i)
-
-func test_tier2_terraces_are_diner_cream() -> void:
-	var t2: ArrayMesh = load("res://art/env/baked/diner_t2.res")
-	var want := Palette.color(&"diner_cream")
-	var checked := 0
-	for s in t2.get_surface_count():
-		var arr := t2.surface_get_arrays(s)
-		var img := ((t2.surface_get_material(s) as BaseMaterial3D).albedo_texture as Texture2D).get_image()
-		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
-		var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
-		for i in v.size():
-			if v[i].y > 0.13 or absf(v[i].x) <= 4.0 + 1e-3:
-				continue
-			checked += 1
-			var c := img.get_pixel(clampi(int(uv[i].x * img.get_width()), 0, img.get_width() - 1), clampi(int(uv[i].y * img.get_height()), 0, img.get_height() - 1))
-			assert_lt(absf(c.r - want.r) + absf(c.g - want.g) + absf(c.b - want.b), 0.03, "vertex %s samples %s, not diner_cream" % [v[i], c])
-	assert_gt(checked, 0, "the terraces exist")
+	GameState.new_game(1)

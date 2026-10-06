@@ -1,9 +1,11 @@
 extends SceneTree
 ## The tier-2 diner (E5 Task 11). Run WITH rendering:
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_diner_t2.gd -- --out=docs/review/media/e5/task11
-## Writes diner_t1_home, diner_t2_home_day, diner_t2_west_day, diner_t2_home_night and diner_t2_west_zone_night (three
+## Also diner_t2_west_zone_kill_night (one of the three killed at the wall: steaks and shadows on the terrace).
+## Exits non-zero when a PNG cannot be saved. Writes diner_t1_home, diner_t2_home_day, diner_t2_west_day, diner_t2_home_night and diner_t2_west_zone_night (three
 ## monsters standing in the west attack zone), 720x1280 plus a _40 copy of each. The camera follows a focus point.
 var _focus := Vector2.ZERO
+var _failed := 0
 
 func _initialize() -> void:
 	_run.call_deferred()
@@ -72,7 +74,14 @@ func _run() -> void:
 			print("monster at ", b.global_position)
 	_focus = Vector2(-5.0, 0.0)
 	await _grab(cam, camera_math, bal, out, "diner_t2_west_zone_night")
-	quit(0)
+	# One of them dies at the wall: its steaks and the others' blob shadows must show on the cream terrace.
+	main.hero.teleport(Vector2(-7.5, 3.5))
+	var dead = mons[1]
+	dead.take_hit(1e9)
+	for i in 30:
+		await physics_frame
+	await _grab(cam, camera_math, bal, out, "diner_t2_west_zone_kill_night")
+	quit(_failed)
 
 func _grab(cam: Camera3D, camera_math, bal, out: String, name: String) -> void:
 	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(_focus), bal.ui)
@@ -81,8 +90,14 @@ func _grab(cam: Camera3D, camera_math, bal, out: String, name: String) -> void:
 	var img := root.get_texture().get_image()
 	var dir := ProjectSettings.globalize_path("res://").path_join(out)
 	DirAccess.make_dir_recursive_absolute(dir)
-	img.save_png(dir.path_join(name + ".png"))
+	_save(img, dir.path_join(name + ".png"))
 	var small := img.duplicate()
 	small.resize(288, 512, Image.INTERPOLATE_LANCZOS)
-	small.save_png(dir.path_join(name + "_40.png"))
+	_save(small, dir.path_join(name + "_40.png"))
 	print("saved ", name)
+
+func _save(img: Image, path: String) -> void:
+	var err := img.save_png(path)
+	if err != OK:
+		push_error("cannot save %s: %d" % [path, err])
+		_failed = 1

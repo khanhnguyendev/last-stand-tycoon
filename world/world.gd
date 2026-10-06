@@ -210,7 +210,7 @@ func _swap_diner_art(tier: int) -> void:
 	occluder_fade.refresh_bounds()
 
 func _build_diner() -> void:
-	diner_body = add_static_box("Diner", Vector3(8, MapLayout.DINER_HEIGHT, 8), Vector2.ZERO, DINER_ART)
+	diner_body = add_static_box("Diner", Vector3(8, MapLayout.DINER_HEIGHT, 8), Vector2.ZERO, diner_scene_for(_effective_tier()))
 	# D-151: the diner fades while it hides the hero or a Boar from the camera.
 	occluder_fade = OccluderFade.new()
 	occluder_fade.name = "OccluderFade"

@@ -64,6 +64,9 @@ func refresh_bounds() -> void:
 	bounds = AABB()
 	for i in _boxes.size():
 		bounds = _boxes[i] if i == 0 else bounds.merge(_boxes[i])
+	if _alpha < 1.0:
+		_forget_gone_nodes()
+		_apply()  # art swapped while faded: the new meshes and labels take the current fade now
 
 ## The world-space boxes the fade tests (each grown by Balance.ui.occluder_grow).
 func boxes() -> Array[AABB]:
@@ -110,6 +113,16 @@ func _on_own_roof(p: Vector3) -> bool:
 	if parent != null and parent.is_inside_tree():
 		origin = parent.global_position
 	return p.y >= MapLayout.DINER_HEIGHT and absf(p.x - origin.x) <= MapLayout.DINER_HALF and absf(p.z - origin.z) <= MapLayout.DINER_HALF
+
+## Drops the meshes and labels that left the tree (an art swap) so nothing keeps a stale entry.
+func _forget_gone_nodes() -> void:
+	var parent := get_parent()
+	for mi in _meshes.keys():
+		if not is_instance_valid(mi) or parent == null or not parent.is_ancestor_of(mi):
+			_meshes.erase(mi)
+	for l in _labels.keys():
+		if not is_instance_valid(l) or parent == null or not parent.is_ancestor_of(l):
+			_labels.erase(l)
 
 func _apply() -> void:
 	if _alpha >= 1.0:
