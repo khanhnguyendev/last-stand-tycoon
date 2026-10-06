@@ -46,7 +46,15 @@ func run(main: Main, resume_phase := "") -> void:
 	_origin = xf.origin - xf.basis.z * DISTANCE
 	_right = xf.basis.x
 	_up = xf.basis.y
-	_place(BOAR.VISUAL_SCENE.instantiate())
+	for k in MonsterBalance.KINDS:
+		var v: BoarVisual = BOAR.VISUAL_SCENE.instantiate()
+		_place(v)
+		v.set_kind(k)
+	for mat in [BossBar.back_material(), BossBar.fill_material()]:
+		var bar := MeshInstance3D.new()
+		bar.mesh = BoxMesh.new()
+		bar.material_override = mat
+		_place(bar)
 	for path in SCENES:
 		_place((load(path) as PackedScene).instantiate())
 	_place(_steak_field())
@@ -55,6 +63,7 @@ func run(main: Main, resume_phase := "") -> void:
 	cube.mesh = BoxMesh.new()
 	cube.material_override = main.world.occluder_fade.fade_material_for_warmup()
 	_place(cube)
+	_prebuild_tier_caches()
 	for _i in FRAMES:
 		await get_tree().process_frame
 	for c in get_children():
@@ -66,6 +75,18 @@ func run(main: Main, resume_phase := "") -> void:
 	if OS.is_debug_build() or OS.has_feature("profile_overlay"):
 		print("WARMUP built=%d track=%s" % [built_count, track])
 	finished.emit()
+
+## E5 Task 12: the first tier-up would build the top tier's terrain mesh (10.5k vertices, in GDScript) and re-merge the props
+## inside the tier-up frame. Fill both caches now; no node is added, nothing in the world changes.
+static func _prebuild_tier_caches() -> void:
+	var yards := MapLayout.yards_for_tier(TierEffects.top_tier(Balance.data.tiers))
+	if yards.is_empty():
+		return
+	GroundArt.terrain_mesh(World.ground_rect(), yards)
+	var rects: Array[Rect2] = []
+	for id in yards:
+		rects.append(MapLayout.YARDS[id])
+	Props.prebuild(rects)
 
 func _place(n: Node3D) -> void:
 	add_child(n)

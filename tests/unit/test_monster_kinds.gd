@@ -95,6 +95,7 @@ func test_mercy_scales_a_hares_hit() -> void:
 	var hp0 := GameState.diner_hp
 	_step(hare, Balance.data.monsters.stats(&"hare").attack_interval + 0.1)
 	assert_almost_eq(hp0 - GameState.diner_hp, 4.0 * GameState.mercy_factor(), 1e-4)
+	assert_lt(GameState.mercy_factor(), 1.0)
 
 func test_a_pooled_node_respawned_as_another_kind_takes_that_kinds_stats() -> void:
 	var b := _monster(&"boss")

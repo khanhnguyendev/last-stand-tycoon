@@ -19,6 +19,16 @@ static func camera_transform(focus: Vector2, ui: UiTuning) -> Transform3D:
 	var pos := target + Vector3(0.0, sin(pitch), cos(pitch)) * ui.camera_distance
 	return Transform3D(Basis(), pos).looking_at(target, Vector3.UP)
 
+## E5 spec 7.5: the camera at `focus` pulled back along its view line to `zoom` x camera_distance (zoom 1.0 is
+## camera_transform exactly). Shared by CameraRig's reveal and the reveal's fit so both place the camera alike.
+static func zoomed_transform(focus: Vector2, ui: UiTuning, zoom: float) -> Transform3D:
+	var xf := camera_transform(focus, ui)
+	if is_equal_approx(zoom, 1.0):
+		return xf
+	var target := Vector3(focus.x, 0.0, focus.y)
+	xf.origin = target + (xf.origin - target) * zoom
+	return xf
+
 ## D-153 (extends D-145): the supported window aspect range is [ASPECT_MIN, ASPECT_MAX] = 9:21 .. 21:9.
 ## Outside it the view is clamped, never stretched: narrower than 9:21 keeps the vertical FOV of 9:21
 ## (KEEP_HEIGHT, so the view never gets taller); wider than 21:9 keeps the horizontal FOV of 21:9

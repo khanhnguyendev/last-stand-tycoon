@@ -315,3 +315,61 @@ func test_boss_moon_on_a_boss_night() -> void:
 	assert_eq(hud.moon_color(2), Palette.color(&"enemy_red"), "unlit boss moon is red, not ink_soft")
 	assert_almost_eq(hud.icons.moon_scale(2), Balance.ui.boss_moon_scale, 1e-6)
 	assert_almost_eq(hud.icons.moon_scale(0), 1.0, 1e-6)
+
+func _boss_night() -> void:
+	main.phase_controller.debug_skip_to_day()
+	GameState.add_gold(500)
+	GameState.pay_into_tier(500)
+	main.phase_controller.debug_skip_to_night()
+	await get_tree().physics_frame
+
+func test_boss_moon_breathes_from_its_wave_until_the_boss_dies() -> void:
+	await _boss_night()
+	EventBus.wave_started.emit(2, &"north", &"")
+	assert_true(hud.icons.boss_alive)
+	EventBus.enemy_killed.emit(1, &"north", Vector3.ZERO, &"boar")
+	assert_true(hud.icons.boss_alive, "a killed boar does not clear it")
+	EventBus.enemy_killed.emit(0, &"north", Vector3.ZERO, &"boss")
+	assert_false(hud.icons.boss_alive)
+
+func test_a_restore_clears_the_breathing_moon() -> void:
+	await _boss_night()
+	EventBus.wave_started.emit(2, &"north", &"")
+	assert_true(hud.icons.boss_alive)
+	hud.icons.boss_moon = -1  # test-only setup
+	EventBus.state_restored.emit()
+	assert_false(hud.icons.boss_alive)
+	assert_eq(hud.icons.boss_moon, GameState.lane_plan.size() - 1)
+	assert_gte(hud.icons.boss_moon, 0)
+
+func _icons_with_cells(n: int) -> HudIcons:
+	var ic := HudIcons.new()
+	add_child_autofree(ic)
+	for i in n:
+		var c := Control.new()
+		c.size = Vector2(HudIcons.MOON_CELL_PX, HudIcons.MOON_CELL_PX)
+		add_child_autofree(c)
+		c.position = Vector2(100, 100 + float(i) * (HudIcons.MOON_CELL_PX + 12.0))
+		ic.moon_cells.append(c)
+	return ic
+
+func test_disc_rect_is_the_cell_for_a_normal_moon() -> void:
+	var ic := _icons_with_cells(3)
+	ic.boss_moon = 2
+	assert_eq(ic.disc_rect(0), ic.moon_cells[0].get_global_rect())
+
+func test_boss_disc_is_centred_larger_and_holds_the_moon() -> void:
+	var ic := _icons_with_cells(3)
+	ic.boss_moon = 2
+	ic.boss_alive = true
+	var cell: Rect2 = ic.moon_cells[2].get_global_rect()
+	var d := ic.disc_rect(2)
+	var grow: float = HudIcons.MOON_CELL_PX * (Balance.ui.boss_moon_scale - 1.0) * 0.5
+	assert_almost_eq(d.get_center().x, cell.get_center().x, 1e-4)
+	assert_almost_eq(d.get_center().y, cell.get_center().y, 1e-4)
+	assert_almost_eq(d.size.x, cell.size.x + grow * 2.0, 1e-4)
+	assert_almost_eq(d.size.y, cell.size.y + grow * 2.0, 1e-4)
+	assert_true(d.encloses(ic.moon_rect(2)), "at rest")
+	ic._t = 0.25 / Balance.ui.pulse_hz
+	assert_true(d.encloses(ic.moon_rect(2)), "at the breath's peak")
+	assert_false(d.intersects(ic.disc_rect(1)))

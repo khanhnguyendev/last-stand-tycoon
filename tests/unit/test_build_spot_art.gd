@@ -10,7 +10,7 @@ const BAKE_NORMAL_TOL := 2e-3
 const Bake := preload("res://tools/bake_static.gd")
 const ENV := "res://art/env/"
 const NAMES := ["tower_l1", "tower_l2", "tower_l3", "fence_l1", "fence_l2", "fence_l3", "fence_rubble", "spot_marker",
-	"closeup_sign", "telegraph_flag", "lane_gate"]
+	"closeup_sign", "telegraph_flag", "lane_gate", "tier_sign"]
 
 var main: Main
 
@@ -107,6 +107,11 @@ func test_ballista_shares_the_tower_atlas() -> void:
 		var m := load(ENV + "baked/tower_l%d.res" % l) as ArrayMesh
 		assert_eq(m.get_surface_count(), 1)
 		assert_eq(m.surface_get_material(0).resource_path, mat_path, "tower L%d surface material" % l)
+
+## The tier sign is the one runtime scene whose src is built from palette-cell UVs (E5 Task 9): it must stay on the shared atlas.
+func test_tier_sign_uses_the_shared_fantasy_town_atlas() -> void:
+	var m := load(ENV + "baked/tier_sign.res") as ArrayMesh
+	assert_eq(m.surface_get_material(0).resource_path, "res://art/materials/kenney-fantasy-town__colormap.tres")
 
 func test_committed_bakes_match_their_sources() -> void:
 	for name in NAMES:

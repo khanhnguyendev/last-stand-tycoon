@@ -36,6 +36,27 @@ func test_run_builds_and_frees_without_touching_state() -> void:
 	assert_eq(warmup.get_child_count(), 0)
 	assert_gte(warmup.built_count, 9)
 
+func test_warmup_covers_every_monster_kind_and_the_boss_bar() -> void:
+	_main()
+	var warmup := Warmup.new()
+	main.add_child(warmup)
+	warmup.run(main)  # no await: runs to its first process_frame, the temporary nodes are in the tree
+	var kinds := {}
+	var mats: Array = []
+	for c in warmup.get_children():
+		if c is BoarVisual:
+			assert_true(c.is_visible_in_tree())
+			assert_eq(c._mesh_node.mesh, BoarMesh.get_mesh(c.kind), "%s mesh is on the node" % c.kind)
+			kinds[c.kind] = true
+		elif c is MeshInstance3D:
+			mats.append(c.material_override)
+	for k in MonsterBalance.KINDS:
+		assert_true(kinds.has(k), "visual for %s" % k)
+	assert_true(mats.has(BossBar.back_material()))
+	assert_true(mats.has(BossBar.fill_material()))
+	await warmup.finished
+	assert_eq(warmup.get_child_count(), 0)
+
 func test_boot_without_warmup_is_synchronous() -> void:
 	_main()
 	main.save_store = SaveStore.with_dir(dir)
@@ -135,3 +156,20 @@ func test_boot_fade_safety_cap_lifts_without_fade_out() -> void:
 	assert_false(f.is_lifting())
 	f._tick(0.6)
 	assert_true(f.is_lifting())
+
+func test_warmup_prebuilds_the_top_tier_terrain_and_props() -> void:
+	_main()
+	var yards := MapLayout.yards_for_tier(TierEffects.top_tier(Balance.data.tiers))
+	var rects: Array[Rect2] = []
+	for id in yards:
+		rects.append(MapLayout.YARDS[id])
+	GroundArt._cache.erase(GroundArt._terrain_key(World.ground_rect(), yards))
+	Props._merged.erase(Props._key(rects))
+	assert_false(GroundArt.is_cached(World.ground_rect(), yards))
+	assert_false(Props.is_cached(rects))
+	var warmup := Warmup.new()
+	main.add_child(warmup)
+	await warmup.run(main)
+	assert_true(GroundArt.is_cached(World.ground_rect(), yards), "tier-2 terrain built by the warm-up")
+	assert_true(Props.is_cached(rects), "tier-2 props merged by the warm-up")
+	assert_eq(warmup.get_child_count(), 0, "no node left behind")

@@ -54,6 +54,8 @@ func fraction() -> float:
 	return 0.0 if h.max_hp <= 0.0 else clampf(h.hp / h.max_hp, 0.0, 1.0)
 
 func fill_color() -> Color:
+	if _fill != null:
+		return (_fill.material_override as StandardMaterial3D).albedo_color
 	return fill_material().albedo_color
 
 func _is_living_boss() -> bool:
@@ -72,5 +74,5 @@ func _refresh() -> void:
 
 func _process(_delta: float) -> void:
 	if _boar == null or (not visible and _boar.kind != &"boss"):
-		return  # 31 pooled Boars tick this; a non-boss returns at once
+		return  # every active Boar ticks this; a non-boss returns at once
 	_refresh()

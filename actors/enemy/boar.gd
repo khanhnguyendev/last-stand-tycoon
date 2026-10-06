@@ -44,7 +44,7 @@ func _init() -> void:
 	add_child(bar)
 	bar.setup(self)
 
-## Cached at spawn: a balance edit applies to monsters spawned after it.
+## Cached at spawn. The boar's view is a copy, so a balance edit applies to boars spawned after it; hare and boss hold the shared resource.
 func stats() -> MonsterStats:
 	if _stats == null:
 		_stats = Balance.data.monsters.stats(kind)

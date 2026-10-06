@@ -126,7 +126,7 @@ func test_yards_inside_the_bounds_and_the_ground() -> void:
 
 func test_on_screen_from_their_stand_points() -> void:
 	assert_true(_on_screen_from(MapLayout.TIER_SIGN, MapLayout.TIER_SIGN), "sign")
-	assert_true(_on_screen_from(MapLayout.TIER_SIGN + Vector2(0, -2.0), MapLayout.TIER_SIGN), "sign label (2 m up reads as 2 m north at this pitch, conservative)")
+	assert_true(_on_screen_from(MapLayout.TIER_SIGN + Vector2(0, -(TierSign.LABEL_Y + 0.4)), MapLayout.TIER_SIGN), "sign label (its top, LABEL_Y + 0.4 m up, read as that many m north at this pitch, conservative)")
 	var g := WaypointGraph.create_for_tier(2)
 	for id in MapLayout.TIER_SPOTS[2]:
 		assert_true(_on_screen_from(MapLayout.spot_position(id), g.position_of(id)), id)

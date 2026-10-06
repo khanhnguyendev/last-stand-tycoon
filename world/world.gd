@@ -7,6 +7,7 @@ extends Node3D
 const GROUND_MARGIN := 80.0
 ## S4 art (D-194, D-201): the diner is one baked mesh plus its rooftop board; instanced once.
 const DINER_ART := preload("res://art/env/diner.tscn")
+const DINER_ART_T2 := preload("res://art/env/diner_t2.tscn")
 
 var lanes := {}
 var lighting: LightingDirector
@@ -18,6 +19,7 @@ var freezer: Freezer
 var counter: Counter
 var gold_pile: GoldPile
 var closeup_sign: CloseUpSign
+var tier_sign: TierSign
 var telegraph_markers := {}
 var fly_fx: FlyFx
 var occluder_fade: OccluderFade
@@ -29,6 +31,15 @@ var shadow_field: ShadowField
 var pickup_field: PickupField
 ## One draw for every particle (S5 Task 4, D-214). Listens to EventBus.fx_requested.
 var fx_field: FxField
+## E5 Task 12: stages the tier-up (visual only).
+var tier_reveal: TierReveal
+## E5 Task 10: the merged ground carries the open yards; the stones ring them (one MultiMesh, no collision).
+var ground: MeshInstance3D
+var yard_stones: MultiMeshInstance3D
+## The tier the ground, the stones, the props and the spots were last built for (rebuild_for_tier is a no-op if equal).
+var _built_tier := 1
+## The phase as the bus last announced it: a spot created mid-game must know it (its zone missed the signal).
+var _phase := Phase.NIGHT
 
 @export var enemy_pool: NodePool
 @export var steak_pool: NodePool
@@ -66,6 +77,7 @@ func _make_boar() -> Boar:
 	return b
 
 func _ready() -> void:
+	EventBus.phase_changed.connect(_on_phase_changed)  # before any spot exists: the spots read _phase when built
 	_build_environment()
 	shadow_field = ShadowField.new()
 	add_child(shadow_field)
@@ -86,6 +98,13 @@ func _ready() -> void:
 	var reactions := Reactions.new()
 	reactions.name = "Reactions"
 	add_child(reactions)
+	tier_reveal = TierReveal.new()
+	add_child(tier_reveal)
+	tier_reveal.setup(self)
+	_built_tier = _effective_tier()
+	EventBus.tier_changed.connect(_on_tier_changed)
+	EventBus.tier_reached.connect(_on_tier_reached)
+	EventBus.state_restored.connect(rebuild_for_tier)
 
 func _build_environment() -> void:
 	var sun := DirectionalLight3D.new()
@@ -111,16 +130,93 @@ static func ground_rect() -> Rect2:
 
 func _build_ground() -> void:
 	var rect := ground_rect()
-	# S4 D-201: ground + road + lane strips are ONE mesh, the edge stones ONE MultiMesh, the props 2 meshes.
-	add_child(GroundArt.instance(GroundArt.terrain_mesh(rect), "Ground"))
+	# S4 D-201: ground + road + lane strips + open yards are ONE mesh, the edge stones ONE MultiMesh, the props 2 meshes.
+	var yards := yard_ids()
+	ground = GroundArt.instance(GroundArt.terrain_mesh(rect, yards), "Ground")
+	add_child(ground)
 	add_child(LaneStrip.edge_stones())
 	props = Props.new()
 	props.name = "Props"
 	add_child(props)
-	props.build()
+	props.build(_yard_rects(yards))
+	_set_yard_stones(yards)
+
+func _on_phase_changed(p: int, _day: int) -> void:
+	_phase = p
+
+func _on_tier_changed(_tier: int, _paid: int, _boss_pending: bool) -> void:
+	rebuild_for_tier()  # debug_set_tier and the tier-up both announce here; a payment tick finds nothing to do
+
+func _on_tier_reached(_tier: int) -> void:
+	rebuild_for_tier()
+
+## The tier the map follows: tier 1 until the first new_game (buildings is empty then).
+func _effective_tier() -> int:
+	return GameState.tier if not GameState.buildings.is_empty() else 1
+
+## The yards open now; empty before the first new_game.
+func yard_ids() -> Array[String]:
+	return MapLayout.yards_for_tier(_effective_tier())
+
+func _yard_rects(yards: Array) -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	for id in yards:
+		out.append(MapLayout.YARDS[id])
+	return out
+
+func _set_yard_stones(yards: Array) -> void:
+	if yard_stones != null:
+		remove_child(yard_stones)
+		yard_stones.queue_free()
+		yard_stones = null
+	if not yards.is_empty():
+		yard_stones = YardStones.build(yards)
+		add_child(yard_stones)
+
+## E5 Task 11: the tier-2 diner (the flank terraces) from tier 2; tier 1 keeps DINER_ART.
+static func diner_scene_for(tier: int) -> PackedScene:
+	return DINER_ART_T2 if tier >= 2 else DINER_ART
+
+## E5 spec 7.3: the ground mesh, the yard stones, the props and the spot set follow the tier (tier_changed, tier_reached,
+## restore, new game). Visual only; cheap to call: nothing happens unless the tier changed.
+func rebuild_for_tier() -> void:
+	var tier := _effective_tier()
+	if tier == _built_tier:
+		return
+	_built_tier = tier
+	var yards := yard_ids()
+	ground.mesh = GroundArt.terrain_mesh(ground_rect(), yards)
+	props.build(_yard_rects(yards))
+	_set_yard_stones(yards)
+	var want := MapLayout.spots_for_tier(tier)
+	for id in build_spots.keys():
+		if not id in want:
+			var gone: BuildSpot = build_spots[id]
+			build_spots.erase(id)
+			remove_child(gone)  # at once: queue_free is deferred
+			gone.queue_free()
+	for id in want:
+		if not build_spots.has(id):
+			_make_spot(id)
+	_swap_diner_art(tier)
+
+## Replaces only the DinerArt child of the diner's Visual (the OccluderFade stays), as child 0, when the scene differs.
+func _swap_diner_art(tier: int) -> void:
+	var vis := diner_body.get_node("Visual")
+	var want := diner_scene_for(tier)
+	var art := vis.get_node_or_null("DinerArt")
+	if art != null and art.scene_file_path == want.resource_path:
+		return
+	if art != null:
+		vis.remove_child(art)  # at once: the fade's find_children must not see the old art
+		art.queue_free()
+	var fresh := want.instantiate()
+	vis.add_child(fresh)
+	vis.move_child(fresh, 0)
+	occluder_fade.refresh_bounds()
 
 func _build_diner() -> void:
-	diner_body = add_static_box("Diner", Vector3(8, MapLayout.DINER_HEIGHT, 8), Vector2.ZERO, DINER_ART)
+	diner_body = add_static_box("Diner", Vector3(8, MapLayout.DINER_HEIGHT, 8), Vector2.ZERO, diner_scene_for(_effective_tier()))
 	# D-151: the diner fades while it hides the hero or a Boar from the camera.
 	occluder_fade = OccluderFade.new()
 	occluder_fade.name = "OccluderFade"
@@ -170,11 +266,16 @@ func add_static_box(node_name: String, size: Vector3, xz: Vector2, visual_scene:
 	return body
 
 func _build_spots() -> void:
-	for id in MapLayout.SPOT_IDS:
-		var s: BuildSpot = TowerSpot.new() if MapLayout.spot_kind(id) == "tower" else FenceSpot.new()
-		add_child(s)
-		s.setup(id, self)
-		build_spots[id] = s
+	for id in MapLayout.spots_for_tier(_effective_tier()):
+		_make_spot(id)
+
+func _make_spot(id: String) -> void:
+	var s: BuildSpot = TowerSpot.new() if MapLayout.spot_kind(id) == "tower" else FenceSpot.new()
+	add_child(s)
+	s.setup(id, self)
+	s.zone.sync_phase(_phase)  # a spot made mid-game missed phase_changed
+	s.refresh()
+	build_spots[id] = s
 
 func _build_stations() -> void:
 	freezer = Freezer.new()
@@ -196,6 +297,9 @@ func _build_stations() -> void:
 	closeup_sign = CloseUpSign.new()
 	add_child(closeup_sign)
 	closeup_sign.setup(self)
+	tier_sign = TierSign.new()
+	add_child(tier_sign)
+	tier_sign.setup(self)
 	for id in LanePlanner.LANES:
 		var m := TelegraphMarker.new()
 		add_child(m)
