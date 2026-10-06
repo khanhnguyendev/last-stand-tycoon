@@ -165,7 +165,7 @@ the sim floor. All of this is tuned by the sims (D-103: 3 rounds, then escalate)
 ### 4.4 Balance resources
 
 `balance/tier_balance.gd`, `class_name TierBalance`, exported on `BalanceData` as `tiers`. Index = tier; index 0 unused
-(tiers count from 1). Every array has `tier_costs.size() + 2` entries so tier `tier_costs.size() + 1` (the top) has a
+(tiers count from 1). Every array has `tier_costs.size() + 1` entries so tier `tier_costs.size()` (the top) has a
 cap:
 
 ```gdscript
@@ -608,3 +608,5 @@ points; the design and every number are unchanged.
 - **Save validation** accepts a `tier` up to `max_tier` and `GameState.from_dict` clamps it to the top this build
   knows; a spot id the build does not know is still rejected ("building"). A tier-2 save on a build that only knows
   tier 1 is therefore rejected, not clamped: the limit of the clamp rule, pinned by a test.
+- **TierBalance array length** is `tier_costs.size() + 1` (index 0 unused, tiers 1 to the top = `tier_costs.size()`);
+  the first draft said `+ 2`, an off-by-one caught in Task 1 (ruling in the SDD ledger).
