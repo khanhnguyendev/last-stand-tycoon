@@ -24,6 +24,10 @@ var night := false
 var filled := 0
 ## HudArrow holders drawn last, over the icons; each is drawn only while visible.
 var arrow_nodes: Array = []
+## E5 spec 7.4: the boss moon's index (-1 = none) and whether the boss still lives (its moon breathes while it does).
+var boss_moon := -1
+var boss_alive := false
+var _t := 0.0
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -34,7 +38,22 @@ func moon_lit(i: int) -> bool:
 	return i < filled
 
 func moon_color(i: int) -> Color:
+	if i == boss_moon and not moon_lit(i):
+		return Palette.color(&"enemy_red")
 	return MOON_LIT if moon_lit(i) else Palette.color(&"ink_soft")
+
+func moon_scale(i: int) -> float:
+	if i != boss_moon:
+		return 1.0
+	var s: float = Balance.ui.boss_moon_scale
+	if boss_alive and not moon_lit(i):
+		s *= 1.0 + 0.06 * sin(_t * TAU * Balance.ui.pulse_hz)
+	return s
+
+func _process(delta: float) -> void:
+	if night and boss_moon >= 0 and boss_alive:
+		_t += delta
+		queue_redraw()
 
 func coin_rect() -> Rect2:
 	return Rect2(global_position + COIN_POS, Vector2(ICON_PX, ICON_PX))
@@ -47,7 +66,8 @@ func heart_rect() -> Rect2:
 
 func moon_rect(i: int) -> Rect2:
 	var c: Control = moon_cells[i]
-	return Rect2(c.get_global_rect().position + Vector2.ONE * ((MOON_CELL_PX - MOON_PX) * 0.5), Vector2(MOON_PX, MOON_PX))
+	var px := MOON_PX * moon_scale(i)
+	return Rect2(c.get_global_rect().position + Vector2.ONE * ((MOON_CELL_PX - px) * 0.5), Vector2(px, px))
 
 func _local(r: Rect2) -> Rect2:
 	return Rect2(r.position - global_position, r.size)

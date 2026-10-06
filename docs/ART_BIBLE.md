@@ -94,6 +94,8 @@ Heights at `build_level_scale` 1.0. R7 allows 10% tolerance.
 | Hero and guards | 1.6 m |
 | Traveler | 1.5 m |
 | Boar | 1.0 m tall, 1.45 m long |
+| Hare | 0.7 m tall, 1.1 m long |
+| Boar King | 2.2 m tall, 3.2 m long |
 | Steak | 0.4 m |
 | Coin | 0.3 m |
 | Tower L1 / L2 / L3 | 2.2 / 2.8 / 3.4 m |

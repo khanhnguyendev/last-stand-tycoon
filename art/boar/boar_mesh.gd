@@ -14,12 +14,32 @@ const HEAD_TILT_DEG := 6.0
 const TUSK_OUT_DEG := 55.0
 const TUSK_FWD_DEG := 20.0
 
-static var _mesh: ArrayMesh
+static var _meshes := {}
 
-static func get_mesh() -> ArrayMesh:
-	if _mesh == null:
-		_mesh = _build()
-	return _mesh
+## Per-kind proportions (E5 spec 7.1, ART_BIBLE section 5). The boar row reproduces the constants above exactly (the mesh is
+## byte-identical to the S4 one, D-192). `scale` multiplies every vertex after the merge, so `get_aabb` is the true size; the
+## raw (unscaled) mesh is about 1.0 m tall for every kind. Hare and boss tusks are `stone`, not the hero's white (R2).
+static func params(kind: StringName) -> Dictionary:
+	var maroon := Palette.color(&"enemy_maroon")
+	var red := Palette.color(&"enemy_red")
+	var snout := Palette.color(&"enemy_snout")
+	match kind:
+		&"hare":
+			return {"scale": 0.7, "body_scale": Vector3(0.8, 0.7, 1.25), "upper": snout.lerp(maroon, 0.5),
+				"belly": snout.lerp(maroon, 0.25), "ears": snout, "ear_len": 0.3, "tusks": 0, "ridge": 0, "ridge_h": 1.0,
+				"leg_len": 0.32, "tusk_color": Palette.color(&"stone")}
+		&"boss":
+			return {"scale": 2.2, "body_scale": Vector3(1.05, 0.8, 1.15), "upper": maroon.lerp(red, 0.25),
+				"belly": maroon, "ears": snout, "ear_len": 0.0, "tusks": 4, "ridge": 5, "ridge_h": 0.6,
+				"leg_len": 0.25, "tusk_color": Palette.color(&"stone")}
+	return {"scale": 1.0, "body_scale": BODY_SCALE, "upper": maroon.lerp(red, 0.4), "belly": red, "ears": snout,
+		"ear_len": 0.0, "tusks": 2, "ridge": 5, "ridge_h": 1.0, "leg_len": 0.25, "tusk_color": Palette.color(&"apron_white")}
+
+## Cached per kind; `&"boar"` is today's mesh.
+static func get_mesh(kind: StringName = &"boar") -> ArrayMesh:
+	if not _meshes.has(kind):
+		_meshes[kind] = _build(params(kind))
+	return _meshes[kind]
 
 static func _sphere(r: float, seg: int, rings: int) -> SphereMesh:
 	var s := SphereMesh.new()
@@ -69,48 +89,58 @@ static func _xf(pos: Vector3, rot_deg := Vector3.ZERO, scl := Vector3.ONE) -> Tr
 	return Transform3D(b * Basis.from_scale(scl), pos)
 
 ## One curved tusk of two stacked segments, the upper bent further up and inward. `base` is in head space.
-static func _tusk(acc: Dictionary, head: Transform3D, sx: float, base: Vector3, color: Color) -> void:
-	var b1 := Basis.from_euler(Vector3(deg_to_rad(TUSK_FWD_DEG), 0.0, deg_to_rad(-sx * TUSK_OUT_DEG)))
+## `extra_out` flares it further out and `len_k` shortens it to a single segment (the boss's second pair); 0.0 and 1.0 are the boar's tusk.
+static func _tusk(acc: Dictionary, head: Transform3D, sx: float, base: Vector3, color: Color, extra_out := 0.0, len_k := 1.0) -> void:
+	var out1 := TUSK_OUT_DEG + extra_out
+	var b1 := Basis.from_euler(Vector3(deg_to_rad(TUSK_FWD_DEG), 0.0, deg_to_rad(-sx * out1)))
 	var d1: Vector3 = b1 * Vector3.UP
-	var l1 := 0.34
-	_add(acc, _cone(0.11, 0.07, l1, 6, [false, false]), head * _xf(base + d1 * l1 * 0.5, Vector3(TUSK_FWD_DEG, 0.0, -sx * TUSK_OUT_DEG)), color)
+	var l1 := 0.34 * len_k
+	var seg := 6 if len_k == 1.0 else 4  # the short second pair is one 4-sided segment (triangle budget)
+	_add(acc, _cone(0.11, 0.07, l1, seg, [false, false]), head * _xf(base + d1 * l1 * 0.5, Vector3(TUSK_FWD_DEG, 0.0, -sx * out1)), color)
+	if len_k != 1.0:
+		return
 	var tip1 := base + d1 * l1
-	var out2 := TUSK_OUT_DEG - 30.0
+	var out2 := out1 - 30.0
 	var b2 := Basis.from_euler(Vector3(deg_to_rad(TUSK_FWD_DEG + 25.0), 0.0, deg_to_rad(-sx * out2)))
 	var d2: Vector3 = b2 * Vector3.UP
-	var l2 := 0.24
+	var l2 := 0.24 * len_k
 	_add(acc, _cone(0.06, 0.0, l2, 6, [false, false]), head * _xf(tip1 + d2 * l2 * 0.5, Vector3(TUSK_FWD_DEG + 25.0, 0.0, -sx * out2)), color)
 
-static func _build() -> ArrayMesh:
+static func _build(p: Dictionary) -> ArrayMesh:
 	var acc := {"verts": PackedVector3Array(), "norms": PackedVector3Array(), "cols": PackedColorArray(), "idx": PackedInt32Array()}
 	var maroon := Palette.color(&"enemy_maroon")
-	var red := Palette.color(&"enemy_red")
+	var red: Color = p.belly
 	# The upper body and head lean toward enemy_red so the shaded flank still reads red-brown in the game camera; belly,
 	# tail and legs keep the darker colours.
-	var upper := maroon.lerp(red, 0.4)
+	var upper: Color = p.upper
+	var body_scale: Vector3 = p.body_scale
+	# Longer or shorter legs lift the whole upper body (0.0 for the boar).
+	var lift: float = float(p.leg_len) - 0.25
+	var body_y := BODY_Y + lift
 	var snout := Palette.color(&"enemy_snout")
 	var ink := Palette.color(&"ink")
 	var ink_soft := Palette.color(&"ink_soft")
-	var white := Palette.color(&"apron_white")
+	var white: Color = p.tusk_color  # eye glint and tusks: the boar's white (D-192), `stone` for the other kinds (R2)
 
 	# body and belly
-	_add(acc, _sphere(BODY_R, 12, 6), _xf(Vector3(0, BODY_Y, 0), Vector3.ZERO, BODY_SCALE), upper)
-	_add(acc, _sphere(BODY_R, 12, 6), _xf(Vector3(0, BODY_Y - 0.09, 0.02), Vector3.ZERO, Vector3(0.9, 0.62, 1.05)), red)
+	_add(acc, _sphere(BODY_R, 12, 6), _xf(Vector3(0, body_y, 0), Vector3.ZERO, body_scale), upper)
+	_add(acc, _sphere(BODY_R, 12, 6), _xf(Vector3(0, body_y - 0.09, 0.02), Vector3.ZERO, Vector3(0.9, 0.62, 1.05)), red)
 
-	# ridge: five cones along the back, tallest at the shoulders, leaning back
+	# ridge: up to five cones along the back, tallest at the shoulders, leaning back
 	var rz := [0.26, 0.1, -0.08, -0.26, -0.42]
 	var rh := [0.25, 0.31, 0.28, 0.23, 0.17]
-	var half_z: float = BODY_R * BODY_SCALE.z
-	for k in 5:
+	var half_z: float = BODY_R * body_scale.z
+	for k in int(p.ridge):
 		var z: float = rz[k]
-		var top: float = BODY_Y + BODY_R * BODY_SCALE.y * sqrt(maxf(0.0, 1.0 - pow(z / half_z, 2.0)))
-		var h: float = rh[k]
+		var top: float = body_y + BODY_R * body_scale.y * sqrt(maxf(0.0, 1.0 - pow(z / half_z, 2.0)))
+		var h: float = rh[k] * float(p.ridge_h)
 		_add(acc, _cone(0.12, 0.0, h, 8, [false, false]), _xf(Vector3(0, top - 0.03 + h * 0.5, z), Vector3(-14.0, 0, 0)), ink)
 
 	# legs (alpha 0: the shader swings them about the hip)
 	for lx in [-1.0, 1.0]:
 		for lz in [-1.0, 1.0]:
-			_add(acc, _cone(0.095, 0.085, 0.25, 8, [true, false]), _xf(Vector3(lx * 0.27, 0.125, lz * 0.3)), ink_soft, true)
+			var leg_len: float = p.leg_len
+			_add(acc, _cone(0.095, 0.085, leg_len, 8, [true, false]), _xf(Vector3(lx * 0.27, leg_len * 0.5, lz * 0.3)), ink_soft, true)
 
 	# tail: a small curl
 	var torus := TorusMesh.new()
@@ -118,11 +148,11 @@ static func _build() -> ArrayMesh:
 	torus.outer_radius = 0.075
 	torus.rings = 10
 	torus.ring_segments = 6
-	var tail_pos := Vector3(0, BODY_Y + 0.12, -half_z + 0.02)
+	var tail_pos := Vector3(0, body_y + 0.12, -half_z + 0.02)
 	_add(acc, torus, _xf(tail_pos + Vector3(0, 0.03, -0.04), Vector3(70.0, 0, 0)), maroon)
 
 	# head: big and low at the front, tilted slightly down
-	var head := _xf(HEAD_POS, Vector3(HEAD_TILT_DEG, 0, 0))
+	var head := _xf(HEAD_POS + Vector3(0.0, lift, 0.0), Vector3(HEAD_TILT_DEG, 0, 0))
 	_add(acc, _sphere(HEAD_R, 12, 6), head * _xf(Vector3.ZERO, Vector3.ZERO, Vector3(1.05, 0.95, 1.0)), upper)
 	_add(acc, _cone(0.14, 0.13, 0.07, 8, [false, true]), head * _xf(Vector3(0, -0.07, 0.275), Vector3(90, 0, 0)), snout)
 	for sx in [-1.0, 1.0]:
@@ -130,7 +160,19 @@ static func _build() -> ArrayMesh:
 		_add(acc, _sphere(0.05, 8, 4), head * _xf(Vector3(sx * 0.125, 0.09, 0.235)), ink)
 		_add(acc, _sphere(0.016, 6, 3), head * _xf(Vector3(sx * 0.14, 0.11, 0.275)), white)
 		_add(acc, BoxMesh.new(), head * _xf(Vector3(sx * 0.125, 0.165, 0.225), Vector3(-30.0, 0.0, sx * 24.0), Vector3(0.12, 0.035, 0.05)), ink)
-		_tusk(acc, head, sx, Vector3(sx * 0.17, -0.05, 0.18), white)
+		if int(p.tusks) >= 2:
+			_tusk(acc, head, sx, Vector3(sx * 0.17, -0.05, 0.18), p.tusk_color)
+		if int(p.tusks) >= 4:
+			_tusk(acc, head, sx, Vector3(sx * 0.17, -0.15, 0.18), p.tusk_color, 25.0, 0.7)
+		if float(p.ear_len) > 0.0:
+			var el: float = p.ear_len
+			_add(acc, _cone(0.1, 0.06, el, 6, [false, true]), head * _xf(Vector3(sx * 0.12, 0.2 + el * 0.4, -0.06), Vector3(-40.0, 0.0, -sx * 28.0)), p.ears)
+
+	if float(p.scale) != 1.0:
+		var verts: PackedVector3Array = acc.verts
+		for i in verts.size():
+			verts[i] *= float(p.scale)
+		acc.verts = verts
 
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
