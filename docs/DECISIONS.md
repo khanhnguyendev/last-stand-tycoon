@@ -2192,3 +2192,126 @@ station pop depends on.
 - **Level 5 day perf idle re-run: postponed by the author.** One attempt on 2026-10-06 never reached the 75% idle gate
   (vitest and BlueStacks were running) and was stopped before measuring; nothing recorded. `build/web_profile` is
   rebuilt from 63b2532 and the command is `DAY_FIXTURE=day3_counter5 export/perf_night3.sh build/web_profile <out>`.
+
+## 2026-10-06: E5 diner tier ladder (brainstorm with the author)
+
+Spec: `docs/superpowers/specs/2026-10-06-e5-tier-ladder-design.md`. Plan: `docs/superpowers/plans/2026-10-06-e5-tier-ladder.md`.
+
+**D-236 The diner tier is the progression spine (author; amends D-222 and D-233).** Five tiers; tier 1 is today's game;
+difficulty follows the tier (a small per-day ramp to a per-tier cap in `balance/`), not the day; income only from kills;
+tier-up = pay on a sign, win the boss night, the diner grows next dawn; permanent, no reset; mercy unchanged and hidden;
+one thumb. D-222's E2, E3 and E4 are no longer independent expansions ordered by the playtest: they are content
+unlocked by tier (E4 land and spots from tier 2, E2 seller at tier 4 and hauler at tier 5, E3 equipment at tier 4).
+D-232's "the playtest decides the order of E3 and E4" is void. Slice 1 = the tier system plus tier 2.
+
+**D-237 Tier-1 cap at day 7 and a one-time baseline re-record (author).** Rows 1 to 7 of the planner sweep are the
+tier-1 identity and stay byte-identical (`tools/baseline_rows.sh 7`); rows 8 to 14 change, and the S4 baseline was
+re-recorded once (evidence: `docs/review/media/e5/baseline/`). The "sweep CSV identical to today's" rule and the "first
+fail day 10 ± 1" target are retired; the new targets are spec 8.2. A tier-1 save past day 7 meets day-7 pressure after
+the update (accepted).
+
+**D-238 Boss rides wave 3 (author).** A boss night is the tier's capped night plus the boss first in wave 3's main
+group; 3 moons, the third a boss moon; a world HP bar; nothing from the next tier appears before the win; a loss is
+the existing retry with the payment kept; mercy applies; the boss drops a night's worth of steaks, swept to the freezer
+at dawn like any others.
+
+**D-239 Tier 2 unlocks two single-lane yard towers (author).** `tower_w` and `tower_e` on the side yards; towers answer
+the hare, which fences cannot stop.
+
+**D-240 Yards and the sign are pinned by tests, not by the spec (author).** Clearance from lanes by `lateral_spread`
++ 1 m, from every pad, zone, slot, post and path; on screen at 9:16; the yard ring is stones, not the wooden fence
+model; the tier sign stands on the land it sells. Final coordinates: `tower_w` (-10.6, 0.6), `tower_e` (8.8, 1.1), west
+yard `Rect2(-13.5, -2.5, 4.5, 10.5)`, east yard `Rect2(8.0, -0.5, 5.0, 3.5)` (shaped by the props and the 3 m rule),
+sign (-10.0, 7.5).
+
+**D-241 The hare's share ramps (author).** 0.15 on the first tier-2 night, 0.35 from the third day, so the first night
+teaches the threat.
+
+**D-242 Boss tuned for a long readable fight (author).** 800 HP (1,520 at the tier-1 cap), 15 damage a second. Sim:
+the boss alone needs 19.0 s from its first hit to fell the diner (minimum 15).
+
+**D-243 The tier-up dawn is the game's biggest moment (author).** Banner, a camera move, staged pops, then the card
+pick; all visual on top of the saved state; no replay on resume (D-253).
+
+**D-244 Sim criteria for tiers.** A full build for a tier always holds that tier's cap with 0 retries, on three
+seeds; the planner never tiers up; the tier bot's unspent gold on day 14 is below the planner's.
+
+**D-245 Known gap: tier 2 is the top of slice 1 (author).** The sign hides at tier 2 and gold piles up again. Measured
+(seed 20260930): both yard towers are at level 3 on the first tier-2 day, both stations are maxed by day 14, and unspent
+gold at close-up then grows 223 → 3,999 from day 14 to day 20. Accepted; tier 3 removes it.
+
+**D-246 Procedural hare and Boar King.** No monster models exist in the CC0 packs in use; both come from the Boar's
+mesh builder and shader (D-192), the boar mesh pinned byte-identical. Reversible; REVIEW_QUEUE.
+
+**D-247 Sim budget split: not needed for slice 1; still the proposal for tiers 3 to 5 (pending the author).** The sim
+suite is 47 s of 60 on Linux CI (42 s locally) with the four tier sims, so the split is the first thing tier 3 needs. Proposal when it fills: `tests/sim_tier/`, `run_tests.sh sim-tier`, a
+third CI job and required check, each job 60 s. Task 18 of the plan was not run.
+
+## 2026-10-06: E5 build (subagent-driven; rulings by the main session)
+
+**D-248 Pressure and balance shape.** `TierBalance` arrays have `tier_costs.size() + 1` entries (index 0 unused; the top
+tier is `tier_costs.size()`). `EnemyBalance` and `WaveBalance.target_priority` stay as the Boar's numbers;
+`MonsterBalance.stats(&"boar")` is a view of them; hare and boss are exported `MonsterStats`. A monster's stats are
+cached on the `Boar` at spawn (the per-call view allocated 3 to 7 objects per boar per tick), so a live balance edit
+applies to monsters spawned after it. `core/` now reads the `Balance` autoload in `LanePlanner` and `WaveSchedule`
+(boss HP for the lane threat, `boss_lead`).
+
+**D-249 The determinism gate from Task 3 on is `tools/baseline_rows.sh 7`.** The tier-1 cap arrives with
+`WaveMath.pressure`, so `tools/baseline_diff.sh` differed in rows 8 to 14 until the re-record (D-237). The sweep's
+`enemy_count` column now sums the night's own plan (it printed uncapped counts past day 7).
+
+**D-250 Paying the tier in full marks tonight's wave plan with the boss.** The day's plan is made at dawn, before the
+payment; the plan only marked the boss at the next dawn, so no boss night would ever have happened. On load a pending
+boss always rides tonight's plan (a hand-edited save cannot skip it). Telegraph flags refresh when the tier is paid.
+
+**D-251 Save schema 5.** Built-in step 4 → 5; validation of the tier fields and of the new wave keys (types before
+use); a tier above what the build knows is clamped on load, but a spot above the build's top tier is still rejected
+("building tier <id>"; an id the build does not know at all is "building <id>"): a tier-2 save on a tier-1-only build
+does not load (pinned by a test).
+
+**D-252 The hare was redesigned after its first shots failed the silhouette rule (R1).** Lighter `enemy_snout` body,
+lean and long, two flat `enemy_red` ears laid back for the top-down camera; scale 0.6 (0.72 m tall). The Boar King
+passed R1 to R8 first time. Leg swing rate and pivot are shared by all kinds (known limit).
+
+**D-253 The tier-up dawn.** The card offer is drawn once and stashed without a signal before `complete_tier_up`, so
+the dawn save written on `tier_reached` resumes at the card pick at tier 2 (a tab closed during the reveal loses
+nothing and skips nothing). A top-tier no-op opens the pick at once. The offer is stashed unconditionally (a stale
+offer from a loaded save cannot be shown).
+
+**D-254 The tier-2 diner has no awnings.** The spec put an awning on each flank; under the 55° camera any awning at
+y ≥ 2.2 near the walls hides monsters in the attack zones, the north tower bases or the hero, outside every occluder
+box. Tier 2 = the tier-1 diner plus two thin `diner_cream` terraces (top at y 0.015, under lane strips, steaks and
+blob shadows), one baked mesh swapped per tier, 0 extra draws. The occluder fade re-applies after a swap. Honest
+limit: from the home spot the diner reads only slightly grown (REVIEW_QUEUE).
+
+**D-255 Yards.** Dirt patches in the one merged ground mesh, a stone ring (one MultiMesh), no collision. Props within
+1 m of an OPEN yard are hidden (five props at tier 2). The world follows the tier on `tier_changed`, `tier_reached`
+and `state_restored`; tier-1 terrain and props are pinned byte-identical.
+
+**D-256 The reveal.** The camera is asked through `EventBus.camera_reveal_requested` (no system reaches into another's
+nodes): it moves to the centre of the diner and the newly opened yards and zooms to fit them at 9:16 (2.15 at tier 2;
+cap `tier_reveal_zoom` 2.25), holds, and returns to the hero. Five steps (dust at the first yard, the stones appear,
+the diner pops, dust at the next yard, the yard spot markers pop) land at 0.60 to 2.00 s, inside the hold; the reveal
+ends with the card pick at 3.0 s. The ground mesh is never scaled. The warm-up pre-builds the tier-2 terrain and props
+and warms the hare, the boss and the boss bar. Known limit: at 9:21 and 21:9 the pulled-back view shows up to 20 m
+past the ground mesh edge (grass-coloured background) for those 3 seconds.
+
+**D-257 Bots and sims.** `TierBot` buys defense exactly as the planner first, then the tier-up when the full cost is
+in hand, then yard towers (also on a lane with no threat tonight), then stations. The boss-night sim resumes its
+fixture as DAY and retries through the day, as real play does. Fixtures are deterministic (`make_save.gd
+--fixture=tier`, two runs byte-identical).
+
+**D-258 E5 results (seed 20260930 unless noted; starting values, no tuning round).**
+- Sims: boss night won after 1 retry through the day (2 allowed), diner 0.193, mercy 0.85 on the winning attempt;
+  boss alone: 19.0 s hold; first tier-2 night cleared with 0 retries, diner 0.397, 9 hares; full tier-2 build at the
+  cap cleared on seeds 20260930 / 1 / 2 with diner 0.037 / 0.59 / 0.933.
+- Sweep (`docs/review/media/e5/sweep/`): planner clears 14 days with 0 retries on seeds 20260930, 1, 2 (unspent day
+  14: 2,276 / 1,620 / 2,736). Tier bot: boss night on day 12 / 13 / 12 with 1 / 1 / 0 retries; its first failed night
+  is the boss night (none on seed 2); tier-2 nights 1 to 3 need 0 retries; unspent day 14: 223 / 77 / 563; 5 / 4 / 5
+  cap nights with 0 retries, lowest diner 0.123 / 0.380 / 0.277. Every spec 8.2 target is met.
+- Linux CI (PR #53) prints the same four sim lines digit for digit, so the thin cap margin on seed 20260930 (diner
+  0.037) is a balance fact, not platform noise. Sim suite 47 s of 60 on CI, 42 s locally.
+
+**D-259 Phases were stacked, not merged one by one (deviates from D-137 for E5).** From Task 3 the tier-1 game stops
+growing at day 7, while the tier sign arrives in phase 3; every merge to `main` deploys to Pages. PRs #50, #51, #52
+and the phase-4 PR are stacked and merge together after the author's checkpoint.

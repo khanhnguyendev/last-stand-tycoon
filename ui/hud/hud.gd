@@ -137,6 +137,7 @@ func _ready() -> void:
 	EventBus.wave_started.connect(_on_wave_started)
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 	EventBus.card_offered.connect(_on_card_offered)
+	EventBus.tier_reached.connect(_on_tier_reached)
 	EventBus.diner_damaged.connect(_on_diner_damaged)
 	EventBus.state_restored.connect(_refresh_all)
 	EventBus.banner_requested.connect(_on_banner)
@@ -228,6 +229,10 @@ func _on_phase_changed(phase: int, day: int) -> void:
 
 ## phase_changed(DAWN) carries the old day; the offer comes after advance_day (S2 spec 5.1).
 func _on_card_offered(_offer: Array) -> void:
+	day_label.text = tr("Day %d") % GameState.day
+
+## The tier-up dawn delays the card offer by the reveal, so the new day shows from tier_reached.
+func _on_tier_reached(_tier: int) -> void:
 	day_label.text = tr("Day %d") % GameState.day
 
 ## The boss moon breathes from its wave's start until the boss dies.

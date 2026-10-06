@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# S4 determinism proof (spec 6.3): re-runs the sweep for the 3 baseline seeds and diffs. Never re-record the baseline.
+# Determinism proof (S4 spec 6.3). Re-recorded once for E5 (D-237): rows 1 to 7 are the tier-1 identity (tools/baseline_rows.sh); rows 8 to 14 follow the tier-1 cap.
 set -euo pipefail
 : "${GODOT:?Set GODOT}"
 cd "$(dirname "$0")/.."

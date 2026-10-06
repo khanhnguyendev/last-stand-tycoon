@@ -46,7 +46,8 @@ Done on 2026-10-06 and removed from the list: items 1 (postponed by the author, 
 22. `tests/sim/make_save.gd`: the first header sentence still reads as if the night3 fixtures are always written.
 23. The E1 spec names `test_geometry.gd` and `test_day_sims.gd` where the tests live in `test_station_layout.gd` and
     `test_station_sims.gd`.
-24. Stale wording after the schema bump: `test_game_state.gd` `test_round_trip_v3_carries_night_fails` (now schema
-    4), `test_perf_fixture.gd:2`, the literal `3` in `test_save_codec.gd:38-40`.
+24. ~~Stale wording after the schema bump~~: the schema literals in `test_save_codec.gd` and `test_save_stations.gd`
+    now read `GameState.SCHEMA_VERSION` (E5 Task 5). Still open: the test name
+    `test_round_trip_v3_carries_night_fails` in `test_game_state.gd` and the comment at `test_perf_fixture.gd:2`.
 25. Exit-time leak warnings grew with the station sims (about 48 ObjectDB instances and 16 resources at exit of the
     sim suite, against 16 and 7 before). Not a failure condition of `run_tests.sh`; cause not investigated.

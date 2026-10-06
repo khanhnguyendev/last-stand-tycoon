@@ -109,6 +109,8 @@ extends Resource
 @export var boss_lunge := 0.5
 ## The boss's moon in the night HUD is drawn this much bigger (spec 7.4).
 @export var boss_moon_scale := 1.3
+## The boss moon's breath: its scale swings by this fraction while the boss is alive.
+@export var boss_moon_breath := 0.06
 @export var boar_squash := 0.92
 @export var boar_death_squash := 0.6
 ## S4 Task 7 (D-191): the hero's knife roll about its local X (deg/s) and the hero ring's alpha.

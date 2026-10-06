@@ -6,6 +6,7 @@
 # QUERY (optional, e.g. QUERY="warmup=0&perfwarm=4") is appended to both game URLs as a query string (to=/%3F<query>, "&" encoded).
 # DAY_FIXTURE (optional, default night3_closeup) picks the day fixture, e.g. DAY_FIXTURE=day3_counter5 (E1).
 # NIGHT_ONLY=1 (optional) skips step 1 (the day half), so a run takes about 2 minutes.
+# NIGHT_FIXTURE (optional, default night3_start) picks the night fixture, e.g. NIGHT_FIXTURE=tier2_night (E5 spec 8.4).
 # A mid-run idle sample (cpu_idle_mid=, one per phase) is printed from a background subshell about halfway through each wait.
 # 2. f=night3_start (resumes straight into night 3) -> night3_80s.png after 100 s (the overlay freezes its reading once 60 s of frames are counted, after a 2 s warm-up).
 set -euo pipefail
@@ -14,6 +15,9 @@ TO="/"; [ -z "${QUERY:-}" ] || TO="/%3F${QUERY//&/%26}"
 DAY_FIXTURE="${DAY_FIXTURE:-night3_closeup}"
 [ -f "$(dirname "$0")/fixtures/$DAY_FIXTURE.save.json" ] || { echo "no fixture $DAY_FIXTURE" >&2; exit 1; }
 echo "day_fixture=$DAY_FIXTURE"
+NIGHT_FIXTURE="${NIGHT_FIXTURE:-night3_start}"
+[ -f "$(dirname "$0")/fixtures/$NIGHT_FIXTURE.save.json" ] || { echo "no fixture $NIGHT_FIXTURE" >&2; exit 1; }
+echo "night_fixture=$NIGHT_FIXTURE"
 # The reading depends on what else the Mac is doing (S4: 59.5 fps idle vs 51.9 with an editor at 53% CPU), so wait
 # for an idle machine (PERF_MIN_IDLE, default 75%) and print the idle figure next to the reading (D-209).
 cpu_idle() { top -l 2 -n 0 | awk '/CPU usage/ {v=$7} END {gsub("%","",v); print int(v)}'; }
@@ -41,7 +45,7 @@ xcrun simctl openurl "$UDID" "http://localhost:$PORT/seed_save.html?f=$DAY_FIXTU
 sleep 90; xcrun simctl io "$UDID" screenshot "$OUT/day_peak.png" >/dev/null; wait $MID
 xcrun simctl terminate "$UDID" com.apple.mobilesafari 2>/dev/null || true   # no hidden tab flushing its DAY save
 fi
-xcrun simctl openurl "$UDID" "http://localhost:$PORT/seed_save.html?f=night3_start&to=$TO"
+xcrun simctl openurl "$UDID" "http://localhost:$PORT/seed_save.html?f=$NIGHT_FIXTURE&to=$TO"
 ( sleep 50; echo "cpu_idle_mid=$(cpu_idle)% phase=night" ) & MID=$!
 sleep 100; xcrun simctl io "$UDID" screenshot "$OUT/night3_80s.png" >/dev/null; wait $MID
 echo "ios: $OUT/night3_80s.png"

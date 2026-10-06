@@ -65,7 +65,7 @@ func test_s2_guard_balance_defaults() -> void:
 	assert_eq(Balance.data.guards.stats(&"tank"), t)
 
 func test_s2_thresholds_and_ui() -> void:
-	assert_eq([Balance.data.sim.break_day_target, Balance.data.sim.break_day_tolerance], [10, 1])
+	assert_eq(Balance.data.sim.boss_night_max_retries, 2)
 	assert_almost_eq(Balance.ui.card_input_guard_s, 0.5, 1e-6)
 	assert_eq(Balance.ui.card_panel_size, Vector2(560, 220))
 	assert_almost_eq(Balance.ui.card_panel_gap, 24.0, 1e-6)

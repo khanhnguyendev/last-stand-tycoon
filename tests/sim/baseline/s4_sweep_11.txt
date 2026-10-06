@@ -1,2 +1,2 @@
-SWEEP first_fail_day=11 hard_break_day=-1 target=10±1
-RETRIES days=14 median=0.0 max_before_day8=0 max=3 target_ok=true
+SWEEP first_fail_day=-1 hard_break_day=-1 unspent_day14=2320
+RETRIES days=14 median=0.0 max_before_day8=0 max=0 target_ok=true
