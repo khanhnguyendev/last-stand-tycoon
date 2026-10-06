@@ -99,3 +99,21 @@ func test_an_upgrade_pops_the_visual_not_the_body() -> void:
 	assert_gt(main.world.counter.body_visual.scale.x, 1.0)
 	await _ticks(_secs(Balance.ui.build_pop_time))
 	assert_almost_eq(main.world.counter.body_visual.scale.x, 1.0, 0.001)
+
+func test_a_restore_mid_pop_kills_the_pop_and_resets_the_scale() -> void:
+	var vis: Node3D = main.world.counter.body_visual
+	EventBus.station_upgraded.emit(&"counter", 1)
+	assert_gt(vis.scale.x, 1.0)
+	EventBus.state_restored.emit()
+	assert_eq(vis.scale, Vector3.ONE)
+	await _ticks(_secs(Balance.ui.build_pop_time))
+	assert_eq(vis.scale, Vector3.ONE)
+
+func test_a_restore_mid_pop_kills_the_freezer_pop_and_resets_the_scale() -> void:
+	var vis: Node3D = main.world.freezer.body_visual
+	EventBus.station_upgraded.emit(&"freezer", 1)
+	assert_gt(vis.scale.x, 1.0)
+	EventBus.state_restored.emit()
+	assert_eq(vis.scale, Vector3.ONE)
+	await _ticks(_secs(Balance.ui.build_pop_time))
+	assert_eq(vis.scale, Vector3.ONE)

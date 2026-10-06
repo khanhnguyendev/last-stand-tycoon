@@ -133,7 +133,7 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 		for f in ["level", "paid"]:
 			if not typeof(st[f]) in [TYPE_INT, TYPE_FLOAT]:
 				return "station field type " + str(id)
-		if int(st.level) < 0 or int(st.level) > bd.stations.max_level or float(st.paid) < 0.0:
+		if int(st.level) < 0 or float(st.paid) < 0.0:
 			return "range station " + str(id)
 	if s.lane_plan.size() != bd.wave.base_counts.size():
 		return "lane_plan"

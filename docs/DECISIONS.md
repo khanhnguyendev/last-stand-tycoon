@@ -2136,3 +2136,14 @@ Reversible; goes to `docs/REVIEW_QUEUE.md` when it ships.
   The traveler pool went from 8 to 31 prewarmed travelers, so boot time and memory are unmeasured for E1.
 - **Device check:** iOS Simulator (iPhone 17 Pro, Safari) on the preview build: night 1 loads, nothing clipped by the
   notch (`docs/review/media/e1/device/ios.png`). No Android reading (same Playwright problem).
+
+## 2026-10-06: E1 follow-ups (owed from the E1 final review)
+
+**D-234 A station level above `max_level` is clamped on load, not rejected.** `SaveCodec.validate` accepted
+`0 <= level <= max_level`, so lowering `stations.max_level` in a later build would have rejected every save that had
+reached the old maximum. Validation now checks only `level >= 0`; `GameState.from_dict` already clamps the level to
+`max_level` (and `paid` to `cost - 1`, D-231). Same rule as `paid`: a later balance change never loses a save.
+Also in this follow-up set: the four E1 test files derive every cost from `StationEffects` instead of literals (so cost
+tuning does not break tests); the counter, freezer and build-spot pop tween share one helper (`PopFx`) and every pop is
+killed on `state_restored`; a unit test pins `World.add_static_box`'s child order (shape, then visual root), which the
+station pop depends on.

@@ -44,23 +44,27 @@ func test_before_the_first_new_game_everything_reads_as_level_0() -> void:
 	GameState.new_game(1234)  # leave a whole state behind
 
 func test_partial_payment() -> void:
-	GameState.add_gold(100)
+	var cost := GameState.station_next_cost(&"counter")
+	var part := cost / 3
+	GameState.add_gold(cost + 70)
 	_events = []
-	assert_eq(GameState.pay_into_station(&"counter", 10), 10)
-	assert_eq(GameState.gold, 90)
-	assert_eq(GameState.stations[&"counter"], {"level": 0, "paid": 10})
-	assert_eq(GameState.station_remaining_cost(&"counter"), 20)
-	assert_eq(_events, [["gold", -10], ["changed", &"counter", 0, 10]])
+	assert_eq(GameState.pay_into_station(&"counter", part), part)
+	assert_eq(GameState.gold, cost + 70 - part)
+	assert_eq(GameState.stations[&"counter"], {"level": 0, "paid": part})
+	assert_eq(GameState.station_remaining_cost(&"counter"), cost - part)
+	assert_eq(_events, [["gold", -part], ["changed", &"counter", 0, part]])
 
 func test_completing_a_level_emits_changed_then_upgraded() -> void:
-	GameState.add_gold(100)
-	GameState.pay_into_station(&"counter", 25)
+	var cost := GameState.station_next_cost(&"counter")
+	var first := cost - 5
+	GameState.add_gold(cost + 70)
+	GameState.pay_into_station(&"counter", first)
 	_events = []
-	assert_eq(GameState.pay_into_station(&"counter", 50), 5, "never more than the level still costs")
+	assert_eq(GameState.pay_into_station(&"counter", cost * 2), 5, "never more than the level still costs")
 	assert_eq(GameState.gold, 70)
 	assert_eq(GameState.stations[&"counter"], {"level": 1, "paid": 0})
 	assert_eq(_events, [["gold", -5], ["changed", &"counter", 1, 0], ["upgraded", &"counter", 1]])
-	assert_eq(GameState.station_next_cost(&"counter"), 60)
+	assert_eq(GameState.station_next_cost(&"counter"), StationEffects.level_cost(&"counter", 1, sb))
 
 func test_payment_is_capped_by_the_gold_held() -> void:
 	# Review Focus 4: less gold than one drain tick.
@@ -84,7 +88,7 @@ func test_max_level_takes_no_gold() -> void:
 	_events = []
 	assert_eq(GameState.station_next_cost(&"counter"), -1)
 	assert_eq(GameState.station_remaining_cost(&"counter"), -1)
-	assert_eq(GameState.pay_into_station(&"counter", 50), 0)
+	assert_eq(GameState.pay_into_station(&"counter", 1000), 0)
 	assert_eq(GameState.gold, 999)
 	assert_eq(_events, [])
 
