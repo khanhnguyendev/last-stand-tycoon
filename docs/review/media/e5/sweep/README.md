@@ -8,7 +8,9 @@ Branch `e5/p4-t16-sweep`, headless, 60 fps, starting balance (no tuning round wa
 ```
 
 Raw output: `planner_<seed>.txt|.csv`, `tier_<seed>.txt|.csv`. No `STALL` row, no `SCRIPT ERROR` and no `hard_break_day`
-in any run. The lines below are copied as printed.
+in any run. One run (`planner_2.txt`) ends with Godot's exit-time lines `WARNING: 18 ObjectDB instances were leaked` and
+`ERROR: 8 resources still in use at exit`, printed after its `SWEEP` and `RETRIES` lines (the known exit-time leak
+warnings, `docs/E1_FOLLOWUPS.md` item 25). The lines below are copied as printed.
 
 ## Lines
 
@@ -39,7 +41,7 @@ Per seed:
 | Boss-night retries | 1 | 1 | 0 |
 | First night at tier 2 (day) | 13 | 14 | 13 |
 | First day with every tower and fence at level 3, yards included | 13 | 15 | 13 |
-| Cap nights before / from that day | 0 / 5 | 0 / 4 | 0 / 5 |
+| Cap nights before / from that day | 0 / 5 (day 19 started with `fence_n` at 0 after the night before; cleared at 1.000) | 0 / 4 | 0 / 5 |
 
 The tier-paid day is not a CSV column; it is the day before the boss night (the payment happens in that day's DAY
 phase, the night that follows is the boss night).
@@ -50,7 +52,7 @@ phase, the night that follows is the boss night).
 - **Boss night:** lost once and won on the retry on two seeds (mercy 0.85 on the second attempt), won first time on
   the third. The sim's allowance is 2 retries.
 - **Tier 1 after the cap:** the planner now clears all 14 days without a retry on every seed (before the cap its
-  first failed night was day 9 to 11). Staying at tier 1 is safe, and it leaves 1,600 to 2,700 unspent gold by
+  first failed night was day 10, 9, 9 on these seeds: `docs/review/media/final/sweep.md`). Staying at tier 1 is safe, and it leaves 1,600 to 2,700 unspent gold by
   day 14.
 - **The known gap (D-245) shows quickly.** On seed 20260930 the tier bot builds both yard towers to level 3 on its
   first tier-2 day and maxes both stations by day 14; unspent gold at close-up then grows 223, 659, 1119, 1579, 2329,

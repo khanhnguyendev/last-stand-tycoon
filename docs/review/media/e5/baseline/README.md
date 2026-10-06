@@ -12,7 +12,7 @@ seed 777: RETRIES days=14 median=0.0 max_before_day8=0 max=0 target_ok=true
 rows 1-7 identical
 ```
 
-Rows 8 to 14 changed because pressure stops at 7 at tier 1 (the tier-1 cap). In the old CSV `enemy_count` was computed from the day (`Economy.night_kills(day)`), so it printed uncapped counts; the new column sums the night's own plan. Other columns that moved in rows 8 to 14 (see the `.csv.diff` files): `steaks`, `gold_earned`, `builds_defending`, `night_seconds`, `day_seconds`, `cards`, `picked`. Format of each cell: before -> after.
+Rows 8 to 14 changed because pressure stops at 7 at tier 1 (the tier-1 cap). In the old CSV `enemy_count` was computed from the day (`Economy.night_kills(day)`), so it printed uncapped counts; the new column sums the night's own plan. Other columns that moved in rows 8 to 14 (see the `.csv.diff` files): `steaks` (2 x kills), `gold_earned`, `night_seconds`, `day_seconds`, and `guard_knockouts` (1 -> 0 on seed 11 days 10 and 14 and on seed 777 day 9: fewer monsters, no knockout). Unchanged in every row of every seed: `day`, `builds_defending`, `cards`, `picked`, the header and the row count. Format of each cell: before -> after.
 
 ## Seed 20260930
 
