@@ -348,6 +348,7 @@ func pay_into_tier(amount: int) -> int:
 	if tier_paid >= cost:
 		tier_paid = 0
 		boss_pending = true
+		lane_plan = LanePlanner.with_boss(lane_plan)  # the boss rides tonight's plan; with_boss copies and draws no RNG
 		EventBus.tier_changed.emit(tier, tier_paid, boss_pending)
 		EventBus.tier_paid_up.emit(tier + 1)
 	else:

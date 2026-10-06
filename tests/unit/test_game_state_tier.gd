@@ -38,6 +38,7 @@ func test_partial_payment_is_capped_by_gold() -> void:
 	assert_eq([GameState.gold, GameState.tier_paid, GameState.boss_pending], [0, 40, false])
 	assert_eq(GameState.tier_remaining_cost(), 460)
 	assert_eq(_events, [["gold", 0, -40], ["changed", 1, 40, false]])
+	assert_false(GameState.is_boss_night())
 
 func test_completing_the_payment_flags_the_boss_night_once() -> void:
 	GameState.add_gold(600)
@@ -51,7 +52,29 @@ func test_completing_the_payment_flags_the_boss_night_once() -> void:
 	assert_eq(_events, [])
 	assert_eq(GameState.tier_remaining_cost(), 0, "paid in full: remaining 0 until the tier-up")
 
-func test_advance_day_plans_the_boss_night_when_pending() -> void:
+func test_completing_the_payment_marks_tonights_plan() -> void:
+	var before: Array = GameState.lane_plan.duplicate(true)
+	var day_before := GameState.day
+	GameState.add_gold(500)
+	GameState.pay_into_tier(500)
+	assert_true(GameState.is_boss_night())
+	assert_eq(GameState.lane_plan.map(func(w): return w.boss), [false, false, true])
+	for i in before.size():
+		for k in before[i]:
+			if k != "boss":
+				assert_eq(GameState.lane_plan[i][k], before[i][k], "wave %d %s" % [i, k])
+	assert_eq(GameState.day, day_before)
+
+func test_snapshot_taken_while_pending_restores_the_boss_night() -> void:
+	GameState.add_gold(500)
+	GameState.pay_into_tier(500)
+	var d := GameState.to_dict()
+	GameState.new_game(5)
+	GameState.from_dict(d)
+	assert_eq([GameState.boss_pending, GameState.tier_paid, GameState.is_boss_night()], [true, 0, true])
+	assert_eq(GameState.to_dict(), d)
+
+func test_advance_day_keeps_the_boss_while_pending() -> void:
 	GameState.add_gold(500)
 	GameState.pay_into_tier(500)
 	GameState.advance_day()
