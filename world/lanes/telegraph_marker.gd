@@ -15,10 +15,14 @@ func setup(id: String) -> void:
 	add_child(FLAG_SCENE.instantiate())  # root "Visual"; the flag mesh carries the enemy_red override (R4)
 	EventBus.phase_changed.connect(_on_phase_changed)
 	EventBus.state_restored.connect(refresh)
+	EventBus.tier_changed.connect(_on_tier_changed)  # the day the tier is paid, the boss lane already shows
 	refresh()
 
 func _on_phase_changed(p: int, _day: int) -> void:
 	_phase = p
+	refresh()
+
+func _on_tier_changed(_tier: int, _paid: int, _boss_pending: bool) -> void:
 	refresh()
 
 func refresh() -> void:

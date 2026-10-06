@@ -104,6 +104,9 @@ func from_dict(d: Dictionary) -> void:
 			# E5: hares and the boss ride in the plan; a wave saved before E5 has none.
 			"fast_main": int(w.get("fast_main", 0)), "fast_side": int(w.get("fast_side", 0)), "boss": bool(w.get("boss", false)),
 		})
+	# A pending boss always rides tonight's plan (a hand-edited save cannot skip it).
+	if boss_pending and not lane_plan.is_empty():
+		lane_plan[lane_plan.size() - 1].boss = true
 	cards = {}
 	for k in d.cards:
 		cards[StringName(k)] = int(d.cards[k])
@@ -403,6 +406,10 @@ func guard_max_hp(id: StringName) -> float:
 func set_card_offer(offer: Array[StringName]) -> void:
 	card_offer = offer.duplicate()
 	EventBus.card_offered.emit(Array(card_offer.duplicate()))
+
+## E5: the tier-up dawn stores the offer before the reveal so a save written during the reveal resumes at the card pick.
+func stash_card_offer(offer: Array[StringName]) -> void:
+	card_offer = offer.duplicate()
 
 ## Debug skip only (spec 5.1): no signal, so no overlay shows.
 func clear_card_offer() -> void:

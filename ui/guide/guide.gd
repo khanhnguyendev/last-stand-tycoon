@@ -115,6 +115,8 @@ func snapshot() -> Dictionary:
 		spots.append({"id": id, "remaining": gs.remaining_cost(id), "next_cost": gs.next_level_cost(id), "pos": MapLayout.to3(MapLayout.spot_position(id))})
 	var spots_only: Dictionary = gs.to_dict()
 	spots_only.erase("stations")  # the tutorial never waits for a station upgrade (E1 spec 5.4)
+	for k in ["tier", "tier_day", "tier_paid", "boss_pending"]:
+		spots_only.erase(k)  # nor for the tier-up (E5 spec 7.7)
 	return {
 		"phase": main.phase_controller.phase, "day": gs.day, "hero_xz": main.hero.xz(), "walked": walked,
 		"attack_range": Balance.data.hero.attack_range, "boars": boars, "steaks": steaks, "carried": gs.carried_steaks,
