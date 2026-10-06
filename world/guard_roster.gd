@@ -41,7 +41,7 @@ func _spawn(id: StringName) -> Guard:
 
 ## First targetable guard (CardCatalog.IDS order) within the enemy's reach + the guard's body radius (xz).
 func guard_target(enemy) -> Dictionary:
-	var reach := Balance.data.enemy.reach
+	var reach: float = enemy.stats().reach
 	var p := Vector2(enemy.global_position.x, enemy.global_position.z)
 	for id in CardCatalog.IDS:
 		if not guards.has(id):

@@ -302,3 +302,16 @@ func test_banner_rest_offsets_are_stable_across_banners() -> void:
 	await _frames(Balance.ui.banner_min_s + Balance.ui.banner_in_s + 0.1)
 	assert_eq(hud.banner.text, "Two")
 	assert_almost_eq(hud.banner_panel.offset_top, rest_top, 0.01)
+
+func test_boss_moon_on_a_boss_night() -> void:
+	assert_eq(hud.boss_moon_index(), -1)
+	main.phase_controller.debug_skip_to_day()
+	GameState.add_gold(500)
+	GameState.pay_into_tier(500)
+	main.phase_controller.debug_skip_to_night()
+	await get_tree().physics_frame
+	assert_eq(hud.boss_moon_index(), 2)
+	assert_eq(hud.icons.boss_moon, 2)
+	assert_eq(hud.moon_color(2), Palette.color(&"enemy_red"), "unlit boss moon is red, not ink_soft")
+	assert_almost_eq(hud.icons.moon_scale(2), Balance.ui.boss_moon_scale, 1e-6)
+	assert_almost_eq(hud.icons.moon_scale(0), 1.0, 1e-6)

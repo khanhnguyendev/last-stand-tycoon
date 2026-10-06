@@ -29,7 +29,7 @@ func _fx_pos(kind: StringName) -> Vector3:
 	return Vector3.INF
 
 func test_enemy_killed_poof() -> void:
-	EventBus.enemy_killed.emit(0, &"north", Vector3(1, 0, 1))
+	EventBus.enemy_killed.emit(0, &"north", Vector3(1, 0, 1), &"boar")
 	assert_eq(_fx_count(&"poof"), 1)
 	assert_eq(_fx_pos(&"poof"), Vector3(1, 0, 1))
 

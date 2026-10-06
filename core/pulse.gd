@@ -21,4 +21,9 @@ static func should_pulse(state: Dictionary, bd: BalanceData) -> bool:
 		var cost := StationEffects.level_cost(StringName(id), int(st.level), bd.stations)
 		if cost >= 0 and gold >= cost - int(st.paid):
 			return false
+	# E5: an affordable tier-up is something left to do. No `tier` key = ignore the tier (the guide's view).
+	if state.has("tier") and not bool(state.get("boss_pending", false)):
+		var tcost := TierEffects.tier_cost(int(state.tier), bd.tiers)
+		if tcost >= 0 and gold >= tcost - int(state.get("tier_paid", 0)):
+			return false
 	return true

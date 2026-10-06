@@ -20,6 +20,10 @@ var phase := Phase.NIGHT
 var dawn_substate := ""
 var snapshot: Dictionary = {}
 var failing := false
+## E5: true from a tier-up dawn until its card pick opens (the reveal plays meanwhile).
+var reveal_pending := false
+## Bumped whenever the state is replaced, so a stale reveal timer never opens a pick over it.
+var _reveal_id := 0
 ## Bumped whenever a fail flow starts or is cancelled, so a stale fail timer never restores a snapshot.
 var _fail_id := 0
 
@@ -32,6 +36,7 @@ func _ready() -> void:
 func start_new_game(seed: int = 0) -> void:
 	failing = false
 	_fail_id += 1
+	_cancel_reveal()
 	dawn_substate = ""
 	_recall_all()
 	GameState.new_game(seed)
@@ -57,6 +62,8 @@ func _enter_night() -> void:
 	traveler_spawner.stop()
 	phase = Phase.NIGHT
 	EventBus.phase_changed.emit(phase, GameState.day)
+	if GameState.boss_pending:
+		EventBus.banner_requested.emit(tr("The Boar King comes"))
 	wave_director.start_night(GameState.lane_plan)
 
 func _enter_day() -> void:
@@ -75,17 +82,41 @@ func _run_dawn() -> void:
 	wave_director.stop()
 	phase = Phase.DAWN
 	EventBus.phase_changed.emit(phase, GameState.day)
+	var won_boss := GameState.boss_pending
 	_steaks_to_freezer()                 # 1
 	_recall_all()                        # projectiles (and later fx) in flight
 	GameState.heal_for_dawn()            # 2
 	GameState.reset_destroyed_fences()   # 3
 	GameState.clear_night_fails()        # a cleared night resets mercy (S3 spec 6)
 	GameState.advance_day()              # 4
-	_card_pick()
+	var offer := CardOffer.make(GameState.run_seed, GameState.day, GameState.cards, Balance.data.cards)
+	if won_boss:
+		# E5 spec 6.4: the new day's plan is already at the new tier. The offer is stored first so a save written
+		# during the reveal resumes at the card pick; the pick itself waits for the reveal.
+		GameState.stash_card_offer(offer)  # unconditional: an empty offer clears a stale one
+		var tier0 := GameState.tier
+		GameState.complete_tier_up()
+		if GameState.tier == tier0:  # the top-tier no-op: no tier_reached, nothing to reveal
+			_card_pick(offer)
+			return
+		reveal_pending = true
+		_reveal_id += 1
+		get_tree().create_timer(Balance.data.tiers.tier_reveal_time, false, true).timeout.connect(_on_reveal_timer.bind(_reveal_id))
+		return
+	_card_pick(offer)
+
+func _on_reveal_timer(id: int) -> void:
+	if id != _reveal_id or phase != Phase.DAWN:
+		return
+	reveal_pending = false
+	_card_pick(GameState.card_offer)  # the stashed offer; empty when none was drawn
+
+func _cancel_reveal() -> void:
+	reveal_pending = false
+	_reveal_id += 1
 
 ## Spec 5.4 step 5 (S2 spec 5.1): offer the dawn cards and wait for EventBus.card_chosen.
-func _card_pick() -> void:
-	var offer := CardOffer.make(GameState.run_seed, GameState.day, GameState.cards, Balance.data.cards)
+func _card_pick(offer: Array[StringName]) -> void:
 	if offer.is_empty():
 		dawn_substate = ""
 		EventBus.banner_requested.emit(tr("Dawn"))  # the pick overlay would hide it otherwise
@@ -130,6 +161,7 @@ func _fail_restore() -> void:
 	EventBus.banner_requested.emit(tr("The monsters look tired tonight."))
 
 func _restore_snapshot() -> void:
+	_cancel_reveal()
 	wave_director.stop()  # a DAY restore never calls start_night(), which would drop the live boar list
 	_recall_all()
 	dawn_substate = ""
@@ -150,6 +182,7 @@ func resume_from(state: Dictionary) -> void:
 	if String(state.resume_phase) != "CARD_PICK":
 		_restore_snapshot()
 		return
+	_cancel_reveal()
 	wave_director.stop()
 	traveler_spawner.stop()
 	failing = false

@@ -134,6 +134,8 @@ func _ready() -> void:
 	EventBus.wave_incoming.connect(_on_wave_incoming)
 	EventBus.wave_spawned_out.connect(_on_wave_spawned_out)
 	EventBus.wave_cleared.connect(_on_wave_cleared)
+	EventBus.wave_started.connect(_on_wave_started)
+	EventBus.enemy_killed.connect(_on_enemy_killed)
 	EventBus.card_offered.connect(_on_card_offered)
 	EventBus.diner_damaged.connect(_on_diner_damaged)
 	EventBus.state_restored.connect(_refresh_all)
@@ -210,6 +212,9 @@ func _on_phase_changed(phase: int, day: int) -> void:
 		arrows.main.visible = false
 		arrows.side.visible = false
 	icons.night = night
+	# The boss moon is set when the night's HUD is rebuilt: moons draw at night only, so a tier-up paid by day is read here.
+	icons.boss_moon = boss_moon_index() if night else -1
+	icons.boss_alive = false
 	icons.queue_redraw()
 	day_label.visible = not night
 	day_label.text = tr("Day %d") % day
@@ -221,6 +226,20 @@ func _on_phase_changed(phase: int, day: int) -> void:
 ## phase_changed(DAWN) carries the old day; the offer comes after advance_day (S2 spec 5.1).
 func _on_card_offered(_offer: Array) -> void:
 	day_label.text = tr("Day %d") % GameState.day
+
+## The boss moon breathes from its wave's start until the boss dies.
+func _on_wave_started(w: int, _main_lane: StringName, _side_lane: StringName) -> void:
+	icons.boss_alive = w == icons.boss_moon
+	icons.queue_redraw()
+
+func _on_enemy_killed(_spawn_index: int, _lane: StringName, _position: Vector3, kind: StringName) -> void:
+	if kind == &"boss":
+		icons.boss_alive = false
+		icons.queue_redraw()
+
+## The last moon on a boss night (-1 otherwise).
+func boss_moon_index() -> int:
+	return GameState.lane_plan.size() - 1 if GameState.is_boss_night() else -1
 
 func _on_wave_cleared(w: int) -> void:
 	_filled = clampi(w + 1, 0, moons.size())

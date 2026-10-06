@@ -85,7 +85,7 @@ func run_day(max_seconds := 400.0) -> Dictionary:
 func _on_diner_damaged(_amount: float, hp_left: float) -> void:
 	diner_min = minf(diner_min, hp_left)
 
-func _on_killed(_i: int, _lane: StringName, _p: Vector3) -> void:
+func _on_killed(_i: int, _lane: StringName, _p: Vector3, _kind: StringName) -> void:
 	kills += 1
 
 func _on_failed(_day: int) -> void:

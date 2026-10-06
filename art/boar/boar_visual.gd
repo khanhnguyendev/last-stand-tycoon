@@ -11,6 +11,7 @@ static var _run: ShaderMaterial
 static var _flash: ShaderMaterial
 static var _run_flash: ShaderMaterial
 
+var kind: StringName = &"boar"
 var _mesh_node: MeshInstance3D
 var _running := false
 var _t := 0.0
@@ -58,7 +59,7 @@ func _ready() -> void:
 		_mesh_node = MeshInstance3D.new()
 		_mesh_node.name = "Mesh"
 		body.add_child(_mesh_node)
-	_mesh_node.mesh = BoarMesh.get_mesh()
+	_mesh_node.mesh = BoarMesh.get_mesh(kind)
 	_mesh_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_apply_material()
 
@@ -79,6 +80,27 @@ func set_motion(speed_frac: float) -> void:
 	_running = run
 	_apply_material()
 
+## Swaps the mesh only when the kind changes (pooled Boars keep theirs between nights).
+func set_kind(k: StringName) -> void:
+	if k == kind and _mesh_node != null and _mesh_node.mesh == BoarMesh.get_mesh(k):
+		return
+	kind = k
+	if _mesh_node != null:
+		_mesh_node.mesh = BoarMesh.get_mesh(kind)
+
+## Per-kind hop (visual, UiTuning): the hare quick and low, the boss slow and heavy. x = height, y = hz.
+func _hop() -> Vector2:
+	var ui := Balance.ui
+	match kind:
+		&"hare":
+			return Vector2(ui.hare_hop_height, ui.hare_hop_hz)
+		&"boss":
+			return Vector2(ui.boss_hop_height, ui.boss_hop_hz)
+	return Vector2(ui.boar_hop_height, ui.boar_hop_hz)
+
+func _lunge_dist() -> float:
+	return Balance.ui.boss_lunge if kind == &"boss" else Balance.ui.boar_lunge
+
 func set_flash(on: bool) -> void:
 	flash_active = on
 	_apply_material()
@@ -90,8 +112,9 @@ func attack() -> void:
 	var ui := Balance.ui
 	_attack_tween = create_tween()
 	_attack_tween.tween_method(_set_lunge, 0.0, -0.06, 0.04)
-	_attack_tween.tween_method(_set_lunge, -0.06, ui.boar_lunge, 0.05)
-	_attack_tween.tween_method(_set_lunge, ui.boar_lunge, 0.0, 0.06)
+	var lunge := _lunge_dist()
+	_attack_tween.tween_method(_set_lunge, -0.06, lunge, 0.05)
+	_attack_tween.tween_method(_set_lunge, lunge, 0.0, 0.06)
 
 func hit() -> void:
 	if body == null:
@@ -138,7 +161,8 @@ func _process(delta: float) -> void:
 	var ui := Balance.ui
 	_t += delta
 	if _running:
-		_hop_y = ui.boar_hop_height * absf(sin(_t * PI * ui.boar_hop_hz))
+		var hop := _hop()
+		_hop_y = hop.x * absf(sin(_t * PI * hop.y))
 	else:
 		_hop_y = sin(_t * TAU / ui.boar_idle_period) * ui.boar_idle_bob * 0.5
 	_apply_offset()

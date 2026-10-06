@@ -77,7 +77,7 @@ func _physics_process(delta: float) -> void:
 func _start_wave(w: int) -> void:
 	wave_index = w
 	var plan: Dictionary = _plan[w]
-	_schedule = WaveSchedule.build(plan, Balance.data.wave)
+	_schedule = WaveSchedule.build(plan, Balance.data.wave, Balance.data.tiers)
 	_next = 0
 	_t = 0.0
 	_spawned_out_sent = false
@@ -87,16 +87,17 @@ func _start_wave(w: int) -> void:
 
 func _spawn_due() -> void:
 	while _next < _schedule.size() and float(_schedule[_next].t) <= _t + 1e-6:
-		_spawn(String(_schedule[_next].lane), _spawn_rng.randf_range(-1.0, 1.0))
+		var e: Dictionary = _schedule[_next]
+		_spawn(String(e.lane), _spawn_rng.randf_range(-1.0, 1.0), -1.0, StringName(e.get("kind", &"boar")))
 		_next += 1
 	if _next >= _schedule.size() and not _spawned_out_sent:
 		_spawned_out_sent = true
 		EventBus.wave_spawned_out.emit(wave_index)
 
-func _spawn(lane: String, unit_offset: float, hp_mult: float = -1.0) -> Boar:
+func _spawn(lane: String, unit_offset: float, hp_mult: float = -1.0, kind: StringName = &"boar") -> Boar:
 	var boar: Boar = enemy_pool.acquire()
 	var mult := hp_mult if hp_mult > 0.0 else float(_plan[maxi(wave_index, 0)].hp_mult) * GameState.mercy_factor()
-	boar.spawn(lane, _spawn_counter, unit_offset * Balance.data.enemy.lateral_spread, mult, self)
+	boar.spawn(lane, _spawn_counter, unit_offset * Balance.data.enemy.lateral_spread, mult, self, kind)
 	_spawn_counter += 1
 	_alive.append(boar)
 	return boar
@@ -108,13 +109,20 @@ func on_enemy_died(boar: Boar) -> void:
 		boar.play_death(enemy_pool)
 		return
 	_alive.remove_at(idx)
-	EventBus.enemy_killed.emit(boar.spawn_index, StringName(boar.lane), boar.global_position)
-	for i in Balance.data.economy.steaks_per_kill:
+	EventBus.enemy_killed.emit(boar.spawn_index, StringName(boar.lane), boar.global_position, boar.kind)
+	var st := boar.stats()
+	for i in st.steaks_per_kill:
 		var s: Steak = steak_pool.acquire()
 		var a := _drop_rng.randf() * TAU
-		var r := _drop_rng.randf() * Balance.data.enemy.drop_scatter
+		var r := _drop_rng.randf() * st.drop_scatter
 		s.place(boar.global_position + Vector3(cos(a) * r, 0.0, sin(a) * r))
 	boar.play_death(enemy_pool)
+
+func boss_alive() -> bool:
+	for b in _alive:
+		if (b as Boar).kind == &"boss":
+			return true
+	return false
 
 func alive_enemies() -> Array:
 	return _alive.duplicate()
@@ -135,10 +143,10 @@ func upcoming_main_lane() -> String:
 	return String(_plan[w].main)
 
 ## Test/debug helpers (used by tests and ui/debug only).
-func debug_spawn(lane: String, unit_offset: float = 0.0, hp_mult: float = 1.0) -> Boar:
+func debug_spawn(lane: String, unit_offset: float = 0.0, hp_mult: float = 1.0, kind: StringName = &"boar") -> Boar:
 	if _drop_rng == null:
 		_drop_rng = Rng.stream(GameState.run_seed, GameState.day, &"drops")
-	return _spawn(lane, unit_offset, hp_mult)
+	return _spawn(lane, unit_offset, hp_mult, kind)
 
 func debug_kill_all() -> void:
 	for b in _alive.duplicate():

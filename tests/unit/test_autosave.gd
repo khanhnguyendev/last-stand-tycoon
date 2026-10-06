@@ -163,3 +163,55 @@ func test_a_station_upgrade_writes_at_once() -> void:
 	GameState.pay_into_station(&"counter", cost)
 	assert_gt(main.autosave.writes, before, "station_upgraded writes at once")
 	assert_eq(int(_saved().stations.counter.level), 1)
+
+func test_tier_payment_marks_dirty_and_paid_up_writes() -> void:
+	pc.start_new_game(9)
+	pc.debug_skip_to_day()
+	var cost := GameState.tier_next_cost()
+	GameState.add_gold(cost)
+	main.autosave.flush()
+	assert_false(main.autosave._dirty)
+	EventBus.tier_changed.emit(1, 100, false)
+	assert_true(main.autosave._dirty, "a tier payment is dirty")
+	main.autosave.flush()
+	var w0: int = main.autosave.writes
+	GameState.pay_into_tier(cost)
+	assert_gt(main.autosave.writes, w0, "paid in full writes at once")
+	assert_true(bool(_saved().boss_pending))
+
+func test_tier_up_dawn_writes_the_card_pick_at_tier_2() -> void:
+	pc.start_new_game(9)
+	pc.debug_skip_to_day()
+	var cost := GameState.tier_next_cost()
+	GameState.add_gold(cost)
+	GameState.pay_into_tier(cost)
+	pc.debug_skip_to_night()
+	pc.debug_skip_to_day()  # the won boss night: tier_reached writes before the reveal ends
+	assert_true(pc.reveal_pending)
+	var s := _saved()
+	assert_eq(String(s.resume_phase), "CARD_PICK")
+	assert_eq(int(s.tier), 2)
+	assert_false(s.card_offer.is_empty())
+
+func test_tier_up_dawn_with_every_card_maxed_saves_day_and_opens_no_pick() -> void:
+	pc.start_new_game(9)
+	pc.debug_skip_to_day()
+	GameState.card_offer = [&"hero_damage"]  # test-only setup: a leftover offer from a loaded DAY save
+	for id in CardCatalog.IDS:
+		GameState.cards[id] = Balance.data.cards.max_level  # test-only setup
+	var cost := GameState.tier_next_cost()
+	GameState.add_gold(cost)
+	GameState.pay_into_tier(cost)
+	pc.debug_skip_to_night()
+	var offers := []
+	var cb := func(o): offers.append(o)
+	EventBus.card_offered.connect(cb)
+	pc.debug_skip_to_day()
+	var s := _saved()
+	assert_eq(String(s.resume_phase), "DAY")
+	assert_eq(int(s.tier), 2)
+	for i in int(ceil(Balance.data.tiers.tier_reveal_time * 60.0)) + 3:
+		await get_tree().physics_frame
+	EventBus.card_offered.disconnect(cb)
+	assert_eq(pc.phase, Phase.DAY)
+	assert_eq(offers, [])

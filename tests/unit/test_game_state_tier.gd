@@ -145,3 +145,12 @@ func test_pay_before_the_first_new_game_window_does_nothing() -> void:
 	GameState.gold = 900      # test-only setup
 	assert_eq(GameState.pay_into_tier(10), 0)
 	assert_eq(GameState.gold, 900)
+
+func test_a_pending_boss_always_rides_the_restored_plan() -> void:
+	var d := GameState.to_dict()
+	d.boss_pending = true
+	for w in d.lane_plan:
+		w.boss = false
+	GameState.from_dict(d)
+	assert_true(GameState.boss_pending)
+	assert_true(GameState.is_boss_night(), "a hand-edited save cannot skip the boss")

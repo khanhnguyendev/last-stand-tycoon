@@ -1,6 +1,6 @@
 class_name Boar
 extends Node3D
-## The one S1 monster (spec 7.2). Moved in code along its lane; never uses physics.
+## Every monster (E5 spec 7.1): the kind picks the stats; the class name is kept. Moved in code along its lane; never uses physics.
 
 ## Height above the feet the camera aims at when checking occlusion (D-151); the capsule centre.
 const AIM_HEIGHT := 0.5
@@ -8,6 +8,9 @@ const VISUAL_SCENE := preload("res://art/boar/boar_visual.tscn")
 ## Blob shadow radius under a Boar (ShadowField.CHARACTER_RADIUS is the characters').
 const SHADOW_RADIUS := 0.7
 
+## E5: which monster this pooled node is right now (spec 4.3); every number is read through stats().
+var kind: StringName = &"boar"
+var _stats: MonsterStats
 var lane := ""
 var spawn_index := -1
 ## Increments on every spawn; projectiles/attackers compare it to detect pool reuse across nights (Review Focus 2).
@@ -37,9 +40,21 @@ func _init() -> void:
 	add_child(targetable)
 	visual = VISUAL_SCENE.instantiate()
 	add_child(visual)
+	var bar := BossBar.new()
+	add_child(bar)
+	bar.setup(self)
 
-func spawn(p_lane: String, p_index: int, p_offset: float, hp_mult: float, director: Object) -> void:
+## Cached at spawn: a balance edit applies to monsters spawned after it.
+func stats() -> MonsterStats:
+	if _stats == null:
+		_stats = Balance.data.monsters.stats(kind)
+	return _stats
+
+func spawn(p_lane: String, p_index: int, p_offset: float, hp_mult: float, director: Object, p_kind: StringName = &"boar") -> void:
+	assert(Balance.data.monsters.has_kind(p_kind), "unknown monster kind %s" % p_kind)
 	generation += 1
+	kind = p_kind
+	_stats = Balance.data.monsters.stats(kind)
 	lane = p_lane
 	spawn_index = p_index
 	targetable.spawn_index = p_index
@@ -49,12 +64,13 @@ func spawn(p_lane: String, p_index: int, p_offset: float, hp_mult: float, direct
 	_attack_timer = 0.0
 	current_target = {}
 	_length = MapLayout.path_length(lane)
-	health.reset(Balance.data.enemy.hp * hp_mult)
+	health.reset(stats().hp * hp_mult)
 	visual.scale = Vector3.ONE
+	visual.set_kind(kind)
 	_reset_flash()
 	visual.reset()
 	if shadow_field != null:
-		shadow_field.register(visual, SHADOW_RADIUS)
+		shadow_field.register(visual, SHADOW_RADIUS * float(BoarMesh.params(kind).scale))
 	alive = true
 	_update_position(false)
 
@@ -71,14 +87,14 @@ func _physics_process(delta: float) -> void:
 			visual.set_flash(false)
 	if not alive:
 		return
-	var eb := Balance.data.enemy
+	var eb := stats()
 	current_target = _director.providers.find_target(self)
 	if current_target.is_empty():
 		_attack_timer = 0.0
 		var step := eb.speed * delta
 		var next := minf(dist + step, _length)
 		# do not walk past a standing fence's stop point in one tick
-		if _director.providers.has_kind(&"fence_on_lane") and dist <= TargetProviders.fence_stop_dist(self):
+		if _director.providers.has_kind(&"fence_on_lane", self) and dist <= TargetProviders.fence_stop_dist(self):
 			next = minf(next, TargetProviders.fence_stop_dist(self))
 		visual.set_motion(1.0 if next > dist else 0.0)
 		dist = next
