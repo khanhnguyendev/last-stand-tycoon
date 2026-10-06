@@ -3,39 +3,16 @@
 Open items from the E1 station upgrades build (merged 2026-10-06, PRs #43 to #45). They come from the per-task reviews
 and the final whole-branch review; none blocked the merge. Decisions and measurements are in `docs/DECISIONS.md`
 D-231; feel questions are in `docs/REVIEW_QUEUE.md`, section "E1 station upgrades". Delete a line here when it is done.
-
-## Owed measurements
-
-1. **Level 5 day perf on an idle Mac.** The only reading was taken with other programs at about 97% and 57% CPU:
-   level 5 day 39.1 / 42.8 / 42.5 fps against 48.0 for level 0. Re-run
-   `DAY_FIXTURE=day3_counter5 export/perf_night3.sh <web_profile_dir> <out_dir>` three times at 75% idle or more, and
-   once with the default fixture, and record the medians next to D-221's 52.9 fps. The stocked fixture sells its 42
-   steaks within the window and then holds a 9-traveler queue; say which regime the reading covers.
-2. **Load time and memory with the 31-traveler pool** (was 8): `node docs/review/media/final/load_time.mjs <url> 3`
-   against the pre-E1 figures in `docs/review/media/final/load_time_chromium.txt`.
-3. **Emulated Android check** (`export/device_check.sh`, Playwright Pixel 7).
-
-Items 2 and 3 need Playwright's Chromium build 1243 in `~/.cache/lst-playwright`. The author installs it once:
-`cd ~/.cache/lst-playwright && npx playwright install chromium`.
+Done on 2026-10-06 and removed from the list: items 1 (postponed by the author, D-235), 2 and 3 (D-235), 4, 5, 7 and 8
+(PR #48, D-234). The numbering of the remaining items is kept.
 
 ## Before tuning station balance
 
-4. **Cost literals in tests.** `test_game_state_stations.gd` (20, 5, 70, 60), `test_upgrade_pad.gd` (30, 15, "15"),
-   `test_upgrader_bot.gd` (25, 30, 50, 60) encode `counter_cost` 30, `freezer_cost` 25 and `cost_mult` 2. Derive them
-   from `StationEffects.level_cost` first, or a cost change fails tests for no behaviour reason.
-5. **Lowering `stations.max_level` would reject saves.** `SaveCodec.validate` refuses `level > max_level` before
-   `GameState.from_dict` can clamp it. Costs are safe (a saved `paid` is clamped); the level is not. Decide the rule
-   (clamp in a migration, or never lower) before touching `max_level`.
 6. **The 60 s window of sim 6.1** (`tests/sim/test_station_sims.gd`, `WINDOW_S`) belongs in `SimThresholds`:
    `min_level_gain` is only meaningful over that window.
 
 ## Code
 
-7. **One pop helper.** `Counter._on_station_upgraded`, `Freezer._on_station_upgraded` and `BuildSpot`'s build pop are
-   three copies of the same tween. Extract it, and kill the station pop on `state_restored` as `BuildSpot` does
-   (D-197).
-8. **`body.get_child(1)`** in `counter.gd` and `freezer.gd` relies on the child order inside `World.add_static_box`
-   (shape first, visual second). Have `add_static_box` hand back the visual, or pin the order with a test.
 9. **`StationEffects.level_cost`**: any id that is not `&"counter"` is priced as the freezer, and a negative level is
    not guarded. Use a `match` with a failing default before E3 adds a third station. Same for `UpgradePad.setup`'s
    name label (anything that is not the counter reads "Freezer").
