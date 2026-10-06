@@ -73,8 +73,8 @@ Reversible decisions from the E1 build, highest impact first. Media: `docs/revie
 5. A long queue (5 to 9 travelers) forms a second row on the road's north edge, around the hero's home spot — [D-230](DECISIONS.md), `e1/task06/level5.png`
 6. A full carry (26 steaks: all carry cards plus a max freezer) is a tall stack that covers the "Close up" label when the hero stands by the sign; not capped — `e1/task06/level5.png`
 7. The traveler pool is 31 instead of 8, so travelers appear in a different look order than before E1 (visual only) — [D-231](DECISIONS.md)
-8. Known issue: a level 5 counter day runs about 5 to 9 fps below a level 0 day in the iOS Simulator (39 to 43 against 48 on a loaded Mac; not a valid gate reading, idle re-run owed). Options if it holds: cap the queue at 6 or 7, or cheaper traveler visuals — [D-231](DECISIONS.md)
-9. Owed measurements: load time and memory with the 31-traveler pool, and the emulated Android check (Playwright Chromium needs a one-time install by the author) — [D-231](DECISIONS.md)
+8. Known issue: a level 5 counter day runs about 5 to 9 fps below a level 0 day in the iOS Simulator (39 to 43 against 48 on a loaded Mac; not a valid gate reading; the idle re-run is postponed by the author, D-235). Options if it holds: cap the queue at 6 or 7, or cheaper traveler visuals — [D-231](DECISIONS.md)
+9. Load time with the 31-traveler pool measured (engine start median 4.05 s against D-221's 3.70 s on a non-idle Mac, within D-221's spread) and the emulated Android check done; memory with the pool is still unmeasured (no tooling) — [D-235](DECISIONS.md), `e1/load/`, `e1/device_main/`
 10. Playtest question: "Did you notice you could upgrade the counter and the freezer? Did you want to?"
 11. Follow-up: a saved station level above `max_level` is clamped on load (D-234), but a saved tower or fence level above `build.max_level` is still rejected (`SaveCodec.validate`). Lowering `build.max_level` later would lose saves; same fix as D-234 if it ever matters.
 
