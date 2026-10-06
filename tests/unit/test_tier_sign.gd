@@ -19,11 +19,13 @@ func test_sells_the_yards_by_day_and_hides_at_night() -> void:
 	assert_gt(cost, 0)
 	assert_eq(sign.state(), &"selling")
 	assert_true(sign.label.visible)
+	assert_true(sign.marker.visible, "the marker shows while selling by day")
 	assert_eq(sign.label.text, tr("Open the yards") + "\n" + str(cost))
 	assert_true(sign.position.is_equal_approx(MapLayout.to3(MapLayout.TIER_SIGN)))
 	main.phase_controller.debug_skip_to_night()
 	await get_tree().physics_frame
 	assert_false(sign.label.visible)
+	assert_false(sign.marker.visible, "no marker at night")
 	assert_false(sign.zone.ring.visible)
 
 func test_standing_still_pays_and_completes() -> void:
@@ -40,6 +42,7 @@ func test_standing_still_pays_and_completes() -> void:
 	assert_eq(sign.state(), &"boss")
 	assert_eq(sign.label.text, tr("Boss tonight"), "Review Focus 2: the label flips on the completing tick")
 	assert_false(sign.zone.ring.visible)
+	assert_false(sign.marker.visible, "no marker in the boss state")
 	var g := GameState.gold
 	for i in 30:
 		await get_tree().physics_frame
@@ -51,16 +54,24 @@ func test_partial_payment_shows_on_the_ring_and_survives_a_restore() -> void:
 	var offer := cost / 4
 	GameState.add_gold(offer)
 	await TestHelpers.walk_in(main.hero, MapLayout.TIER_SIGN)
-	while GameState.gold > 0:
+	var ticks := 0
+	while GameState.gold > 0 and ticks < 60 * 20:
 		await get_tree().physics_frame
+		ticks += 1
+	assert_eq(GameState.gold, 0, "the offer was taken within 20 s")
 	assert_eq(GameState.tier_paid, offer)
 	assert_true(sign.zone.ring.visible)
 	assert_almost_eq(sign.zone.ring.progress, float(offer) / float(cost), 1e-6)
 	var d := GameState.to_dict()
 	GameState.new_game(3)
+	await get_tree().physics_frame
+	assert_eq(sign.label.text, tr("Open the yards") + "\n" + str(cost), "a fresh game starts unpaid")
+	assert_false(sign.zone.ring.visible)
 	GameState.from_dict(d)
 	await get_tree().physics_frame
 	assert_eq(sign.label.text, tr("Open the yards") + "\n" + str(cost - offer))
+	assert_true(sign.zone.ring.visible, "the restore redraws the ring")
+	assert_almost_eq(sign.zone.ring.progress, float(offer) / float(cost), 1e-6)
 
 func test_walking_through_pays_nothing() -> void:
 	GameState.add_gold(100)
@@ -69,6 +80,7 @@ func test_walking_through_pays_nothing() -> void:
 		main.hero.input.set_move(Vector2(0, -1))
 		await get_tree().physics_frame
 	main.hero.input.set_move(Vector2.ZERO)
+	assert_lt(main.hero.xz().y, MapLayout.TIER_SIGN.y - MapLayout.STATION_RADIUS, "the hero crossed the whole zone")
 	assert_eq(GameState.gold, 100)
 
 func test_standing_on_the_sign_at_night_pays_nothing() -> void:
