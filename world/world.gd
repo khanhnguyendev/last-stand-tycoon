@@ -203,12 +203,14 @@ func _build_stations() -> void:
 		telegraph_markers[id] = m
 
 static func pool_sizes(bd: BalanceData) -> Dictionary:
+	# E5: the steak pool holds the top tier's capped night plus the boss drop, with the old 20% margin (spec 7.1).
+	var top := TierEffects.top_tier(bd.tiers)
 	var steaks := 0
 	for w in bd.wave.base_counts.size():
-		steaks += WaveMath.total_count(10, w, bd.wave)  # capped counts (D-124)
+		steaks += WaveMath.total_count(bd.tiers.tier_cap[top], w, bd.wave)  # capped counts (D-124)
 	return {
-		"enemy": bd.wave.max_wave_size + 10,
-		"steak": int(ceil(steaks * bd.economy.steaks_per_kill * 1.2)),
+		"enemy": bd.wave.max_wave_size + 1 + 10,
+		"steak": int(ceil((steaks * bd.economy.steaks_per_kill + bd.monsters.stats(&"boss").steaks_per_kill) * 1.2)),
 		"projectile": 24,
 		"fx": 32,
 	}

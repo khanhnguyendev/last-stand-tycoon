@@ -79,6 +79,10 @@ func set_motion(speed_frac: float) -> void:
 	_running = run
 	_apply_material()
 
+## E5: Task 7 gives each kind its look; until then every kind draws as the boar.
+func set_kind(_k: StringName) -> void:
+	pass
+
 func set_flash(on: bool) -> void:
 	flash_active = on
 	_apply_material()

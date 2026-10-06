@@ -1,5 +1,11 @@
 extends GutTest
 
+## A stand-in enemy for GuardRoster.guard_target: a position plus the monster stats it reads (E5).
+class EnemyProbe:
+	extends Node3D
+	func stats() -> MonsterStats:
+		return Balance.data.monsters.stats(&"boar")
+
 var main: Main
 var pc: PhaseController
 var roster: GuardRoster
@@ -45,7 +51,7 @@ func test_archer_is_never_targeted() -> void:
 		b.dist = b.path_length()
 		b._update_position()
 		assert_eq(roster.guard_target(b), {}, lane)
-	var probe := Node3D.new()
+	var probe := EnemyProbe.new()
 	add_child_autofree(probe)
 	probe.global_position = roster.guards[&"archer"].global_position
 	assert_eq(roster.guard_target(probe), {}, "in reach but never targeted")

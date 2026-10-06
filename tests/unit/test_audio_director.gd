@@ -30,7 +30,7 @@ func test_bus_signals_map_to_ids() -> void:
 	EventBus.guard_knocked_out.emit(&"archer")
 	EventBus.guard_revived.emit(&"archer")
 	EventBus.sfx_requested.emit(&"throw")
-	EventBus.enemy_killed.emit(0, &"north", Vector3.ZERO)
+	EventBus.enemy_killed.emit(0, &"north", Vector3.ZERO, &"boar")
 	EventBus.phase_changed.emit(Phase.DAWN, 1)
 	assert_eq(d.last_played, [&"coin", &"pickup", &"build_done", &"card_open", &"card_pick", &"horn", &"diner_hit", &"fail", &"guard_down", &"guard_up", &"throw", &"poof", &"dawn"])
 
