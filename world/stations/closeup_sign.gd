@@ -33,6 +33,7 @@ func setup(_world: World) -> void:
 	EventBus.building_changed.connect(_on_building_changed)
 	EventBus.station_changed.connect(_on_station_changed)
 	EventBus.phase_changed.connect(_on_phase_changed)
+	EventBus.tier_changed.connect(_on_tier_changed)
 	refresh_pulse()
 
 func _on_stand_started() -> void:
@@ -53,6 +54,9 @@ func _on_building_changed(_id: StringName, _level: int, _paid: int) -> void:
 
 ## gold_changed fires before the level increments, so the pulse must be re-read after station_changed (E1).
 func _on_station_changed(_id: StringName, _level: int, _paid: int) -> void:
+	refresh_pulse()
+
+func _on_tier_changed(_tier: int, _paid: int, _boss_pending: bool) -> void:
 	refresh_pulse()
 
 func _on_phase_changed(p: int, _day: int) -> void:

@@ -85,3 +85,21 @@ func test_telegraph_scales_and_visibility() -> void:
 		var expect := LanePlanner.marker_scale(threat[lane], mx, Balance.ui.telegraph_scale_min, Balance.ui.telegraph_scale_max)
 		assert_almost_eq(m[lane].target_scale, expect, 0.0001)
 		assert_eq(m[lane].visible, expect > 0.0)
+
+func test_telegraph_shows_the_boss_lane_the_day_the_tier_is_paid() -> void:
+	# A seed whose day-1 plan does not already end on its heaviest lane, so the boss visibly changes the flags.
+	var m: Dictionary = main.world.telegraph_markers
+	var boss_lane := ""
+	for seed in range(1, 40):
+		main.phase_controller.start_new_game(seed)
+		main.phase_controller.debug_skip_to_day()
+		boss_lane = String(LanePlanner.with_boss(GameState.lane_plan).back().main)
+		if m[boss_lane].target_scale < Balance.ui.telegraph_scale_max - 0.001:
+			break
+	var before: float = m[boss_lane].target_scale
+	assert_lt(before, Balance.ui.telegraph_scale_max - 0.001, "test setup found a seed")
+	GameState.add_gold(500)
+	GameState.pay_into_tier(500)
+	for lane in m:
+		assert_true(m[boss_lane].target_scale >= m[lane].target_scale, "the boss lane is the largest")
+	assert_gt(m[boss_lane].target_scale, before, "and it grew")

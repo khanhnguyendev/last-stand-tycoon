@@ -349,3 +349,20 @@ func test_guide_built_before_the_run_starts_reads_nothing() -> void:
 	for i in 5:
 		await get_tree().physics_frame
 	assert_eq(g.rule_id, &"")
+
+func test_guide_pulse_view_ignores_the_tier() -> void:
+	# the first-day `close` rule must not wait for a 500-gold tier-up (spec 7.7)
+	await _boot()
+	main.phase_controller.debug_skip_to_day()
+	for id in GameState.buildings:
+		GameState.buildings[id].level = Balance.data.build.max_level  # test-only setup
+		GameState.buildings[id].paid = 0  # test-only setup
+	GameState.stations[&"counter"].level = Balance.data.stations.max_level  # test-only setup
+	GameState.stations[&"freezer"].level = Balance.data.stations.max_level  # test-only setup
+	GameState.gold = 500  # test-only setup
+	GameState.counter_steaks = 0  # test-only setup
+	GameState.freezer_steaks = 0  # test-only setup
+	GameState.carried_steaks = 0  # test-only setup
+	GameState.gold_pile = 0  # test-only setup
+	assert_false(Pulse.should_pulse(GameState.to_dict(), Balance.data), "the full view waits for the tier-up")
+	assert_true(bool(guide.snapshot().should_pulse), "the guide's view ignores it")

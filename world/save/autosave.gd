@@ -23,6 +23,9 @@ func _ready() -> void:
 	EventBus.stocks_changed.connect(_mark_dirty)
 	EventBus.gold_changed.connect(_mark_dirty.unbind(2))
 	EventBus.building_changed.connect(_mark_dirty.unbind(3))
+	EventBus.tier_changed.connect(_mark_dirty.unbind(3))
+	EventBus.tier_paid_up.connect(_on_tier_paid_up)
+	EventBus.tier_reached.connect(_on_tier_reached)
 	if OS.has_feature("web"):
 		var doc := JavaScriptBridge.get_interface("document")
 		var win := JavaScriptBridge.get_interface("window")
@@ -70,6 +73,15 @@ func _on_night_failed(_day: int) -> void:
 func _on_build_completed(_spot: StringName, _level: int) -> void:
 	if phase == Phase.DAY and not failing:
 		_write_live("DAY")
+
+func _on_tier_paid_up(_next_tier: int) -> void:
+	if phase == Phase.DAY and not failing:
+		_write_live("DAY")
+
+## The tier-up dawn: the offer was stashed before complete_tier_up, so a tab closed during the reveal resumes at the card pick.
+func _on_tier_reached(_tier: int) -> void:
+	if phase == Phase.DAWN and not failing:
+		_write_live("CARD_PICK" if not GameState.card_offer.is_empty() else "DAY")
 
 func _mark_dirty() -> void:
 	if store == null:

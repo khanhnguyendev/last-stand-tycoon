@@ -12,6 +12,7 @@ func _ready() -> void:
 	EventBus.build_completed.connect(_on_build_completed)
 	EventBus.station_upgraded.connect(_on_station_upgraded)
 	EventBus.phase_changed.connect(_on_phase_changed)
+	EventBus.tier_paid_up.connect(_on_tier_paid_up)
 
 func _on_enemy_killed(_spawn_index: int, _lane: StringName, pos: Vector3, _kind: StringName) -> void:
 	EventBus.fx_requested.emit(&"poof", pos)
@@ -32,3 +33,6 @@ func _on_station_upgraded(id: StringName, _level: int) -> void:
 func _on_phase_changed(phase: int, _day: int) -> void:
 	if phase == Phase.DAWN:
 		EventBus.fx_requested.emit(&"sparkle", Vector3(0, 3.5, 0))
+
+func _on_tier_paid_up(_next_tier: int) -> void:
+	EventBus.fx_requested.emit(&"sparkle", MapLayout.to3(MapLayout.TIER_SIGN, 1.0))

@@ -91,3 +91,22 @@ func test_maxed_stations_are_ignored() -> void:
 		s.buildings[id].level = Balance.data.build.max_level
 	s.gold = 100000
 	assert_true(Pulse.should_pulse(s, Balance.data))
+
+func test_affordable_tier_up_stops_the_pulse() -> void:
+	Balance.reset()
+	GameState.new_game(1)
+	for id in GameState.buildings:  # test-only setup: max every spot
+		GameState.buildings[id].level = Balance.data.build.max_level
+	GameState.stations[&"counter"].level = Balance.data.stations.max_level
+	GameState.stations[&"freezer"].level = Balance.data.stations.max_level
+	GameState.gold = 499  # test-only setup
+	assert_true(Pulse.should_pulse(GameState.to_dict(), Balance.data))
+	GameState.gold = 500  # test-only setup
+	assert_false(Pulse.should_pulse(GameState.to_dict(), Balance.data), "500 gold buys the tier")
+	GameState.boss_pending = true  # test-only setup
+	assert_true(Pulse.should_pulse(GameState.to_dict(), Balance.data), "paid: nothing left to buy")
+	var no_tier := GameState.to_dict()
+	for k in ["tier", "tier_day", "tier_paid", "boss_pending"]:
+		no_tier.erase(k)
+	GameState.boss_pending = false  # test-only setup
+	assert_true(Pulse.should_pulse(no_tier, Balance.data), "a state without tier keys ignores the tier (the guide's view)")
