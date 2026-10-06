@@ -20,6 +20,8 @@ func run() -> void:
 
 func _on_start_script(script_obj) -> void:
 	_script_path = str(script_obj.path)
+	if str(script_obj.inner_class_name) != "":
+		_script_path += "::" + str(script_obj.inner_class_name)
 
 
 func _on_start_test(test_name) -> void:
@@ -29,7 +31,7 @@ func _on_start_test(test_name) -> void:
 
 func _on_end_test() -> void:
 	var key := "%s::%s" % [_script_path, _test_name]
-	_actual[key] = Engine.get_physics_frames() - _start_ticks
+	_actual[key] = int(_actual.get(key, 0)) + Engine.get_physics_frames() - _start_ticks
 
 
 func _on_end_run() -> void:
@@ -41,8 +43,8 @@ func _on_end_run() -> void:
 	var keys: Array = _actual.keys()
 	keys.sort()
 	for k in keys:
-		var exp: String = str(golden[k]) if golden.has(k) else "-"
-		print("TICKS %s actual=%d expected=%s" % [k, _actual[k], exp])
+		var expected: String = str(golden[k]) if golden.has(k) else "-"
+		print("TICKS %s actual=%d expected=%s" % [k, _actual[k], expected])
 	var seg := suite_dir.get_file()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tests/sim/out"))
 	var f := FileAccess.open("res://tests/sim/out/ticks_%s.json" % seg, FileAccess.WRITE)
@@ -50,6 +52,9 @@ func _on_end_run() -> void:
 		f.store_string(JSON.stringify(_actual, "  ", true) + "\n")
 		f.close()
 	if OS.get_environment("TICK_BUDGET_UPDATE") == "1":
+		if gut.get_fail_count() > 0:
+			print("TICK BUDGET: FAIL not updating: the run has failing tests")
+			return
 		var prefix := suite_dir + "/"
 		var merged := {}
 		for gk in golden:
@@ -59,11 +64,19 @@ func _on_end_run() -> void:
 			if String(ak).begins_with(prefix):
 				merged[ak] = _actual[ak]
 		TickBudget.save_golden(merged)
-		print("TICK BUDGET: UPDATED %d sims" % _actual.size())
+		print("TICK BUDGET: UPDATED %d sims" % _count_suite(suite_dir))
 		return
 	var problems := TickBudget.check(_actual, golden, suite_dir)
 	if problems.is_empty():
-		print("TICK BUDGET: OK %d sims within +20%% of the expected ticks" % _actual.size())
+		print("TICK BUDGET: OK %d sims within +%d%% of the expected ticks" % [_count_suite(suite_dir), roundi(TickBudget.TOLERANCE * 100.0)])
 	else:
 		for p in problems:
 			print("TICK BUDGET: FAIL %s" % p)
+
+
+func _count_suite(suite_dir: String) -> int:
+	var n := 0
+	for k in _actual:
+		if String(k).begins_with(suite_dir + "/"):
+			n += 1
+	return n

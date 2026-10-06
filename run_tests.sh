@@ -16,11 +16,17 @@ SUITE="${1:-all}"
 run_gut() {
   local log rc; log="$(mktemp)"
   trap 'rm -f "$log"' RETURN INT TERM
+  local wd=()
+  if [ -n "${WATCHDOG_S:-}" ]; then wd=(perl -e 'alarm shift; exec @ARGV' "$WATCHDOG_S"); fi
   set +e
-  "$GODOT" --headless --path . --fixed-fps 60 -s res://addons/gut/gut_cmdln.gd \
+  ${wd[@]+"${wd[@]}"} "$GODOT" --headless --path . --fixed-fps 60 -s res://addons/gut/gut_cmdln.gd \
     -gconfig= -ginclude_subdirs -gprefix=test_ "$@" -gexit 2>&1 | tee "$log"
   rc=${PIPESTATUS[0]}
   set -e
+  if [ -n "${WATCHDOG_S:-}" ] && [ "$rc" -eq 142 ]; then
+    echo "SIM SUITE ${WATCHDOG_MODE:-?}: killed by the watchdog after ${WATCHDOG_S}s (hang or runaway sim)"
+    trap - RETURN INT TERM; rm -f "$log"; return 1
+  fi
   if [ "$rc" -eq 0 ] && sed 's/\x1b\[[0-9;]*m//g' "$log" | grep -E '^Errors[[:space:]]+[1-9]|Could not find script|could not be loaded|\[GUT ERROR\]:.*does not exist\.|Nothing was run|SCRIPT ERROR' >/dev/null; then
     echo "GUT reported errors (see above); failing"; rc=1
   fi
@@ -38,11 +44,13 @@ run_gut() {
 # Shared by sim and sim-tiers: tick budget (hard) plus wall time (warn > SIM_WARN_S, fail > SIM_FAIL_S).
 run_sim_suite() {
   local mode="$1" dir="$2" warn="${SIM_WARN_S:-60}" fail="${SIM_FAIL_S:-150}" start elapsed rc=0 msg hook=res://tests/sim/tick_budget_hook.gd
-  if [ -z "$(find "$dir" -name 'test_*.gd' -print -quit 2>/dev/null)" ]; then echo "SIM SUITE $mode: no sim tests yet"; return 0; fi
+  if [ "${TICK_BUDGET_UPDATE:-}" = "1" ] && [ "${GITHUB_ACTIONS:-}" = "true" ]; then echo "TICK_BUDGET_UPDATE is not allowed in CI; failing"; return 1; fi
+  case "$warn$fail" in *[!0-9]*|'') echo "SIM_WARN_S/SIM_FAIL_S must be integers"; return 2 ;; esac
+  if [ -z "$(find "$dir" -name 'test_*.gd' -print -quit 2>/dev/null)" ]; then echo "SIM SUITE $mode: no test_*.gd under $dir; failing (never drop a sim, D-132)"; return 1; fi
   # GUT hangs (never exits) on a missing hook script, so fail fast here instead.
   if [ ! -f "${hook#res://}" ]; then echo "Tick budget hook missing: $hook; failing"; return 1; fi
   start=$SECONDS
-  TICK_CHECK=1 TICK_BUDGET_DIR="res://$dir" run_gut -gdir="res://$dir" -gpre_run_script="$hook" || rc=$?
+  WATCHDOG_S=$((fail + 30)) WATCHDOG_MODE="$mode" TICK_CHECK=1 TICK_BUDGET_DIR="res://$dir" run_gut -gdir="res://$dir" -gpre_run_script="$hook" || rc=$?
   elapsed=$((SECONDS - start))
   echo "SIM SUITE $mode: ${elapsed}s (warn ${warn}s, fail ${fail}s)"
   [ "$rc" -eq 0 ] || return "$rc"

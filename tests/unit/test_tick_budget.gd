@@ -58,15 +58,37 @@ func test_committed_golden_covers_every_sim_test() -> void:
 		assert_true(v is int or (v is float and v == floorf(v)), "%s is an int" % k)
 		assert_gt(int(v), 0, "%s > 0" % k)
 	var re := RegEx.new()
-	re.compile("(?m)^func (test_\\w+)")
-	var checked := 0
+	re.compile("(?m)^\\s*func\\s+(test_\\w+)")
+	var found := {}
 	for dir in [S, T]:
-		for fname in DirAccess.get_files_at(dir):
-			if not (fname.begins_with("test_") and fname.ends_with(".gd")):
-				continue
-			var src := FileAccess.get_file_as_string(dir + "/" + fname)
-			for m in re.search_all(src):
-				var key: String = "%s/%s::%s" % [dir, fname, m.get_string(1)]
-				assert_true(golden.has(key), "sim without a tick budget: %s" % key)
-				checked += 1
-	assert_gt(checked, 0, "scanned at least one sim test")
+		for path in _scripts_under(dir):
+			for m in re.search_all(FileAccess.get_file_as_string(path)):
+				found["%s::%s" % [path, m.get_string(1)]] = true
+	for key in found:
+		assert_true(golden.has(key), "sim without a tick budget: %s" % key)
+	for k in golden:
+		assert_true(found.has(k), "golden key without a sim test: %s" % k)
+	assert_gt(found.size(), 0, "scanned at least one sim test")
+
+
+func test_tick_budget_hook_loads_and_is_a_gut_hook() -> void:
+	var scr: Variant = load("res://tests/sim/tick_budget_hook.gd")
+	assert_not_null(scr, "hook script loads")
+	if scr == null:
+		return
+	var inst: Variant = scr.new()
+	assert_not_null(inst, "hook instantiates")
+	assert_true(inst is GutHookScript, "hook extends GutHookScript")
+	if inst is Object and not (inst is RefCounted):
+		inst.free()
+
+
+func _scripts_under(dir: String) -> Array:
+	var out := []
+	for fname in DirAccess.get_files_at(dir):
+		if fname.begins_with("test_") and fname.ends_with(".gd"):
+			out.append(dir + "/" + fname)
+	for sub in DirAccess.get_directories_at(dir):
+		if sub != "out" and sub != "baseline":
+			out.append_array(_scripts_under(dir + "/" + sub))
+	return out
