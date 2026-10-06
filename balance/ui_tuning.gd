@@ -96,6 +96,14 @@ extends Resource
 @export var boar_hop_height := 0.08
 @export var boar_hop_hz := 4.0
 @export var boar_lunge := 0.3
+## E5 monster kinds (spec 7.1): the hare hops quick and low, the Boar King slow and heavy and lunges further.
+@export var hare_hop_height := 0.05
+@export var hare_hop_hz := 6.0
+@export var boss_hop_height := 0.12
+@export var boss_hop_hz := 2.0
+@export var boss_lunge := 0.5
+## The boss's moon in the night HUD is drawn this much bigger (spec 7.4).
+@export var boss_moon_scale := 1.3
 @export var boar_squash := 0.92
 @export var boar_death_squash := 0.6
 ## S4 Task 7 (D-191): the hero's knife roll about its local X (deg/s) and the hero ring's alpha.

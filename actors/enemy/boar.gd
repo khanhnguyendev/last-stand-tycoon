@@ -40,6 +40,9 @@ func _init() -> void:
 	add_child(targetable)
 	visual = VISUAL_SCENE.instantiate()
 	add_child(visual)
+	var bar := BossBar.new()
+	add_child(bar)
+	bar.setup(self)
 
 ## Cached at spawn: a balance edit applies to monsters spawned after it.
 func stats() -> MonsterStats:
@@ -67,7 +70,7 @@ func spawn(p_lane: String, p_index: int, p_offset: float, hp_mult: float, direct
 	_reset_flash()
 	visual.reset()
 	if shadow_field != null:
-		shadow_field.register(visual, SHADOW_RADIUS)
+		shadow_field.register(visual, SHADOW_RADIUS * float(BoarMesh.params(kind).scale))
 	alive = true
 	_update_position(false)
 
