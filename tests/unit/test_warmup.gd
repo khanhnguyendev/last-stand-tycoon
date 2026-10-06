@@ -36,6 +36,17 @@ func test_run_builds_and_frees_without_touching_state() -> void:
 	assert_eq(warmup.get_child_count(), 0)
 	assert_gte(warmup.built_count, 9)
 
+func test_warmup_covers_every_monster_kind_and_the_boss_bar() -> void:
+	_main()
+	var warmup := Warmup.new()
+	main.add_child(warmup)
+	await warmup.run(main)
+	for k in MonsterBalance.KINDS:
+		assert_true(warmup.warmed_kinds.has(k), "visual for %s" % k)
+		assert_not_null(BoarMesh.get_mesh(k))
+	assert_true(warmup.warmed_materials.has(BossBar.back_material()))
+	assert_true(warmup.warmed_materials.has(BossBar.fill_material()))
+
 func test_boot_without_warmup_is_synchronous() -> void:
 	_main()
 	main.save_store = SaveStore.with_dir(dir)

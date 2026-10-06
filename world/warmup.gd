@@ -27,6 +27,9 @@ const SCENES: Array[String] = [
 var built_count := 0
 ## World positions the temporary nodes were placed at by the last run (tests check they are inside the frustum).
 var placed: Array[Vector3] = []
+## Monster kinds and boss bar materials drawn by the last run (tests).
+var warmed_kinds: Array[StringName] = []
+var warmed_materials: Array[Material] = []
 var _slot := 0
 var _origin := Vector3.ZERO
 var _right := Vector3.RIGHT
@@ -40,13 +43,25 @@ static func music_for(resume_phase: String) -> StringName:
 func run(main: Main, resume_phase := "") -> void:
 	built_count = 0
 	placed.clear()
+	warmed_kinds.clear()
+	warmed_materials.clear()
 	_slot = 0
 	var cam := main.camera_rig.camera
 	var xf := cam.global_transform if cam.is_inside_tree() else cam.transform
 	_origin = xf.origin - xf.basis.z * DISTANCE
 	_right = xf.basis.x
 	_up = xf.basis.y
-	_place(BOAR.VISUAL_SCENE.instantiate())
+	for k in MonsterBalance.KINDS:
+		var v: BoarVisual = BOAR.VISUAL_SCENE.instantiate()
+		_place(v)
+		v.set_kind(k)
+		warmed_kinds.append(k)
+	for mat in [BossBar.back_material(), BossBar.fill_material()]:
+		var bar := MeshInstance3D.new()
+		bar.mesh = BoxMesh.new()
+		bar.material_override = mat
+		_place(bar)
+		warmed_materials.append(mat)
 	for path in SCENES:
 		_place((load(path) as PackedScene).instantiate())
 	_place(_steak_field())

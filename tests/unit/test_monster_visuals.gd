@@ -34,6 +34,7 @@ func test_boar_mesh_is_unchanged() -> void:
 
 func test_scale_table_r7() -> void:
 	assert_between(_height(BoarMesh.get_mesh(&"hare")), 0.63, 0.77, "hare 0.7 m +- 10%")
+	assert_between(_length(BoarMesh.get_mesh(&"hare")), 0.99, 1.21, "hare 1.1 m long +- 10%")
 	assert_between(_height(BoarMesh.get_mesh(&"boss")), 1.98, 2.42, "boss 2.2 m +- 10%")
 	assert_between(_length(BoarMesh.get_mesh(&"boss")), 2.88, 3.52, "boss 3.2 m long +- 10%")
 

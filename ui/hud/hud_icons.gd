@@ -69,6 +69,13 @@ func moon_rect(i: int) -> Rect2:
 	var px := MOON_PX * moon_scale(i)
 	return Rect2(c.get_global_rect().position + Vector2.ONE * ((MOON_CELL_PX - px) * 0.5), Vector2(px, px))
 
+## The ink disc behind moon i: the cell, grown for the boss moon so its larger icon stays inside (static, no breath).
+func disc_rect(i: int) -> Rect2:
+	var r: Rect2 = moon_cells[i].get_global_rect()
+	if i == boss_moon:
+		r = r.grow(MOON_CELL_PX * (Balance.ui.boss_moon_scale - 1.0) * 0.5)
+	return r
+
 func _local(r: Rect2) -> Rect2:
 	return Rect2(r.position - global_position, r.size)
 
@@ -76,8 +83,8 @@ func _draw() -> void:
 	var atlas := IconAtlas.texture()
 	if night:
 		var disc := IconAtlas.region(&"disc")
-		for c in moon_cells:
-			draw_texture_rect_region(atlas, IconAtlas.shape_dest(_local(c.get_global_rect())), disc)
+		for i in moon_cells.size():
+			draw_texture_rect_region(atlas, IconAtlas.shape_dest(_local(disc_rect(i))), disc)
 	draw_texture_rect_region(atlas, _local(coin_rect()), IconAtlas.region(&"coin"))
 	draw_texture_rect_region(atlas, _local(heart_rect()), IconAtlas.region(&"heart"))
 	if night:
