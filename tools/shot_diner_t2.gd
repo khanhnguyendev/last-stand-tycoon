@@ -77,7 +77,8 @@ func _run() -> void:
 	# One of them dies at the wall: its steaks and the others' blob shadows must show on the cream terrace.
 	main.hero.teleport(Vector2(-7.5, 3.5))
 	var dead = mons[1]
-	dead.take_hit(1e9)
+	if is_instance_valid(dead):
+		dead.take_hit(1e9)
 	for i in 30:
 		await physics_frame
 	await _grab(cam, camera_math, bal, out, "diner_t2_west_zone_kill_night")
@@ -88,6 +89,10 @@ func _grab(cam: Camera3D, camera_math, bal, out: String, name: String) -> void:
 	for i in 20:
 		await process_frame
 	var img := root.get_texture().get_image()
+	if img == null:
+		push_error("no frame to grab for " + name)
+		_failed = 1
+		return
 	var dir := ProjectSettings.globalize_path("res://").path_join(out)
 	DirAccess.make_dir_recursive_absolute(dir)
 	_save(img, dir.path_join(name + ".png"))

@@ -152,7 +152,7 @@ func test_tall_vertices_lie_inside_the_occluder_boxes() -> void:
 	assert_eq(outside, 0, "vertices above y 3.45 outside every DinerArt.occluder_boxes (grown 0.05): the boxes drifted from the art")
 
 
-# ---- E5 Task 11: the tier-2 diner (terraces on the flanks, four short corner awnings) ----
+# ---- E5 Task 11: the tier-2 diner (cream terraces on the flanks, nothing above the ground) ----
 
 func _triangles(mesh: ArrayMesh) -> int:
 	var n := 0
@@ -172,7 +172,7 @@ func test_tier2_diner_keeps_the_footprint_and_adds_the_flanks() -> void:
 	var a1 := t1.get_aabb()
 	var a2 := t2.get_aabb()
 	assert_almost_eq(a2.size.y, a1.size.y, 0.3, "same height class")
-	assert_gt(a2.size.x, a1.size.x + 1.0, "terraces and awnings widen the look")
+	assert_gt(a2.size.x, a1.size.x + 1.0, "the terraces widen the look")
 	assert_lte(a2.size.x, 11.3, "but stay inside the yards' inner edges")
 	assert_lte(_triangles(t2), ArtBudgets.budget_for("res://art/env/diner"))
 
@@ -291,3 +291,20 @@ func test_swapping_the_diner_while_faded_fades_the_new_art_then_ends_opaque() ->
 	for i in body.mesh.get_surface_count():
 		assert_null(body.get_surface_override_material(i), "surface %d is back to its shared material" % i)
 	GameState.new_game(1)
+
+func test_tier2_terraces_are_diner_cream() -> void:
+	var t2: ArrayMesh = load("res://art/env/baked/diner_t2.res")
+	var want := Palette.color(&"diner_cream")
+	var checked := 0
+	for s in t2.get_surface_count():
+		var arr := t2.surface_get_arrays(s)
+		var img := ((t2.surface_get_material(s) as BaseMaterial3D).albedo_texture as Texture2D).get_image()
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+		for i in v.size():
+			if v[i].y > 0.02 or absf(v[i].x) <= 4.0 + 1e-3:
+				continue
+			checked += 1
+			var c := img.get_pixel(clampi(int(uv[i].x * img.get_width()), 0, img.get_width() - 1), clampi(int(uv[i].y * img.get_height()), 0, img.get_height() - 1))
+			assert_lt(absf(c.r - want.r) + absf(c.g - want.g) + absf(c.b - want.b), 0.03, "vertex %s samples %s, not diner_cream" % [v[i], c])
+	assert_gt(checked, 0, "the terraces exist")

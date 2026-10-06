@@ -1,7 +1,8 @@
 extends SceneTree
 ## Writes art/env/src/terrace_slab.res (E5 Task 11): one flat box, 1.6 x 0.015 x 8.0, centred on x = 0 with its base at
-## y = 0 (top at 0.015: under the blob shadows at +0.04 and the ground steaks at 0.02), every vertex UV on the diner_cream texel of the shared fantasy-town atlas, so the slab is on palette and uses
-## a shared material. Run: "$GODOT" --headless --path . -s res://tools/make_terrace_src.gd
+## y = 0 (top at 0.015, below the lane strips 0.02 (LaneStrip.Y), the ground steaks 0.02 and the blob
+## shadows 0.04), every vertex UV on the diner_cream texel of the shared fantasy-town atlas, so the slab is on palette
+## and uses a shared material. Run: "$GODOT" --headless --path . -s res://tools/make_terrace_src.gd
 const ATLAS := "res://art/palette/atlas/kenney-fantasy-town__colormap.png"
 const SIZE := Vector3(1.6, 0.015, 8.0)
 

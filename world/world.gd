@@ -167,7 +167,7 @@ func _set_yard_stones(yards: Array) -> void:
 		yard_stones = YardStones.build(yards)
 		add_child(yard_stones)
 
-## E5 Task 11: the tier-2 diner (flank terraces and corner awnings) from tier 2; tier 1 keeps DINER_ART.
+## E5 Task 11: the tier-2 diner (the flank terraces) from tier 2; tier 1 keeps DINER_ART.
 static func diner_scene_for(tier: int) -> PackedScene:
 	return DINER_ART_T2 if tier >= 2 else DINER_ART
 
