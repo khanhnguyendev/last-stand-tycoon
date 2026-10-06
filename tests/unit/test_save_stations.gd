@@ -19,9 +19,9 @@ func _v3() -> Dictionary:
 	s.erase("stations")
 	return s
 
-func test_schema_is_4_and_the_snapshot_carries_stations_with_string_keys() -> void:
-	assert_eq(GameState.SCHEMA_VERSION, 4)
+func test_schema_is_current_and_the_snapshot_carries_stations_with_string_keys() -> void:
 	var d := GameState.to_dict()
+	assert_eq(int(d.v), GameState.SCHEMA_VERSION)
 	assert_eq(d.stations, {"counter": {"level": 0, "paid": 0}, "freezer": {"level": 0, "paid": 0}})
 	for k in d.stations:
 		assert_eq(typeof(k), TYPE_STRING)
@@ -43,7 +43,7 @@ func test_round_trip_with_upgraded_stations() -> void:
 func test_a_v3_save_loads_with_both_stations_at_level_0() -> void:
 	var r := _decode(_v3())
 	assert_true(r.ok, r.reason)
-	assert_eq(int(r.state.v), 4)
+	assert_eq(int(r.state.v), GameState.SCHEMA_VERSION)
 	assert_eq(r.state.stations, SaveCodec.fresh_stations())
 	GameState.from_dict(r.state)
 	assert_eq(GameState.station_level(&"counter"), 0)
