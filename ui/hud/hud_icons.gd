@@ -47,7 +47,7 @@ func moon_scale(i: int) -> float:
 		return 1.0
 	var s: float = Balance.ui.boss_moon_scale
 	if boss_alive and not moon_lit(i):
-		s *= 1.0 + 0.06 * sin(_t * TAU * Balance.ui.pulse_hz)
+		s *= 1.0 + Balance.ui.boss_moon_breath * sin(_t * TAU * Balance.ui.pulse_hz)
 	return s
 
 func _process(delta: float) -> void:

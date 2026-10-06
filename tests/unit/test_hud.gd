@@ -373,3 +373,13 @@ func test_boss_disc_is_centred_larger_and_holds_the_moon() -> void:
 	ic._t = 0.25 / Balance.ui.pulse_hz
 	assert_true(d.encloses(ic.moon_rect(2)), "at the breath's peak")
 	assert_false(d.intersects(ic.disc_rect(1)))
+
+func test_day_label_shows_the_new_day_at_the_tier_up_dawn_before_the_reveal() -> void:
+	main.phase_controller.debug_skip_to_day()
+	var cost := GameState.tier_next_cost()
+	GameState.add_gold(cost)
+	GameState.pay_into_tier(cost)
+	main.phase_controller.debug_skip_to_night()
+	main.phase_controller.debug_skip_to_day()
+	assert_true(main.phase_controller.reveal_pending, "the reveal has not fired")
+	assert_eq(hud.day_label.text, tr("Day %d") % GameState.day)

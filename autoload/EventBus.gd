@@ -31,11 +31,11 @@ signal build_completed(spot_id: StringName, level: int)
 signal station_changed(id: StringName, level: int, paid: int)
 ## E1: a station finished a level (emitted after station_changed).
 signal station_upgraded(id: StringName, level: int)
-## E5: GameState -> TierSign, CloseUpSign (pulse), Autosave (dirty). The sign's paid amount or the boss flag changed.
+## E5: GameState -> World, TierSign, CloseUpSign (pulse), TelegraphMarker, Autosave (dirty). The sign's paid amount or the boss flag changed.
 signal tier_changed(tier: int, paid: int, boss_pending: bool)
-## E5: GameState -> Autosave (write), AudioDirector, Reactions. The tier-up is paid in full; next_tier arrives after the boss.
+## E5: GameState -> Autosave (write), AudioDirector, Reactions, TierBot. The tier-up is paid in full; next_tier arrives after the boss.
 signal tier_paid_up(next_tier: int)
-## E5: GameState -> World (yards, spots, diner), TierReveal, HUD, Autosave, AudioDirector, TierBot. Emitted after
+## E5: GameState -> World (yards, spots, diner), TierReveal, TierSign, HUD (day label), Autosave, TierBot. Emitted after
 ## building_changed for each new spot, at the dawn after a won boss night.
 signal tier_reached(tier: int)
 ## GameState -> fx.

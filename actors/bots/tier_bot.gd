@@ -1,6 +1,7 @@
 class_name TierBot
 extends UpgraderBot
-## E5 spec 8.1: UpgraderBot that buys the tier-up before station levels and builds the yard towers once they exist.
+## E5 spec 8.1: UpgraderBot that buys the tier-up before station levels and builds the yard towers once they exist
+## (the yard towers, threatened lane first, also on a lane with no threat tonight).
 ## Day order: the planner's hauling, defense for tonight (tier-1 spots, then the yard towers), the tier sign when the
 ## gold in hand finishes the payment, then stations, then close up. It never starts a payment it cannot finish.
 
