@@ -24,10 +24,11 @@ in each task before starting it. Section 15 of the spec (added by this plan) lis
 - `./run_tests.sh unit` and `./run_tests.sh sim` pass; they fail on any `SCRIPT ERROR` or GUT error. The sim suite's
   60 s budget is never met by dropping, skipping or weakening a test (D-132); over budget is reported with per-test
   timings and escalated (spec 8.5, D-247).
-- **Tier-1 identity (D-237):** after every task from Task 3 on, `tools/baseline_rows.sh` (Task 16 adds it; until then
-  `tools/baseline_diff.sh`) proves rows 1 to 7 of the planner sweep are byte-identical to `tests/sim/baseline/`. Tasks
-  1 to 15 keep the full `tools/baseline_diff.sh` printing `baseline identical` (the cap only changes rows 8 to 14, and
-  the planner never reaches day 8 in any sim; the sweep is manual). Task 16 re-records rows 8 to 14 once.
+- **Tier-1 identity (D-237):** after every task from Task 3 on, `tools/baseline_rows.sh 7` prints `rows 1-7 identical`:
+  rows 1 to 7 of the planner sweep are byte-identical to `tests/sim/baseline/`. The tier-1 cap arrives with
+  `WaveMath.pressure` (Task 3), so from then on `tools/baseline_diff.sh` differs in rows 8 to 14; that is the authorized
+  change, and Task 16 re-records those rows once. (Amended during execution: the first draft kept `baseline_diff.sh`
+  identical until Task 16, which the cap makes impossible. `tools/baseline_rows.sh` was pulled forward into Task 3.)
 - `NaiveBot`, `PlannerBot`, `GuideBot` and `UpgraderBot` never buy the tier-up and never read tier 2 spots. No task
   changes an Rng stream name, an Rng call, its order at tier 1, or `WaypointGraph.create_default()`.
 - Gameplay in `_physics_process` only; never depend on frame delta. Only `GameState` methods mutate game data; they
