@@ -15,6 +15,7 @@ const ENTRIES := [
 	{"in": "res://art/env/src/fence_rubble_src.tscn", "out": "res://art/env/baked/fence_rubble.res"},
 	{"in": "res://art/env/src/spot_marker_src.tscn", "out": "res://art/env/baked/spot_marker.res"},
 	{"in": "res://art/env/src/closeup_sign_src.tscn", "out": "res://art/env/baked/closeup_sign.res"},
+	{"in": "res://art/env/src/tier_sign_src.tscn", "out": "res://art/env/baked/tier_sign.res"},
 	{"in": "res://art/env/src/telegraph_flag_src.tscn", "out": "res://art/env/baked/telegraph_flag.res"},
 	{"in": "res://art/env/src/lane_gate_src.tscn", "out": "res://art/env/baked/lane_gate.res"},
 	# Task 13: prop models (one MultiMesh each), the rocks-small one also lines the lane edges.
