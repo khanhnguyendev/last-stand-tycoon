@@ -37,7 +37,7 @@ extends Resource
 @export var build_pop_scale := 1.2
 @export var build_pop_time := 0.2
 ## E5 spec 7.5: the tier-up reveal (camera pull-back and the pacing of the pops).
-@export var tier_reveal_zoom := 1.25
+@export var tier_reveal_zoom := 2.25
 @export var tier_reveal_in_s := 0.6
 @export var tier_reveal_out_s := 0.8
 @export var tier_reveal_step_s := 0.35

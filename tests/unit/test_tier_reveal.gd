@@ -177,3 +177,59 @@ func test_the_reveal_never_writes_game_state() -> void:
 	assert_false("GameState" in src, "no GameState access at all")
 	assert_false("Rng." in src)
 	assert_false("randf" in src or "randi" in src)
+
+# --- Fix round 1: the reveal camera frames the diner and the new yards ---
+
+func _subject_on_screen(xf: Transform3D, aspect: float, tier: int) -> bool:
+	var proj := CameraMath.projection(Balance.ui, aspect)
+	for p in TierReveal.subject_points(tier):
+		if not CameraMath.on_screen(p, xf, proj):
+			return false
+	return true
+
+func test_fit_frames_every_subject_point_at_9_16() -> void:
+	var f := TierReveal.frame_for(2, Balance.ui)
+	assert_between(f.zoom, 1.0, Balance.ui.tier_reveal_zoom)
+	var xf := CameraMath.zoomed_transform(f.focus, Balance.ui, f.zoom)
+	assert_true(_subject_on_screen(xf, CameraMath.ASPECT, 2), "all subject points on screen")
+	assert_lt(f.zoom, Balance.ui.tier_reveal_zoom + 1e-6, "fits at or under the cap")
+	gut.p("fitted zoom %.2f focus %s cap %.2f" % [f.zoom, f.focus, Balance.ui.tier_reveal_zoom])
+
+func test_fit_at_9_21_for_the_report() -> void:
+	var f := TierReveal.frame_for(2, Balance.ui, CameraMath.ASPECT_MIN)
+	var xf := CameraMath.zoomed_transform(f.focus, Balance.ui, f.zoom)
+	gut.p("9:21 fitted zoom %.2f fits=%s" % [f.zoom, _subject_on_screen(xf, CameraMath.ASPECT_MIN, 2)])
+	assert_true(_subject_on_screen(xf, CameraMath.ASPECT_MIN, 2))
+
+func test_fit_with_no_yards_is_the_diner_alone() -> void:
+	var f := TierReveal.frame_for(1, Balance.ui)
+	assert_eq(f.focus, Vector2.ZERO)
+	assert_almost_eq(f.zoom, 1.0, 1e-6)
+
+func test_held_camera_frames_the_subject() -> void:
+	_tier_up()
+	await _frames(int((Balance.ui.tier_reveal_in_s + 0.3) * 60.0))
+	var cam := main.camera_rig.camera
+	assert_true(_subject_on_screen(cam.global_transform, CameraMath.ASPECT, 2), "diner and yards on screen while held")
+
+func test_after_the_reveal_the_focus_follows_the_hero_again() -> void:
+	_tier_up()
+	await _frames(int(Balance.data.tiers.tier_reveal_time * 60.0) + 30)
+	assert_almost_eq(main.camera_rig.zoom_now(), 1.0, 0.02)
+	var hero_xy := main.hero.xz()
+	var expect := CameraMath.camera_transform(CameraMath.focus_for(hero_xy), Balance.ui)
+	assert_true(main.camera_rig.camera.global_transform.is_equal_approx(expect), "back on the hero")
+
+func test_restore_cancels_zoom_and_focus_override() -> void:
+	_tier_up()
+	await _frames(60)
+	EventBus.state_restored.emit()
+	assert_eq(main.camera_rig.zoom_now(), 1.0)
+	assert_false(main.camera_rig.has_focus_override())
+
+func test_markers_stay_shown_until_the_reveal_ends() -> void:
+	_tier_up()
+	await _frames(_step_frames() * 4 + 10)  # step 5 has run, the end has not
+	assert_true(_reveal().running())
+	for s in _new_spots():
+		assert_true(s.marker.visible, "shown from their step until the end")

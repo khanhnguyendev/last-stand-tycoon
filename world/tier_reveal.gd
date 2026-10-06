@@ -19,6 +19,45 @@ func setup(world: World) -> void:
 	EventBus.tier_reached.connect(_on_tier_reached)
 	EventBus.state_restored.connect(_cancel)
 
+## The points the reveal camera must show: the diner's footprint corners and the corners of every yard `tier` opened.
+static func subject_points(tier: int) -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	var h := MapLayout.DINER_HALF
+	for c in [Vector2(-h, -h), Vector2(h, -h), Vector2(-h, h), Vector2(h, h)]:
+		out.append(MapLayout.to3(c))
+	for id in MapLayout.YARDS:
+		if int(MapLayout.YARD_TIER[id]) != tier:
+			continue
+		var r: Rect2 = MapLayout.YARDS[id]
+		for c in [r.position, Vector2(r.end.x, r.position.y), Vector2(r.position.x, r.end.y), r.end]:
+			out.append(MapLayout.to3(c))
+	return out
+
+## Pure: the reveal camera for `tier`: the focus is the centre of the subject points' bounding rectangle, the zoom the
+## smallest in [1.0, ui.tier_reveal_zoom] (steps of 0.05) that shows every point at `aspect`; the cap when none does.
+static func frame_for(tier: int, ui: UiTuning, aspect := CameraMath.ASPECT) -> Dictionary:
+	var pts := subject_points(tier)
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for p in pts:
+		lo = lo.min(Vector2(p.x, p.z))
+		hi = hi.max(Vector2(p.x, p.z))
+	var focus := (lo + hi) * 0.5
+	var proj := CameraMath.projection(ui, aspect)
+	var cap := ui.tier_reveal_zoom
+	var z := 1.0
+	while z < cap - 1e-6:
+		var xf := CameraMath.zoomed_transform(focus, ui, z)
+		var ok := true
+		for p in pts:
+			if not CameraMath.on_screen(p, xf, proj):
+				ok = false
+				break
+		if ok:
+			return {"focus": focus, "zoom": z}
+		z += 0.05
+	return {"focus": focus, "zoom": cap}
+
 func running() -> bool:
 	return _tween != null and _tween.is_valid() and _tween.is_running()
 
@@ -54,7 +93,10 @@ func _restore() -> void:
 
 func _on_tier_reached(tier: int) -> void:
 	_cancel()
-	_world.rebuild_for_tier()  # a no-op: World rebuilt on tier_changed; makes the order not matter
+	# World connects its tier signals after this node, so this handler runs before World's _on_tier_reached; the world is
+	# already rebuilt because the tier-up emits tier_changed first and World rebuilds on it. This call is a guarded no-op
+	# (rebuild_for_tier returns at once when the built tier equals the tier) that keeps the order from mattering.
+	_world.rebuild_for_tier()
 	EventBus.banner_requested.emit(tr("The diner grows!"))
 	var yards: Array[String] = []
 	for id in MapLayout.YARDS:
@@ -89,7 +131,8 @@ func _on_tier_reached(tier: int) -> void:
 	var hold := minf(float(_steps.size()) * ui.tier_reveal_step_s, Balance.data.tiers.tier_reveal_time - ui.tier_reveal_in_s - ui.tier_reveal_out_s)
 	var main := _world.get_parent() as Main
 	if main != null and main.camera_rig != null:
-		main.camera_rig.reveal(ui.tier_reveal_in_s, maxf(hold, 0.0), ui.tier_reveal_out_s, ui.tier_reveal_zoom)
+		var frame := frame_for(tier, ui)
+		main.camera_rig.reveal(ui.tier_reveal_in_s, maxf(hold, 0.0), ui.tier_reveal_out_s, frame.zoom, frame.focus)
 	_tween = create_tween()
 	_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 	for i in _steps.size():
@@ -118,6 +161,7 @@ func _step() -> void:
 					s.marker.visible = true
 					_pops.append(PopFx.pop(self, s.marker, Vector3.ONE, null))
 
-## After the last step: the marker pops have settled; spots show what refresh() says.
+## After the last step and its pop: the reveal ends. The markers stayed shown from step 5 until now; refresh() puts every
+## spot back to what the phase says: at DAWN the zone is inactive, so it hides the markers until day.
 func _finish() -> void:
 	_restore()
