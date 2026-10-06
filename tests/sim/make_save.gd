@@ -61,12 +61,6 @@ func _on_snapshot(state: Dictionary) -> void:
 	quit(0)
 
 func _write(fixture: String, s: Dictionary) -> void:
-	if _fixture == "tier":
-		var why: String = load("res://core/save_codec.gd").validate(s, root.get_node("Balance").data)
-		if why != "":
-			push_error("fixture %s invalid: %s" % [fixture, why])
-			quit(1)
-			return
 	var codec = load("res://core/save_codec.gd")
 	var path := ProjectSettings.globalize_path("res://export/fixtures/%s.save.json" % fixture)
 	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
@@ -123,8 +117,7 @@ func _run_tier() -> void:
 	main.get_parent().remove_child(main)
 	main.free()
 	root.get_node("EventBus").snapshot_taken.disconnect(_on_tier_snapshot)
-	_write_tier_fixtures(_base)
-	quit(0)
+	quit(0 if _write_tier_fixtures(_base) else 1)
 
 func _plan(s: Dictionary) -> Array:
 	var bd = root.get_node("Balance").data
@@ -135,7 +128,8 @@ func _common(s: Dictionary) -> void:
 	s.carried_steaks = 0
 	s.card_offer = []
 
-func _write_tier_fixtures(base: Dictionary) -> void:
+## Builds all five states, validates every one, and only then writes. False (nothing written) on any failure.
+func _write_tier_fixtures(base: Dictionary) -> bool:
 	var bd = root.get_node("Balance").data
 	var gs = root.get_node("GameState")
 	var tb = bd.tiers
@@ -143,7 +137,7 @@ func _write_tier_fixtures(base: Dictionary) -> void:
 	boss.resume_phase = "NIGHT"
 	boss.night_fails = 0
 	_common(boss)
-	_write("boss_night_tier1", boss)
+	var out: Array = [["boss_night_tier1", boss]]
 
 	var only := boss.duplicate(true)
 	for id in only.buildings:
@@ -159,7 +153,7 @@ func _write_tier_fixtures(base: Dictionary) -> void:
 		w.side = ""
 	only.lane_plan[only.lane_plan.size() - 1].boss = true
 	only.boss_pending = true
-	_write("boss_only", only)
+	out.append(["boss_only", only])
 
 	# tier 2 as the dawn after a won boss night leaves it. Done through a real GameState round trip:
 	# from_dict, heal_for_dawn (diner, fences and guards to full HP), to_dict.
@@ -179,17 +173,25 @@ func _write_tier_fixtures(base: Dictionary) -> void:
 	t2 = gs.to_dict()
 	t2.resume_phase = "NIGHT"
 	_common(t2)
-	_write("tier2_night1", t2)
+	out.append(["tier2_night1", t2])
 
 	var full := t2.duplicate(true)
 	full.day = int(t2.tier_day) + int(tb.fast_ramp_days[2])
 	if load("res://core/wave_math.gd").pressure(int(full.day), 2, int(full.tier_day), tb) != int(tb.tier_cap[2]):
 		push_error("tier2_full is not at the pressure cap")
-		quit(1)
-		return
+		return false
 	var ml: int = bd.build.max_level
 	for id in full.buildings:
 		full.buildings[id] = {"level": ml, "paid": 0, "hp": gs.fence_max_hp(ml) if load("res://core/map_layout.gd").spot_kind(id) == "fence" else 0.0}
 	full.lane_plan = _plan(full)
-	_write("tier2_full", full)
-	_write("tier2_night", full)
+	out.append(["tier2_full", full])
+	out.append(["tier2_night", full])
+	var codec = load("res://core/save_codec.gd")
+	for pair in out:
+		var why: String = codec.validate(pair[1], bd)
+		if why != "":
+			push_error("fixture %s invalid: %s" % [pair[0], why])
+			return false
+	for pair in out:
+		_write(pair[0], pair[1])
+	return true

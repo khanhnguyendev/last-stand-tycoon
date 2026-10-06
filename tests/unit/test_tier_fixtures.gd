@@ -9,6 +9,11 @@ var banners: Array = []
 func before_each() -> void:
 	Balance.reset()
 	banners.clear()
+	EventBus.banner_requested.connect(_on_banner)
+
+func after_each() -> void:
+	if EventBus.banner_requested.is_connected(_on_banner):
+		EventBus.banner_requested.disconnect(_on_banner)
 
 func _on_banner(t: String) -> void:
 	banners.append(t)
@@ -23,10 +28,13 @@ func _hares(s: Dictionary) -> int:
 		n += int(w.fast_main) + int(w.fast_side)
 	return n
 
-func _resume(stem: String) -> Main:
+func _resume(stem: String, before := Callable()) -> Main:
 	var main: Main = Main.create()
 	add_child_autofree(main)
 	await get_tree().physics_frame
+	GameState.new_game(1)  # a tier-1 world: the resume is what changes it
+	if before.is_valid():
+		before.call(main)
 	var r: Dictionary = _decode(stem)
 	assert_true(r.ok, r.reason)
 	main.phase_controller.resume_from(r.state)
@@ -47,7 +55,12 @@ func test_boss_night_tier1() -> void:
 	assert_eq([s.resume_phase, int(s.tier), s.boss_pending, int(s.night_fails)], ["NIGHT", 1, true, 0])
 	assert_gte(int(s.day), 8)
 	assert_true(bool(s.lane_plan[2].boss))
-	assert_gt(int(s.cards.get("tank", 0)), 0, "a tank guard was picked (the run had tank 5)")
+	assert_gt(int(s.cards.get("archer", 0)), 0, "archer picked")
+	assert_gt(int(s.cards.get("tank", 0)), 0, "tank picked")
+	var total := 0
+	for id in MapLayout.SPOT_IDS:
+		total += int(s.buildings[id].level)
+	assert_gte(total, 12, "the tier-1 defense is built")
 	assert_gt(s.guards.size(), 0, "a guard stands")
 	var max_towers := 0
 	var fences_3 := 0
@@ -104,26 +117,30 @@ func test_tier2_full_and_perf() -> void:
 func test_boss_fixtures_resume_into_the_boss_night() -> void:
 	for stem in ["boss_night_tier1", "boss_only"]:
 		banners.clear()
-		EventBus.banner_requested.connect(_on_banner)
 		var main := await _resume(stem)
-		EventBus.banner_requested.disconnect(_on_banner)
 		assert_eq(main.phase_controller.phase, Phase.NIGHT, stem)
 		assert_true(GameState.is_boss_night(), stem)
 		assert_true(banners.has(tr("The Boar King comes")), "%s: %s" % [stem, banners])
+		main.get_parent().remove_child(main)
+		main.free()
 
 func test_tier2_night1_resumes_with_the_world_at_tier_2() -> void:
-	var main := await _resume("tier2_night1")
+	var main := await _resume("tier2_night1", func(m: Main): assert_false(m.world.build_spots.has("tower_w"), "tier 1 world before the resume"))
 	assert_eq(main.phase_controller.phase, Phase.NIGHT)
 	assert_eq(GameState.tier, 2)
 	assert_false(main.world.yard_ids().is_empty(), "the side yards are open")
 	assert_true(main.world.build_spots.has("tower_w"), "the yard tower spot exists")
 	assert_gt(_hares(_decode("tier2_night1").state), 0)
+	main.get_parent().remove_child(main)
+	main.free()
 
 func test_every_fixture_survives_five_seconds_of_night() -> void:
 	for stem in STEMS:
 		var main := await _resume(stem)
-		for i in 5 * 60:
+		for i in int(ceil((Balance.data.wave.first_wave_delay + 2.0) * 60.0)):
 			await get_tree().physics_frame
 		assert_eq(main.phase_controller.phase, Phase.NIGHT, stem)
+		if stem != "boss_only":  # its first two waves are empty
+			assert_gt(main.phase_controller.wave_director.alive_count(), 0, "%s: monsters are out" % stem)
 		main.get_parent().remove_child(main)
 		main.free()
