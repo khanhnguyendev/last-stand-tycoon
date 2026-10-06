@@ -78,6 +78,29 @@ Reversible decisions from the E1 build, highest impact first. Media: `docs/revie
 10. Playtest question: "Did you notice you could upgrade the counter and the freezer? Did you want to?"
 11. Follow-up: a saved station level above `max_level` is clamped on load (D-234), but a saved tower or fence level above `build.max_level` is still rejected (`SaveCodec.validate`). Lowering `build.max_level` later would lose saves; same fix as D-234 if it ever matters.
 
+## E5 diner tier ladder, slice 1 (2026-10-06)
+
+Reversible decisions from the E5 build, highest impact first. Media: `docs/review/media/e5/`. Decisions: D-236 to D-259.
+
+1. **The tier-2 diner reads only slightly grown.** It is the tier-1 diner plus two thin cream terraces; awnings were removed because any awning near the walls hides monsters, tower bases or the hero under the top-down camera. Growth is carried by the yards, the two towers and the reveal. A stronger "the diner grows" needs real art (a second storey, a bigger sign, new kit pieces) — [D-254](DECISIONS.md), `e5/task11/diner_t2_home_day.png`
+2. **Yards look like lane stubs.** They use the lanes' dirt and edge stones; a paved cream or stone patio would read as diner property — [D-255](DECISIONS.md), `e5/task10/yards_west.png`, `e5/task10/yards_east.png`
+3. **The tier sign is small and off screen from the home spot** (it stands on the west yard's edge, x −10). Nothing points at it; the Close-up sign simply stops pulsing while the tier is affordable. Candidates: a taller sign, an edge arrow, a one-time Guide hint — [D-240](DECISIONS.md), `e5/task09/`
+4. **Tier 2 is the top of this slice, and gold piles up again within about two days** (223 → 3,999 unspent from day 14 to day 20 on seed 20260930). Tier 3 removes it — [D-245](DECISIONS.md), `e5/sweep/README.md`
+5. **Tier-2 cost 500.** The tier bot maxes its defense by day 8, buys station levels on days 9 to 11 and pays in the day phase before night 12 or 13, which is then the boss night. Lower the cost or let the bot (and the player) pay in parts if that is too late — [D-258](DECISIONS.md)
+6. **The boss night is lost once and won on the retry on two of three seeds** (with one mercy step). Is one loss the right "test you can prepare for", or should a maxed tier-1 defense win first time? Boss: 800 HP × 1.9 at the cap, 15 damage a second, speed 1.2 — [D-242](DECISIONS.md), [D-258](DECISIONS.md)
+7. **The reveal:** the camera leaves the hero, frames the diner and both yards (zoom 2.15), five beats 0.35 s apart with the build sound and dust, back to the hero at 3.0 s when the card pick opens. On very tall or very wide windows the pulled-back view shows up to 20 m past the ground mesh edge for those 3 seconds — [D-256](DECISIONS.md)
+8. **The hare** is a small, lean, light-red monster with two long laid-back ears; it is small on screen and reads muted red rather than pink. Its legs swing at the Boar's rate — [D-252](DECISIONS.md), `e5/task07/`
+9. **The Boar King** is a 2.2 m dark boar with four stone tusks and a red HP bar; no sound of its own (it uses the Boar's) — [D-246](DECISIONS.md), `e5/task07/`
+10. **The boss moon** is the third moon drawn 1.3× in red, breathing while the boss lives; no boss-night HUD shot was taken — [D-238](DECISIONS.md)
+11. **Texts:** "Open the yards" + cost, "Boss tonight", "The Boar King comes", "The diner grows!" — [D-238](DECISIONS.md), [D-243](DECISIONS.md)
+12. **Props standing in a yard are hidden** when the yard opens (five trees and rocks at tier 2) instead of being moved — [D-255](DECISIONS.md)
+13. **The east yard is small** (5 × 3.5 m against the west yard's 4.5 × 10.5 m): the props and the 3 m rule shaped it — [D-240](DECISIONS.md)
+14. **Existing saves past day 7 at tier 1 get easier nights after the update** (day-7 pressure) — [D-237](DECISIONS.md)
+15. Lane strips and lane edge stones draw across the cream terraces where the west and east lanes meet the wall — `e5/task11/diner_t2_west_zone_night.png`
+16. Playtest question: "Did you understand what the sign was selling, and did the boss night feel like a test you could prepare for?"
+
+Not measured in this slice: perf on the iOS Simulator for the `tier2_night` and `boss_night_tier1` fixtures (spec 8.4), and the device check of the sign, the boss bar and the boss moon. See the phase-4 PR for what was and was not run.
+
 ## Final review playtest questions (S5)
 
 1. Did you know what to do in your first minute without reading anything?

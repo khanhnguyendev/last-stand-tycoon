@@ -56,9 +56,21 @@ Reference feel (mechanics only, no assets or names): My Little Universe, Alien I
 
 **Day (the tycoon)**
 - Haul steaks from the freezer to the counter, sell to queued travelers, collect gold, and spend it
-  on towers, fences and station upgrades (D-222). No day timer.
+  on towers, fences, station upgrades (D-222) and the diner tier (D-236). No day timer.
 - Start the night by standing still on the "Close up" sign. It pulses when nothing is left to do.
 - No cooking, seating, orders or serving minigame: the day is only haul, sell, build.
+
+## Diner tiers (E5, D-236)
+
+- The diner has 5 tiers. Tier 1 is the first game: 3 lanes, 2 towers, 3 fences, Boars.
+- Difficulty follows the tier, not the day: inside a tier the nights grow a little each day and then stop at a cap.
+  Income comes only from kills, so a low tier is safe and earns little. That is the reason to tier up; nothing forces it.
+- Tiering up: pay gold standing still on a sign that stands on the land being bought; that night is a boss night; win
+  it and the next morning the diner grows (land, build spots, a monster type, more customers). A lost boss night
+  retries like any night, with the payment kept.
+- Tier 2 (built): side yards with two more towers, a fast monster (the hare) that walks past fences, the Boar King.
+- Nothing built is ever lost and there is no reset. Tier 5 is the long-term goal. Staff, new equipment and more land
+  arrive as tier unlocks (tiers 3 to 5).
 
 ## Hero cards
 
@@ -93,5 +105,5 @@ Reference feel (mechanics only, no assets or names): My Little Universe, Alien I
 ## Later (not in v0.1)
 
 Mobile apps, ads, IAP, gacha; Mage, Chef and follower heroes; moving guard heroes; extra waves on
-later days; spoilage; offline earnings; a second resource; second map, bosses, cloud save,
+later days; spoilage; offline earnings; a second resource; second map, a second branch, cloud save,
 localization.
