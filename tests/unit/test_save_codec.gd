@@ -35,9 +35,9 @@ func test_tampered_state_fails_the_check() -> void:
 	assert_eq(r.reason, "check")
 
 func test_bad_json_and_formats() -> void:
-	assert_eq(SaveCodec.decode("not json", 3, bd).reason, "json")
-	assert_eq(SaveCodec.decode('{"format": {}, "state_json": "", "check": 1}', 3, bd).reason, "json")
-	assert_eq(SaveCodec.decode("{}", 3, bd).reason, "json")
+	assert_eq(SaveCodec.decode("not json", GameState.SCHEMA_VERSION - 2, bd).reason, "json")
+	assert_eq(SaveCodec.decode('{"format": {}, "state_json": "", "check": 1}', GameState.SCHEMA_VERSION - 2, bd).reason, "json")
+	assert_eq(SaveCodec.decode("{}", GameState.SCHEMA_VERSION - 2, bd).reason, "json")
 	var env = JSON.parse_string(SaveCodec.encode(_state(), "abc", 1))
 	env.format = 2
 	var r := SaveCodec.decode(JSON.stringify(env), GameState.SCHEMA_VERSION, bd)
