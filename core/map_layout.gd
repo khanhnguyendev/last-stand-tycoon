@@ -29,12 +29,41 @@ const ZONE_RECTS := {
 }
 
 const SPOT_IDS: Array[String] = ["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e"]
-const TOWER_SPOTS := {"tower_nw": Vector2(-5, -5), "tower_ne": Vector2(5, -5)}
-const TOWER_LANES := {"tower_nw": ["west", "north"], "tower_ne": ["north", "east"]}
+const TOWER_SPOTS := {"tower_nw": Vector2(-5, -5), "tower_ne": Vector2(5, -5), "tower_w": Vector2(-10.6, 0.6), "tower_e": Vector2(8.8, 1.1)}
+const TOWER_LANES := {"tower_nw": ["west", "north"], "tower_ne": ["north", "east"], "tower_w": ["west"], "tower_e": ["east"]}
 const FENCE_LANE := {"fence_w": "west", "fence_n": "north", "fence_e": "east"}
 const LANE_FENCE := {"west": "fence_w", "north": "fence_n", "east": "fence_e"}
 const FENCE_OFFSET_FROM_END := 4.0
 const TELEGRAPH_OFFSET_FROM_END := 5.5
+
+## E5 (spec 5.1, D-239, D-240): spots a tier unlocks (appended to spots_for_tier), the side yards (Rect2(x, z, w, h)) and
+## the tier sign, which stands on the land it sells. SPOT_IDS stays the tier-1 list; nothing above moves.
+const TIER_SPOTS := {2: ["tower_w", "tower_e"]}
+const YARDS := {"west": Rect2(-13.5, -2.5, 4.5, 10.5), "east": Rect2(8.0, -0.5, 5.0, 3.5)}
+const YARD_TIER := {"west": 2, "east": 2}
+const TIER_SIGN := Vector2(-10.0, 7.5)
+const ALL_SPOT_IDS: Array[String] = ["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e", "tower_w", "tower_e"]
+
+static func spots_for_tier(tier: int) -> Array[String]:
+	var out: Array[String] = []
+	out.assign(SPOT_IDS)
+	for t in range(2, tier + 1):
+		if TIER_SPOTS.has(t):
+			out.append_array(TIER_SPOTS[t])
+	return out
+
+static func yards_for_tier(tier: int) -> Array[String]:
+	var out: Array[String] = []
+	for id in YARDS:
+		if int(YARD_TIER[id]) <= tier:
+			out.append(id)
+	return out
+
+static func spot_tier(spot_id: String) -> int:
+	for t in TIER_SPOTS:
+		if spot_id in TIER_SPOTS[t]:
+			return t
+	return 1
 
 const COUNTER := Vector2(0, 4.8)
 const COUNTER_SIZE := Vector2(3, 1)
