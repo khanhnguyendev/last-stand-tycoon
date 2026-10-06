@@ -96,3 +96,15 @@ static func create_default() -> WaypointGraph:
 	]:
 		g.add_edge(e[0], e[1])
 	return g
+
+## E5 (spec 5.2): the default graph plus the tier's sign and yard spots. create_default() stays frozen (D-230);
+## only TierBot and tests use this.
+static func create_for_tier(tier: int) -> WaypointGraph:
+	var g := create_default()
+	if tier >= 2:
+		g.add_node("tier_sign", MapLayout.TIER_SIGN)
+		g.add_node("tower_w", MapLayout.TOWER_SPOTS.tower_w + Vector2(-0.75, 0.75))
+		g.add_node("tower_e", MapLayout.TOWER_SPOTS.tower_e + Vector2(0.75, 0.75))
+		for e in [["sw", "tier_sign"], ["sw", "tower_w"], ["zone_west", "tower_w"], ["se", "tower_e"], ["zone_east", "tower_e"]]:
+			g.add_edge(e[0], e[1])
+	return g

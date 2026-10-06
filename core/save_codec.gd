@@ -6,7 +6,7 @@ const FORMAT := 1
 const RESUME_PHASES := ["NIGHT", "DAY", "CARD_PICK"]
 const STATE_KEYS := ["v", "resume_phase", "run_seed", "day", "gold", "gold_pile", "freezer_steaks",
 	"counter_steaks", "carried_steaks", "diner_hp", "buildings", "lane_plan", "cards", "card_offer", "guards",
-	"night_fails", "stations"]
+	"night_fails", "stations", "tier", "tier_day", "tier_paid", "boss_pending"]
 ## from_version (int) -> Callable(state: Dictionary) -> Dictionary. A test hook: an entry here overrides the
 ## built-in step of the same version (_built_in). Tests may clear it freely.
 static var MIGRATIONS := {}
@@ -23,6 +23,20 @@ static func _built_in(from_v: int, state: Dictionary) -> Variant:
 		3:  # E1: station upgrades
 			state.stations = fresh_stations()
 			state.v = 4
+			return state
+		4:  # E5: the diner tier. A tier-1 save keeps its day; its next dawn re-plans at the tier-1 cap (D-237).
+			state.tier = 1
+			state.tier_day = 1
+			state.tier_paid = 0
+			state.boss_pending = false
+			var lp = state.get("lane_plan")
+			if typeof(lp) == TYPE_ARRAY:
+				for w in lp:
+					if typeof(w) == TYPE_DICTIONARY:
+						w.fast_main = 0
+						w.fast_side = 0
+						w.boss = false
+			state.v = 5
 			return state
 	return null
 
@@ -85,11 +99,21 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 		if not s.has(k):
 			return "missing " + str(k)
 	for k in ["v", "run_seed", "day", "gold", "gold_pile", "freezer_steaks", "counter_steaks", "carried_steaks",
-			"diner_hp", "night_fails"]:
+			"diner_hp", "night_fails", "tier", "tier_day", "tier_paid"]:
 		if not typeof(s[k]) in [TYPE_INT, TYPE_FLOAT]:
 			return "type " + str(k)
 	if int(s.night_fails) < 0 or int(s.day) < 1 or int(s.gold) < 0 or int(s.gold_pile) < 0:
 		return "range"
+	if typeof(s.boss_pending) != TYPE_BOOL:
+		return "type boss_pending"
+	var tier := int(s.tier)
+	if tier < 1 or tier > bd.tiers.max_tier:
+		return "range tier"
+	if int(s.tier_day) < 1 or int(s.tier_day) > int(s.day):
+		return "range tier_day"
+	if int(s.tier_paid) < 0:
+		return "range tier_paid"
+	var known_tier := mini(tier, TierEffects.top_tier(bd.tiers))  # GameState clamps the tier on load (spec 6.3)
 	if typeof(s.resume_phase) != TYPE_STRING:
 		return "type resume_phase"
 	if not String(s.resume_phase) in RESUME_PHASES:
@@ -106,8 +130,10 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 		if typeof(s[k]) != TYPE_ARRAY:
 			return "type " + str(k)
 	for id in s.buildings:
-		if not String(id) in MapLayout.SPOT_IDS:
+		if not String(id) in MapLayout.ALL_SPOT_IDS:
 			return "building " + str(id)
+		if MapLayout.spot_tier(String(id)) > known_tier:
+			return "building tier " + str(id)
 		if typeof(s.buildings[id]) != TYPE_DICTIONARY or not s.buildings[id].has_all(["level", "paid", "hp"]):
 			return "building fields " + str(id)
 		for f in ["level", "paid", "hp"]:
@@ -118,7 +144,7 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 		var bl := int(s.buildings[id].level)
 		if bl < 0 or bl > bd.build.max_level:
 			return "building level " + str(id)
-	for id in MapLayout.SPOT_IDS:
+	for id in MapLayout.spots_for_tier(known_tier):
 		if not s.buildings.has(id):
 			return "missing building " + str(id)
 	for id in s.stations:
@@ -138,7 +164,7 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 	if s.lane_plan.size() != bd.wave.base_counts.size():
 		return "lane_plan"
 	for w in s.lane_plan:
-		if typeof(w) != TYPE_DICTIONARY or not w.has_all(["main", "side", "main_count", "side_count", "hp_mult"]):
+		if typeof(w) != TYPE_DICTIONARY or not w.has_all(["main", "side", "main_count", "side_count", "hp_mult", "fast_main", "fast_side", "boss"]):
 			return "lane_plan fields"
 		if typeof(w.main) != TYPE_STRING or not String(w.main) in LanePlanner.LANES \
 				or typeof(w.side) != TYPE_STRING or not (String(w.side) == "" or String(w.side) in LanePlanner.LANES):
@@ -148,6 +174,16 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 				return "lane fields"
 			if float(w[f]) < 0.0:
 				return "range " + f
+		for f in ["fast_main", "fast_side"]:
+			if not typeof(w[f]) in [TYPE_INT, TYPE_FLOAT] or float(w[f]) < 0.0:
+				return "lane fields"
+		if int(w.fast_main) > int(w.main_count) or int(w.fast_side) > int(w.side_count):
+			return "lane fast"
+		if typeof(w.boss) != TYPE_BOOL:
+			return "lane fields"
+	for i in s.lane_plan.size() - 1:
+		if bool(s.lane_plan[i].boss):
+			return "lane boss"
 	var max_level := bd.cards.max_level
 	for id in s.cards:
 		if typeof(id) != TYPE_STRING or not StringName(id) in CardCatalog.IDS:

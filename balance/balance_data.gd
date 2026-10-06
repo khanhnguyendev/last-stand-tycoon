@@ -11,3 +11,5 @@ extends Resource
 @export var cards: CardBalance = CardBalance.new()
 @export var guards: GuardBalance = GuardBalance.new()
 @export var stations: StationBalance = StationBalance.new()
+@export var tiers: TierBalance = TierBalance.new()
+@export var monsters: MonsterBalance = MonsterBalance.new()
