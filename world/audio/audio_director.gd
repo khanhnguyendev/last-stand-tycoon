@@ -48,7 +48,7 @@ func _ready() -> void:
 		add_child(m)
 		_music.append(m)
 	EventBus.sfx_requested.connect(play)
-	EventBus.enemy_killed.connect(func(_i, _l, _p): play(&"poof"))
+	EventBus.enemy_killed.connect(func(_i, _l, _p, _k): play(&"poof"))
 	EventBus.steak_picked.connect(func(_c): play(&"pickup"))
 	EventBus.steak_sold.connect(func(_c, _g): play(&"coin"))
 	EventBus.gold_changed.connect(_on_gold_changed)

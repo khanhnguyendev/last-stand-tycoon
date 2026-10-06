@@ -13,7 +13,7 @@ func _ready() -> void:
 	EventBus.station_upgraded.connect(_on_station_upgraded)
 	EventBus.phase_changed.connect(_on_phase_changed)
 
-func _on_enemy_killed(_spawn_index: int, _lane: StringName, pos: Vector3) -> void:
+func _on_enemy_killed(_spawn_index: int, _lane: StringName, pos: Vector3, _kind: StringName) -> void:
 	EventBus.fx_requested.emit(&"poof", pos)
 
 func _on_steak_sold(_count: int, _gold: int) -> void:

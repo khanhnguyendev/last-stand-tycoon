@@ -11,8 +11,8 @@ signal wave_started(wave_index: int, main_lane: StringName, side_lane: StringNam
 signal wave_spawned_out(wave_index: int)
 ## WaveDirector -> PhaseController, HUD. All planned spawns spawned and none alive (D-044).
 signal wave_cleared(wave_index: int)
-## WaveDirector -> sims, HUD.
-signal enemy_killed(spawn_index: int, lane: StringName, position: Vector3)
+## WaveDirector -> sims, HUD (boss moon), audio, fx. kind: &"boar" | &"hare" | &"boss" (E5).
+signal enemy_killed(spawn_index: int, lane: StringName, position: Vector3, kind: StringName)
 ## GameState -> HUD, camera. hp_left after the hit.
 signal diner_damaged(amount: float, hp_left: float)
 ## GameState -> PhaseController. Once per fall.
