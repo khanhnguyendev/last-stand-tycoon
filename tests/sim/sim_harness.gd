@@ -11,6 +11,9 @@ var diner_min := INF
 var kills := 0
 var failed := false
 var guide: Guide
+## E5: elapsed at the first hit on the diner while the boss is the only monster alive; at diner_fell (-1 until then).
+var first_boss_hit_s := -1.0
+var fell_s := -1.0
 
 func _init(p_parent: Node) -> void:
 	parent = p_parent
@@ -31,14 +34,39 @@ func start(p_seed: int, bot_script: GDScript, with_guide := false) -> void:
 	bot.setup(main)
 	if with_guide:
 		bot.guide = guide
+	_connect_listeners()
+	main.phase_controller.start_new_game(p_seed)
+
+## E5: start from an injected fixture (export/fixtures/<stem>.save.json). `p_seed` != 0 re-seeds the run: the lane plan is
+## re-made for that seed and day (the boss stays on the last wave if the fixture's plan had it).
+func start_from(stem: String, bot_script: GDScript, p_seed := 0) -> void:
+	main = Main.create()
+	parent.add_child(main)
+	bot = bot_script.new()
+	bot.name = "Bot"
+	main.add_child(bot)
+	bot.setup(main)
+	_connect_listeners()
+	var text := FileAccess.get_file_as_string("res://export/fixtures/%s.save.json" % stem)
+	var r := SaveCodec.decode(text, GameState.SCHEMA_VERSION, Balance.data)
+	assert(r.ok, "fixture %s: %s" % [stem, r.reason])
+	var state: Dictionary = r.state
+	if p_seed != 0:
+		var had_boss: bool = not state.lane_plan.is_empty() and bool(state.lane_plan[state.lane_plan.size() - 1].boss)
+		state.run_seed = p_seed
+		var plan := LanePlanner.plan(p_seed, int(state.day), Balance.data.wave, int(state.tier), int(state.tier_day), Balance.data.tiers)
+		state.lane_plan = LanePlanner.with_boss(plan) if had_boss else plan
+	main.phase_controller.resume_from(state)
+
+func _connect_listeners() -> void:
 	EventBus.diner_damaged.connect(_on_diner_damaged)
 	EventBus.enemy_killed.connect(_on_killed)
 	EventBus.night_failed.connect(_on_failed)
-	main.phase_controller.start_new_game(p_seed)
+	EventBus.diner_fell.connect(_on_fell)
 
 ## Call only from test code between ticks, never from a signal emitted under main (synchronous free).
 func finish() -> void:
-	for pair in [[EventBus.diner_damaged, _on_diner_damaged], [EventBus.enemy_killed, _on_killed], [EventBus.night_failed, _on_failed]]:
+	for pair in [[EventBus.diner_damaged, _on_diner_damaged], [EventBus.enemy_killed, _on_killed], [EventBus.night_failed, _on_failed], [EventBus.diner_fell, _on_fell]]:
 		var sig: Signal = pair[0]
 		if sig.is_connected(pair[1]):
 			sig.disconnect(pair[1])
@@ -70,6 +98,8 @@ func run_night(max_seconds := 300.0) -> Dictionary:
 	diner_min = GameState.diner_hp
 	failed = false
 	kills = 0
+	first_boss_hit_s = -1.0
+	fell_s = -1.0
 	var day := GameState.day
 	await run_until(func(): return failed or main.phase_controller.phase == Phase.DAY, max_seconds)
 	return {
@@ -84,6 +114,11 @@ func run_day(max_seconds := 400.0) -> Dictionary:
 
 func _on_diner_damaged(_amount: float, hp_left: float) -> void:
 	diner_min = minf(diner_min, hp_left)
+	if first_boss_hit_s < 0.0 and main.world.wave_director.boss_alive() and main.world.wave_director.alive_count() == 1:
+		first_boss_hit_s = elapsed
+
+func _on_fell() -> void:
+	fell_s = elapsed
 
 func _on_killed(_i: int, _lane: StringName, _p: Vector3, _kind: StringName) -> void:
 	kills += 1

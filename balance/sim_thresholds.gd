@@ -9,3 +9,5 @@ extends Resource
 ## S2 sweep target (D-170): the PlannerBot breaks at break_day_target +- break_day_tolerance. Reported, not asserted.
 @export var break_day_target := 10
 @export var break_day_tolerance := 1
+## E5 sim 1 (spec 8.1): retries the tier bot may need on the boss night.
+@export var boss_night_max_retries := 2
