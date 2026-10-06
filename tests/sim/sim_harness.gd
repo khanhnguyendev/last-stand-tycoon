@@ -39,7 +39,8 @@ func start(p_seed: int, bot_script: GDScript, with_guide := false) -> void:
 
 ## E5: start from an injected fixture (export/fixtures/<stem>.save.json). `p_seed` != 0 re-seeds the run: the lane plan is
 ## re-made for that seed and day (the boss stays on the last wave if the fixture's plan had it).
-func start_from(stem: String, bot_script: GDScript, p_seed := 0) -> void:
+## A non-empty `resume_phase` overrides the fixture's ("DAY" = the real restore point of a boss night: the close-up snapshot).
+func start_from(stem: String, bot_script: GDScript, p_seed := 0, resume_phase := "") -> void:
 	main = Main.create()
 	parent.add_child(main)
 	bot = bot_script.new()
@@ -52,10 +53,12 @@ func start_from(stem: String, bot_script: GDScript, p_seed := 0) -> void:
 	assert(r.ok, "fixture %s: %s" % [stem, r.reason])
 	var state: Dictionary = r.state
 	if p_seed != 0:
-		var had_boss: bool = not state.lane_plan.is_empty() and bool(state.lane_plan[state.lane_plan.size() - 1].boss)
+		var had_boss: bool = not state.lane_plan.is_empty() and bool(state.lane_plan[state.lane_plan.size() - 1].get("boss", false))
 		state.run_seed = p_seed
 		var plan := LanePlanner.plan(p_seed, int(state.day), Balance.data.wave, int(state.tier), int(state.tier_day), Balance.data.tiers)
 		state.lane_plan = LanePlanner.with_boss(plan) if had_boss else plan
+	if resume_phase != "":
+		state.resume_phase = resume_phase
 	main.phase_controller.resume_from(state)
 
 func _connect_listeners() -> void:
