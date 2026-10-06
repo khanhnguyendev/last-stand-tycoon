@@ -20,8 +20,8 @@ func _v3() -> Dictionary:
 	return s
 
 func test_schema_is_current_and_the_snapshot_carries_stations_with_string_keys() -> void:
-	assert_eq(GameState.SCHEMA_VERSION, GameState.SCHEMA_VERSION)
 	var d := GameState.to_dict()
+	assert_eq(int(d.v), GameState.SCHEMA_VERSION)
 	assert_eq(d.stations, {"counter": {"level": 0, "paid": 0}, "freezer": {"level": 0, "paid": 0}})
 	for k in d.stations:
 		assert_eq(typeof(k), TYPE_STRING)

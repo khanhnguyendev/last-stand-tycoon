@@ -122,3 +122,22 @@ func test_schema_3_fixtures_still_load() -> void:
 		var r := SaveCodec.decode(text, GameState.SCHEMA_VERSION, Balance.data)
 		assert_true(r.ok, "%s: %s" % [stem, r.reason])
 		assert_eq([r.state.v, r.state.tier], [5, 1])
+
+func test_schema_4_with_a_bad_lane_plan_is_content() -> void:
+	var variants := {"erased": null, "null": null, "number": 7, "bad wave": 1}
+	for name in variants:
+		var s := _v4_state()
+		match name:
+			"erased": s.erase("lane_plan")
+			"null": s.lane_plan = null
+			"number": s.lane_plan = 7
+			"bad wave": s.lane_plan[0] = 1
+		var r := _decode(s)
+		assert_false(r.ok, name)
+		assert_eq(r.reason, "content", name)
+
+func test_a_tier_above_what_the_build_knows_is_rejected() -> void:
+	GameState.debug_set_tier(2, 1)
+	var s := GameState.to_dict()
+	Balance.data.tiers.tier_costs = [0]  # test-only setup: a build that only knows tier 1
+	assert_eq(SaveCodec.validate(s, Balance.data), "building tier tower_w")

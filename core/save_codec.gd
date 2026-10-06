@@ -29,11 +29,13 @@ static func _built_in(from_v: int, state: Dictionary) -> Variant:
 			state.tier_day = 1
 			state.tier_paid = 0
 			state.boss_pending = false
-			for w in state.get("lane_plan", []):
-				if typeof(w) == TYPE_DICTIONARY:
-					w.fast_main = 0
-					w.fast_side = 0
-					w.boss = false
+			var lp = state.get("lane_plan")
+			if typeof(lp) == TYPE_ARRAY:
+				for w in lp:
+					if typeof(w) == TYPE_DICTIONARY:
+						w.fast_main = 0
+						w.fast_side = 0
+						w.boss = false
 			state.v = 5
 			return state
 	return null
