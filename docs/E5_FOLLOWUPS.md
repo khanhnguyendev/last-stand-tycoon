@@ -30,6 +30,11 @@ it is done.
 
 ## From the task reviews (deferred minor findings, as logged)
 
+Copied from the build ledger in the order they were logged. Some were fixed later in the build (the phase-2 follow-up
+task and the final fix wave: warm-up coverage, the HUD boss moon on restore and its disc, the hare length pin, the
+`test_save_tier.gd` isolation, the sim asserts, the boss-moon breath field, the Linux check of the hash pins). Check a
+line against the code before working on it.
+
 - **Task 1:** spec 4.4 "+2" sentence — FIXED by main session commit on e5/p1-core; stats(&"boar") reads the global Balance.data not the owning BalanceData (doc line wanted); test_boar_view_follows_a_mutation only mutates speed; fast_share_now has no tier bounds guard.
 - **Task 2:** props inside/at the yards (props_layout.gd:67,69,70) → REVIEW_QUEUE + add yard-vs-props assert; east yard shrank to Rect2(8.0,-0.5,5.0,3.5) → REVIEW_QUEUE; test_waypoint_graph.gd:38 hard-codes nw/ne (add lower-bound assert in test_create_for_tier); spec 5.3 stop-point sampling not pinned; tower_w range slack 0.07 m.
 - **Task 3:** sweep enemy_count + Economy.night_kills take a day → fix in Task 16 before the re-record (sum the lane_plan counts); pin tier_base[1] == 1 in test_tier_effects (RNG-order invariant now depends on balance); core/ now reads the Balance autoload (lane_planner.gd:11,51, wave_schedule.gd:18) → DECISIONS note or inject boss_hp; boss-first relies on boss_lead > 0 (unstable sort tie) → push_front the boss entry; test_threat_counts_hares_and_the_boss misnamed/weak; test_tier1_schedule_is_unchanged misnamed; baseline_rows.sh: `|| true` on the grep line and validate N; `pressure` parameter shadows the static function.
