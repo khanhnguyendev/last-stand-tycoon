@@ -77,3 +77,54 @@ func test_threat_and_marker_scale() -> void:
 	assert_almost_eq(LanePlanner.marker_scale(120.0, 240.0, 0.5, 2.0), 1.25, 0.0001)
 	assert_eq(LanePlanner.marker_scale(50.0, 0.0, 0.5, 2.0), 0.0)
 	assert_almost_eq(LanePlanner.marker_scale(480.0, 240.0, 0.5, 2.0), 2.0, 0.0001)
+
+func test_tier1_plan_has_no_hares_and_no_boss_and_is_todays() -> void:
+	var tb := Balance.data.tiers
+	for day in [1, 2, 5, 7]:
+		var p := LanePlanner.plan(555, day, wb, 1, 1, tb)
+		var old := LanePlanner.plan(555, day, wb)
+		for w in 3:
+			for k in ["main", "side", "main_count", "side_count", "hp_mult"]:
+				assert_eq(p[w][k], old[w][k], "day %d wave %d %s" % [day, w, k])
+			assert_eq([p[w].fast_main, p[w].fast_side, p[w].boss], [0, 0, false])
+
+func test_tier1_day8_is_day7_pressure_with_day8_lanes() -> void:
+	var tb := Balance.data.tiers
+	var p8 := LanePlanner.plan(555, 8, wb, 1, 1, tb)
+	var p7 := LanePlanner.plan(555, 7, wb, 1, 1, tb)
+	for w in 3:
+		assert_eq([p8[w].main_count, p8[w].side_count, p8[w].hp_mult], [p7[w].main_count, p7[w].side_count, p7[w].hp_mult], "wave %d counts at the cap" % w)
+	# lanes still come from the day-8 stream (a save keeps its own lane_plan stream per day)
+	var lanes8 := p8.map(func(w): return [w.main, w.side])
+	var old8 := LanePlanner.plan(555, 8, wb).map(func(w): return [w.main, w.side])
+	assert_eq(lanes8, old8)
+
+func test_tier2_hares_ramp_and_fit_in_the_groups() -> void:
+	var tb := Balance.data.tiers
+	var first := LanePlanner.plan(555, 9, wb, 2, 9, tb)
+	var later := LanePlanner.plan(555, 12, wb, 2, 9, tb)
+	var total_first := 0
+	var total_later := 0
+	for w in 3:
+		for p in [first[w], later[w]]:
+			assert_lte(int(p.fast_main), int(p.main_count))
+			assert_lte(int(p.fast_side), int(p.side_count))
+		total_first += int(first[w].fast_main) + int(first[w].fast_side)
+		total_later += int(later[w].fast_main) + int(later[w].fast_side)
+	assert_gt(total_first, 0, "hares on the first tier-2 night")
+	assert_gt(total_later, total_first, "more hares at the cap")
+	var expect := TierEffects.fast_counts(int(first[0].main_count), int(first[0].side_count), TierEffects.fast_share_now(9, 2, 9, tb))
+	assert_eq([first[0].fast_main, first[0].fast_side], [expect.fast_main, expect.fast_side])
+
+func test_with_boss_marks_only_the_last_wave() -> void:
+	var p := LanePlanner.with_boss(LanePlanner.plan(555, 7, wb, 1, 1, Balance.data.tiers))
+	assert_eq(p.map(func(w): return w.boss), [false, false, true])
+	var again := LanePlanner.plan(555, 7, wb, 1, 1, Balance.data.tiers)
+	assert_false(bool(again[2].boss), "with_boss returns a copy")
+
+func test_threat_counts_hares_and_the_boss() -> void:
+	var tb := Balance.data.tiers
+	var plain := LanePlanner.threat_by_lane(LanePlanner.plan(555, 7, wb, 1, 1, tb), Balance.data.enemy.hp)
+	var boss := LanePlanner.threat_by_lane(LanePlanner.with_boss(LanePlanner.plan(555, 7, wb, 1, 1, tb)), Balance.data.enemy.hp)
+	var lane: String = LanePlanner.plan(555, 7, wb, 1, 1, tb)[2].main
+	assert_gt(boss[lane], plain[lane], "the boss raises its lane's threat")
