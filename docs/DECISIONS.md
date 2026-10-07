@@ -2536,3 +2536,28 @@ geometry code produced the numbers; the plan pins them by tests.
   runs no actor is knocked out more than twice in any 15 s window. REVIEW_QUEUE: "Respawned guards pull SW-zone aggro
   off the diner: intended?" with the measured effect on diner HP. Main-session note: the hero has no HP and is never
   knocked out, so the protection applies to guards.
+
+**D-272 Tier-3 night rules approved with notes (author).** Starting numbers, all in `balance/`, tuned by sims inside
+D-103: pressure 12 to 15 at tier 3; a four-lane draw at tier 3 (tiers 1 and 2 unchanged); brute HP 240, speed 1.2,
+damage 8, fence damage x4, 8 steaks, one on the first tier-3 night's last wave, ramping over three days to at most
+1 main + 1 side per wave; giant hare boss HP 500, speed 2.4, damage 12, leading the last wave by 3 s; Longbow range
+9.98, 45 per shot, 1.0 s; Volley range 8.0, 3 x 10, 0.5 s; Stone wall 640 HP and brute damage halved; Spike fence
+320 HP, 6 back per hit taken and 10 once per passing hare; per-kind counts in the telegraph and a brute mark on the
+edge arrow; 1.5 s respawn protection for guards on every lane; unbranched buildings stay valid; pads appear at every
+level-3 building on the tier-3 dawn.
+1. **Spike damage scales with the night's HP multiplier** (pass damage and thorns), so Spike does not fade at the
+   cap. The start values are the ones at the tier-3 base: 10 and 6.
+2. **Boss reward:** checked against the Boar King's reward with the same reward-to-HP logic and included in the
+   tier-3 sink sizing. The steak pool is sized for the boss drop plus a full cap wave. If 100 steak objects popping at
+   once cost frames on the profile build, the drop is bundled visually (fewer pieces, each worth k steaks); freezer
+   and economy counts must not change; tested.
+3. **Branch identity test on Balance** (so tuning cannot silently break it): Longbow has the highest single-target
+   DPS and the longest range; Volley the highest DPS against 3 or more targets; against hares Volley kills the most
+   per second and Longbow the fewest; Stone wall holds longest against a brute; Spike is the only fence that damages
+   passing hares; unbranched level 3 stays between the branches.
+   Main-session notes for the spec: (a) at tier 3 a hare has about 40 HP at the base and 46 at the cap (HP multiplier
+   2.65 to 3.1), so "one shot overkills" does not hold for Volley's 10 or the level-3 tower's 18; the hare test is
+   computed in whole shots against the real hare HP at the tier-3 base and cap, and the starting damages are adjusted
+   until the ordering holds at both. (b) "Between the branches" is checked per measure: with the starting numbers the
+   unbranched tower is between on single-target DPS (20 < 36 < 45) but lowest against three targets (36 < 45 < 60);
+   the spec states which measures the rule covers.
