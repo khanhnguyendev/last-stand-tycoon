@@ -127,3 +127,20 @@ static func _add_tier3(g: WaypointGraph) -> void:
 			var pad_name := "pad_%s_%s" % [id, "ab"[i]]
 			g.add_node(pad_name, pads[i])
 			g.add_edge(pad_name, id)
+
+## E5 tier 3 (Task 22): the graph the TierBot walks at `tier`. Tier 1 is the tier-2 graph it always had (byte-identical routes). Tier 2 adds
+## the tier-3 sign on the front lot. Tier 3 adds the south-west zone node (the bot's night post, joined like the other zones to its
+## corner and its fence). create_for_tier() stays as it is (test_tier3_layout pins its node and edge counts).
+static func create_for_bot(tier: int) -> WaypointGraph:
+	if tier < 3:
+		var g := create_for_tier(2)
+		if tier == 2:
+			g.add_node("tier_sign_3", MapLayout.tier_sign(3))
+			for e in [["sw", "tier_sign_3"], ["home", "tier_sign_3"]]:
+				g.add_edge(e[0], e[1])
+		return g
+	var g3 := create_for_tier(3)
+	g3.add_node("zone_sw", MapLayout.lane_end("sw"))
+	for e in [["sw", "zone_sw"], ["fence_sw", "zone_sw"]]:
+		g3.add_edge(e[0], e[1])
+	return g3
