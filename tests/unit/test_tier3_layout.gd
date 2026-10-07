@@ -152,16 +152,18 @@ func test_the_plot_owns_the_tower_the_fence_and_the_tier_3_sign() -> void:
 
 func test_the_tier_3_sign_is_off_the_exit_line_the_zone_and_the_fence_spot() -> void:
 	var s := MapLayout.tier_sign(3)
-	assert_eq(s, Vector2(-5.6, 9.0))
+	assert_eq(s, Vector2(-5.0, 8.7))
 	# today's west exit line: the traveler walks from the service point to TRAVELER_EXIT (a tier 1 and 2 walk, and a tier-2 sign position)
 	var exit_line := _seg_to_seg(s, s, MapLayout.SERVICE_POINT, MapLayout.TRAVELER_EXIT)
 	gut.p("tier-3 sign to today's west exit line: %.2f m" % exit_line)
 	assert_gt(exit_line, MapLayout.STATION_RADIUS + MapLayout.HERO_RADIUS, "the sign is off the exit line")
 	assert_gt(Geometry.dist_point_rect(s, MapLayout.zone_rect("sw")), MapLayout.STATION_RADIUS, "outside the SW zone")
-	assert_gt(s.distance_to(MapLayout.fence_spot("sw")), MapLayout.STATION_RADIUS + MapLayout.BUILD_RADIUS, "off the SW fence spot's pad")
+	# Fix round 1 ruling A: the sign is gone once tier 3 is bought and the fence does not exist before, so they never coexist: the sign only keeps off the
+	# future pad's circle (BUILD_RADIUS), no longer sign radius + pad radius (was > 2.2 from the spot centre and > 0.5 from the bar).
+	assert_gt(s.distance_to(MapLayout.fence_spot("sw")), MapLayout.BUILD_RADIUS, "off the SW fence spot's pad")
 	assert_gt(s.distance_to(MapLayout.tower_spot("tower_sw")), MapLayout.STATION_RADIUS + MapLayout.BUILD_RADIUS, "off the SW tower's pad")
 	var bar := _bar("sw")
-	assert_gt(Geometry.dist_point_segment(s, bar[0], bar[1]), 0.5, "not on the fence bar")
+	assert_gt(Geometry.dist_point_segment(s, bar[0], bar[1]), 0.3, "not on the fence bar (nearest tip)")
 	for lane in MapLayout.lanes_for_tier(2):
 		assert_gte(_line_dist(s, MapLayout.lane_path(lane)) - MapLayout.STATION_RADIUS, Balance.data.enemy.lateral_spread + 1.0, "clear of the %s lane" % lane)
 	assert_eq(MapLayout.TIER_SIGNS.keys(), [2, 3])
@@ -170,7 +172,7 @@ func test_signs_exist_only_for_tiers_2_and_3() -> void:
 	# tier_sign(1) and tier_sign(4) assert with "no sign sells tier N" (an assert cannot run inside a test); has_tier_sign guards callers
 	assert_eq([1, 2, 3, 4].map(func(t): return MapLayout.has_tier_sign(t)), [false, true, true, false])
 	assert_eq(MapLayout.tier_sign(2), MapLayout.TIER_SIGN)
-	assert_eq(MapLayout.tier_sign(3), Vector2(-5.6, 9.0))
+	assert_eq(MapLayout.tier_sign(3), Vector2(-5.0, 8.7))
 	assert_ne(MapLayout.tier_sign(2), MapLayout.tier_sign(3))
 
 # --- the tier-dependent service layout --------------------------------------------------------------------------------------------
@@ -235,7 +237,8 @@ func test_the_rest_of_the_service_layout_clears_the_south_west_lane() -> void:
 		assert_gt(_line_dist(p, MapLayout.lane_path("sw")), spread + maxf(r, MapLayout.HERO_RADIUS), "%s off the SW lane" % n)
 		assert_gt(Geometry.dist_point_rect(p, MapLayout.zone_rect("sw")), r, "%s outside the SW zone" % n)
 		assert_gt(p.distance_to(MapLayout.fence_spot("sw")), r + MapLayout.HERO_RADIUS, "%s off the SW fence spot" % n)
-		assert_gt(Geometry.dist_point_segment(p, bar[0], bar[1]), MapLayout.HERO_RADIUS, "%s off the SW fence bar" % n)
+		# the tier-3 sign and the fence never coexist (ruling A, fix round 1): it keeps 0.3 m from the bar's tip, the others the hero's radius
+		assert_gt(Geometry.dist_point_segment(p, bar[0], bar[1]), 0.3 if n == "tier-3 sign" else MapLayout.HERO_RADIUS, "%s off the SW fence bar" % n)
 	# the two documented exceptions (spec 4.2): the gold pile is 0.29 m from the lane line (it is empty at night, another task proves it)
 	# and the diner door stands strictly INSIDE the SW zone (the guards' respawn, never a hero stand point at night)
 	assert_true(MapLayout.zone_rect("sw").has_point(MapLayout.DINER_DOOR), "the door is inside the SW zone")

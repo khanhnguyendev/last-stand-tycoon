@@ -34,5 +34,7 @@ func _on_phase_changed(phase: int, _day: int) -> void:
 	if phase == Phase.DAWN:
 		EventBus.fx_requested.emit(&"sparkle", Vector3(0, 3.5, 0))
 
-func _on_tier_paid_up(_next_tier: int) -> void:
-	EventBus.fx_requested.emit(&"sparkle", MapLayout.to3(MapLayout.TIER_SIGN, 1.0))
+## The sparkle goes where the sign that sold `next_tier` stands (tier 2: the west yard, as before; tier 3: the front lot).
+func _on_tier_paid_up(next_tier: int) -> void:
+	if MapLayout.has_tier_sign(next_tier):
+		EventBus.fx_requested.emit(&"sparkle", MapLayout.to3(MapLayout.tier_sign(next_tier), 1.0))

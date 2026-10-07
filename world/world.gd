@@ -135,7 +135,7 @@ func _build_ground() -> void:
 	var rect := ground_rect()
 	# S4 D-201: ground + road + lane strips + open yards are ONE mesh, the edge stones ONE MultiMesh, the props 2 meshes.
 	var yards := yard_ids()
-	ground = GroundArt.instance(GroundArt.terrain_mesh(rect, yards, lane_ids()), "Ground")
+	ground = GroundArt.instance(GroundArt.terrain_mesh(rect, yards, lane_ids(), Balance.data.enemy.lateral_spread), "Ground")
 	add_child(ground)
 	_stone_lanes = lane_ids()
 	edge_stones = LaneStrip.edge_stones(_stone_lanes)
@@ -179,7 +179,7 @@ func _set_yard_stones(yards: Array) -> void:
 		yard_stones.queue_free()
 		yard_stones = null
 	if not yards.is_empty():
-		yard_stones = YardStones.build(yards)
+		yard_stones = YardStones.build(yards, Balance.data.enemy.lateral_spread)
 		add_child(yard_stones)
 
 ## E5 Task 11: the tier-2 diner (the flank terraces) from tier 2; tier 1 keeps DINER_ART.
@@ -194,7 +194,7 @@ func rebuild_for_tier() -> void:
 		return
 	_built_tier = tier
 	var yards := yard_ids()
-	ground.mesh = GroundArt.terrain_mesh(ground_rect(), yards, lane_ids())
+	ground.mesh = GroundArt.terrain_mesh(ground_rect(), yards, lane_ids(), Balance.data.enemy.lateral_spread)
 	_sync_lanes()
 	props.build(_yard_rects(yards))
 	_set_yard_stones(yards)
