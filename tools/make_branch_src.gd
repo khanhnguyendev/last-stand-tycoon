@@ -12,7 +12,7 @@ extends SceneTree
 ##   Longbow  slim and TALL: a 0.95-scale column of one more storey than level 3, a big ballista with a long wooden stock and a
 ##            steel head pointing up-lane (-z). "Reach".
 ##   Volley   WIDE and LOW-SET: a 1.75-scale base, one storey, three ballistas fanned -40, 0, +40 degrees. "Many shots".
-##   Stone    grey blocks, 1.2 m tall and 0.9 m deep with five merlons, against the level-3 fence's 0.9 x 0.5 flat wall. "Holds".
+##   Stone    `stone` blocks, 1.2 m tall and 0.9 m deep with five merlons, against the level-3 fence's 0.9 x 0.5 flat wall. "Holds".
 ##   Spike    the wooden fence plus a row of seven sharpened stakes angled up-lane (-z) and up, steel tips. "Hurts".
 ## A fence's local +z is the lane's tangent (toward the diner), so up-lane is -z; the width stays 3.0 m (x -1.5 .. 1.5).
 ## Regenerate (deterministic, headless), then rebake:
@@ -30,13 +30,14 @@ var _img: Image
 var _verts := PackedVector3Array()
 var _norms := PackedVector3Array()
 var _uvs := PackedVector2Array()
+var _bad := false  ## a palette colour missing from an atlas: the run fails (exit 1)
 
 func _initialize() -> void:
 	_tower("tower_longbow", _longbow_pieces(), _longbow_parts)
 	_tower("tower_volley", _volley_pieces(), _volley_parts)
 	_fence("fence_stone", _stone_parts)
 	_fence("fence_spike", _spike_parts)
-	quit()
+	quit(1 if _bad else 0)
 
 # --- palette ---
 
@@ -56,6 +57,7 @@ func _uv(name: StringName) -> Vector2:
 			if absf(c.r - want.r) + absf(c.g - want.g) + absf(c.b - want.b) < 0.006:
 				return (Vector2(x, y) + Vector2(0.5, 0.5)) / Vector2(_img.get_size())
 	push_error("%s is not in the atlas" % name)
+	_bad = true
 	return Vector2.ZERO
 
 # --- primitives (every one convex: Godot front faces wind clockwise, normals are flat and outward) ---
@@ -220,18 +222,16 @@ func _volley_parts() -> void:
 
 ## 3.0 m across (x -1.5 .. 1.5), 0.9 m deep (z -0.45 .. 0.45), 1.2 m tall: a plinth, two courses of big blocks, five merlons.
 func _stone_parts() -> void:
-	var stone := _uv(&"stone")
-	var steel := _uv(&"steel")
-	var dark := _uv(&"steel_dark")
-	_box(Vector3(0, 0.07, 0), Vector3(3.0, 0.14, 0.9), dark)  # plinth
+	var stone := _uv(&"stone")  # world masonry is `stone` (steel and steel_dark are the guards' and the towers' metal)
+	_box(Vector3(0, 0.07, 0), Vector3(3.0, 0.14, 0.9), stone)  # plinth
 	for i in 3:  # lower course, 0.94 wide blocks with 0.09 gaps (the gaps are the plinth's dark)
-		_box(Vector3(-1.0 + 1.0 * i, 0.14 + 0.2, 0), Vector3(0.94, 0.4, 0.8), stone if i != 1 else steel)
+		_box(Vector3(-1.0 + 1.0 * i, 0.14 + 0.2, 0), Vector3(0.94, 0.4, 0.8), stone)
 	for x in [-0.5, 0.5]:  # upper course, offset by half a block so the joints do not line up
-		_box(Vector3(x, 0.54 + 0.2, 0), Vector3(0.94, 0.4, 0.8), steel if x < 0.0 else stone)
+		_box(Vector3(x, 0.54 + 0.2, 0), Vector3(0.94, 0.4, 0.8), stone)
 	for x in [-1.25, 1.25]:  # half blocks close the offset's ends
 		_box(Vector3(x, 0.74, 0), Vector3(0.44, 0.4, 0.8), stone)
 	for i in 5:  # merlons
-		_box(Vector3(-1.2 + 0.6 * i, 1.07, 0), Vector3(0.4, 0.26, 0.7), steel if i % 2 == 0 else stone)
+		_box(Vector3(-1.2 + 0.6 * i, 1.07, 0), Vector3(0.4, 0.26, 0.7), stone)
 
 # --- Spike fence ---
 
@@ -245,9 +245,9 @@ func _spike_parts() -> void:
 	var steel := _uv(&"steel")
 	for i in 5:  # posts
 		_box(Vector3(-1.4 + 0.7 * i, 0.5, 0.1), Vector3(0.2, 1.0, 0.2), dark)
-	_box(Vector3(0, 0.3, 0.1), Vector3(3.0, 0.16, 0.12), wood)   # lower rail
-	_box(Vector3(0, 0.72, 0.1), Vector3(3.0, 0.16, 0.12), wood)  # upper rail
-	_box(Vector3(0, 0.15, 0.0), Vector3(3.0, 0.3, 0.5), dark)    # sill / footing
+	_box(Vector3(0, 0.3, 0.1), Vector3(2.96, 0.16, 0.12), wood)   # lower rail
+	_box(Vector3(0, 0.72, 0.1), Vector3(2.96, 0.16, 0.12), wood)  # upper rail
+	_box(Vector3(0, 0.15, 0.0), Vector3(2.96, 0.3, 0.5), dark)    # sill / footing
 	var dir := Vector3(0, sin(deg_to_rad(SPIKE_ELEVATION)), -cos(deg_to_rad(SPIKE_ELEVATION)))
 	for i in SPIKE_COUNT:
 		var x := -1.35 + 2.7 * float(i) / (SPIKE_COUNT - 1)

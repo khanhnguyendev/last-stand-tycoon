@@ -47,6 +47,9 @@ func is_rubble() -> bool:
 	return _rubble
 
 func _pip_y(p_level: int) -> float:
+	var b: Dictionary = GameState.buildings.get(spot_id, {})
+	if b.has("hp") and float(b.hp) <= 0.0:
+		return PIP_Y  # rubble (refresh() sizes the pips before _apply_level has set _rubble): the unbranched rubble height
 	var br := shown_branch(p_level, GameState.branch_of(spot_id))
 	return float(BRANCH_PIP_Y[br]) if br != &"" else PIP_Y
 

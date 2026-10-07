@@ -3,7 +3,9 @@ extends SceneTree
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_branches.gd -- [--out=docs/review/media/e5t3/branches]
 ## Forces tier 3 (the cost entry is appended in the tool, as the tests do), builds towers and fences to level 3, buys the branches
 ## and writes, each 720x1280 plus a _40 copy (288x512):
-##   towers.png        tower_nw (Longbow) and tower_ne (Volley) at level 3, with the north fence (Spike) between them
+##   fences_l3.png, fences_east_l3.png  the unbranched level-3 reference at the two fence foci (taken first)
+##   towers.png        tower_nw (Longbow) in full
+##   towers_ne.png     tower_ne (Volley) in full
 ##   towers_west.png   tower_w (Volley) and tower_sw (Longbow)
 ##   towers_east.png   tower_e left unbranched (the level-3 reference) beside the Stone east fence
 ##   fences.png        the west (Stone) and north (Spike) fences, at the game's own zoom
@@ -26,6 +28,7 @@ func _run() -> void:
 	var bal = root.get_node("Balance")
 	bal.reset()
 	bal.ui.shake_enabled = false
+	bal.ui.label_dim_alpha = 1.0  # the HUD dimmer projects with the game's camera; the tool renders from its own, so labels would be dimmed falsely
 	if bal.data.tiers.tier_costs.size() < 3:
 		bal.data.tiers.tier_costs.append(1500)
 	var camera_math = load("res://core/camera_math.gd")
@@ -56,6 +59,19 @@ func _run() -> void:
 	main.world.wave_director.stop()
 	gs.debug_set_tier(3, 3)
 	gs.add_gold(100000)
+	# the unbranched level-3 reference first: every spot at level 3, same two fence foci (Stone is closest to the level-3 fence, grey stone too)
+	for id in ["tower_nw", "tower_ne", "tower_w", "tower_e", "tower_sw", "fence_w", "fence_n", "fence_e", "fence_sw"]:
+		while gs.next_level_cost(id) > 0:
+			gs.pay_into_spot(id, gs.next_level_cost(id))
+	for i in 30:
+		await physics_frame
+	main.hero.teleport(Vector2(0.0, 9.5))
+	for i in 20:
+		await physics_frame
+	_focus = Vector2(-4.5, -6.0)
+	await _grab(cam, camera_math, bal, out, "fences_l3")
+	_focus = Vector2(3.0, 3.0)
+	await _grab(cam, camera_math, bal, out, "fences_east_l3")
 	var plan := {"tower_nw": &"longbow", "tower_ne": &"volley", "tower_w": &"volley", "tower_e": &"", "tower_sw": &"longbow",
 		"fence_w": &"stone", "fence_n": &"spike", "fence_e": &"stone", "fence_sw": &"spike"}
 	for id in plan:
@@ -69,8 +85,10 @@ func _run() -> void:
 	main.hero.teleport(Vector2(0.0, 9.5))
 	for i in 20:
 		await physics_frame
-	_focus = Vector2(0.0, -6.0)
+	_focus = Vector2(-2.5, -5.5)
 	await _grab(cam, camera_math, bal, out, "towers")
+	_focus = Vector2(2.5, -5.5)
+	await _grab(cam, camera_math, bal, out, "towers_ne")
 	_focus = Vector2(-8.5, 2.5)
 	await _grab(cam, camera_math, bal, out, "towers_west")
 	_focus = Vector2(8.0, 1.5)

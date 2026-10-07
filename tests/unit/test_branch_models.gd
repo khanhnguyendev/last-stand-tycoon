@@ -93,20 +93,31 @@ func test_branch_models_are_shown_only_at_level_3() -> void:
 	assert_eq(FenceSpot.model_for(1, &"spike").resource_path, ENV + "fence_l1.tscn")
 	assert_null(TowerSpot.model_for(0, &"longbow"))
 
-func test_a_rubble_branched_fence_shows_rubble_and_a_rebuilt_one_its_branch() -> void:
+func test_a_rubble_branched_fence_shows_rubble_a_restored_snapshot_its_branch_and_dawn_clears_it() -> void:
 	_tier3()
 	for pair in [["fence_w", &"stone"], ["fence_n", &"spike"]]:
 		_max_out(pair[0])
 		_branch(pair[0], pair[1])
 		var f: FenceSpot = main.world.build_spots[pair[0]]
+		var saved := GameState.to_dict()  # taken while the fence still stands
 		GameState.damage_fence(pair[0], 1e9)
 		assert_true(f.is_rubble(), "%s: broken" % pair[0])
 		assert_eq(_scene_name(f), "fence_rubble", "%s rubble whatever its branch" % pair[1])
 		assert_eq(GameState.branch_of(pair[0]), pair[1], "precondition: the branch is still recorded at night")
-		GameState.buildings[pair[0]].hp = 50.0  # a standing fence again (what a repair or the dawn does)
-		f.refresh()
-		assert_false(f.is_rubble())
-		assert_eq(_scene_name(f), FENCE_BRANCHES[pair[1]], "%s shows its branch again once the fence stands" % pair[1])
+		for p in f._pips.filter(func(q): return q.visible):
+			assert_almost_eq(p.position.y, FenceSpot.PIP_Y, 0.001, "%s: a rubble fence keeps the unbranched rubble pip height" % pair[1])
+		assert_almost_eq(f.label.position.y, FenceSpot.PIP_Y + 0.55, 0.001, "%s: and its label" % pair[1])
+		# (a) a snapshot taken before the fence broke (a failed night restores one): the branch model is back
+		GameState.from_dict(saved)
+		assert_false(f.is_rubble(), "%s: the snapshot's fence stands" % pair[1])
+		assert_eq(_scene_name(f), FENCE_BRANCHES[pair[1]], "%s shows its branch again after restoring the snapshot" % pair[1])
+		# (b) dawn: the broken fence is reset to nothing; rebuilding it shows the plain level-3 fence, not the branch
+		GameState.damage_fence(pair[0], 1e9)
+		GameState.reset_destroyed_fences()
+		assert_eq(f.visual.get_child_count(), 0, "%s: after dawn the spot shows no model" % pair[1])
+		assert_eq(GameState.branch_of(pair[0]), &"", "%s: the branch is gone" % pair[1])
+		_max_out(pair[0])
+		assert_eq(_scene_name(f), "fence_l3", "%s: rebuilt to level 3 it is the unbranched fence" % pair[1])
 
 func test_the_branch_model_survives_a_save_round_trip_and_new_game_clears_it() -> void:
 	_tier3()
@@ -222,6 +233,13 @@ func test_each_branch_scene_is_one_mesh_one_surface_on_the_shared_atlas() -> voi
 		assert_eq(m.get_surface_count(), 1, "%s: one surface" % n)
 		assert_eq(m.surface_get_material(0).resource_path, "res://art/materials/%s.tres" % mats[n], "%s: the shared atlas material" % n)
 
+func test_each_wrapper_points_at_its_own_baked_mesh() -> void:
+	for n in ["tower_longbow", "tower_volley", "fence_stone", "fence_spike"]:
+		var scene: Node = load(ENV + n + ".tscn").instantiate()
+		var mi := scene.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+		assert_eq(mi.mesh.resource_path, ENV + "baked/%s.res" % n, "%s: the wrapper shows its own bake" % n)
+		scene.free()
+
 func test_committed_bakes_match_their_sources() -> void:
 	const Bake := preload("res://tools/bake_static.gd")
 	for n in ["tower_longbow", "tower_volley", "fence_stone", "fence_spike"]:
@@ -253,6 +271,8 @@ func test_no_branch_model_is_a_collider_or_in_the_diners_fade_set() -> void:
 		for mi in model.find_children("*", "MeshInstance3D", true, false):
 			assert_false(fade_meshes.has(mi), "%s is not part of the diner's fade set" % c[1])
 			assert_eq((mi as MeshInstance3D).cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "%s casts no shadow" % c[1])
+		# the fade set is every mesh under the fade's parent (the diner's Visual): a model there would be faded with the diner
+		assert_false(main.world.occluder_fade.get_parent().is_ancestor_of(model), "%s does not hang under the diner's Visual" % c[1])
 		assert_false(main.world.occluder_fade.is_ancestor_of(model), "%s is not under the fade node" % c[1])
 		assert_false(main.world.build_spots[c[0]].marker.visible, "%s: a built spot shows no pad marker, so nothing to cover (a)" % c[1])
 
@@ -309,90 +329,116 @@ static func _hides(cam: Vector3, p: Vector3, model: Dictionary) -> bool:
 const RING := 0.4
 const RING_MIN := 3
 
-static func _hidden_around(cam: Vector3, g: Vector3, boxes: Dictionary) -> int:
+static func _ring(cam: Vector3, g: Vector3, boxes: Dictionary) -> int:
 	var n := 0
 	for d in [Vector3(RING, 0, 0), Vector3(-RING, 0, 0), Vector3(0, 0, RING), Vector3(0, 0, -RING)]:
 		if _hides(cam, g + d, boxes):
 			n += 1
 	return n
 
-## Focus points: each tower spot and every lane's zone centre (the camera follows the hero, which stands in a zone or at a spot).
-func _focus_points() -> Array:
-	var out: Array = []
-	for id in MapLayout.spots_for_tier(3):
-		if MapLayout.spot_kind(id) == "tower":
-			out.append(MapLayout.spot_position(id))
-	for lane in MapLayout.lanes_for_tier(3):
-		var r := MapLayout.zone_rect(lane)
-		out.append(r.position + r.size * 0.5)
-	return out
-
-## [[what, spot, focus, aspect], ...] of every ground point of `id` the model (`bands`, model space) covers from some camera focus at some aspect.
-func _covered(id: String, model: Dictionary) -> Array:
-	var spot2 := MapLayout.spot_position(id)
-	var at := Vector3(spot2.x, 0.0, spot2.y)  # the model sits at its spot: the camera and the point move by the opposite instead
-	var points: Array = []
-	for i in 2:
-		points.append(["branch pad %d" % i, (MapLayout.BRANCH_PADS[id] as Array)[i]])
-	for lane in MapLayout.tower_lanes(id):
-		points.append(["stop point (fence) " + String(lane), MapLayout.fence_spot(lane)])
-		points.append(["stop point (wall) " + String(lane), MapLayout.lane_end(lane)])
-	var out: Array = []
-	for f in _focus_points():
-		var focus: Vector2 = CameraMath.focus_for(f)
-		var xf := CameraMath.camera_transform(focus, Balance.ui)
-		for aspect in ASPECTS:
-			var proj := CameraMath.projection(Balance.ui, aspect)
-			for pt in points:
-				var g := MapLayout.to3(pt[1])
-				if not CameraMath.on_screen(g, xf, proj):
-					continue  # off screen: nothing to hide
-				if _hides(xf.origin - at, g - at, model) and _hidden_around(xf.origin - at, g - at, model) >= RING_MIN:
-					out.append([pt[0], id, f, snappedf(aspect, 0.01)])
-	return out
-
 func _tower_ids() -> Array:
 	return MapLayout.TOWER_LANES.keys() + MapLayout.TOWER_LANES_T3.keys()
 
-## "label@focus" of every ground point `model` hides, per tower spot.
-func _hidden_keys(model: Dictionary) -> Dictionary:
-	var out := {}
-	for id in _tower_ids():
-		var keys := {}
-		for c in _covered(id, model):
-			keys["%s@%s" % [c[0], c[2]]] = true
-		out[id] = keys.keys()
-		out[id].sort()
+## What a branched tower at `id` could hide that matters while it stands: the pads of every OTHER spot (a spot's own pads exist only
+## while it has no branch), every other spot's centre (its marker or building), the station pads and the stop points of every lane.
+func _points_for(id: String) -> Array:
+	var out: Array = []
+	for sid in MapLayout.spots_for_tier(3):
+		if sid == id:
+			continue
+		for i in 2:
+			out.append(["pad %s/%d" % [sid, i], (MapLayout.BRANCH_PADS[sid] as Array)[i]])
+		out.append(["spot " + sid, MapLayout.spot_position(sid)])
+	for st in MapLayout.STATION_PADS:
+		out.append(["station pad %s" % st, MapLayout.STATION_PADS[st]])
+	for lane in MapLayout.lanes_for_tier(3):
+		out.append(["stop (fence) " + lane, MapLayout.fence_spot(lane)])
+		out.append(["stop (wall) " + lane, MapLayout.lane_end(lane)])
 	return out
 
-## The unbranched level-3 tower already hides these (pad, camera focus) pairs: a pad directly behind a 3.4 m tower is under its shadow
-## from a camera focus south of it (Task 7 fixed the pads; they are not mine to move). Nothing else, and no stop point, at any aspect.
-const L3_HIDES := {
-	"tower_nw": ["branch pad 0@(-10.6, 0.6)"], "tower_ne": ["branch pad 1@(8.8, 1.1)"], "tower_w": [],
-	"tower_e": ["branch pad 1@(8.8, 1.1)"], "tower_sw": ["branch pad 0@(-2.75, 4.6)", "branch pad 1@(-10.6, 0.6)"],
+## Camera foci: each tower spot, each lane's zone centre, and every point itself (the hero standing on it).
+func _foci_for(points: Array) -> Array:
+	var out: Array = []
+	for t in _tower_ids():
+		out.append(MapLayout.spot_position(t))
+	for lane in MapLayout.lanes_for_tier(3):
+		var r := MapLayout.zone_rect(lane)
+		out.append(r.position + r.size * 0.5)
+	for p in points:
+		out.append(p[1])
+	return out
+
+## {"hidden": sorted "label@focus" keys hidden at some aspect with the 3-of-4 ring rule, "centre": count hidden by centre alone}.
+func _hidden(id: String, model: Dictionary) -> Dictionary:
+	var spot2 := MapLayout.spot_position(id)
+	var at := Vector3(spot2.x, 0.0, spot2.y)  # the model sits at its spot: the camera and the point move by the opposite instead
+	var points := _points_for(id)
+	var keys := {}
+	var centre := 0
+	for f in _foci_for(points):
+		var xf := CameraMath.camera_transform(CameraMath.focus_for(f), Balance.ui)
+		for pt in points:
+			var g := MapLayout.to3(pt[1])
+			var seen := false
+			for aspect in ASPECTS:
+				seen = seen or CameraMath.on_screen(g, xf, CameraMath.projection(Balance.ui, aspect))
+			if not seen or not _hides(xf.origin - at, g - at, model):
+				continue
+			centre += 1
+			if _ring(xf.origin - at, g - at, model) >= RING_MIN:
+				keys["%s@%s" % [pt[0], f]] = true
+	var sorted := keys.keys()
+	sorted.sort()
+	return {"hidden": sorted, "centre": centre}
+
+## Pairs a branch model hides that the unbranched level-3 tower at the same spot does not (the model may hide FEWER: a subset is fine).
+func _extras(id: String, branch_model: Dictionary, l3: Dictionary, label := "") -> Array:
+	var base: Array = _hidden(id, l3).hidden
+	var res := _hidden(id, branch_model)
+	var out: Array = []
+	for k in res.hidden:
+		if not base.has(k):
+			out.append(k)
+	print("CAMERA [%s] %s: level 3 hides %d (centre-only %d); this model hides %d (centre-only %d); extra %s" % [
+		label, id, base.size(), _hidden(id, l3).centre, res.hidden.size(), res.centre, out])
+	return out
+
+## The pinned extra pairs, per spot ("pad/spot/station/stop label@focus"), of each branch model over the unbranched level 3.
+const LONGBOW_EXTRA := {
+	"tower_nw": ["pad fence_n/0@(-10.6, 0.6)"], "tower_e": ["pad fence_e/1@(7.9, 7.0)"],
+	"tower_sw": ["pad tower_w/1@(-1.0, 10.7)", "spot tower_w@(2.6, 7.2)"],
+}
+const VOLLEY_EXTRA := {
+	"tower_nw": ["pad fence_w/1@(-1.0, 10.7)", "pad fence_w/1@(2.6, 7.2)"],
+	"tower_ne": ["pad fence_e/0@(-1.0, 10.7)", "pad fence_e/0@(-3.26297, 9.166971)"],
 }
 
-func test_the_level_3_tower_hides_exactly_the_pinned_pairs() -> void:
-	assert_eq(_hidden_keys(_tri_boxes(_mesh("tower_l3"))), L3_HIDES, "the reference the branch models are held to")
+func _check_extras(model_name: String, pinned: Dictionary) -> void:
+	var l3 := _tri_boxes(_mesh("tower_l3"))
+	var m := _tri_boxes(_mesh(model_name))
+	for id in _tower_ids():
+		var extra := _extras(id, m, l3, model_name)
+		for k in extra:
+			assert_false(String(k).begins_with("stop"), "%s at %s hides a stop point: %s" % [model_name, id, k])
+		assert_eq(extra, pinned.get(id, []), "%s at %s: the extra pairs over level 3 are exactly the pinned list" % [model_name, id])
 
-func test_the_longbow_hides_no_stop_point_and_no_pad_the_level_3_tower_does_not() -> void:
-	var hid := _hidden_keys(_tri_boxes(_mesh("tower_longbow")))
-	assert_eq(hid, L3_HIDES, "Longbow (top %.2f m) hides what level 3 hides and nothing more, from every tower and zone-centre focus at 9:21, 9:16 and 16:9" % _box("tower_longbow").end.y)
-	for id in hid:
-		for k in hid[id]:
-			assert_false(String(k).begins_with("stop point"), "%s: %s" % [id, k])
+func test_the_longbow_hides_nothing_the_level_3_tower_does_not_beyond_the_pinned_pairs() -> void:
+	_check_extras("tower_longbow", LONGBOW_EXTRA)
 
-## Volley's wide base hides two more pads from far zone foci than level 3 does (the brief asks the check of the Longbow; pinned so it cannot grow).
-const VOLLEY_HIDES := {
-	"tower_nw": ["branch pad 0@(-10.6, 0.6)", "branch pad 0@(-6.6, 5.6)"], "tower_ne": ["branch pad 1@(8.8, 1.1)"], "tower_w": [],
-	"tower_e": ["branch pad 1@(4.6, 0.0)", "branch pad 1@(8.8, 1.1)"], "tower_sw": [],
-}
-
-func test_the_volley_hides_no_stop_point_and_no_more_than_the_pinned_pads() -> void:
-	assert_eq(_hidden_keys(_tri_boxes(_mesh("tower_volley"))), VOLLEY_HIDES)
+func test_the_volley_hides_nothing_the_level_3_tower_does_not_beyond_the_pinned_pairs() -> void:
+	_check_extras("tower_volley", VOLLEY_EXTRA)
 
 func test_a_far_too_tall_longbow_would_hide_more_so_the_check_can_fail() -> void:
 	var model := _tri_boxes(_mesh("tower_longbow"))
 	var tall := {"all": AABB(model.all.position, model.all.size * Vector3(1, 2.5, 1)),
 		"tris": model.tris.map(func(b: AABB) -> AABB: return AABB(b.position * Vector3(1, 2.5, 1), b.size * Vector3(1, 2.5, 1)))}
-	assert_ne(_hidden_keys(tall), L3_HIDES, "a 10.8 m Longbow hides pads or stop points the real one does not")
+	var more := 0
+	for id in _tower_ids():
+		more += _extras(id, tall, _tri_boxes(_mesh("tower_l3"))).size()
+	assert_gt(more, 0, "a 10.8 m Longbow hides pairs the level-3 tower does not")
+
+func test_tower_nw_hides_fence_ws_second_pad_from_the_north_zone_centre_() -> void:
+	# the reviewer's example: tower_nw (-5, -5) and fence_w's pad (-6.1, -6.1) are 1.56 m apart; the hero in the north zone (0, -4.6)
+	var key := "pad fence_w/1@(0.0, -4.6)"
+	assert_true((_hidden("tower_nw", _tri_boxes(_mesh("tower_l3"))).hidden as Array).has(key), "the unbranched level 3 at tower_nw hides %s" % key)
+	assert_false((_hidden("tower_w", _tri_boxes(_mesh("tower_longbow"))).hidden as Array).has(key), "a far tower does not (the check discriminates)")
