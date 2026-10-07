@@ -143,7 +143,7 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 			return "building " + str(id)
 		if MapLayout.spot_tier(String(id)) > known_tier:
 			return "building tier " + str(id)
-		if typeof(s.buildings[id]) != TYPE_DICTIONARY or not s.buildings[id].has_all(["level", "paid", "hp"]):
+		if typeof(s.buildings[id]) != TYPE_DICTIONARY or not s.buildings[id].has_all(["level", "paid", "hp", "branch", "branch_paid"]):
 			return "building fields " + str(id)
 		for f in ["level", "paid", "hp"]:
 			if not typeof(s.buildings[id][f]) in [TYPE_INT, TYPE_FLOAT]:
@@ -183,7 +183,9 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 				or typeof(w.side) != TYPE_STRING or not (String(w.side) == "" or String(w.side) in lanes):
 			return "lane " + str(w.main) + " " + str(w.side)
 		for f in ["brute_main", "brute_side"]:
-			if w.has(f) and (known_tier < 3 or not typeof(w[f]) in [TYPE_INT, TYPE_FLOAT] or float(w[f]) < 0.0
+			if w.has(f) != (known_tier >= 3):  # tier 3+: both keys on every wave; below: neither
+				return "lane " + f
+			if w.has(f) and (not typeof(w[f]) in [TYPE_INT, TYPE_FLOAT] or float(w[f]) < 0.0
 					or float(w[f]) != floorf(float(w[f]))):
 				return "lane " + f
 		for f in ["main_count", "side_count", "hp_mult"]:
@@ -230,15 +232,14 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 	return ""
 
 
-## The branch fields of one saved building (E5 tier 3). A building without them counts as unbranched (the defaults).
+## The branch fields of one saved building (E5 tier 3). The caller has checked both keys exist.
 static func _validate_branch(id: String, b: Dictionary, level: int, known_tier: int, bd: BalanceData) -> String:
-	var branch = b.get("branch", "")
-	var paid = b.get("branch_paid", {})
+	var branch = b.branch
+	var paid = b.branch_paid
 	if typeof(branch) != TYPE_STRING or typeof(paid) != TYPE_DICTIONARY:
 		return "branch type " + id
 	var tower := MapLayout.spot_kind(id) == "tower"
 	var ids: Array[StringName] = BranchBalance.TOWER_BRANCHES if tower else BranchBalance.FENCE_BRANCHES
-	var cost: int = bd.branches.tower_branch_cost if tower else bd.branches.fence_branch_cost
 	if branch != "":
 		if not StringName(branch) in ids:
 			return "branch " + id + " " + branch
@@ -249,7 +250,8 @@ static func _validate_branch(id: String, b: Dictionary, level: int, known_tier: 
 	for k in paid:
 		if typeof(k) != TYPE_STRING or not StringName(k) in ids:
 			return "branch_paid " + id + " " + str(k)
-		if not typeof(paid[k]) in [TYPE_INT, TYPE_FLOAT] or float(paid[k]) < 0.0 or float(paid[k]) >= cost:
+		# No upper bound: GameState.from_dict clamps a payment at or above the cost (D-234, a balance change never loses a save).
+		if not typeof(paid[k]) in [TYPE_INT, TYPE_FLOAT] or float(paid[k]) < 0.0:
 			return "branch_paid range " + id + " " + str(k)
 		if known_tier < 3 or level != bd.build.max_level:
 			return "branch_paid level " + id + " " + str(k)

@@ -97,10 +97,12 @@ func from_dict(d: Dictionary) -> void:
 		nb.level = int(b.level)
 		nb.paid = int(b.paid)
 		nb.hp = float(b.hp)
-		nb.branch = String(b.get("branch", ""))
-		var bp: Dictionary = b.get("branch_paid", {})
-		for k in bp:
-			nb.branch_paid[String(k)] = int(bp[k])
+		nb.branch = String(b.branch)
+		# A pad payment at or above its cost would never complete (D-234: a later balance change never loses a save):
+		# clamp to cost - 1, like station payments and tier_paid; the excess is not refunded (the same precedent).
+		var bcost := branch_cost(String(id))
+		for k in b.branch_paid:
+			nb.branch_paid[String(k)] = clampi(int(b.branch_paid[k]), 0, maxi(bcost - 1, 0))
 		buildings[String(id)] = nb
 	stations = _fresh_stations()
 	for id in StationEffects.IDS:
@@ -306,20 +308,24 @@ func pay_into_branch(spot_id: String, branch_id: StringName, amount: int) -> int
 	var b: Dictionary = buildings[spot_id]
 	gold -= pay
 	b.branch_paid[String(branch_id)] = int(b.branch_paid.get(String(branch_id), 0)) + pay
-	EventBus.gold_changed.emit(gold, -pay)
-	if int(b.branch_paid[String(branch_id)]) < branch_cost(spot_id):
-		return pay
+	var done: bool = int(b.branch_paid[String(branch_id)]) >= branch_cost(spot_id)
 	var refund := 0
-	for k in b.branch_paid:
-		if k != String(branch_id):
-			refund += int(b.branch_paid[k])
-	b.branch = String(branch_id)
-	b.branch_paid = {}
-	# Stone: the fence is repaired in full on purchase (its current hp becomes the new, higher maximum). Spike keeps the level-3 hp.
-	if MapLayout.spot_kind(spot_id) == "fence":
-		b.hp = fence_max_hp(int(b.level), branch_id) if branch_id == &"stone" else b.hp
-	if refund > 0:
+	if done:
+		# All state of the purchase is committed before the first signal fires (listeners may snapshot the state).
+		for k in b.branch_paid:
+			if k != String(branch_id):
+				refund += int(b.branch_paid[k])
+		b.branch = String(branch_id)
+		b.branch_paid = {}
+		# Stone: the fence is repaired in full on purchase (its current hp becomes the new, higher maximum). Spike keeps the level-3 hp.
+		if MapLayout.spot_kind(spot_id) == "fence":
+			b.hp = fence_max_hp(int(b.level), branch_id) if branch_id == &"stone" else b.hp
 		gold += refund
+	EventBus.gold_changed.emit(gold - refund, -pay)  # the purse right after paying, before any refund
+	if not done:
+		EventBus.building_changed.emit(StringName(spot_id), b.level, b.paid)
+		return pay
+	if refund > 0:
 		EventBus.gold_changed.emit(gold, refund)
 	EventBus.building_changed.emit(StringName(spot_id), b.level, b.paid)
 	EventBus.branch_chosen.emit(StringName(spot_id), branch_id)
@@ -399,9 +405,9 @@ func reset_destroyed_fences() -> void:
 			for k in b.branch_paid:
 				refund += int(b.branch_paid[k])
 			buildings[id] = _new_building()
+			gold += refund
 			EventBus.building_changed.emit(StringName(id), 0, 0)
 			if refund > 0:
-				gold += refund
 				EventBus.gold_changed.emit(gold, refund)
 				EventBus.branch_refunded.emit(StringName(id), refund)
 

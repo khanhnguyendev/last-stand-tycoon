@@ -1,5 +1,5 @@
 extends GutTest
-## E5 tier 3 spec 3.6, D-270.2: schema 6, the 5 -> 6 step pinned on the eight real schema-5 saves, branch validation,
+## E5 tier 3 spec 3.6, D-270.2: schema 6, the 5 -> 6 step pinned on the eight committed fixtures (five are schema 5, day3_counter5 is schema 4, night3_start and night3_closeup are schema 3), branch validation,
 ## tier-3 lanes and brutes. A tier-3 state needs the tier-3 cost entry (added in setup; Balance.reset() drops it).
 
 const FIXTURE_DIR := "res://tests/fixtures/v5/"
@@ -114,7 +114,12 @@ func _is_older_step_addition(line: String, from_v: int) -> bool:
 		return true
 	if line in ["/tier: added 1", "/tier_day: added 1", "/tier_paid: added 0", "/boss_pending: added false"]:
 		return true
-	return from_v == 3 and line.begins_with("/stations: added ")
+	if from_v == 3:
+		# the 3 -> 4 step adds exactly the two fresh stations (either key order: the step builds it in StationEffects.IDS order)
+		var a := {"counter": {"level": 0, "paid": 0}, "freezer": {"level": 0, "paid": 0}}
+		var b := {"freezer": {"level": 0, "paid": 0}, "counter": {"level": 0, "paid": 0}}
+		return line == "/stations: added " + str(a) or line == "/stations: added " + str(b)
+	return false
 
 func test_every_fixture_migrates_to_v6_changing_only_the_two_building_fields() -> void:
 	assert_eq(GameState.SCHEMA_VERSION, 6)
@@ -180,7 +185,12 @@ func test_the_same_save_is_rejected_when_the_build_has_no_tier_3() -> void:
 	var s := _t3_dict()
 	Balance.reset()  # tier_costs back to [0, 500]: the top tier is 2
 	var why := SaveCodec.validate(s, Balance.data)
-	assert_ne(why, "", "a tier-3 save on a tier-2 build is rejected")
+	# tower_nw (branched, tier clamps to 2) comes first in building order, so the branch rule names it first
+	assert_eq(why, "branch level tower_nw longbow")
+	var unbranched := s.duplicate(true)
+	unbranched.buildings.tower_nw.branch = ""
+	unbranched.buildings.fence_n.branch_paid = {}
+	assert_eq(SaveCodec.validate(unbranched, Balance.data), "building tier tower_sw", "then the tier-3 spot the build does not know")
 	assert_false(_decode(s).ok)
 	# each tier-3 ingredient alone is invalid on a tier-2 build (clamped tier), so none can slip through
 	GameState.new_game(20261007)
@@ -226,7 +236,6 @@ func test_branch_paid_with_a_branch_set_is_rejected() -> void:
 
 func test_branch_paid_keys_and_values_are_checked() -> void:
 	_invalid(func(s): s.buildings.fence_n.branch_paid = {"longbow": 10}, "fence_n")
-	_invalid(func(s): s.buildings.fence_n.branch_paid = {"stone": 300}, "fence_n")  # == cost: it would never complete
 	_invalid(func(s): s.buildings.fence_n.branch_paid = {"stone": -1}, "fence_n")
 	_invalid(func(s): s.buildings.fence_n.branch_paid = {"stone": "x"}, "fence_n")
 	_invalid(func(s): s.buildings.fence_n.branch_paid = [1], "fence_n")
@@ -234,13 +243,43 @@ func test_branch_paid_keys_and_values_are_checked() -> void:
 func test_branch_paid_below_max_level_is_rejected() -> void:
 	_invalid(func(s): s.buildings.fence_e.branch_paid = {"stone": 10}, "fence_e")
 
-func test_the_cost_bound_follows_the_spot_kind() -> void:
+func test_a_payment_at_or_above_the_cost_is_valid_and_clamps_on_load() -> void:
+	# D-234: a later balance change never loses a save. Precedent: test_save_tier.test_paid_at_or_above_cost_is_clamped_on_load
+	# (tier_paid) and the station payments: clamp to cost - 1, the excess is not refunded.
 	var s := _t3_dict()
+	var tc: int = Balance.data.branches.tower_branch_cost
+	var fc: int = Balance.data.branches.fence_branch_cost
 	s.buildings.tower_ne.level = 3
-	s.buildings.tower_ne.branch_paid = {"volley": 499}
-	assert_eq(SaveCodec.validate(s, Balance.data), "", "a tower's pad holds up to 499")
-	s.buildings.tower_ne.branch_paid = {"volley": 500}
-	assert_string_contains(SaveCodec.validate(s, Balance.data), "tower_ne")
+	s.buildings.tower_ne.branch_paid = {"volley": tc + 250, "longbow": 7}
+	s.buildings.fence_n.branch_paid = {"stone": fc, "spike": 0}
+	assert_eq(SaveCodec.validate(s, Balance.data), "")
+	var r := _decode(s)
+	assert_true(r.ok, r.reason)
+	var gold_before: int = int(r.state.gold)
+	GameState.new_game(1)
+	GameState.from_dict(r.state)
+	assert_eq(GameState.buildings.tower_ne.branch_paid, {"volley": tc - 1, "longbow": 7})
+	assert_eq(GameState.buildings.fence_n.branch_paid, {"stone": fc - 1, "spike": 0})
+	assert_eq(GameState.gold, gold_before, "the clamped excess is not refunded")
+	assert_eq(GameState.pay_into_branch("fence_n", &"stone", 1), 1, "and the pad can complete after the clamp")
+
+func test_a_building_without_the_branch_fields_is_rejected() -> void:
+	_invalid(func(s): s.buildings.fence_w.erase("branch"), "fence_w")
+	_invalid(func(s): s.buildings.fence_w.erase("branch_paid"), "fence_w")
+
+func test_a_non_string_branch_is_rejected() -> void:
+	_invalid(func(s): s.buildings.tower_nw.branch = 5, "tower_nw")
+
+func test_branch_paid_below_tier_3_is_rejected() -> void:
+	GameState.new_game(20261007)
+	GameState.day = 12
+	GameState.debug_set_tier(2, 5)
+	var s := GameState.to_dict()
+	s.buildings.fence_n.level = 3
+	s.buildings.fence_n.branch_paid = {"stone": 10}
+	assert_string_contains(SaveCodec.validate(s, Balance.data), "fence_n")
+	s.buildings.fence_n.branch_paid = {}
+	assert_eq(SaveCodec.validate(s, Balance.data), "", "the same building without the payment is fine")
 
 func test_lane_names_are_checked_against_the_tiers_list() -> void:
 	_invalid(func(s): s.lane_plan[1].main = "nowhere", "nowhere")
@@ -253,6 +292,10 @@ func test_brutes_must_be_non_negative_whole_numbers() -> void:
 	_invalid(func(s): s.lane_plan[0].brute_main = -1, "brute_main")
 	_invalid(func(s): s.lane_plan[0].brute_side = 1.5, "brute_side")
 	_invalid(func(s): s.lane_plan[0].brute_side = "2", "brute_side")
+
+func test_at_tier_3_every_wave_carries_both_brute_keys() -> void:
+	_invalid(func(s): s.lane_plan[1].erase("brute_main"), "brute_main")
+	_invalid(func(s): s.lane_plan[2].erase("brute_side"), "brute_side")
 
 # --- the tier-1/2 shape is unchanged ---------------------------------------------------------------------------
 
