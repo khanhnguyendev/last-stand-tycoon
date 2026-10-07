@@ -23,6 +23,8 @@ var _bar: MeshInstance3D  # the fill; _bar_back is its ink backing, shown and hi
 var _bar_back: MeshInstance3D
 var _last_xz := Vector2.ZERO
 var _respawn_left := 0.0
+## Physics seconds of respawn protection left (D-271): untargetable while > 0. Never saved; a restore clears it.
+var _protect_left := 0.0
 var _path: Array = []
 var _poof_tween: Tween
 
@@ -72,11 +74,12 @@ func xz() -> Vector2:
 
 func is_targetable() -> bool:
 	return bool(stats.targetable) and state != State.DOWN and GameState.guards.has(id) \
-		and float(GameState.guards[id].hp) > 0.0
+		and float(GameState.guards[id].hp) > 0.0 and _protect_left <= 1e-6
 
 func place_at_post() -> void:
 	state = State.POSTED
 	_respawn_left = 0.0
+	_protect_left = 0.0
 	_path = []
 	if _poof_tween != null and _poof_tween.is_valid():
 		_poof_tween.kill()
@@ -100,10 +103,15 @@ func arrive_from_door() -> void:
 	_refresh_bar()
 
 func _physics_process(delta: float) -> void:
+	if _protect_left > 0.0:
+		_protect_left = maxf(_protect_left - delta, 0.0)
 	match state:
 		State.DOWN:
 			_respawn_left -= delta
 			if _respawn_left <= 1e-6:
+				# Respawn only (a hire also uses arrive_from_door, but no monster exists in the day): D-271.
+				# Set before the revive so a guard_revived listener already sees the protected state.
+				_protect_left = float(Balance.data.guards.respawn_protect_s)
 				GameState.revive_guard(id)
 				arrive_from_door()
 		State.RETURNING:
@@ -133,11 +141,13 @@ func _walk(delta: float) -> void:
 			step = 0.0
 	if _path.is_empty():
 		state = State.POSTED
+		_protect_left = 0.0  # protection ends at the post, whatever the tuning
 
 func _on_knocked_out(g: StringName) -> void:
 	if g != id:
 		return
 	state = State.DOWN
+	_protect_left = 0.0
 	_respawn_left = float(stats.respawn_s)
 	attacker.enabled = false
 	_set_bar_visible(false)
