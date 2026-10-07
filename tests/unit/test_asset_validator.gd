@@ -1,7 +1,8 @@
 extends GutTest
 ## S4 spec 5.4: one bad fixture per rule. Fixtures are written under user:// at run time.
 
-const ROOT := "user://av_fixture"
+## Per process: worktrees and parallel runs share user://, and a sibling process deleting the fixture made this file flaky.
+var ROOT := "user://av_fixture_%d" % OS.get_process_id()
 
 func before_each() -> void:
 	_rm(ROOT)
@@ -11,6 +12,7 @@ func before_each() -> void:
 
 func after_all() -> void:
 	_rm(ROOT)
+	_rm(AROOT)
 
 func _write(p: String, s: String) -> void:
 	var f := FileAccess.open(p, FileAccess.WRITE)
@@ -207,7 +209,7 @@ func test_no_physics_catches_shapes_and_passes_clean_scene() -> void:
 
 # --- S5 audio rules (D-211) ---
 
-const AROOT := "user://validator_audio"
+var AROOT := "user://validator_audio_%d" % OS.get_process_id()
 
 func _audio_fixture() -> Dictionary:
 	_rm(AROOT)
