@@ -18,6 +18,13 @@ const NAMES: Array[StringName] = [
 const SHAPES: Array[StringName] = [&"backing", &"disc", &"gear", &"stick_ring", &"stick_knob", &"guide_arrow"]
 const PAD := 2
 const PATH := "res://art/icons/atlas.png"
+## The brute mark of a heavy lane arrow (E5 tier 3 Task 14): a 64 px texture of its own, since a 17th atlas cell would pass the 512 px
+## texture rule. HudIcons draws it after the arrows (one extra batch, only while a heavy arrow shows).
+const BRUTE_MARK_PATH := "res://art/icons/hud/brute_mark.png"
+const _BRUTE_MARK: Texture2D = preload("res://art/icons/hud/brute_mark.png")
+
+static func brute_mark() -> Texture2D:
+	return _BRUTE_MARK
 
 ## The cell of icon `name` (a file name without ".png", e.g. &"coin", &"card_tank") in atlas pixels.
 static func region(name: StringName) -> Rect2:

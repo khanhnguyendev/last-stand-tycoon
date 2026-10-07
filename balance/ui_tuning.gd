@@ -45,6 +45,21 @@ extends Resource
 @export var banner_time := 2.0
 @export var telegraph_scale_min := 0.5
 @export var telegraph_scale_max := 2.0
+## E5 tier 3 Task 14 (D-264): the telegraph's composition row. Icon and number sizes in world metres (the glyph's 1 m
+## square, the number's em), the gap between pairs, the lift above the flag; and the readability floors in BASE pixels
+## (the 720x1280 canvas_items base), which the tests check at every aspect and focus.
+@export var telegraph_icon_m := 1.1
+@export var telegraph_number_em_m := 1.0
+@export var telegraph_row_gap_m := 0.2
+## The row sits at the fixed height `telegraph_row_height_m` (the icons' centre); where, is TelegraphMarker.ROW_ANCHORS.
+@export var telegraph_row_height_m := 1.0
+## Floors in base px. The number minimum is the EM height of the font (a digit is about 0.7 of it, so 28 is about 20 px of digit).
+@export var telegraph_icon_min_px := 28.0
+@export var telegraph_number_min_px := 28.0
+## The brute mark beside a heavy edge arrow (Task 14): drawn this many base px square (never below the minimum).
+@export var arrow_heavy_px := 24.0
+@export var arrow_heavy_min_px := 22.0
+@export var arrow_heavy_gap_px := 3.0
 @export var pulse_scale := 1.15
 @export var pulse_hz := 1.0
 ## Visual scale added per built level (spec 8.6).
