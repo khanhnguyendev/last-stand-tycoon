@@ -171,7 +171,7 @@ func test_tier2_diner_keeps_the_footprint_and_adds_the_flanks() -> void:
 	var t2: ArrayMesh = load("res://art/env/baked/diner_t2.res")
 	var a1 := t1.get_aabb()
 	var a2 := t2.get_aabb()
-	assert_almost_eq(a2.size.y, a1.size.y, 0.3, "same height class")
+	assert_between(a2.size.y, a1.size.y + 0.9, a1.size.y + 1.1, "tier 2 grows upward by its chimney (E5 slice 2 Task 1; was: same height class)")
 	assert_gt(a2.size.x, a1.size.x + 1.0, "the terraces widen the look")
 	assert_lte(a2.size.x, 11.3, "but stay inside the yards' inner edges")
 	assert_lte(_triangles(t2), ArtBudgets.budget_for("res://art/env/diner"))
@@ -225,7 +225,7 @@ func test_tier2_diner_stays_inside_its_envelope() -> void:
 	var a2: AABB = (load("res://art/env/baked/diner_t2.res") as ArrayMesh).get_aabb()
 	assert_gte(a2.position.x, -5.65)
 	assert_lte(a2.end.x, 5.65)
-	assert_lte(a2.end.y, a1.end.y + 1e-3, "nothing rises above the tier-1 diner")
+	assert_lte(a2.end.y, a1.end.y + 1.1, "only the new chimney rises above the tier-1 diner (E5 slice 2 Task 1; was: nothing rises above it)")
 	assert_almost_eq(a2.position.z, a1.position.z, 1e-3)
 	assert_almost_eq(a2.end.z, a1.end.z, 1e-3)
 
@@ -308,3 +308,110 @@ func test_tier2_terraces_are_diner_cream() -> void:
 			var c := img.get_pixel(clampi(int(uv[i].x * img.get_width()), 0, img.get_width() - 1), clampi(int(uv[i].y * img.get_height()), 0, img.get_height() - 1))
 			assert_lt(absf(c.r - want.r) + absf(c.g - want.g) + absf(c.b - want.b), 0.03, "vertex %s samples %s, not diner_cream" % [v[i], c])
 	assert_gt(checked, 0, "the terraces exist")
+
+
+# ---- E5 slice 2 Task 1: the tier-2 diner grows upward (roof colour, chimney, sign board), inside the footprint ----
+
+const T2 := "res://art/env/baked/diner_t2.res"
+const T1 := "res://art/env/baked/diner.res"
+
+func _color_at(mesh: ArrayMesh, s: int, uv: Vector2) -> Color:
+	var img := ((mesh.surface_get_material(s) as BaseMaterial3D).albedo_texture as Texture2D).get_image()
+	return img.get_pixel(clampi(int(uv.x * img.get_width()), 0, img.get_width() - 1), clampi(int(uv.y * img.get_height()), 0, img.get_height() - 1))
+
+## Tier 1 keeps its own lip (the awning reaches z 4.3, S4); what tier 2 ADDS never overhangs: every vertex above
+## terrace height outside |x|, |z| <= 4.0 is a tier-1 vertex.
+func test_tier2_adds_nothing_outside_the_footprint_above_terrace_height() -> void:
+	var t1 := _vertices(load(T1) as ArrayMesh)
+	var checked := 0
+	var added := 0
+	for v in _vertices(load(T2) as ArrayMesh):
+		if v.y <= 0.02:
+			continue
+		checked += 1
+		var is_new := true
+		for w in t1:
+			if w.distance_to(v) < 1e-3:
+				is_new = false
+				break
+		if not is_new:
+			continue
+		added += 1
+		assert_lte(absf(v.x), 4.0 + 1e-3, "added vertex %s overhangs in x" % v)
+		assert_lte(absf(v.z), 4.0 + 1e-3, "added vertex %s overhangs in z" % v)
+	assert_gt(checked, 0)
+	assert_gte(added, 40, "the roof cap, chimney and board are new vertices")
+
+func test_tier2_silhouette_is_taller_than_tier1_by_the_chimney() -> void:
+	var a1: AABB = (load(T1) as ArrayMesh).get_aabb()
+	var a2: AABB = (load(T2) as ArrayMesh).get_aabb()
+	assert_gte(a2.end.y, a1.end.y + 0.9, "the new chimney stack stands at least 0.9 m above tier 1's highest point")
+	assert_gte(a2.end.y, 6.0)
+	assert_lte(a2.end.y, 6.2, "and not a skyscraper")
+
+## The new parts: a roof cap (3.0 to 3.03) of steak_brown, clearly unlike the tier-1 roof, a chimney and a gold board.
+func test_tier2_roof_is_a_new_palette_colour() -> void:
+	var t1: ArrayMesh = load(T1)
+	var t2: ArrayMesh = load(T2)
+	var want := Palette.color(&"steak_brown")
+	var cap := 0
+	# the tier-1 roof: the colour most up-facing vertices at roof height (3.0) sample (walls' tops are few)
+	var counts := {}
+	for s in t1.get_surface_count():
+		var arr := t1.surface_get_arrays(s)
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var nrm: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+		var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+		for i in v.size():
+			if nrm[i].y > 0.9 and absf(v[i].y - 3.0) < 0.01 and absf(v[i].x) <= 4.0:
+				var c := _color_at(t1, s, uv[i])
+				counts[c] = int(counts.get(c, 0)) + 1
+	var tier1_roof_color := Color.BLACK
+	var best := 0
+	for c in counts:
+		if counts[c] > best:
+			best = counts[c]
+			tier1_roof_color = c
+	assert_gt(best, 0, "found the tier-1 roof")
+	for s in t2.get_surface_count():
+		var v: PackedVector3Array = t2.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]
+		var uv: PackedVector2Array = t2.surface_get_arrays(s)[Mesh.ARRAY_TEX_UV]
+		for i in v.size():
+			if absf(v[i].y - 3.03) < 1e-3:
+				cap += 1
+				var c := _color_at(t2, s, uv[i])
+				assert_lt(absf(c.r - want.r) + absf(c.g - want.g) + absf(c.b - want.b), 0.03, "roof cap vertex %s samples %s" % [v[i], c])
+				assert_gt(absf(c.r - tier1_roof_color.r) + absf(c.g - tier1_roof_color.g) + absf(c.b - tier1_roof_color.b), 0.25, "clearly unlike the tier-1 roof %s" % tier1_roof_color)
+	assert_gt(cap, 0, "the roof cap exists")
+
+func test_tier2_roof_cap_leaves_the_archer_perch_standing_on_the_roof() -> void:
+	var top := 0.0
+	for v in _vertices(load(T2) as ArrayMesh):
+		var p := MapLayout.guard_post(&"archer")
+		if absf(v.x - p.x) < 0.3 and absf(v.z - p.y) < 0.3 and v.y < 4.0:
+			top = maxf(top, v.y)
+	assert_between(top, MapLayout.DINER_HEIGHT - 0.01, MapLayout.DINER_HEIGHT + 0.05, "the surface under the Archer's feet is the roof (3.0) plus at most the cap")
+
+func test_tier2_tall_vertices_lie_inside_its_occluder_boxes() -> void:
+	var d := _inst("res://art/env/diner_t2.tscn")
+	var boxes: Array[AABB] = d.occluder_boxes
+	var tall := 0
+	var outside := 0
+	for v in _vertices(_body(d).mesh as ArrayMesh):
+		if v.y <= 3.45:
+			continue
+		tall += 1
+		var inside := false
+		for b in boxes:
+			if b.grow(0.05).has_point(v):
+				inside = true
+				break
+		if not inside:
+			outside += 1
+	assert_gt(tall, 0)
+	assert_eq(outside, 0, "vertices above 3.45 outside the tier-2 DinerArt boxes")
+	for b in boxes:
+		assert_lte(b.end.z, 4.0 + 1e-3)
+		assert_gte(b.position.z, -4.0 - 1e-3)
+		assert_lte(absf(b.position.x), 4.0 + 1e-3)
+		assert_lte(b.end.x, 4.0 + 1e-3)

@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="PackedScene" path="res://assets/kenney-fantasy-town/wall-wood.glb" id="1"]
 
@@ -15,6 +15,8 @@
 [ext_resource type="PackedScene" path="res://assets/kenney-city-commercial/detail-awning-wide.glb" id="7"]
 
 [ext_resource type="ArrayMesh" path="res://art/env/src/terrace_slab.res" id="8"]
+
+[ext_resource type="ArrayMesh" path="res://art/env/src/diner_t2_top.res" id="9"]
 
 [node name="DinerT2Src" type="Node3D"]
 
@@ -205,3 +207,6 @@ mesh = ExtResource("8")
 [node name="terrace_w" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.8, 0, 0)
 mesh = ExtResource("8")
+
+[node name="top" type="MeshInstance3D" parent="."]
+mesh = ExtResource("9")

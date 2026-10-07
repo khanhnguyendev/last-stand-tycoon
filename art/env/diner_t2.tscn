@@ -2,7 +2,7 @@
 
 [ext_resource type="ArrayMesh" path="res://art/env/baked/diner_t2.res" id="1_mesh"]
 [ext_resource type="Script" path="res://ui/world_label/world_label.gd" id="2_label"]
-[ext_resource type="Script" path="res://art/env/diner_art.gd" id="3_art"]
+[ext_resource type="Script" path="res://art/env/diner_art_t2.gd" id="3_art"]
 
 [node name="DinerArt" type="Node3D"]
 script = ExtResource("3_art")

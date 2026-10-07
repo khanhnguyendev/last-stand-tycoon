@@ -335,3 +335,73 @@ func test_setup_merges_a_passed_box_and_empty_box_is_ignored() -> void:
 	assert_true(fade.bounds.encloses(big) and fade.bounds.encloses(without))
 	fade.setup(AABB(), func(): return _cam, func(): return _targets)
 	assert_eq(fade.bounds, without)
+
+# ---- E5 slice 2 Task 1: guards trigger the fade; every mesh of the building is in the fade's set at every tier ----
+
+func _wired_main_with_tank_at_north() -> Main:
+	var main := Main.create()
+	add_child_autofree(main)
+	main.hero.input.player_control = false
+	main.phase_controller.start_new_game(72)
+	main.world.wave_director.stop()
+	main.hero.teleport(MapLayout.HOME)
+	GameState.debug_grant_card(&"tank")
+	var g: Guard = main.world.guard_roster.guards[&"tank"]
+	g.place_at_post()
+	g.set_physics_process(false)  # stays where the test puts it
+	g.global_position = MapLayout.to3((MapLayout.ZONE_RECTS["north"] as Rect2).get_center())
+	main.camera_rig.snap()
+	return main
+
+func test_wired_a_guard_alone_at_the_north_zone_fades_the_diner() -> void:
+	var main := _wired_main_with_tank_at_north()
+	assert_eq(main.world.wave_director.alive_enemies().size(), 0, "no monster")
+	var fade: OccluderFade = main.world.occluder_fade
+	for i in 40:
+		await get_tree().process_frame
+	assert_true(fade.is_faded(), "a guard behind the diner fades it, as the hero does")
+
+func test_wired_without_a_guard_behind_the_diner_it_stays_opaque() -> void:
+	var main := _wired_main_with_tank_at_north()
+	var g: Guard = main.world.guard_roster.guards[&"tank"]
+	g.global_position = MapLayout.to3(MapLayout.guard_post(&"tank"))  # back at its post, clear of the diner
+	main.camera_rig.snap()
+	for i in 40:
+		await get_tree().process_frame
+	assert_false(main.world.occluder_fade.is_faded(), "nobody is behind the diner")
+
+func test_wired_every_mesh_of_the_building_is_faded_at_every_tier() -> void:
+	var main := _wired_main_with_tank_at_north()
+	var fade: OccluderFade = main.world.occluder_fade
+	var vis := main.world.diner_body.get_node("Visual")
+	for tier in [1, 2]:
+		GameState.debug_set_tier(tier, 1)
+		await get_tree().process_frame
+		for i in 40:
+			await get_tree().process_frame
+		assert_true(fade.is_faded(), "tier %d faded" % tier)
+		var meshes := vis.find_children("*", "MeshInstance3D", true, false)
+		assert_gt(meshes.size(), 0)
+		for m in meshes:
+			var mi := m as MeshInstance3D
+			assert_not_null(mi.get_surface_override_material(0), "tier %d: %s is in the fade's set" % [tier, mi.get_path()])
+			assert_almost_eq((mi.get_surface_override_material(0) as BaseMaterial3D).albedo_color.a, Balance.ui.occluder_alpha, 0.02)
+	GameState.new_game(1)
+
+func test_tier2_chimney_and_board_boxes_fade_for_a_target_behind_them() -> void:
+	var visual := Visuals.visual_root()
+	add_child_autofree(visual)
+	visual.add_child(load("res://art/env/diner_t2.tscn").instantiate())
+	var fade := OccluderFade.new()
+	visual.add_child(fade)
+	fade.setup(AABB(), func(): return _cam, func(): return _targets)
+	assert_gte(fade.bounds.end.y, 6.0, "the bounds reach the tier-2 chimney cap (6.1)")
+	# a target whose line to a camera on the far side passes through the new chimney only
+	var chimney := Vector3(-3.0, 5.0, -3.0)
+	var aim := _boar_aim(MapLayout.to3(Vector2(-3.0, -12.0)))
+	_cam.global_position = aim + (chimney - aim).normalized() * 25.0
+	assert_null(WALLS.grow(Balance.ui.occluder_grow).intersects_segment(_cam.global_position, aim), "precondition: not the walls")
+	assert_true(_hits(fade, aim), "precondition: the chimney box is in the way")
+	_targets = [aim]
+	_run_fade(fade, Balance.ui.occluder_fade_s * 3.0)
+	assert_true(fade.is_faded())
