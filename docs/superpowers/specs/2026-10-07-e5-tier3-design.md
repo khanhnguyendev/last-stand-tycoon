@@ -75,7 +75,7 @@ lane, `{boar, hare, brute, boss}` counts for the telegraph (section 6.5).
 |---|---|---|
 | `tier_costs` | `[0, 500]`, then `[0, 500, 1500]` | third entry = the switch |
 | `tier_base` | `[0, 1, 8, 12]` | |
-| `tier_cap` | `[0, 7, 10, 15]` | index 2 was 11 until the margin study (section 9.1, D-276) |
+| `tier_cap` | `[0, 7, 10, 12]` | index 2 was 11 until the margin study (section 9.1, D-276); index 3 was 15 until real-play tuning (D-280) |
 | `fast_share_start`, `fast_share`, `fast_ramp_days` | index 3: 0.35, 0.35, 1 | hares stay at the tier-2 share |
 | `brute_cap_main`, `brute_cap_side` | index 3: 1, 1 | per wave |
 | `brute_ramp_days` | index 3: 3 | first night: one brute, on the last wave's main lane |
@@ -207,7 +207,8 @@ Tiers 1 and 2 are unchanged. From tier 3:
 
 ### 6.1 Pressure and waves
 
-Pressure 12 to 15. One main lane and at most one side lane per wave, drawn from four lanes. Brutes: night 1 of tier 3
+Pressure 12 (it was 12 to 15, and brutes came on the side lane too, until D-280: sections below that say
+"pressure 15" or "side lane brute" describe the values before that ruling). One main lane and at most one side lane per wave, drawn from four lanes. Brutes: night 1 of tier 3
 has one, on the last wave's main lane; each day one more wave (from the last backwards) carries a main-lane brute,
 and from `brute_ramp_days` on every wave has 1 main + 1 side (1, 2, 3 brutes, then 3 plus the sides).
 Brutes replace no Boar: they are added (their HP is in the threat total and their steaks in the economy).

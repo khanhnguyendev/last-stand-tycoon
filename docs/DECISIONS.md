@@ -2750,3 +2750,27 @@ cost-entry switch and the debug-only tier forcing.
   switch that shares the origin zeroes a partial tier-3 payment and rejects a tier-3 save.
 - **Warm-up grid:** 5 columns, centred rows, checked against the portrait projection (an 8-column grid passed the
   headless test but left the boar, knife, arrow and steak draws outside a phone's frustum).
+
+**D-280 Tier-3 balance from real play (phase 5).**
+
+- **Finding:** with the approved values (tier-3 pressure 12 to 15, brutes on both lanes) the tier bot, playing three
+  real 32-day runs (seeds 20260930, 1, 2), needed one or two retries on 20 of 31 cap nights; held nights ended as
+  low as 1% diner HP; a fence fell on every cap night. The Baron night held with 0 retries on all three seeds.
+- **Tuning** (in-memory sweep overrides; raw output in `docs/review/media/e5t3/balance/`). Round 1: cap 14 / 13 /
+  12, brutes on the main lane only, brute fence damage halved, combinations: pressure is the main lever, fewer
+  brutes second, fence damage least; none reached 0 retries. Round 2 at cap 12: main-lane brutes 0 retry nights of
+  40; fence damage 2.0 or brute HP 180: 1 of 40.
+- **Ruling:** `tier_cap[3]` 15 -> 12 and `brute_cap_side[3]` 1 -> 0. Tier 3 no longer ramps in pressure (base 12 =
+  cap 12); its escalation is the brute ramp (3 days) and the fourth lane. After the change: 0 retry nights of 40;
+  median held diner 79% to 94% per seed; two early nights on seed 1 held at 4% and 1% while the build was being
+  completed; from the 5th tier-3 night on the lowest is 42%. The steak pool is 396 (was 440).
+- **Fixtures come from real play.** A fixture constructed from the tier-2 save's day-13 gear, stamped as a later
+  day, made the Baron night look lost. Fixtures 1, 2 and 5 are captured from the tier bot's own run.
+- **Sims:** sim 5 starts at the DAY before the first tier-3 night (the real flow has a day; started at NIGHT with
+  the south-west spots empty the night is lost in 33 s). Sim 6 asserts in CI that each of the four policies holds
+  the cap night; the "threat is at least as good as every other policy" ordering moves to the multi-seed policy
+  report, because one night cannot rank policies (the same night held in a play-through and was lost from a
+  fixture). Sim 8 proves identity at planner level; the full rows stay with `tools/baseline_rows.sh 7`.
+- **Bot:** it buys tier 3 only after every other purchase (tier 2 on day 13 or 14, tier 3 on day 18 to 22). The
+  policy "mixed" (undefined in the spec) is towers Longbow, fences Spike fence.
+

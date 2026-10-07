@@ -132,6 +132,10 @@ Reversible decisions from the tier-3 build, highest impact first. Media: `docs/r
 22. **Tap skips the reveal after 0.6 s**, on the tier-2 reveal too; the tier-3 reveal has five steps and a modest pull-back (zoom 1.30); pads appear with the first tier-3 day, not in the reveal — [D-279](DECISIONS.md)
 23. **Lane count rows hide while under the HUD bar** (visible at tier 1: from the home spot the three northern rows are hidden) — [D-279](DECISIONS.md)
 24. **Tier-3 look:** DINER on the storey wall (no roof plank), the Archer can be seen through the faded diner, landscape views are exempt from the occlusion rule beyond 10 m, the east queue is tight, Stone wall against a level-3 fence and the Volley's barrels are the least distinct models — [D-279](DECISIONS.md)
+25. **Tier-3 difficulty was lowered:** pressure cap 15 -> 12 and brutes on the main lane only. Before: retries on 20 of 31 cap nights in real bot play. After: 0 of 40. Tier 3 now starts at its cap and no longer ramps in pressure. Two early nights on one seed are held at 1% and 4% — [D-280](DECISIONS.md)
+26. **Branches don't reward reading the telegraph (so far):** on the cap-night fixture the diner ends at 77% with Volley + Spike everywhere, 76% with Longbow + Stone, 74% with the threat-matched policy and 52% with the mixed one. The 25-point gap suggests a weak combination (Longbow towers with Spike fences) — [D-280](DECISIONS.md)
+27. **No gold sink at tier 3:** the bot holds 6,000 to 12,000 unspent gold by day 32. A fence fell on every cap night before the tuning, and each lost fence drops its branch, which the bot re-buys daily — [D-280](DECISIONS.md)
+28. **The bot reaches tier 3 late** (day 18 to 22), because it buys every station level and defence first; the policy "mixed" was defined by me — [D-280](DECISIONS.md)
 
 ## Final review playtest questions (S5)
 
