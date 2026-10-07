@@ -100,6 +100,13 @@ static func yards_for_tier(tier: int) -> Array[String]:
 			out.append(id)
 	return out
 
+## Every yard id of the build, in yard order (tier 2's, then tier 3's).
+static func all_yards() -> Array[String]:
+	var out: Array[String] = []
+	out.append_array(YARDS.keys())
+	out.append_array(YARDS_T3.keys())
+	return out
+
 static func yard_rect(id: String) -> Rect2:
 	return YARDS_T3[id] if YARDS_T3.has(id) else YARDS[id]
 

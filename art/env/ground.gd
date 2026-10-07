@@ -138,7 +138,7 @@ static func terrain_mesh(rect: Rect2, yards: Array = [], lanes: Array = []) -> A
 	if not _cache.has(key):
 		var parts := [ground_arrays(rect), road_arrays(Vector2(MapLayout.BOUNDS_MAX.x - MapLayout.BOUNDS_MIN.x, 2.0), MapLayout.ROAD_Z)]
 		for id in LaneStrip.draw_order(lanes):
-			parts.append(LaneStrip.strip_arrays(MapLayout.lane_path(id)))
+			parts.append(LaneStrip.strip_arrays(MapLayout.lane_path(id), LaneStrip.WIDTH, LaneStrip.EDGE, LaneStrip.strip_y(id)))
 		for y in yards:
 			parts.append(yard_arrays(MapLayout.yard_rect(y)))
 		var owned := PropsLayout.owned_for(yards)  # E5 tier 3 Task 2: small props on owned land, same mesh, no extra draw

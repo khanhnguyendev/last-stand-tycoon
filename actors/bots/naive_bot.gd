@@ -22,6 +22,9 @@ func think(delta: float) -> void:
 		_decide_timer = 0.0
 		day_think(delta)
 
+## Goals dropped because this bot's graph has no node for them (tier 3 only; a later task removes the skips and asserts 0).
+var skipped_goals := 0
+
 func _night(delta: float) -> void:
 	_decide_timer -= delta
 	if _decide_timer > 0.0:
@@ -47,5 +50,7 @@ func _night(delta: float) -> void:
 			best_n = counts[lane]
 	if best == "":
 		best = wd.upcoming_main_lane()
-	if graph.nodes.has("zone_" + best):  # the tier-1 graph has no south-west zone node
+	if graph.nodes.has("zone_" + best):
 		go_to("zone_" + best)
+	else:
+		skipped_goals += 1  # the tier-1 graph has no south-west zone node (Task 22 adds it)

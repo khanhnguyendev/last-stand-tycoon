@@ -284,6 +284,7 @@ func _make_marker(id: String) -> void:
 	var m := TelegraphMarker.new()
 	add_child(m)
 	m.setup(id)
+	m.sync_phase(_phase)  # a marker made mid-day missed phase_changed
 	telegraph_markers[id] = m
 
 ## Static collider on layer 1, standing on the ground at xz. The art (S4) is `visual_scene`, instanced once under a

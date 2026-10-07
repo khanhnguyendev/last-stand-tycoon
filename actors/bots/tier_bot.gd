@@ -60,7 +60,10 @@ func next_purchase() -> String:
 	var best := ""
 	var best_t := 0.0
 	for id in spots:
-		if id in MapLayout.SPOT_IDS or not GameState.buildings.has(id) or not graph.nodes.has(id):
+		if id in MapLayout.SPOT_IDS or not GameState.buildings.has(id):
+			continue
+		if not graph.nodes.has(id):
+			skipped_goals += 1
 			continue
 		if int(GameState.buildings[id].level) != 0 or GameState.remaining_cost(id) > GameState.gold:
 			continue
@@ -72,7 +75,10 @@ func next_purchase() -> String:
 		return best
 	var best_rem := 0
 	for id in spots:
-		if id in MapLayout.SPOT_IDS or not GameState.buildings.has(id) or not graph.nodes.has(id) or int(GameState.buildings[id].level) < 1:
+		if id in MapLayout.SPOT_IDS or not GameState.buildings.has(id) or int(GameState.buildings[id].level) < 1:
+			continue
+		if not graph.nodes.has(id):
+			skipped_goals += 1
 			continue
 		var rem := GameState.remaining_cost(id)
 		if rem > 0 and rem <= GameState.gold and (best == "" or rem < best_rem):

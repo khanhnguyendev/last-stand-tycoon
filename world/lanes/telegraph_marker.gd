@@ -18,6 +18,11 @@ func setup(id: String) -> void:
 	EventBus.tier_changed.connect(_on_tier_changed)  # the day the tier is paid, the boss lane already shows
 	refresh()
 
+## A marker made mid-game missed phase_changed: the world hands it the phase it last announced.
+func sync_phase(p: int) -> void:
+	_phase = p
+	refresh()
+
 func _on_phase_changed(p: int, _day: int) -> void:
 	_phase = p
 	refresh()

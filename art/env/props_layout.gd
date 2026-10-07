@@ -111,7 +111,7 @@ const OWNED := {
 ## The owned-land items of the yards in `ids` (MapLayout yard ids), in yard order.
 static func owned_for(ids: Array) -> Array:
 	var out := []
-	for id in MapLayout.yards_for_tier(99):  # every yard, in yard order
+	for id in MapLayout.all_yards():
 		if id in ids and OWNED.has(id):
 			out.append_array(OWNED[id])
 	return out

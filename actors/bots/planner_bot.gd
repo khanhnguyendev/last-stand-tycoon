@@ -84,7 +84,8 @@ func next_purchase() -> String:
 	builds.append_array(rest)
 	for id in builds:
 		if not graph.nodes.has(id):
-			continue  # a tier-3 spot this bot's tier-1 graph cannot reach
+			skipped_goals += 1  # a tier-3 spot this bot's tier-1 graph cannot reach
+			continue
 		if int(GameState.buildings[id].level) == 0 and GameState.remaining_cost(id) <= GameState.gold:
 			return id
 	# step 4: upgrades; lanes by threat, and next to a lane the towers before the fences, the cheapest affordable of a kind

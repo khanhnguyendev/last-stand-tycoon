@@ -4,7 +4,7 @@ extends GutTest
 ## "front" is a key error that shows only at tier 3.
 
 const BANNED := ["LANE_PATHS", "ZONE_RECTS", "ZONE_AXIS", "FENCE_LANE", "LANE_FENCE", "TOWER_SPOTS", "TOWER_LANES", "YARDS",
-	"QUEUE_SLOTS", "TRAVELER_EXIT", "TIER_SIGN"]
+	"QUEUE_SLOTS", "TRAVELER_EXIT", "TIER_SIGN", "YARD_TIER"]
 ## Skipped wholesale: the layout itself, the tests, the headless tools, the vendored test framework.
 const SKIP_PREFIXES := ["res://core/map_layout.gd", "res://tests/", "res://tools/", "res://addons/", "res://export/", "res://docs/", "res://.godot/"]
 ## file -> code substrings that may keep a direct tier-1 read. Every entry says why.
@@ -27,9 +27,27 @@ func _files(dir: String, out: Array) -> void:
 		if not d.begins_with("."):
 			_files(dir.path_join(d), out)
 
+## The ONE pattern the scan and its self-test share.
+static func _pattern() -> RegEx:
+	var rx := RegEx.new()
+	rx.compile("(MapLayout|layout)\\.(%s)(_T3)?\\b|\\bLanePlanner\\.LANES\\b|\\bLANES_TIER3\\b" % "|".join(BANNED))
+	return rx
+
+## The line without its trailing comment; a # inside a string literal does not start one.
 func _code(line: String) -> String:
-	var i := line.find("#")
-	return line if i < 0 else line.substr(0, i)
+	var quote := ""
+	for i in line.length():
+		var c := line[i]
+		if quote != "":
+			if c == "\\":
+				continue
+			if c == quote and (i == 0 or line[i - 1] != "\\"):
+				quote = ""
+		elif c == "\"" or c == "'":
+			quote = c
+		elif c == "#":
+			return line.substr(0, i)
+	return line
 
 func _is_allowed(path: String, code: String) -> bool:
 	for pat in ALLOW.get(path, []):
@@ -37,11 +55,11 @@ func _is_allowed(path: String, code: String) -> bool:
 			return true
 	return false
 
-func _offences() -> Array:
+## Every banned read outside the skipped paths as "path:line text"; `use_allow` false lists the allow-listed ones too. `visited` counts files.
+func _scan(use_allow: bool, visited: Array) -> Array:
 	var files := []
 	_files("res://", files)
-	var rx := RegEx.new()
-	rx.compile("(MapLayout|layout)\\.(%s)(_T3)?\\b|\\bLanePlanner\\.LANES\\b|\\bLANES_TIER3\\b" % "|".join(BANNED))
+	var rx := _pattern()
 	var out := []
 	for path in files:
 		var skip := false
@@ -50,24 +68,47 @@ func _offences() -> Array:
 				skip = true
 		if skip or path == "res://core/lane_planner.gd":
 			continue
+		visited.append(path)
 		var n := 0
 		for line in FileAccess.get_file_as_string(path).split("\n"):
 			n += 1
 			var code := _code(line)
-			if rx.search(code) != null and not _is_allowed(path, code):
-				out.append("%s:%d %s" % [path, n, line.strip_edges()])
+			if rx.search(code) != null and not (use_allow and _is_allowed(path, code)):
+				out.append("%s:%d" % [path, n])
 	return out
 
 func test_no_direct_read_of_the_tier_1_and_2_dictionaries() -> void:
-	assert_eq(_offences(), [])
+	var visited := []
+	assert_eq(_scan(true, visited), [])
+	assert_gt(visited.size(), 100, "the scan really walked the project")
 
-func test_the_scan_finds_a_planted_direct_read() -> void:
-	var rx := RegEx.new()
-	rx.compile("(MapLayout|layout)\\.(%s)(_T3)?\\b" % "|".join(BANNED))
+func test_with_the_allow_list_ignored_the_scan_finds_exactly_the_allow_listed_sites() -> void:
+	var found := _scan(false, [])
+	var by_file := {}
+	for f in found:
+		by_file[String(f).rsplit(":", true, 1)[0]] = true
+	var want := ALLOW.keys()
+	want.sort()
+	var got := by_file.keys()
+	got.sort()
+	assert_eq(got, want, "the allow-list names exactly the files with direct reads")
+
+func test_the_pattern_matches_direct_reads_and_nothing_else() -> void:
+	var rx := _pattern()
 	assert_not_null(rx.search("var p = MapLayout.LANE_PATHS[lane]"))
 	assert_not_null(rx.search("var p = MapLayout.TOWER_SPOTS_T3.tower_sw"))
+	assert_not_null(rx.search("MapLayout.YARD_TIER[id]"))
+	assert_not_null(rx.search("for l in LanePlanner.LANES:"))
 	assert_null(rx.search("var p = MapLayout.lane_path(lane)"))
 	assert_null(rx.search("var p = MapLayout.TIER_SIGNS[3]"), "TIER_SIGNS is the per-tier table, not the banned TIER_SIGN")
+
+func test_a_hash_inside_a_string_does_not_hide_a_read() -> void:
+	assert_not_null(_pattern().search(_code('var s = "#" + str(MapLayout.YARDS)')))
+	assert_null(_pattern().search(_code("var x = 1  # MapLayout.YARDS in a comment")))
+	assert_null(_pattern().search(_code("## MapLayout.YARDS")))
+
+func test_all_yards_lists_every_yard_in_yard_order() -> void:
+	assert_eq(MapLayout.all_yards(), ["west", "east", "front"])
 
 func test_the_allow_list_entries_are_still_needed() -> void:
 	for path in ALLOW:

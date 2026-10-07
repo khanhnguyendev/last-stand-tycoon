@@ -7,6 +7,7 @@ const TIER1_CHILDREN := ["EnemyPool", "SteakPool", "ProjectilePool", "FxPool", "
 	"CounterBody", "Pad_counter", "Pad_freezer", "GoldPile", "CloseUpSign", "TierSign", "Telegraph_west", "Telegraph_north",
 	"Telegraph_east", "GuardRoster", "FxField", "Reactions", "TierReveal"]
 const SW_NODES := ["Lane_sw", "Telegraph_sw", "Spot_tower_sw", "Spot_fence_sw"]
+const SW_STONES := 16  # 22 stones along the lane, 6 skipped near pads, the counter and the close-up sign
 
 var main: Main
 
@@ -35,6 +36,15 @@ func _names() -> Array:
 			out.append(String(c.name))
 	return out
 
+func _vertices(mesh: Mesh) -> PackedVector3Array:
+	return mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+
+func _has_vertex(verts: PackedVector3Array, v: Vector3) -> bool:
+	for p in verts:
+		if p.is_equal_approx(v):
+			return true
+	return false
+
 func _pay(id: String) -> void:
 	GameState.add_gold(GameState.next_level_cost(id))
 	GameState.pay_into_spot(id, GameState.next_level_cost(id))
@@ -45,11 +55,8 @@ func _sw_plan() -> Array:
 	return [w.duplicate(), w.duplicate(), w.duplicate()]
 
 func test_tier_1_scene_is_exactly_as_before() -> void:
-	var names := _names()
-	var want := TIER1_CHILDREN.duplicate()
-	names.sort()
-	want.sort()
-	assert_eq(names, want)
+	assert_eq(_names(), TIER1_CHILDREN, "same names in the same tree order")
+	assert_eq(main.world.get_child_count(), 41, "the 39 named children plus the light and the environment")
 	assert_eq(main.world.lanes.keys(), ["west", "north", "east"])
 	assert_eq(main.world.telegraph_markers.keys(), ["west", "north", "east"])
 	assert_eq(main.world.build_spots.keys(), ["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e"])
@@ -61,14 +68,14 @@ func test_tier_2_adds_only_the_yards_and_never_a_south_west_node() -> void:
 		assert_false(n in names, n)
 	var want := TIER1_CHILDREN.duplicate()
 	want.append_array(["YardStones", "Spot_tower_w", "Spot_tower_e"])
-	names.sort()
-	want.sort()
 	assert_eq(names, want)
+	assert_eq(main.world.get_child_count(), 44)
 	assert_eq(main.world.lanes.keys(), ["west", "north", "east"])
 	assert_eq(main.world.telegraph_markers.keys(), ["west", "north", "east"])
 
 func test_tier_3_builds_the_south_west_lane_marker_and_spots() -> void:
 	var stones_t1: int = main.world.edge_stones.multimesh.instance_count
+	assert_eq(stones_t1, 58, "tier 1: 58 edge stones")
 	var mesh_t1 := main.world.ground.mesh
 	GameState.debug_set_tier(2, 3)
 	assert_eq(main.world.edge_stones.multimesh.instance_count, stones_t1, "tier 2 keeps tier 1's stones")
@@ -76,16 +83,84 @@ func test_tier_3_builds_the_south_west_lane_marker_and_spots() -> void:
 	GameState.debug_set_tier(3, 5)
 	for n in SW_NODES:
 		assert_true(n in _names(), n)
+	var count: int = main.world.get_child_count()
+	assert_eq(count, 44 + 4, "tier 2's 44 plus Lane_sw, Telegraph_sw and the two spots")
+	main.world.rebuild_for_tier()
+	main.world.rebuild_for_tier()
+	main.world._sync_lanes()
+	main.world._sync_lanes()
+	assert_eq(main.world.get_child_count(), count, "repeating the rebuild or the lane sync adds nothing")
 	assert_eq(main.world.lanes.keys(), ["west", "north", "east", "sw"])
 	assert_same(main.world.lanes["west"], kept, "the tier-1 lanes are not rebuilt")
 	assert_eq(main.world.telegraph_markers.keys(), ["west", "north", "east", "sw"])
 	assert_true(main.world.build_spots["tower_sw"] is TowerSpot)
 	assert_true(main.world.build_spots["fence_sw"] is FenceSpot)
-	assert_eq(Vector2(main.world.lanes["sw"].entrance_position().x, main.world.lanes["sw"].entrance_position().z), MapLayout.lane_path("sw")[0])
-	assert_gt(main.world.edge_stones.multimesh.instance_count, stones_t1, "the south-west strip has edge stones")
+	var entrance: Vector3 = main.world.lanes["sw"].entrance_position()
+	assert_eq(Vector2(entrance.x, entrance.z), Vector2(-24, 11))
+	var stones_t3: int = main.world.edge_stones.multimesh.instance_count
+	assert_gt(stones_t3, stones_t1, "the south-west strip has edge stones")
+	assert_eq(stones_t3 - stones_t1, SW_STONES, "the south-west lane's stones, after the skips")
 	assert_ne(main.world.ground.mesh, mesh_t1)
 	assert_eq(main.world.ground.mesh, GroundArt.terrain_mesh(World.ground_rect(), MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(3)))
 	assert_eq(main.world.find_children("Ground", "MeshInstance3D", true, false).size(), 1, "still one ground draw")
+
+func test_the_south_west_strip_is_in_the_merged_ground_above_the_road() -> void:
+	var rect := World.ground_rect()
+	var yards := MapLayout.yards_for_tier(3)
+	var without := _vertices(GroundArt.terrain_mesh(rect, yards, ["west", "north", "east"]))
+	var with := _vertices(GroundArt.terrain_mesh(rect, yards, MapLayout.lanes_for_tier(3)))
+	# the sw path has 3 points and the strip builder emits 4 vertices per point (dark edge, dirt, dirt, dark edge): 12
+	assert_eq(with.size() - without.size(), 12)
+	# the strip's two outer-edge vertices at the entrance (-24, 11) run along +x, so the width is along z: 11 -+ 1.5; y = 0.02 + 0.005
+	assert_true(_has_vertex(with, Vector3(-24, 0.025, 9.5)), "outer edge, north side")
+	assert_true(_has_vertex(with, Vector3(-24, 0.025, 12.5)), "outer edge, south side")
+	assert_false(_has_vertex(without, Vector3(-24, 0.025, 9.5)))
+	# the road (z 11 +- 1, y 0.02) and the strip overlap: the strip is above it
+	assert_eq(GroundArt.ROAD_Y, 0.02)
+	assert_gt(LaneStrip.strip_y("sw"), GroundArt.ROAD_Y)
+	assert_eq(LaneStrip.strip_y("west"), 0.02, "the tier-1 strips keep their bytes")
+	assert_eq(LaneStrip.strip_y("north"), 0.02)
+	assert_eq(LaneStrip.strip_y("east"), 0.02)
+
+func test_tier_1_and_2_edge_stones_are_the_ones_captured_before_tier_3() -> void:
+	var all: Array[Transform3D] = []
+	for id in ["north", "west", "east"]:
+		all.append_array(LaneStrip.edge_transforms(MapLayout.lane_path(id), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, false))
+	var sx := 0.0
+	var sz := 0.0
+	for i in all.size():
+		sx += all[i].origin.x * (i + 1)
+		sz += all[i].origin.z * (i + 1)
+	assert_eq(all.size(), 58)
+	assert_almost_eq(sx, 4822.6163, 0.01)
+	assert_almost_eq(sz, -18337.741, 0.01)
+	assert_eq(LaneStrip.edge_multimesh(["west", "north", "east"]).instance_count, 58, "the draw order is north, west, east whatever the list order")
+	assert_eq(LaneStrip.edge_multimesh([]).instance_count, 58)
+
+func test_no_south_west_edge_stone_stands_on_a_pad_a_station_or_the_counter() -> void:
+	var stones: Array[Transform3D] = LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true)
+	assert_eq(stones.size(), SW_STONES)
+	assert_lt(stones.size(), LaneStrip.edge_transforms(MapLayout.lane_path("sw")).size(), "some stones were skipped")
+	var circles := []  # [centre, radius] from MapLayout alone
+	for id in MapLayout.BRANCH_PADS:
+		for c in MapLayout.BRANCH_PADS[id]:
+			circles.append([c, MapLayout.BRANCH_PAD_RADIUS])
+	for id in MapLayout.spots_for_tier(3):
+		circles.append([MapLayout.spot_position(id), MapLayout.BUILD_RADIUS])
+	for c in MapLayout.STATION_PADS.values():
+		circles.append([c, MapLayout.BUILD_RADIUS])
+	for c in [MapLayout.SIGN, MapLayout.FREEZER_ZONE, MapLayout.COUNTER_DROP, MapLayout.GOLD_PILE, MapLayout.HOME, MapLayout.tier_sign(3)]:
+		circles.append([c, MapLayout.STATION_RADIUS])
+	for c in MapLayout.queue_slots(3):
+		circles.append([c, 0.5])
+	var rects := [Rect2(MapLayout.COUNTER - MapLayout.COUNTER_SIZE * 0.5, MapLayout.COUNTER_SIZE),
+		Rect2(MapLayout.FREEZER - MapLayout.FREEZER_SIZE * 0.5, MapLayout.FREEZER_SIZE)]
+	for t in stones:
+		var p := Vector2(t.origin.x, t.origin.z)
+		for c in circles:
+			assert_gt(p.distance_to(c[0]), float(c[1]) + LaneStrip.STONE_RADIUS, "stone %s clear of %s" % [p, c[0]])
+		for r in rects:
+			assert_false((r as Rect2).grow(LaneStrip.STONE_RADIUS).has_point(p), "stone %s clear of %s" % [p, r])
 
 func test_new_game_removes_every_south_west_node() -> void:
 	var stones_t1: int = main.world.edge_stones.multimesh.instance_count
@@ -109,16 +184,52 @@ func test_the_ground_mesh_below_tier_3_does_not_depend_on_the_lane_argument() ->
 	var t3 := GroundArt.terrain_mesh(rect, MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(3))
 	assert_ne(t3, GroundArt.terrain_mesh(rect, MapLayout.yards_for_tier(3)), "the lane set is part of the cache key")
 
-func test_the_warm_up_prebuilds_the_top_tier_lanes() -> void:
-	# the top tier is 3 in this test (tier_costs gained a third entry)
+func _erase_tier_caches() -> void:
+	for t in [2, 3]:
+		var yards := MapLayout.yards_for_tier(t)
+		var rects: Array[Rect2] = []
+		for id in yards:
+			rects.append(MapLayout.yard_rect(id))
+		GroundArt._cache.erase(GroundArt._terrain_key(World.ground_rect(), yards, MapLayout.lanes_for_tier(t)))
+		Props._merged.erase(Props._key(rects))
+
+func test_the_warm_up_prebuilds_every_tier_up_to_the_top() -> void:
+	# the top tier is 3 in this test (tier_costs gained a third entry): the 1 -> 2 tier-up needs its mesh too
+	_erase_tier_caches()
+	var rect := World.ground_rect()
+	assert_false(GroundArt.is_cached(rect, MapLayout.yards_for_tier(2), MapLayout.lanes_for_tier(2)))
+	assert_false(GroundArt.is_cached(rect, MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(3)))
 	Warmup._prebuild_tier_caches()
-	assert_true(GroundArt.is_cached(World.ground_rect(), MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(3)))
+	assert_true(GroundArt.is_cached(rect, MapLayout.yards_for_tier(2), MapLayout.lanes_for_tier(2)), "tier 2")
+	assert_true(GroundArt.is_cached(rect, MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(3)), "tier 3")
+
+func test_the_warm_up_builds_only_tier_2_while_the_top_tier_is_2() -> void:
+	Balance.data.tiers.tier_costs = [0, 500]
+	_erase_tier_caches()
+	Warmup._prebuild_tier_caches()
+	var rect := World.ground_rect()
+	assert_true(GroundArt.is_cached(rect, ["west", "east"]), "the tier-2 key is today's literal key")
+	assert_false(GroundArt.is_cached(rect, MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(3)))
+
+func test_a_save_with_a_south_west_lane_validates_at_tier_3_only() -> void:
+	GameState.day = 9  # test-only setup: tier_day may not exceed day
+	GameState.debug_set_tier(3, 5)
+	var s3 := GameState.to_dict()
+	s3.lane_plan[0].main = "sw"
+	s3.lane_plan[0].side = "north"
+	assert_eq(SaveCodec.validate(s3, Balance.data), "", "tier 3: the south-west lane is a lane")
+	GameState.new_game(1)
+	GameState.day = 9
+	GameState.debug_set_tier(2, 5)
+	var s2 := GameState.to_dict()
+	s2.lane_plan[0].main = "sw"
+	assert_eq(SaveCodec.validate(s2, Balance.data), "lane", "tier 2: it is not")
 
 func test_a_boar_walks_the_south_west_lane_into_its_zone_and_hits_the_diner() -> void:
 	GameState.debug_set_tier(3, 5)
 	var b := main.world.wave_director.debug_spawn("sw")
 	assert_eq(b.lane, "sw")
-	assert_almost_eq(b.path_length(), Geometry.path_length(MapLayout.lane_path("sw")), 1e-4)
+	assert_almost_eq(b.path_length(), 26.35, 0.01)  # 20.5 + 5.85
 	var diner_hp := GameState.diner_hp
 	var guard := 0
 	while not b.at_path_end() and guard < 60 * 60:
@@ -162,9 +273,39 @@ func test_the_south_west_marker_shows_a_threat_for_a_south_west_plan() -> void:
 	m.refresh()
 	assert_true(m.visible)
 	assert_gt(m.target_scale, 0.0)
-	assert_eq(Vector2(m.position.x, m.position.z), MapLayout.telegraph_spot("sw"))
+	assert_almost_eq(m.position.x, -3.455, 0.01)  # 5.5 m back from the end: 0.348 m into the last segment (-3.5, 11) -> (-2.75, 5.2)
+	assert_almost_eq(m.position.z, 10.655, 0.01)
 	assert_false((main.world.telegraph_markers["north"] as TelegraphMarker).visible, "no threat on north")
 	EventBus.phase_changed.emit(Phase.NIGHT, GameState.day)
+
+func test_a_plan_that_does_not_use_the_south_west_lane_hides_its_marker() -> void:
+	GameState.debug_set_tier(3, 5)
+	var plan := _sw_plan()
+	for w in plan:
+		w.main = "north"
+	GameState.lane_plan = plan
+	EventBus.phase_changed.emit(Phase.DAY, GameState.day)
+	var m: TelegraphMarker = main.world.telegraph_markers["sw"]
+	m.refresh()
+	assert_false(m.visible)
+	assert_true((main.world.telegraph_markers["north"] as TelegraphMarker).visible)
+	EventBus.phase_changed.emit(Phase.NIGHT, GameState.day)
+
+func test_a_marker_made_mid_day_shows_at_once() -> void:
+	GameState.lane_plan = _sw_plan()
+	EventBus.phase_changed.emit(Phase.DAY, GameState.day)
+	GameState.debug_set_tier(3, 5)  # the sw marker is created now, after the day began
+	GameState.lane_plan = _sw_plan()
+	main.world.telegraph_markers["sw"].refresh()
+	assert_true((main.world.telegraph_markers["sw"] as TelegraphMarker).visible)
+	EventBus.phase_changed.emit(Phase.NIGHT, GameState.day)
+
+func test_the_south_west_fence_faces_across_its_lane() -> void:
+	GameState.debug_set_tier(3, 5)
+	_pay("fence_sw")
+	var f: FenceSpot = main.world.build_spots["fence_sw"]
+	# the last segment runs (-3.5, 11) -> (-2.75, 5.2): tangent (0.1283, -0.9917); yaw = atan2(x, z) = 172.6 degrees
+	assert_almost_eq(rad_to_deg(f.visual.rotation.y), 172.6, 0.3)
 
 func test_a_brute_spawns_from_a_tier_3_schedule_and_walks_the_south_west_lane() -> void:
 	GameState.debug_set_tier(3, 5)
@@ -191,3 +332,17 @@ func test_a_brute_spawns_from_a_tier_3_schedule_and_walks_the_south_west_lane() 
 		await _ticks(30)
 		assert_gt(found.dist, d, "it walks")
 	wd.stop()
+
+func test_a_bot_counts_the_goals_its_graph_cannot_reach_at_tier_3() -> void:
+	var bot := NaiveBot.new()
+	main.add_child(bot)
+	bot.setup(main)
+	var wd := main.world.wave_director
+	wd.debug_spawn("north")
+	bot._night(1.0)
+	assert_eq(bot.skipped_goals, 0, "tier 1: every lane has a zone node")
+	wd.debug_kill_all()
+	GameState.debug_set_tier(3, 5)
+	wd.debug_spawn("sw")
+	bot._night(1.0)
+	assert_eq(bot.skipped_goals, 1, "tier 3: the default graph has no zone_sw; the goal is dropped and counted")
