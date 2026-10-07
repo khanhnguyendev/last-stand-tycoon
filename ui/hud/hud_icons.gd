@@ -15,10 +15,6 @@ const MOON_LIT := Color.WHITE
 ## The lane edge arrows (S5 Task 9): the guide_arrow cell, tinted enemy_red, in a square of Balance.ui.arrow_px centred 2 px below the
 ## holder's origin (the old polygon spanned -16..20), tip down at rotation 0.
 const ARROW_CENTER := Vector2(0, 2)
-## The brute glyph on a heavy arrow (E5 tier 3 Task 14): this fraction of arrow_px.
-const HEAVY_FRAC := 0.6
-## and sits this fraction of arrow_px toward the arrow's tail, so the tip still points.
-const HEAVY_LIFT := 0.16
 
 ## The diner-bar slot; the heart sits left of it, centred on its height.
 var heart_anchor: Control
@@ -102,7 +98,26 @@ func _draw() -> void:
 			continue
 		draw_set_transform(a.position, a.rotation, a.scale)
 		draw_texture_rect_region(atlas, IconAtlas.shape_dest(Rect2(ARROW_CENTER - Vector2.ONE * px * 0.5, Vector2.ONE * px)), cell, red)
-		if a.heavy:  # the heavy mark: the brute head with its ink outline, upright (the arrow may be rotated), y flipped for the screen
-			draw_set_transform(a.position + (ARROW_CENTER + Vector2(0, -px * HEAVY_LIFT)).rotated(a.rotation) * a.scale, 0.0, a.scale * Vector2(px, -px) * HEAVY_FRAC)
-			draw_mesh(LaneIcons.mesh(&"brute"), null)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
+	# The heavy marks (E5 tier 3 Task 14): the brute head (its own 64 px texture: a 17th atlas cell would pass the 512 px texture rule), beside the arrow of a lane that carries a brute.
+	heavy_drawn.clear()
+	for a in arrow_nodes:
+		if a.visible and a.heavy:
+			_draw_mark(heavy_rect(a))
+
+## One brute mark onto the canvas; the record and the draw call live together, so a test that sees the record saw the draw.
+func _draw_mark(r: Rect2) -> void:
+	draw_texture_rect(IconAtlas.brute_mark(), r, false, Palette.color(&"enemy_maroon"))
+	heavy_drawn.append(r)
+
+## The marks the last _draw issued (local rects); a testable record of what reached the canvas.
+var heavy_drawn: Array[Rect2] = []
+
+## Where the brute mark of `a` sits (HudIcons-local): behind the arrow's tail, never on it, so the tip stays clear; it keeps
+## its size (arrow_heavy_px, at least arrow_heavy_min_px) at the side-arrow scale too.
+func heavy_rect(a: HudArrow) -> Rect2:
+	var ui := Balance.ui
+	var sz := maxf(ui.arrow_heavy_px, ui.arrow_heavy_min_px)
+	var tail_y := (ARROW_CENTER.y - ui.arrow_px * 0.5) * a.scale.y  # the arrow's tail edge, in its own frame
+	var c := a.position + Vector2(0.0, tail_y - ui.arrow_heavy_gap_px - sz * 0.5).rotated(a.rotation)
+	return Rect2(c - Vector2.ONE * sz * 0.5, Vector2.ONE * sz)

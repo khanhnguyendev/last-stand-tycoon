@@ -43,7 +43,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	if "--atlas-only" in OS.get_cmdline_user_args():
-		quit(0 if _write_atlas() else 1)
+		quit(0 if (_write_atlas() and _write_brute_mark()) else 1)
 		return
 	var ui: UiTuning = load("res://balance/ui_tuning.tres")
 	HERO = load("res://art/characters/hero_visual.tscn")
@@ -78,7 +78,7 @@ func _run() -> void:
 
 	for s in _subjects():
 		await _render(s, _palette_for(s.name))
-	if not _write_atlas():
+	if not _write_atlas() or not _write_brute_mark():
 		_failed = true
 	quit(1 if _failed else 0)
 
@@ -107,6 +107,38 @@ func _write_atlas() -> bool:
 		push_error("save atlas: %s" % error_string(err))
 		return false
 	print("RENDERED ", IconAtlas.PATH)
+	return true
+
+## art/icons/hud/brute_mark.png (E5 tier 3 Task 14): the brute head of LaneIcons at 64 px, remapped to apron_white and ink (tinted enemy_maroon at draw time).
+## It is its own texture and not an atlas cell: a 17th cell would take the atlas past the 512 px texture rule (ART_BIBLE).
+func _write_brute_mark() -> bool:
+	var n := 64
+	var out := Image.create_empty(n, n, false, Image.FORMAT_RGBA8)
+	for y in n:
+		for x in n:
+			var a := 0.0
+			var rgb := Vector3.ZERO
+			for sy in 4:
+				for sx in 4:
+					var p := Vector2(float(x) + (float(sx) + 0.5) / 4.0, float(y) + (float(sy) + 0.5) / 4.0) - Vector2(n, n) * 0.5
+					var c := LaneIcons.sample(&"brute", Vector2(p.x, -p.y) / (float(n) * 0.5) * 0.57)
+					# R4: no enemy colour in an icon file (the heart is the one exception), so the face is baked apron_white and tinted
+					# enemy_maroon at draw time, as the guide arrow is tinted; only the ink brow and outline are baked as they are.
+					if c.a > 0.0 and not c.is_equal_approx(Palette.color(&"ink")):
+						c = Palette.color(&"apron_white")
+					if c.a > 0.0:
+						a += 1.0
+						rgb += Vector3(c.r, c.g, c.b)
+			if a > 0.0:
+				rgb /= a
+				out.set_pixel(x, y, Color(rgb.x, rgb.y, rgb.z, a / 16.0))
+	out = PaletteMath.remap_image(out, _palette_of([&"apron_white", &"ink"]), {})
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR + "hud"))
+	var err := out.save_png(ProjectSettings.globalize_path(IconAtlas.BRUTE_MARK_PATH))
+	if err != OK:
+		push_error("save brute mark: %s" % error_string(err))
+		return false
+	print("RENDERED ", IconAtlas.BRUTE_MARK_PATH)
 	return true
 
 ## A solid shape cell, analytic with 4x4 supersampling. "disc": an ink circle. "backing": the theme's Panel box (diner_cream

@@ -26,7 +26,6 @@ func setup(id: String) -> void:
 	position = MapLayout.to3(MapLayout.telegraph_spot(id))
 	var visual := FLAG_SCENE.instantiate()  # root "Visual"; the flag mesh carries the enemy_red override (R4)
 	add_child(visual)
-	_flag_h = _mesh_height(visual)
 	_build_row()
 	EventBus.phase_changed.connect(_on_phase_changed)
 	EventBus.state_restored.connect(refresh)
@@ -58,14 +57,6 @@ func refresh() -> void:
 	if target_scale > 0.0:
 		scale = Vector3.ONE * target_scale
 	_fill_row(LanePlanner.composition_by_lane(GameState.lane_plan, GameState.tier).get(lane_id, {}))
-
-var _flag_h := 1.0
-
-static func _mesh_height(n: Node) -> float:
-	var h := 0.0
-	for m in n.find_children("*", "MeshInstance3D", true, false):
-		h = maxf(h, ((m as MeshInstance3D).mesh.get_aabb().end.y) * (m as Node3D).scale.y)
-	return h
 
 func _build_row() -> void:
 	row = Node3D.new()
@@ -99,7 +90,28 @@ func shown() -> Dictionary:
 		out[kind] = 1 if kind == BOSS else int((it.num as Label3D).text)
 	return out
 
-## Lays out the kinds above 0 left to right, centred on the marker, above the flag.
+## Where each lane's row is anchored (ground x, z), chosen by a search over the whole tier-3 build (every cost label and level
+## pip at every level, the hero on every spot, pad, zone and HOME, three aspects; tests/unit/test_telegraph.gd re-checks it):
+## the three northern lanes share the one band at z = -15, past the towers' tall labels and still on screen from HOME, each
+## growing inward from where its lane crosses it (the west and east ends are clamped to x = -11 and 11 so a full row stays
+## on screen); the south-west lane's row sits on the open ground south of its road, off the queue, the sign and HOME.
+const ROW_ANCHORS := {
+	"west": Vector2(-11.0, -15.0), "north": Vector2(0.0, -15.0), "east": Vector2(11.0, -15.0), "sw": Vector2(-4.5, 13.0),
+}
+
+## The row's anchor: its ground point at the fixed row height (no threat term).
+func row_anchor() -> Vector3:
+	var p: Vector2 = ROW_ANCHORS[lane_id]
+	return Vector3(p.x, Balance.ui.telegraph_row_height_m, p.y)
+
+## -1 grows toward +x (west side), +1 toward -x (east side), 0 centred (the north lane): always inward, so the row stays on screen.
+func row_align() -> int:
+	var x := row_anchor().x
+	if absf(x) < 1.0:
+		return 0
+	return -1 if x < 0.0 else 1
+
+## Lays out the kinds above 0 left to right from the anchor, inward, at the fixed height.
 func _fill_row(comp: Dictionary) -> void:
 	if row == null:
 		return
@@ -126,10 +138,14 @@ func _fill_row(comp: Dictionary) -> void:
 		widths.append(w)
 		total += w
 	total += gap * maxf(float(kinds.size() - 1), 0.0)
-	var x := -total * 0.5
-	var y := _flag_h * maxf(target_scale, 0.0) + ui.telegraph_row_lift_m + icon_m * 0.5
-	row.position = position + Vector3(0, y, 0)
+	row.position = row_anchor()
 	row.scale = Vector3.ONE
+	var x := 0.0
+	match row_align():
+		0:
+			x = -total * 0.5
+		1:
+			x = -total
 	for i in kinds.size():
 		var it: Dictionary = items[kinds[i]]
 		var icon := it.icon as Node3D
