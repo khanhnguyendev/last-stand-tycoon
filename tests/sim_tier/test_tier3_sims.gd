@@ -5,8 +5,10 @@ extends GutTest
 ## Wall-clock prints are information only, never asserted. Reads only signals and GameState (D-113), plus the pool `grew` signals.
 
 ## Sim 8: slice 1's tier2_night1 played by the tier bot, measured before this task's code existed on this branch's base (7484180):
-## 5889 physics ticks from the start of the night to dawn (the same number slice 1's golden entry records for its sim 3), diner HP 119 of 300.
-const PINNED_TIER2_NIGHT := {"diner_hp": 119.0, "ticks": 5889}
+## diner HP 119 of 300 at dawn (identical to slice 1's sim 3). Ticks: 5888 counted from after the fixture load to dawn by this sim's own
+## Engine.get_physics_frames() delta; slice 1's golden entry for sim 3 reads 5889 because it counts the whole test (one more frame). The
+## first version of this pin copied 5889 and was red at its own commit (dfaf4f2): 5888 is stable across runs and across the tier-3 ruling.
+const PINNED_TIER2_NIGHT := {"diner_hp": 119.0, "ticks": 5888}
 
 var h: SimHarness
 var _t0 := 0
@@ -155,6 +157,19 @@ func test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries() -> void:
 	assert_eq(GameState.tier, 3)
 	assert_eq(GameState.tier_day, GameState.day, "the first night of the tier")
 	assert_eq(_spot_levels(["tower_sw", "fence_sw"]), [0, 0], "the new spots are unbuilt (precondition)")
+	# Sim 9 (the ruling), a plan-level check inside this sim so it adds no golden entry: a tier-3 night at the full brute ramp
+	# (tier_day + brute_ramp_days or later) has brutes on the main lane only, exactly brute_cap_main per wave (read from balance, plus
+	# the literal 1), and none on any side lane, on every seed. Pure computation: it moves no tick of this sim.
+	var tb3 := Balance.data.tiers
+	assert_eq(tb3.brute_cap_main[3], 1, "the literal: one brute per wave on the main lane")
+	assert_eq(tb3.brute_cap_side[3], 0, "the literal: no side-lane brutes")
+	for sd in [20260930, 1, 2, 3, 11, 777]:
+		for day in [GameState.tier_day + int(tb3.brute_ramp_days[3]), GameState.tier_day + 10]:
+			var full := LanePlanner.plan(sd, day, Balance.data.wave, 3, GameState.tier_day, tb3)
+			assert_eq(full.size(), 3)
+			for w in full.size():
+				assert_eq(int(full[w].brute_side), 0, "seed %d day %d wave %d: no side-lane brute" % [sd, day, w])
+				assert_eq(int(full[w].brute_main), int(tb3.brute_cap_main[3]), "seed %d day %d wave %d: main-lane brutes at the cap" % [sd, day, w])
 	var plan_brutes := 0
 	for w in GameState.lane_plan:
 		plan_brutes += int(w.get("brute_main", 0)) + int(w.get("brute_side", 0))
@@ -174,7 +189,10 @@ func test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries() -> void:
 
 # ---- sim 6: the tier-3 cap, full build, every policy ----------------------------------------------------------------
 
-func test_6_every_branch_policy_holds_the_tier3_cap_and_threat_ends_with_the_most_diner_hp() -> void:
+## RULING (main session, after real-play tuning): each of the four policies holds the cap night with 0 retries and no pool growth. The old
+## "threat >= every other policy" ordering is NOT asserted here: one night is too noisy to order policies. Task 24's multi-seed policy report
+## carries the ordering and the spec routes a failure to the review queue ("branches don't reward reading the telegraph").
+func test_6_every_branch_policy_holds_the_tier3_cap_with_0_retries() -> void:
 	var hp := {}
 	var lines: Array = []
 	var comp_line := ""
@@ -189,6 +207,8 @@ func test_6_every_branch_policy_holds_the_tier3_cap_and_threat_ends_with_the_mos
 		(h.bot as TierBot).policy = policy
 		assert_eq(GameState.tier, 3)
 		assert_eq(GameState.pressure(), Balance.data.tiers.tier_cap[3], "%s: at the tier-3 cap" % policy)
+		assert_eq(GameState.pressure(), 12, "%s: the ruling's cap, as a literal (the saved plan is fixed, so the balance alone would not move this sim)" % policy)
+		assert_almost_eq(float(GameState.lane_plan[0].hp_mult), WaveMath.hp_mult(12, 0, Balance.data.wave), 1e-9, "%s: the plan is the pressure-12 plan" % policy)
 		var branched := 0
 		for id in MapLayout.spots_for_tier(3):
 			assert_eq(int(GameState.buildings[id].level), 3, "%s: %s is at max level" % [policy, id])
@@ -202,18 +222,15 @@ func test_6_every_branch_policy_holds_the_tier3_cap_and_threat_ends_with_the_mos
 		var n := await h.run_night()
 		EventBus.diner_damaged.disconnect(_track_hp)
 		hp[policy] = hp_last
-		lines.append("%s: %s dawn HP %.1f of %.0f" % [policy, n, hp_last, Balance.data.build.diner_max_hp])
+		lines.append("%s: %s dawn HP %.1f of %.0f = %.3f" % [policy, n, hp_last, Balance.data.build.diner_max_hp, hp_last / Balance.data.build.diner_max_hp])
 		assert_false(n.failed, "%s: no loss" % policy)
 		assert_true(n.cleared, "%s holds the cap with 0 retries" % policy)
 		assert_eq(GameState.night_fails, 0, "%s: 0 retries" % policy)
 		assert_eq(growth, [], "%s: no pool grew" % policy)
 		assert_eq(h.bot.stuck_count, 0, "%s: never stuck" % policy)
 		assert_eq(h.bot.skipped_goals, 0, "%s: no skipped goal" % policy)
-	gut.p("tier-3 cap, dawn diner HP: " + " | ".join(lines))
+	gut.p("tier-3 cap, dawn diner HP (fraction of max; the ordering is not asserted): " + " | ".join(lines))
 	gut.p("plan composition (lane -> kinds): " + comp_line)
-	for p in TierBot.POLICIES:
-		if p != "threat":
-			assert_gte(hp["threat"], hp[p], "threat's dawn HP %.1f >= %s's %.1f" % [hp["threat"], p, hp[p]])
 
 # ---- sim 7: respawn -------------------------------------------------------------------------------------------------
 
