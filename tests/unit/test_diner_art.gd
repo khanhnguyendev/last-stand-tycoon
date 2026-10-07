@@ -171,7 +171,7 @@ func test_tier2_diner_keeps_the_footprint_and_adds_the_flanks() -> void:
 	var t2: ArrayMesh = load("res://art/env/baked/diner_t2.res")
 	var a1 := t1.get_aabb()
 	var a2 := t2.get_aabb()
-	assert_between(a2.size.y, a1.size.y - 0.01, a1.size.y + 0.2, "same height class: the parts stay under tier 1's sign plank (E5 slice 2 Task 1, ruling A; unchanged)")
+	assert_between(a2.size.y, a1.size.y - 0.01, a1.size.y + 0.2, "same height class: the parts stay under tier 1's sign plank (E5 slice 2 Task 1, ruling A; was +-0.3 around equal, now a range)")
 	assert_gt(a2.size.x, a1.size.x + 1.0, "the terraces widen the look")
 	assert_lte(a2.size.x, 11.3, "but stay inside the yards' inner edges")
 	assert_lte(_triangles(t2), ArtBudgets.budget_for("res://art/env/diner"))
@@ -320,6 +320,7 @@ const DinerArtT2 := preload("res://art/env/diner_art_t2.gd")
 const ASPECTS := [9.0 / 21.0, 9.0 / 16.0, 16.0 / 9.0, 21.0 / 9.0]
 ## The cap's thickness: the Archer's feet stand on 3.0 + CAP_THICKNESS at most (the tool's box 0 is 0.03 thick).
 const CAP_THICKNESS := 0.03
+const ROOF_CAP_TOP := MapLayout.DINER_HEIGHT + CAP_THICKNESS
 
 func _color_at(mesh: ArrayMesh, s: int, uv: Vector2) -> Color:
 	var img := ((mesh.surface_get_material(s) as BaseMaterial3D).albedo_texture as Texture2D).get_image()
@@ -346,7 +347,8 @@ func test_tier2_adds_nothing_outside_the_footprint_above_terrace_height() -> voi
 		assert_lte(absf(v.x), 4.0 + 1e-3, "added vertex %s overhangs in x" % v)
 		assert_lte(absf(v.z), 4.0 + 1e-3, "added vertex %s overhangs in z" % v)
 	assert_gt(checked, 0)
-	assert_gte(added, 150, "the roof cap, chimney and board boxes are new vertices")
+	# 8 tool boxes x 24 vertices = 192, all above terrace height; 12 of them coincide exactly with a tier-1 vertex (so are not "added"): 180.
+	assert_eq(added, 180, "the roof cap, chimney and board boxes are new vertices (measured: 180)")
 
 ## Ruling A (fix round 1): the parts sit low in the middle and south of the roof (the sweeps below pick the heights), so
 ## they top out at 4.6 (the chimney cap), BELOW tier 1's own sign plank (5.1). The silhouette gain is the roof, the stack and
@@ -397,7 +399,7 @@ func test_tier2_roof_is_a_new_palette_colour() -> void:
 		var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
 		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
 		for i in v.size():
-			if absf(v[i].y - (MapLayout.DINER_HEIGHT + CAP_THICKNESS)) < 1e-3:
+			if absf(v[i].y - ROOF_CAP_TOP) < 1e-3:
 				cap += 1
 				var c := _color_at(t2, s, uv[i])
 				assert_lt(absf(c.r - want.r) + absf(c.g - want.g) + absf(c.b - want.b), 0.03, "roof cap vertex %s samples %s, not wood" % [v[i], c])
@@ -407,7 +409,7 @@ func test_tier2_roof_is_a_new_palette_colour() -> void:
 			var b := v[idx[t * 3 + 1]]
 			var d := v[idx[t * 3 + 2]]
 			var n := (b - a).cross(d - a)
-			if n.y < 0.0 and absf(a.y - 3.03) < 1e-3 and absf(b.y - 3.03) < 1e-3 and absf(d.y - 3.03) < 1e-3:
+			if n.y < 0.0 and absf(a.y - ROOF_CAP_TOP) < 1e-3 and absf(b.y - ROOF_CAP_TOP) < 1e-3 and absf(d.y - ROOF_CAP_TOP) < 1e-3:
 				var c := _color_at(t2, s, uv[idx[t * 3]])
 				if absf(c.r - want.r) + absf(c.g - want.g) + absf(c.b - want.b) < 0.03:
 					area += n.length() * 0.5
@@ -490,15 +492,21 @@ func test_baked_roof_parts_match_the_tool_box_list() -> void:
 
 # ---- camera sweeps (ruling A, fix round 1): nothing tier 2 adds hides what tier 1 does not already hide ----
 
+## FOCUS_MIN..FOCUS_MAX every `step`, with the max edge always included (for a step that does not divide the range).
+func _focus_axis(lo: float, hi: float, step: float) -> Array:
+	var out := []
+	var v := lo
+	while v < hi - 1e-6:
+		out.append(v)
+		v += step
+	out.append(hi)
+	return out
+
 func _foci(step: float) -> Array:
 	var out := []
-	var x := CameraMath.FOCUS_MIN.x
-	while x <= CameraMath.FOCUS_MAX.x + 1e-6:
-		var z := CameraMath.FOCUS_MIN.y
-		while z <= CameraMath.FOCUS_MAX.y + 1e-6:
+	for x in _focus_axis(CameraMath.FOCUS_MIN.x, CameraMath.FOCUS_MAX.x, step):
+		for z in _focus_axis(CameraMath.FOCUS_MIN.y, CameraMath.FOCUS_MAX.y, step):
 			out.append(Vector2(x, z))
-			z += step
-		x += step
 	return out
 
 static func _blocked(boxes: Array, from: Vector3, to: Vector3) -> bool:
@@ -543,6 +551,8 @@ func test_added_roof_parts_never_hide_the_archer() -> void:
 	var bad := _new_occlusions(DinerArtT2.ADDED_BOXES, _archer_points(), 1.0, [])
 	gut.p("archer sweep: %d foci x 4 aspects x 3 points, %.1f s" % [_foci(1.0).size(), Time.get_unix_time_from_system() - t0])
 	assert_eq(bad.size(), 0, "the added parts hide the Archer: %s" % [bad])
+	# positive control: the first version's mid-roof board hides the Archer, so this sweep can fail
+	assert_gt(_new_occlusions([AABB(Vector3(-1.5, 3, -1.3), Vector3(3, 2.4, 0.4))], _archer_points(), 1.0, []).size(), 0, "the sweep detects a bad board")
 
 func _ground_ring(heights: Array) -> Array:
 	var pts := []
@@ -565,6 +575,8 @@ func test_added_roof_parts_hide_no_new_ground() -> void:
 	var bad := _new_occlusions(DinerArtT2.ADDED_BOXES, pts, 2.0, _tier1_boxes())
 	gut.p("ground sweep: %d foci x 4 aspects x %d points, %.1f s" % [_foci(2.0).size(), pts.size(), Time.get_unix_time_from_system() - t0])
 	assert_eq(bad.size(), 0, "the added parts hide ground that tier 1 leaves visible: %s" % [bad])
+	# positive control: the first version's 6.1 m north-west chimney hides ground tier 1 leaves visible
+	assert_gt(_new_occlusions([AABB(Vector3(-3.475, 3, -3.475), Vector3(0.95, 3.1, 0.95))], pts, 2.0, _tier1_boxes()).size(), 0, "the sweep detects a bad chimney")
 
 ## The tower pads (tier-3 Task 19 reuses this with its own added boxes): pad centres at y 0 and 0.5, 1 m focus grid.
 func test_added_roof_parts_never_hide_the_tower_pads() -> void:
@@ -575,4 +587,5 @@ func test_added_roof_parts_never_hide_the_tower_pads() -> void:
 			pts.append(MapLayout.to3(xz, y))
 	var bad := _new_occlusions(DinerArtT2.ADDED_BOXES, pts, 1.0, _tier1_boxes())
 	assert_eq(bad.size(), 0, "the added parts hide a tower pad that tier 1 leaves visible: %s" % [bad])
+	assert_gt(_new_occlusions([AABB(Vector3(-3.475, 3, -3.475), Vector3(0.95, 3.1, 0.95))], pts, 1.0, _tier1_boxes()).size(), 0, "the sweep detects a bad chimney")
 

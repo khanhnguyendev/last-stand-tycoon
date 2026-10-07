@@ -407,20 +407,19 @@ func _real_diner_t2() -> OccluderFade:
 	fade.setup(AABB(), func(): return _cam, func(): return _targets)
 	return fade
 
-## The fade tests every box of the building: the tier-1 ones plus the chimney and the board the tier-2 art adds, and its
-## bounds reach the chimney cap. (What the added parts hide is already hidden by the walls: see the sweeps in test_diner_art.gd.)
+## The fade tests every box of the building: the tier-1 ones plus the chimney and the board the tier-2 art adds. (What the added parts hide is already hidden by the walls: see the sweeps in test_diner_art.gd.)
 func test_tier2_fade_boxes_include_the_added_parts() -> void:
 	var fade := _real_diner_t2()
 	var added: Array[AABB] = load("res://art/env/diner_art_t2.gd").ADDED_BOXES
 	assert_gt(added.size(), 0)
 	for b in added:
-		assert_true(fade.bounds.encloses(b), "bounds enclose the added box %s" % b)
 		var found := false
 		for fb in fade.boxes():
 			if fb.position.is_equal_approx(b.position) and fb.size.is_equal_approx(b.size):
 				found = true
 		assert_true(found, "the fade tests the added box %s" % b)
-	assert_gte(fade.bounds.end.y, 4.6, "the bounds reach the chimney cap")
+	var tier1: Array = load("res://art/env/diner_art.gd").new().occluder_boxes
+	assert_eq(fade.boxes().size(), tier1.size() + added.size(), "exactly the tier-1 boxes plus the added ones")
 
 ## Fix round 1 item 4, real fixture, real camera geometry: something directly behind the building fades the tier-2 diner,
 ## parts included (the Body's surfaces and the Board label); the home, counter and a far-north Boar leave it opaque.

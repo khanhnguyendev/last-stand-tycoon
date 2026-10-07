@@ -4,7 +4,7 @@ extends SceneTree
 ## docs/ART_BIBLE.md roles: no gold, no steak_brown on the building):
 ##   - roof cap: a thin wood slab laid on the flat roof out to the parapet's inner edge (3.0 to 3.03: the Archer's
 ##     perch stays at 3.0),
-##   - chimney: a stone stack with a dark steel band and cap a little west of the roof's middle (a corner stack or a taller one hid the yards' ground or the Archer at wide aspects),
+##   - chimney: a stone stack with a wood_dark band and cap a little west of the roof's middle (a corner stack or a taller one hid the yards' ground or the Archer at wide aspects),
 ##   - sign board: a wood plate with a diner_cream face on two short posts in the south half of the roof.
 ## The camera looks north from the south, so a raised part hides what lies north of it: both stand in the south half
 ## and low enough that their "shadow" ends on the roof (tests/unit/test_diner_art.gd sweeps the camera to prove they hide
@@ -15,10 +15,10 @@ const ATLAS := "res://art/palette/atlas/kenney-fantasy-town__colormap.png"
 const BOXES := [
 	[&"wood", 0.0, 3.0, 0.0, 7.7, 0.03, 7.7],            # 0 roof cap, to the parapet's inner edge (3.85)
 	[&"stone", -1.0, 3.0, 0.0, 0.7, 1.4, 0.7],           # 1 chimney stack, top at 4.4, mid-roof
-	[&"steel_dark", -1.0, 3.9, 0.0, 0.84, 0.15, 0.84],   # 2 chimney band
-	[&"steel_dark", -1.0, 4.4, 0.0, 0.95, 0.2, 0.95],    # 3 chimney cap, top at 4.6
-	[&"wood_dark", -1.1, 3.0, 1.8, 0.2, 0.6, 0.2],       # 4 sign post
-	[&"wood_dark", 1.1, 3.0, 1.8, 0.2, 0.6, 0.2],        # 5 sign post
+	[&"wood_dark", -1.0, 3.9, 0.0, 0.84, 0.15, 0.84],    # 2 chimney band
+	[&"wood_dark", -1.0, 4.4, 0.0, 0.95, 0.2, 0.95],     # 3 chimney cap, top at 4.6
+	[&"wood_dark", -1.1, 3.0, 1.8, 0.2, 0.5, 0.2],       # 4 sign post (ends where the plate begins)
+	[&"wood_dark", 1.1, 3.0, 1.8, 0.2, 0.5, 0.2],        # 5 sign post
 	[&"wood", 0.0, 3.5, 1.8, 3.0, 1.0, 0.2],             # 6 sign board plate, z 1.7 to 1.9, top at 4.5
 	[&"diner_cream", 0.0, 3.65, 1.92, 2.6, 0.7, 0.04],   # 7 board face on the south side, z 1.9 to 1.94
 ]
