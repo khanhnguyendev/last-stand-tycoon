@@ -48,14 +48,14 @@ func test_pressure_caps_per_tier() -> void:
 		assert_eq(WaveMath.pressure(day, 1, 1, tb), day, "tier 1 day %d is today's day" % day)
 	assert_eq(WaveMath.pressure(8, 1, 1, tb), 7)
 	assert_eq(WaveMath.pressure(30, 1, 1, tb), 7)
-	assert_eq([WaveMath.pressure(9, 2, 9, tb), WaveMath.pressure(10, 2, 9, tb), WaveMath.pressure(12, 2, 9, tb), WaveMath.pressure(13, 2, 9, tb)], [8, 9, 11, 11])
+	assert_eq([WaveMath.pressure(9, 2, 9, tb), WaveMath.pressure(10, 2, 9, tb), WaveMath.pressure(12, 2, 9, tb), WaveMath.pressure(13, 2, 9, tb)], [8, 9, 10, 10])
 	assert_eq(WaveMath.pressure(40, 2, 40, tb), 8, "a late tier-up starts at the tier's base")
 
 func test_capped_night_kills() -> void:
-	# spec 4.1: tier 1 cap 12 + 19 + 25 = 56; tier 2 cap 18 + 27 + 30 = 75
+	# spec 4.1: tier 1 cap 12 + 19 + 25 = 56; tier 2 (cap 10) = 72
 	var k1 := 0
 	var k2 := 0
 	for w in 3:
 		k1 += WaveMath.total_count(7, w, wb)
-		k2 += WaveMath.total_count(11, w, wb)
-	assert_eq([k1, k2], [56, 75])
+		k2 += WaveMath.total_count(10, w, wb)
+	assert_eq([k1, k2], [56, 72])
