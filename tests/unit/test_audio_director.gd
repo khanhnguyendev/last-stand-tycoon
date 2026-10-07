@@ -243,3 +243,14 @@ func test_preload_music_caches_the_stream_and_registers_nothing_off_web() -> voi
 	assert_same(d._streams[path], s)
 	assert_false(AudioServer.is_stream_registered_as_sample(s), "off web nothing is registered")
 	d.preload_music(&"nope")  # unknown id: ignored
+
+# Fails if the thump keeps diner_hit's pitch (the diner cue) or the pitch field multiplies the other ids.
+func test_thump_is_pitched_down_and_diner_hit_is_not() -> void:
+	var spread: float = AudioManifest.SFX[&"thump"].pitch_spread
+	d.play(&"thump")
+	assert_between(d.last_pitch, 0.7 * (1.0 - spread) - 1e-4, 0.7 * (1.0 + spread) + 1e-4, "thump 0.7 x spread band")
+	assert_lt(d.last_pitch, 0.8)
+	d.debug_clear_gaps()
+	d.play(&"diner_hit")
+	assert_between(d.last_pitch, 1.0 - spread - 1e-4, 1.0 + spread + 1e-4, "diner_hit unchanged")
+	assert_gt(d.last_pitch, 0.9)

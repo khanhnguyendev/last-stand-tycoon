@@ -241,7 +241,7 @@ func _on_wave_started(w: int, _main_lane: StringName, _side_lane: StringName) ->
 	icons.queue_redraw()
 
 func _on_enemy_killed(_spawn_index: int, _lane: StringName, _position: Vector3, kind: StringName) -> void:
-	if kind == &"boss":
+	if TierEffects.is_boss_kind(kind, Balance.data.tiers):
 		icons.boss_alive = false
 		icons.queue_redraw()
 
@@ -257,13 +257,21 @@ func _paint_moons() -> void:
 	icons.filled = _filled
 	icons.queue_redraw()
 
-func _on_wave_incoming(_w: int, main_lane: StringName, side_lane: StringName) -> void:
+func _on_wave_incoming(w: int, main_lane: StringName, side_lane: StringName) -> void:
 	_arrow_lane.main = String(main_lane)
 	_arrow_lane.side = String(side_lane)
 	arrows.main.visible = _arrow_lane.main != ""
 	arrows.side.visible = _arrow_lane.side != ""
+	_mark_brute_arrows(w)
 	_place_arrows()
 	_punch_arrows()
+
+## E5 tier 3 Task 14 (D-264): an arrow whose lane brings a brute in this wave or a later one tonight gets the heavy mark (not
+## once its last brute has come). Arrows show only from wave_incoming, at night (today's timing, unchanged).
+func _mark_brute_arrows(w: int) -> void:
+	var comp := LanePlanner.composition_by_lane(GameState.lane_plan.slice(maxi(w, 0)), GameState.tier)
+	for key in ["main", "side"]:
+		arrows[key].heavy = int(comp.get(_arrow_lane[key], {}).get("brute", 0)) > 0
 
 ## S5 Task 5: the arrows pop when a wave is announced (visual only).
 func _punch_arrows() -> void:
@@ -424,12 +432,16 @@ func _hover_point(entrance: Vector2, rect: Rect2) -> Vector2:
 func _place_arrows() -> void:
 	if _camera == null:
 		return
-	var rect := arrow_rect()
+	var base_rect := arrow_rect()
 	for key in ["main", "side"]:
 		var arrow: HudArrow = arrows[key]
 		var lane: String = _arrow_lane[key]
 		if not arrow.visible or lane == "" or not _lanes.has(lane):
 			continue
+		var rect := base_rect
+		if arrow.heavy:  # the mark sits behind the arrow: keep it below the top HUD too
+			var extra := maxf(Balance.ui.arrow_heavy_px, Balance.ui.arrow_heavy_min_px) + Balance.ui.arrow_heavy_gap_px
+			rect = Rect2(base_rect.position + Vector2(0, extra), base_rect.size - Vector2(0, extra))
 		var world_pos: Vector3 = _lanes[lane].entrance_position()
 		var p := _camera.unproject_position(world_pos)
 		if _camera.is_position_behind(world_pos):

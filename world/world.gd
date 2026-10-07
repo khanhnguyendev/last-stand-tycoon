@@ -36,6 +36,9 @@ var tier_reveal: TierReveal
 ## E5 Task 10: the merged ground carries the open yards; the stones ring them (one MultiMesh, no collision).
 var ground: MeshInstance3D
 var yard_stones: MultiMeshInstance3D
+## The lane edge stones (one MultiMesh); rebuilt when the lane set changes (tier 3 adds the south-west strip's).
+var edge_stones: MultiMeshInstance3D
+var _stone_lanes: Array[String] = []
 ## The tier the ground, the stones, the props and the spots were last built for (rebuild_for_tier is a no-op if equal).
 var _built_tier := 1
 ## The phase as the bus last announced it: a spot created mid-game must know it (its zone missed the signal).
@@ -132,9 +135,11 @@ func _build_ground() -> void:
 	var rect := ground_rect()
 	# S4 D-201: ground + road + lane strips + open yards are ONE mesh, the edge stones ONE MultiMesh, the props 2 meshes.
 	var yards := yard_ids()
-	ground = GroundArt.instance(GroundArt.terrain_mesh(rect, yards), "Ground")
+	ground = GroundArt.instance(GroundArt.terrain_mesh(rect, yards, lane_ids()), "Ground")
 	add_child(ground)
-	add_child(LaneStrip.edge_stones())
+	_stone_lanes = lane_ids()
+	edge_stones = LaneStrip.edge_stones(_stone_lanes)
+	add_child(edge_stones)
 	props = Props.new()
 	props.name = "Props"
 	add_child(props)
@@ -158,10 +163,14 @@ func _effective_tier() -> int:
 func yard_ids() -> Array[String]:
 	return MapLayout.yards_for_tier(_effective_tier())
 
+## The lanes monsters use now (E5 tier 3: the south-west one joins at tier 3).
+func lane_ids() -> Array[String]:
+	return MapLayout.lanes_for_tier(_effective_tier())
+
 func _yard_rects(yards: Array) -> Array[Rect2]:
 	var out: Array[Rect2] = []
 	for id in yards:
-		out.append(MapLayout.YARDS[id])
+		out.append(MapLayout.yard_rect(id))
 	return out
 
 func _set_yard_stones(yards: Array) -> void:
@@ -185,7 +194,8 @@ func rebuild_for_tier() -> void:
 		return
 	_built_tier = tier
 	var yards := yard_ids()
-	ground.mesh = GroundArt.terrain_mesh(ground_rect(), yards)
+	ground.mesh = GroundArt.terrain_mesh(ground_rect(), yards, lane_ids())
+	_sync_lanes()
 	props.build(_yard_rects(yards))
 	_set_yard_stones(yards)
 	var want := MapLayout.spots_for_tier(tier)
@@ -199,6 +209,29 @@ func rebuild_for_tier() -> void:
 		if not build_spots.has(id):
 			_make_spot(id)
 	_swap_diner_art(tier)
+
+## The lane nodes, their edge stones and their telegraph markers follow the tier: the lanes of `lane_ids()` exist, no others.
+## Tiers 1 and 2 have the same three, so nothing is touched for them.
+func _sync_lanes() -> void:
+	var want := lane_ids()
+	for id in lanes.keys():
+		if not id in want:
+			var gone: Lane = lanes[id]
+			lanes.erase(id)
+			remove_child(gone)
+			gone.queue_free()
+			var marker: TelegraphMarker = telegraph_markers.get(id)
+			if marker != null:
+				telegraph_markers.erase(id)
+				remove_child(marker)
+				marker.queue_free()
+	for id in want:
+		if not lanes.has(id):
+			_make_lane(id)
+			_make_marker(id)
+	if want != _stone_lanes:
+		edge_stones.multimesh = LaneStrip.edge_multimesh(want)
+		_stone_lanes = want
 
 ## Replaces only the DinerArt child of the diner's Visual (the OccluderFade stays), as child 0, when the scene differs.
 func _swap_diner_art(tier: int) -> void:
@@ -238,11 +271,21 @@ func _occluder_targets() -> Array:
 	return out
 
 func _build_lanes() -> void:
-	for id in LanePlanner.LANES:
-		var lane := Lane.new()
-		lane.setup(id)
-		add_child(lane)
-		lanes[id] = lane
+	for id in lane_ids():
+		_make_lane(id)
+
+func _make_lane(id: String) -> void:
+	var lane := Lane.new()
+	lane.setup(id)
+	add_child(lane)
+	lanes[id] = lane
+
+func _make_marker(id: String) -> void:
+	var m := TelegraphMarker.new()
+	add_child(m)
+	m.setup(id)
+	m.sync_phase(_phase)  # a marker made mid-day missed phase_changed
+	telegraph_markers[id] = m
 
 ## Static collider on layer 1, standing on the ground at xz. The art (S4) is `visual_scene`, instanced once under a
 ## "Visual" Node3D (no primitives: collision shapes and sizes are the gameplay truth).
@@ -300,11 +343,33 @@ func _build_stations() -> void:
 	tier_sign = TierSign.new()
 	add_child(tier_sign)
 	tier_sign.setup(self)
-	for id in LanePlanner.LANES:
-		var m := TelegraphMarker.new()
-		add_child(m)
-		m.setup(id)
-		telegraph_markers[id] = m
+	for id in lane_ids():
+		_make_marker(id)
+
+## Single shooters besides towers that can have shots in flight at once (hero, archer guard, tank guard).
+const HERO_SHOTS_IN_FLIGHT := 2
+const ARCHER_SHOTS_IN_FLIGHT := 2
+const TANK_SHOTS_IN_FLIGHT := 1
+
+## Shots of one tower in flight at once: `count` per attack, a shot lives range / speed seconds, one attack per interval.
+static func in_flight(count: int, attack_range: float, interval: float, speed: float) -> int:
+	return count * (floori(attack_range / speed / interval) + 1)
+
+## Projectiles for the top tier: every tower of the top tier at its worst in_flight (levels 1 to 3 and both branches)
+## plus the single shooters, with the 20% margin. The pool must never grow at runtime.
+static func projectile_pool_size(bd: BalanceData) -> int:
+	var speed := bd.build.tower_projectile_speed
+	var worst := 0
+	for lv in bd.build.max_level:
+		worst = maxi(worst, World.in_flight(1, bd.build.tower_range[lv], bd.build.tower_interval, speed))
+	for id in BranchBalance.TOWER_BRANCHES:
+		var st := bd.branches.tower(id)
+		worst = maxi(worst, World.in_flight(st.count, st.attack_range, st.interval, speed))
+	var towers := 0
+	for id in MapLayout.spots_for_tier(TierEffects.top_tier(bd.tiers)):
+		if MapLayout.spot_kind(id) == "tower":
+			towers += 1
+	return int(ceil((towers * worst + HERO_SHOTS_IN_FLIGHT + ARCHER_SHOTS_IN_FLIGHT + TANK_SHOTS_IN_FLIGHT) * 1.2))
 
 static func pool_sizes(bd: BalanceData) -> Dictionary:
 	# E5: the steak pool holds the top tier's capped night plus the boss drop, with the old 20% margin (spec 7.1).
@@ -312,10 +377,18 @@ static func pool_sizes(bd: BalanceData) -> Dictionary:
 	var steaks := 0
 	for w in bd.wave.base_counts.size():
 		steaks += WaveMath.total_count(bd.tiers.tier_cap[top], w, bd.wave)  # capped counts (D-124)
+	# The biggest boss drop of any tier left on the way up, and the top tier's brutes (data-driven: a new boss or cap moves it).
+	var boss_drop := 0
+	for t in range(1, top):
+		var k := TierEffects.boss_kind_for(t, bd.tiers)
+		if k != &"":
+			boss_drop = maxi(boss_drop, bd.monsters.stats(k).steaks_per_kill)
+	var brute_steaks: int = bd.wave.base_counts.size() * (bd.tiers.brute_cap_main[top] + bd.tiers.brute_cap_side[top]) \
+		* bd.monsters.stats(&"brute").steaks_per_kill
 	return {
 		"enemy": bd.wave.max_wave_size + 1 + 10,
-		"steak": int(ceil((steaks * bd.economy.steaks_per_kill + bd.monsters.stats(&"boss").steaks_per_kill) * 1.2)),
-		"projectile": 24,
+		"steak": int(ceil((steaks * bd.economy.steaks_per_kill + brute_steaks + boss_drop) * 1.2)),
+		"projectile": World.projectile_pool_size(bd),
 		"fx": 32,
 	}
 

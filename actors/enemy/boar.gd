@@ -10,7 +10,13 @@ const SHADOW_RADIUS := 0.7
 
 ## E5: which monster this pooled node is right now (spec 4.3); every number is read through stats().
 var kind: StringName = &"boar"
+## Is this monster a boss right now (its kind is one of the ladder's boss kinds, TierEffects.is_boss_kind)? Set at spawn.
+var is_boss := false
 var _stats: MonsterStats
+## Spike fence pass damage is taken once per life: set when this monster crosses its lane's fence line, cleared at spawn.
+var _passed_fence := false
+## Cached at spawn: this kind has no fence entry in its priority list, so it walks past the fence (hares, the Baron).
+var _walks_past_fence := false
 var lane := ""
 var spawn_index := -1
 ## Increments on every spawn; projectiles/attackers compare it to detect pool reuse across nights (Review Focus 2).
@@ -48,12 +54,15 @@ func _init() -> void:
 func stats() -> MonsterStats:
 	if _stats == null:
 		_stats = Balance.data.monsters.stats(kind)
+	_walks_past_fence = not (_stats.priority as Array).has(&"fence_on_lane")
 	return _stats
 
 func spawn(p_lane: String, p_index: int, p_offset: float, hp_mult: float, director: Object, p_kind: StringName = &"boar") -> void:
 	assert(Balance.data.monsters.has_kind(p_kind), "unknown monster kind %s" % p_kind)
 	generation += 1
 	kind = p_kind
+	is_boss = TierEffects.is_boss_kind(kind, Balance.data.tiers)
+	_passed_fence = false
 	_stats = Balance.data.monsters.stats(kind)
 	lane = p_lane
 	spawn_index = p_index
@@ -99,6 +108,7 @@ func _physics_process(delta: float) -> void:
 		visual.set_motion(1.0 if next > dist else 0.0)
 		dist = next
 		_update_position()
+		_check_fence_crossing()
 		return
 	visual.set_motion(0.0)
 	_attack_timer += delta
@@ -108,11 +118,41 @@ func _physics_process(delta: float) -> void:
 		var dmg := eb.damage * GameState.mercy_factor()
 		match current_target.kind:
 			&"fence_on_lane":
-				GameState.damage_fence(current_target.spot_id, dmg)
+				var spot_id := String(current_target.spot_id)
+				var thorns := GameState.fence_thorn_damage(spot_id)  # read while the fence stands: the hit that breaks it still thorns
+				GameState.damage_fence(spot_id, dmg * eb.fence_damage_mult, kind)
+				if eb.fence_damage_mult > 1.0:
+					_thump(spot_id)
+				if thorns > 0.0:
+					take_hit(thorns)  # after its own hit, through the normal damage path (it can die: one kill, one drop)
 			&"guard":
 				GameState.damage_guard(current_target.guard_id, dmg)
 			&"diner":
 				GameState.damage_diner(dmg)
+
+## A monster with no fence entry in its priority list (the hares, the Baron) walks past the fence; the tick it crosses the
+## fence's line it takes the Spike fence's pass damage once (0.0 unless that fence stands with branch spike and lists this kind).
+## Only damage: its path, speed and timing are untouched.
+func _check_fence_crossing() -> void:
+	if _passed_fence or dist < _length - MapLayout.FENCE_OFFSET_FROM_END or not _walks_past_fence:
+		return
+	_passed_fence = true
+	var pass_damage := GameState.fence_pass_damage(MapLayout.lane_fence(lane), kind)
+	if pass_damage > 0.0:
+		take_hit(pass_damage)
+
+## Dust bursts sit this far to each side of the lane centre on the fence line: outside the brute's half-width, never in its head.
+const THUMP_SIDE := 1.3
+const THUMP_HEIGHT := 0.3
+
+## The siege brute's ground thump (spec 6.2): two dust bursts on the fence line, one each side of the body, and a heavy sound;
+## only for a hit on a fence.
+func _thump(spot_id: String) -> void:
+	EventBus.sfx_requested.emit(&"thump")
+	var centre := MapLayout.spot_position(spot_id)
+	var axis := MapLayout.zone_axis(lane)  # the fence bar runs along the zone's width axis
+	for side in [-1.0, 1.0]:
+		EventBus.fx_requested.emit(&"dust", MapLayout.to3(centre + axis * THUMP_SIDE * side) + Vector3(0, THUMP_HEIGHT, 0))
 
 func take_hit(amount: float) -> void:
 	if alive:

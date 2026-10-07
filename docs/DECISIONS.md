@@ -2686,3 +2686,32 @@ cost-entry switch and the debug-only tier forcing.
   pre-builds the ground of every tier from 2 to the top. Cost unmeasured until the final perf run.
 - **Hare ramp at tier 2 after the cap change:** `fast_ramp_days[2]` stays 3 while pressure now reaches the cap after 2
   days, so the first cap night has a slightly lower hare share. Left as is (REVIEW_QUEUE).
+
+**D-278 Rulings during phase 3 (the night).**
+- **Brute look:** mesh scale 1.5 (1.63x the Boar's height, 1.73x its width, 0.81x the Boar King's height) with a
+  redder back; the first version read as the Boar King at 90%. Its fence hit raises two dust bursts beside the body
+  and a thump that reuses the diner-hit sound at pitch 0.7. Fence damage x4; every other kind is bit-identical.
+- **Boss kind per tier** through one helper pair (`TierEffects.boss_kind_for`, `is_boss_kind`). Baron von Hop is the
+  tier-2 boss: 500 HP, 24.0 s from its first hit to fell the diner alone (minimum 15), caught by the hero with at
+  least 5.7 s to spare on every lane. The Boar King's bar now shows its name (a visible tier-1 change). The night
+  banner says "Baron von Hop comes" at tier 2. A pending boss at the top tier means no boss.
+- **Spike fence:** thorns after each hit a monster lands on it; pass damage once per hare-kind life at the fence
+  line. Both scale with the night's FIRST-wave HP multiplier relative to the tier-3 base (D-272.1 said "the night's
+  multiplier"): against the last wave Spike is at 77% (pressure 12) and 64% (pressure 15) of its wave-1 strength,
+  and mercy is ignored.
+- **Towers:** Volley fires at the first three targets of the existing selection order; the single-target path is
+  textually unchanged. A Longbow shot whose target dies in flight is lost with its cooldown.
+- **Pools from balance:** projectiles 24 -> 35 (42 with tier 3), steaks 293 (440 with tier 3: boss drop per tier and
+  brute steaks), enemies 41. The baselines did not move.
+- **Respawn protection (D-271):** on respawns only, not hires; a protected guard still attacks (at most 2 swings per
+  respawn). Measured with three Boars in the SW zone, diner HP after 10 s: no guard 150, protected guard 150,
+  unprotected guard 150 to 165 across timing offsets. An earlier reading of "no difference" was a timing artifact.
+- **Telegraph rows:** the ruled "3 m up-path of the marker" was infeasible (it lands on tower and fence labels or
+  off screen). Rows sit in the free band at z = -15 for west, north and east and south of the road for sw. From HOME
+  the three northern rows are at the top of the screen under the HUD strip: accepted for now (REVIEW_QUEUE). No gold
+  on enemy glyphs. The brute arrow mark is its own 64 px texture beside the arrow's tail and shows for this wave or
+  a later one.
+- **Task 15 (boss tuning step) dropped:** it existed only for a tier-2 cap of 11.
+- **Process:** `git stash` is forbidden to implementers (it is shared by all worktrees and swapped two tasks' files
+  once). A fix round left the Boar King's back colour at the brute's value; the merged unit run caught it and the
+  hare, Boar King, brute and Baron meshes are now hash-pinned like the Boar's.

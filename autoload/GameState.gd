@@ -123,8 +123,8 @@ func from_dict(d: Dictionary) -> void:
 			wave["brute_main"] = int(w.get("brute_main", 0))
 			wave["brute_side"] = int(w.get("brute_side", 0))
 		lane_plan.append(wave)
-	# A pending boss always rides tonight's plan (a hand-edited save cannot skip it).
-	if boss_pending and not lane_plan.is_empty():
+	# A pending boss always rides tonight's plan (a hand-edited save cannot skip it), when the tier has a boss to send.
+	if boss_pending and not lane_plan.is_empty() and TierEffects.boss_kind_for(tier, Balance.data.tiers) != &"":
 		lane_plan[lane_plan.size() - 1].boss = true
 	cards = {}
 	for k in d.cards:
@@ -333,6 +333,33 @@ func pay_into_branch(spot_id: String, branch_id: StringName, amount: int) -> int
 		EventBus.branch_refunded.emit(StringName(spot_id), refund)
 	return pay
 
+## Thorn damage a Spike fence deals back to an attacker on each hit the fence takes; 0.0 unless the fence stands
+## (level >= 1, hp > 0) with branch spike. Pure query.
+func fence_thorn_damage(spot_id: String) -> float:
+	if not _spike_stands(spot_id):
+		return 0.0
+	return Balance.data.branches.spike.thorn_damage * _spike_scale()
+
+## Damage a Spike fence deals once to a monster of `kind` crossing its line; 0.0 unless the fence stands with branch
+## spike and `kind` is in its pass_kinds. Pure query.
+func fence_pass_damage(spot_id: String, kind: StringName) -> float:
+	if not _spike_stands(spot_id):
+		return 0.0
+	return BranchMath.pass_damage(Balance.data.branches.spike, kind, _spike_scale())
+
+func _spike_stands(spot_id: String) -> bool:
+	if not buildings.has(spot_id):
+		return false
+	var b: Dictionary = buildings[spot_id]
+	return int(b.level) >= 1 and float(b.hp) > 0.0 and String(b.branch) == "spike"
+
+## Spike's growth (D-272.1): the plan's FIRST wave hp_mult stands for the whole night (GameState does not know the
+## current wave), over the first-wave multiplier at the tier-3 base pressure. No plan: 1.0.
+func _spike_scale() -> float:
+	if lane_plan.is_empty():
+		return 1.0
+	return BranchMath.spike_scale(float(lane_plan[0].hp_mult), BranchMath.spike_base_mult(Balance.data.wave, Balance.data.tiers))
+
 # --- stations (E1) ---------------------------------------------------------
 
 static func _fresh_stations() -> Dictionary:
@@ -419,13 +446,18 @@ func advance_day() -> void:
 
 func _plan_today() -> Array:
 	var p := LanePlanner.plan(run_seed, day, Balance.data.wave, tier, tier_day, Balance.data.tiers)
-	return LanePlanner.with_boss(p) if boss_pending else p
+	return _with_tonights_boss(p) if boss_pending else p
+
+## Marks the last wave as the boss wave, unless this tier has no boss to send (the top tier: a pending boss there is a clamped save).
+func _with_tonights_boss(p: Array) -> Array:
+	return LanePlanner.with_boss(p) if TierEffects.boss_kind_for(tier, Balance.data.tiers) != &"" else p
 
 func pressure() -> int:
 	return WaveMath.pressure(day, tier, tier_day, Balance.data.tiers)
 
 func is_boss_night() -> bool:
-	return not lane_plan.is_empty() and bool(lane_plan[lane_plan.size() - 1].get("boss", false))
+	return not lane_plan.is_empty() and bool(lane_plan[lane_plan.size() - 1].get("boss", false)) \
+		and TierEffects.boss_kind_for(tier, Balance.data.tiers) != &""
 
 ## -1 when this build has no next tier. Also -1 before the first new_game (buildings is empty while the world warms up).
 func tier_next_cost() -> int:
@@ -453,7 +485,7 @@ func pay_into_tier(amount: int) -> int:
 	if tier_paid >= cost:
 		tier_paid = 0
 		boss_pending = true
-		lane_plan = LanePlanner.with_boss(lane_plan)  # the boss rides tonight's plan; with_boss copies and draws no RNG
+		lane_plan = _with_tonights_boss(lane_plan)  # the boss rides tonight's plan; with_boss copies and draws no RNG
 		EventBus.tier_changed.emit(tier, tier_paid, boss_pending)
 		EventBus.tier_paid_up.emit(tier + 1)
 	else:

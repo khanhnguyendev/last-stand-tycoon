@@ -34,16 +34,19 @@ static func params(kind: StringName) -> Dictionary:
 			return {"scale": 2.2, "body_scale": Vector3(1.05, 0.8, 1.15), "upper": maroon.lerp(red, 0.25),
 				"belly": maroon, "ears": snout, "ear_len": 0.0, "tusks": 4, "ridge": 5, "ridge_h": 0.6,
 				"leg_len": 0.25, "leg_xz": Vector2(0.27, 0.3), "head_k": 1.0, "head_dz": 0.0, "tusk_color": Palette.color(&"stone")}
-		# PLACEHOLDER rows (Task 5): the boar shape, scaled, with stone tusks (never the hero's white, R2). Task 10 (the brute's
-		# mesh) and Task 11 (Baron von Hop's mesh) replace them.
+		# The siege brute (E5 tier 3 Task 10): a stocky bulldozer. Wider and deeper in the chest than the Boar, a big head set
+		# low, short thick legs, a taller ridge, redder back than the Boar King's, a darker red belly, `stone` tusks (never the hero's white, R2).
 		&"brute":
-			return {"scale": 1.6, "body_scale": BODY_SCALE, "upper": maroon.lerp(red, 0.4), "belly": red, "ears": snout,
-				"ear_len": 0.0, "tusks": 2, "ridge": 5, "ridge_h": 1.0, "leg_len": 0.25, "leg_xz": Vector2(0.27, 0.3), "head_k": 1.0,
-				"head_dz": 0.0, "tusk_color": Palette.color(&"stone")}
+			return {"scale": 1.5, "body_scale": Vector3(1.3, 0.85, 1.1), "upper": maroon.lerp(red, 0.55), "belly": red.lerp(maroon, 0.3),
+				"ears": snout, "ear_len": 0.0, "tusks": 2, "ridge": 5, "ridge_h": 1.25, "leg_len": 0.22, "leg_xz": Vector2(0.33, 0.3),
+				"head_k": 1.15, "head_dz": 0.04, "tusk_color": Palette.color(&"stone")}
+		# Baron von Hop (E5 tier 3 Task 11): the hare's build at boss scale. Bigger and bulkier than a hare (body 0.8 wide, ears 1.5 long),
+		# in the hare's `enemy_snout` coat warmed toward red (its own, still lighter than a Boar) with the red ears, no tusks, and a crown of five stone points on the head: the boss marker
+		# (the Boar King wears four tusks and a full ridge; the Baron's is the crown). `stone`, never the hero's gold (R2).
 		&"baron":
-			return {"scale": 1.3, "body_scale": Vector3(0.65, 0.7, 1.4), "upper": snout, "belly": snout.lerp(maroon, 0.15),
-				"ears": red, "ear_len": 1.2, "tusks": 0, "ridge": 0, "ridge_h": 1.0, "leg_len": 0.32, "leg_xz": Vector2(0.2, 0.42),
-				"head_k": 0.8, "head_dz": 0.22, "tusk_color": Palette.color(&"stone")}
+			return {"scale": 1.65, "body_scale": Vector3(0.8, 0.8, 1.4), "upper": snout.lerp(red, 0.22), "belly": snout.lerp(maroon, 0.15),
+				"ears": red, "ear_len": 1.5, "tusks": 0, "ridge": 0, "ridge_h": 1.0, "leg_len": 0.32, "leg_xz": Vector2(0.24, 0.42),
+				"head_k": 0.85, "head_dz": 0.22, "tusk_color": Palette.color(&"stone"), "crown": 5}
 	return {"scale": 1.0, "body_scale": BODY_SCALE, "upper": maroon.lerp(red, 0.4), "belly": red, "ears": snout,
 		"ear_len": 0.0, "tusks": 2, "ridge": 5, "ridge_h": 1.0, "leg_len": 0.25, "leg_xz": Vector2(0.27, 0.3), "head_k": 1.0, "head_dz": 0.0,
 		"tusk_color": Palette.color(&"apron_white")}
@@ -184,6 +187,13 @@ static func _build(p: Dictionary) -> ArrayMesh:
 			var eb := Basis.from_euler(Vector3(deg_to_rad(30.0), deg_to_rad(-sx * 16.0), 0.0))
 			var base: Vector3 = head * Vector3(sx * 0.17, 0.1, -0.05)
 			_add(acc, BoxMesh.new(), Transform3D(eb * Basis.from_scale(Vector3(0.13, 0.03, el)), base + eb * Vector3(0.0, 0.0, -el * 0.5)), p.ears)
+
+	# crown (Baron): a row of points on top of the head, the middle ones tallest
+	var points: int = int(p.get("crown", 0))
+	for k in points:
+		var a := (float(k) / float(points - 1) - 0.5) * 2.0 if points > 1 else 0.0  # -1 .. 1 across the head
+		var h := 0.34 - 0.1 * absf(a)
+		_add(acc, _cone(0.07, 0.0, h, 4, [false, false]), head * _xf(Vector3(a * 0.17, 0.27 + h * 0.5, -0.02 - 0.03 * absf(a)), Vector3(-10.0, 0, 0)), white)
 
 	if float(p.scale) != 1.0:
 		var verts: PackedVector3Array = acc.verts

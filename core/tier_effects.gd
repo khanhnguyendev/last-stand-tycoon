@@ -12,6 +12,17 @@ static func tier_cost(tier: int, tb: TierBalance) -> int:
 		return -1
 	return tb.tier_costs[tier]
 
+## The boss fought to LEAVE `tier` (E5 tier-3 spec 3.3, D-267): `tb.boss_kind[tier]`; `&""` when nothing leaves it: the top
+## tier of this build (a clamped or hand-edited save may still carry a pending boss there), a tier outside the table, or an empty entry.
+static func boss_kind_for(tier: int, tb: TierBalance) -> StringName:
+	if tier < 1 or tier >= top_tier(tb) or tier >= tb.boss_kind.size():
+		return &""
+	return tb.boss_kind[tier]
+
+## Is `kind` one of the bosses of the ladder (any non-empty `boss_kind` entry)? The one definition of "a boss monster".
+static func is_boss_kind(kind: StringName, tb: TierBalance) -> bool:
+	return kind != &"" and tb.boss_kind.has(kind)
+
 ## Share of a wave group that spawns as hares on `day` for a tier entered on `tier_day`.
 static func fast_share_now(day: int, tier: int, tier_day: int, tb: TierBalance) -> float:
 	var ramp := maxi(tb.fast_ramp_days[tier], 1)

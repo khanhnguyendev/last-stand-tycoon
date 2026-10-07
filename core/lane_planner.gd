@@ -53,20 +53,22 @@ static func with_boss(plan_waves: Array) -> Array:
 	return out
 
 ## Threat (total hp) per lane of `tier`: tiers 1 and 2 return exactly west, north, east; tier 3 adds sw. `tier` is an
-## optional parameter because a plan does not carry its tier. Brutes add stats(&"brute").hp x hp_mult to their lane.
+## optional parameter because a plan does not carry its tier. Brutes add stats(&"brute").hp x hp_mult to their lane; a boss wave
+## adds the HP of the tier's boss (TierEffects.boss_kind_for: the King at tier 1, the Baron at tier 2, nothing at the top).
 static func threat_by_lane(plan_waves: Array, base_hp: float, tier := 1) -> Dictionary:
 	var t := {}
 	for lane in lanes_for_tier(tier):
 		t[lane] = 0.0
 	var brute_hp: float = Balance.data.monsters.stats(&"brute").hp
+	var boss_kind := TierEffects.boss_kind_for(tier, Balance.data.tiers)
 	for wave in plan_waves:
 		var m := float(wave.hp_mult)
 		var hp := base_hp * m
 		t[wave.main] = float(t.get(wave.main, 0.0)) + int(wave.main_count) * hp + int(wave.get("brute_main", 0)) * brute_hp * m
 		if String(wave.side) != "":
 			t[wave.side] = float(t.get(wave.side, 0.0)) + int(wave.side_count) * hp + int(wave.get("brute_side", 0)) * brute_hp * m
-		if bool(wave.get("boss", false)):
-			t[wave.main] += Balance.data.monsters.stats(&"boss").hp * m
+		if bool(wave.get("boss", false)) and boss_kind != &"":
+			t[wave.main] += Balance.data.monsters.stats(boss_kind).hp * m
 	return t
 
 ## Per lane of `tier`: {boar, hare, brute, boss} counts of the whole plan (the telegraph, spec 6.5). Boars are the

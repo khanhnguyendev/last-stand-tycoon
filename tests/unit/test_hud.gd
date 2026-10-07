@@ -332,6 +332,19 @@ func test_boss_moon_breathes_from_its_wave_until_the_boss_dies() -> void:
 	EventBus.enemy_killed.emit(0, &"north", Vector3.ZERO, &"boss")
 	assert_false(hud.icons.boss_alive)
 
+## Mutation: `kind == &"boss"` leaves the moon lit after Baron von Hop dies; clearing on any kill clears it for the hare.
+func test_the_moon_clears_for_the_baron_and_not_for_a_hare() -> void:
+	await _boss_night()
+	EventBus.wave_started.emit(2, &"north", &"")
+	EventBus.enemy_killed.emit(3, &"north", Vector3.ZERO, &"hare")
+	assert_true(hud.icons.boss_alive, "a killed hare leaves it lit")
+	EventBus.enemy_killed.emit(4, &"north", Vector3.ZERO, &"baron")
+	assert_false(hud.icons.boss_alive, "the Baron clears it")
+	EventBus.wave_started.emit(2, &"north", &"")
+	assert_true(hud.icons.boss_alive)
+	EventBus.enemy_killed.emit(0, &"north", Vector3.ZERO, &"boss")
+	assert_false(hud.icons.boss_alive, "the King clears it")
+
 func test_a_restore_clears_the_breathing_moon() -> void:
 	await _boss_night()
 	EventBus.wave_started.emit(2, &"north", &"")
@@ -383,3 +396,84 @@ func test_day_label_shows_the_new_day_at_the_tier_up_dawn_before_the_reveal() ->
 	main.phase_controller.debug_skip_to_day()
 	assert_true(main.phase_controller.reveal_pending, "the reveal has not fired")
 	assert_eq(hud.day_label.text, tr("Day %d") % GameState.day)
+
+# --- E5 tier 3 Task 14 (spec 6.5, D-264): the heavy mark beside the arrow of a lane that brings a brute ---
+
+func _w(m: String, s: String, bm := 0, bs := 0) -> Dictionary:
+	return {"main": m, "side": s, "main_count": 5, "side_count": 3 if s != "" else 0, "hp_mult": 1.0, "fast_main": 0, "fast_side": 0, "boss": false, "brute_main": bm, "brute_side": bs}
+
+## West brings a brute in wave 1 only (its main slot); east in wave 2 (its side slot); north none.
+func _brute_plan() -> Array:
+	return [_w("west", "east"), _w("west", "north", 1, 0), _w("north", "east", 0, 1), _w("west", "north")]
+
+func _night_with(plan: Array) -> void:
+	GameState.lane_plan = plan
+	EventBus.phase_changed.emit(Phase.NIGHT, 5)
+
+func test_the_mark_shows_while_this_or_a_later_wave_brings_a_brute_there() -> void:
+	_night_with(_brute_plan())
+	EventBus.wave_incoming.emit(0, &"west", &"east")
+	assert_true(hud.arrows.main.heavy, "west: its brute is in wave 1, still to come")
+	assert_true(hud.arrows.side.heavy, "east: its brute is in wave 2, still to come")
+	EventBus.wave_incoming.emit(1, &"west", &"north")
+	assert_true(hud.arrows.main.heavy, "west: the brute is in this wave")
+	assert_false(hud.arrows.side.heavy, "north never has one")
+	EventBus.wave_incoming.emit(3, &"west", &"north")
+	assert_false(hud.arrows.main.heavy, "the wave-3 arrow of west: its only brute has come")
+	assert_false(hud.arrows.side.heavy)
+	EventBus.wave_incoming.emit(2, &"north", &"east")
+	assert_false(hud.arrows.main.heavy)
+	assert_true(hud.arrows.side.heavy, "east: the brute is in this wave")
+
+func test_no_arrow_carries_the_mark_when_the_plan_has_no_brute() -> void:
+	_night_with([_w("west", "east"), _w("north", "west")])
+	for pair in [[&"west", &"east"], [&"east", &"west"], [&"north", &"west"]]:
+		EventBus.wave_incoming.emit(0, pair[0], pair[1])
+		assert_false(hud.arrows.main.heavy)
+		assert_false(hud.arrows.side.heavy)
+		await get_tree().process_frame
+		assert_eq(hud.icons.heavy_drawn.size(), 0, "nothing drawn")
+
+func test_the_heavy_rect_is_big_enough_beside_the_arrow_and_leaves_the_tip_free() -> void:
+	_night_with(_brute_plan())
+	EventBus.wave_incoming.emit(0, &"west", &"east")
+	await get_tree().process_frame
+	var min_px: float = Balance.ui.arrow_heavy_min_px
+	assert_eq(min_px, 22.0)
+	for key in ["main", "side"]:
+		var a: HudArrow = hud.arrows[key]
+		for rot in [0.0, PI * 0.5, -PI * 0.5, PI]:  # rotated as at the screen edges
+			a.rotation = rot
+			var r := hud.icons.heavy_rect(a)
+			assert_gte(minf(r.size.x, r.size.y), min_px, "%s arrow, rotation %.2f" % [key, rot])
+			var px: float = Balance.ui.arrow_px
+			var tip := a.position + Vector2(0.0, (px * 0.5 + HudIcons.ARROW_CENTER.y) * a.scale.y).rotated(rot)
+			assert_false(r.has_point(tip), "%s arrow: the mark does not cover the tip" % key)
+			# and does not sit on the arrow body either
+			var body := Rect2(a.position - Vector2.ONE * px * a.scale.x * 0.5, Vector2.ONE * px * a.scale.x)
+			var rotated_body := Transform2D(rot, a.position) * Transform2D(0.0, -a.position) * body
+			assert_false(r.intersects(rotated_body.grow(-1.0)), "%s arrow, rotation %.2f: beside the arrow, not on it" % [key, rot])
+
+func test_the_heavy_mark_reaches_the_canvas_only_for_heavy_arrows() -> void:
+	_night_with(_brute_plan())
+	EventBus.wave_incoming.emit(1, &"west", &"north")  # west heavy, north plain
+	for i in 3:
+		await get_tree().process_frame
+	assert_true(hud.icons.visible)
+	assert_eq(hud.icons.heavy_drawn.size(), 1, "one mark drawn: west's")
+	assert_lt(hud.icons.heavy_drawn[0].get_center().distance_to(hud.icons.heavy_rect(hud.arrows.main).get_center()), 3.0, "beside the main arrow (the arrow may still be punching)")
+	EventBus.wave_incoming.emit(3, &"west", &"north")  # nobody heavy any more
+	for i in 3:
+		await get_tree().process_frame
+	assert_eq(hud.icons.heavy_drawn.size(), 0)
+
+func test_the_brute_mark_texture_is_on_palette_and_within_the_texture_rule() -> void:
+	var tex := IconAtlas.brute_mark()
+	assert_not_null(tex)
+	var img := tex.get_image()
+	assert_lte(maxi(img.get_width(), img.get_height()), 256, "icons are at most 256 px")
+	var c := img.get_pixel(32, 26)  # the heavy brow: palette ink
+	assert_gt(c.a, 0.9)
+	assert_true(c.is_equal_approx(Palette.color(&"ink")), "the baked brow is palette ink, got %s" % c)
+	var m := img.get_pixel(32, 36)  # the face: apron_white, tinted enemy_maroon at draw time (R4: no enemy colour in an icon file)
+	assert_true(m.is_equal_approx(Palette.color(&"apron_white")), "the baked face is the tint base, got %s" % m)

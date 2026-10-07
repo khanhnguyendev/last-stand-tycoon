@@ -23,6 +23,8 @@ func before_each() -> void:
 
 func after_each() -> void:
 	get_tree().paused = false
+	Balance.reset()  # tier-3 tests append a tier cost; the next test starts clean
+	GameState.new_game(1)
 
 func _ticks(n: int) -> void:
 	for i in n:
@@ -261,3 +263,229 @@ func test_priority_fence_then_guard_then_diner() -> void:
 	b.dist = b.path_length()
 	b._update_position()
 	assert_eq(main.world.wave_director.providers.find_target(b).kind, &"diner")
+
+# --- E5 tier 3 Task 13: respawn protection (D-271, spec 6.6) ---
+
+## Knocks the tank out through GameState and ticks until the guard revives (state RETURNING). Returns the ticks used.
+func _knock_out_and_wait_for_revive() -> int:
+	GameState.damage_guard(&"tank", 1e6)
+	var n := 0
+	while roster.guards[&"tank"].state != Guard.State.RETURNING and n < 60 * 40:
+		await get_tree().physics_frame
+		n += 1
+	return n
+
+func _tier3_with_tank_at_post(tank_max_hp := -1.0) -> Guard:
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)  # test-only: the build knows tier 3
+	GameState.debug_set_tier(3, 5)
+	if tank_max_hp > 0.0:
+		Balance.data.guards.tank.max_hp = tank_max_hp
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	t.place_at_post()
+	return t
+
+func _probe_near(g: Guard) -> EnemyProbe:
+	var e := EnemyProbe.new()
+	add_child_autofree(e)
+	e.global_position = Vector3(g.xz().x, 0.0, g.xz().y)
+	return e
+
+func test_revived_guard_is_untargetable_for_respawn_protect_s_then_targetable() -> void:
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	t.place_at_post()
+	var ticks := await _knock_out_and_wait_for_revive()
+	assert_lt(ticks, 60 * 40, "the guard revived")
+	# We are on the revive frame (the guard revived this tick; its timer has not run yet).
+	assert_eq(float(GameState.guards[&"tank"].hp), GameState.guard_max_hp(&"tank"), "revived at full HP")
+	var probe := _probe_near(t)
+	assert_eq(roster.guard_target(probe), {}, "protected on the revive frame")
+	# ceil(1.5 * 60) = 90: the read after the 89th tick still shows protection, the read after the 90th shows targetable.
+	var frames := 0
+	while frames < 200:
+		await get_tree().physics_frame
+		frames += 1
+		probe.global_position = Vector3(t.xz().x, 0.0, t.xz().y)
+		if not roster.guard_target(probe).is_empty():
+			break
+	assert_eq(frames, 90, "targetable on the first physics frame after 1.5 s (frame 90)")
+	assert_true(t.is_targetable())
+
+func test_protected_guard_walks_to_its_post() -> void:
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	t.place_at_post()
+	await _knock_out_and_wait_for_revive()
+	var post := MapLayout.guard_post(&"tank")
+	var d_prev := t.xz().distance_to(post)
+	for i in 89:  # every tick the read still shows protection
+		await get_tree().physics_frame
+		var d := t.xz().distance_to(post)
+		assert_lt(d, d_prev, "tick %d: closer to the post" % (i + 1))
+		assert_eq(t.state, Guard.State.RETURNING, "tick %d: still walking" % (i + 1))
+		assert_false(t.is_targetable(), "tick %d: still protected" % (i + 1))
+		d_prev = d
+
+func test_protection_ends_at_the_post_whatever_the_tuning() -> void:
+	Balance.data.guards.respawn_protect_s = 10.0
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	t.place_at_post()
+	await _knock_out_and_wait_for_revive()
+	var n := 0
+	while t.state != Guard.State.POSTED and n < 60 * 20:
+		assert_false(t.is_targetable(), "protected while walking")
+		await get_tree().physics_frame
+		n += 1
+	assert_eq(t.state, Guard.State.POSTED)
+	assert_true(t.is_targetable(), "targetable on the first frame after it is posted, 10 s protection or not")
+
+func test_protected_state_is_set_before_guard_revived_is_emitted() -> void:
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	t.place_at_post()
+	var seen := [null]
+	var on_revived := func(g: StringName): seen[0] = t._protect_left > 0.0
+	EventBus.guard_revived.connect(on_revived)
+	await _knock_out_and_wait_for_revive()
+	EventBus.guard_revived.disconnect(on_revived)
+	assert_eq(seen[0], true, "a guard_revived listener already sees the protection")
+
+func test_knockout_during_protection_clears_it() -> void:
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	t.place_at_post()
+	await _knock_out_and_wait_for_revive()
+	await _ticks(5)
+	assert_gt(t._protect_left, 0.0)
+	GameState.damage_guard(&"tank", 1e6)
+	assert_eq(t.state, Guard.State.DOWN)
+	assert_eq(t._protect_left, 0.0, "no protection carried through the knockout")
+
+func test_guard_never_knocked_out_is_targetable() -> void:
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	t.place_at_post()
+	assert_true(t.is_targetable())
+	assert_false(roster.guard_target(_probe_near(t)).is_empty(), "the rule does not leak to a guard that was never down")
+	await _ticks(5)
+	assert_true(t.is_targetable())
+
+func test_fresh_hire_walking_from_the_door_is_targetable() -> void:
+	# A hire is not a respawn: no monster exists in the day, and the rule is about respawns (D-271).
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	assert_eq(t.state, Guard.State.RETURNING)
+	assert_true(t.is_targetable())
+
+func test_zero_protection_restores_todays_behaviour() -> void:
+	Balance.data.guards.respawn_protect_s = 0.0
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	t.place_at_post()
+	await _knock_out_and_wait_for_revive()
+	assert_true(t.is_targetable(), "targetable on the frame it revives")
+	assert_false(roster.guard_target(_probe_near(t)).is_empty())
+
+func test_save_restore_mid_protection_places_the_guard_at_its_post_unprotected() -> void:
+	GameState.debug_grant_card(&"tank")
+	var t: Guard = roster.guards[&"tank"]
+	t.place_at_post()
+	await _knock_out_and_wait_for_revive()
+	assert_false(t.is_targetable())
+	EventBus.state_restored.emit()
+	assert_eq(t.state, Guard.State.POSTED)
+	assert_true(t.is_targetable(), "protection is not saved: a restored guard stands at its post")
+
+## Three boars standing at the end of the south-west lane (inside the zone that contains the diner door).
+func _three_sw_boars() -> Array:
+	var out: Array = []
+	for i in 3:
+		var b: Boar = main.world.wave_director.debug_spawn("sw", float(i - 1) * 0.5, 200.0)
+		b.dist = b.path_length()
+		b._update_position()
+		out.append(b)
+	return out
+
+## Runs the three-boar scene: the tank (tank_max_hp, so one volley of 3 x 5 is lethal) is knocked out, respawns at the
+## door inside the SW zone. Right after the revive the boars' attack timers are set to 0.95 (a strike within 3 ticks;
+## without it the 1 s cadence is phase-locked to miss the 0.5 s the guard spends in reach). Over the first 90 ticks
+## it counts the boars in reach and the boars whose current target is the guard, and the knockouts over 5 s.
+func _respawn_into_three_boars(tank_max_hp: float) -> Dictionary:
+	_tier3_with_tank_at_post(tank_max_hp)
+	var boars := _three_sw_boars()
+	await _ticks(10)
+	var ticks := await _knock_out_and_wait_for_revive()
+	assert_lt(ticks, 60 * 40, "the guard revived")
+	for b in boars:
+		b._attack_timer = 0.95
+	var g: Guard = roster.guards[&"tank"]
+	var downs := [0]
+	var on_ko := func(_g: StringName): downs[0] += 1
+	EventBus.guard_knocked_out.connect(on_ko)
+	var out := {"in_reach": 0, "targeted": 0, "knockouts_5s": 0, "knockouts_1_5s": 0}
+	for i in 60 * 5:
+		await get_tree().physics_frame
+		if i < 90:
+			for b in boars:
+				var reach: float = b.stats().reach + float(g.stats.body_radius)
+				if Vector2(b.global_position.x, b.global_position.z).distance_to(g.xz()) <= reach:
+					out.in_reach += 1
+				if b.current_target.get("kind", &"") == &"guard":
+					out.targeted += 1
+			if i == 89:
+				out.knockouts_1_5s = downs[0]
+	EventBus.guard_knocked_out.disconnect(on_ko)
+	out.knockouts_5s = downs[0]
+	return out
+
+func test_respawned_guard_is_not_targeted_or_knocked_out_in_the_sw_zone_with_three_boars() -> void:
+	var r: Dictionary = await _respawn_into_three_boars(10.0)
+	gut.p("T13 info: protected, 10 hp tank: %s" % [r])
+	assert_gt(r.in_reach, 0, "boars were within reach of the guard (the scene is live)")
+	assert_eq(r.targeted, 0, "no boar targeted the protected guard in the first 90 ticks")
+	assert_eq(r.knockouts_5s, 0, "not knocked out again within 5 s of reviving")
+
+func test_control_without_protection_the_same_scene_knocks_the_guard_out() -> void:
+	Balance.data.guards.respawn_protect_s = 0.0
+	var r: Dictionary = await _respawn_into_three_boars(10.0)
+	gut.p("T13 info: NO protection, 10 hp tank: %s" % [r])
+	assert_gt(r.targeted, 0, "unprotected, the boars target the respawned guard")
+	assert_gte(r.knockouts_5s, 1, "unprotected, one volley knocks the guard out again")
+
+## The diner's HP after 10 s with three boars at the SW end. delay = ticks between the spawn and the knockout.
+func _diner_hp_after_10_s(with_guard: bool, protect_s: float, delay: int) -> float:
+	Balance.data.guards.respawn_protect_s = protect_s
+	GameState.new_game(1)
+	main.hero.teleport(Vector2(15, 8))
+	if with_guard:
+		_tier3_with_tank_at_post()
+	else:
+		if Balance.data.tiers.tier_costs.size() < 3:
+			Balance.data.tiers.tier_costs.append(1500)
+		GameState.debug_set_tier(3, 5)
+	await _ticks(5)
+	var boars := _three_sw_boars()
+	await _ticks(delay)
+	if with_guard:
+		GameState.damage_guard(&"tank", 1e6)
+	await _ticks(60 * 10 - delay)
+	var hp := GameState.diner_hp
+	main.world.wave_director.debug_kill_all()
+	return hp
+
+func test_diner_pressure_with_and_without_a_respawning_guard() -> void:
+	var none := await _diner_hp_after_10_s(false, 1.5, 0)
+	var prot := await _diner_hp_after_10_s(true, 1.5, 0)
+	var lo := INF
+	var hi := -INF
+	for delay in [0, 10, 20, 30, 40, 50]:
+		var hp := await _diner_hp_after_10_s(true, 0.0, delay)
+		lo = minf(lo, hp)
+		hi = maxf(hi, hp)
+	gut.p("T13 info: diner HP after 10 s (max %.0f): no guard %.1f; protected respawn %.1f; unprotected respawn min %.1f max %.1f" % [
+		Balance.data.build.diner_max_hp, none, prot, lo, hi])
+	assert_eq(prot, none, "a protected guard diverts nothing from the diner")
+	assert_gt(hi, none, "unprotected, the respawned guard absorbs at least one strike in some phase")

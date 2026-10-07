@@ -48,24 +48,28 @@ func idle_goal() -> String:
 ## threat on their lanes (a tower scores the max of its two lanes); 4 upgrades next to the top-threat lane.
 ## Ties by lane order / SPOT_IDS order, never by float equality.
 func next_purchase() -> String:
-	var threat := LanePlanner.threat_by_lane(GameState.lane_plan, Balance.data.enemy.hp)
-	var side := {"west": 0.0, "north": 0.0, "east": 0.0}
+	var tier_lanes := MapLayout.lanes_for_tier(GameState.tier)  # E5 tier 3: three lanes below tier 3, so tiers 1 and 2 decide as before
+	var threat := LanePlanner.threat_by_lane(GameState.lane_plan, Balance.data.enemy.hp, GameState.tier)
+	var side := {}
+	for l in tier_lanes:
+		side[l] = 0.0
 	for w in GameState.lane_plan:
 		if String(w.side) != "":
 			side[w.side] += int(w.side_count) * float(w.hp_mult)
 	var side_lane := ""
-	for l in LanePlanner.LANES:
+	for l in tier_lanes:
 		if side[l] > 0.0 and (side_lane == "" or side[l] > side[side_lane]):
 			side_lane = l
 	# steps 1-2
 	var builds: Array = []
 	if side_lane != "":
-		builds.append(MapLayout.LANE_FENCE[side_lane])
+		builds.append(MapLayout.lane_fence(side_lane))
 		var tower := ""
 		for t in ["tower_nw", "tower_ne"]:  # SPOT_IDS order; a strictly higher threat replaces
-			if side_lane in MapLayout.TOWER_LANES[t] and (tower == "" or _spot_threat(t, threat) > _spot_threat(tower, threat) + 1e-6):
+			if side_lane in MapLayout.tower_lanes(t) and (tower == "" or _spot_threat(t, threat) > _spot_threat(tower, threat) + 1e-6):
 				tower = t
-		builds.append(tower)
+		if tower != "":  # a lane no tier-1 tower covers (sw, tier 3) has none
+			builds.append(tower)
 	# step 3
 	var rest: Array = []
 	for id in MapLayout.SPOT_IDS:
@@ -79,14 +83,17 @@ func next_purchase() -> String:
 		return MapLayout.SPOT_IDS.find(a) < MapLayout.SPOT_IDS.find(b))
 	builds.append_array(rest)
 	for id in builds:
+		if not graph.nodes.has(id):
+			skipped_goals += 1  # a tier-3 spot this bot's tier-1 graph cannot reach
+			continue
 		if int(GameState.buildings[id].level) == 0 and GameState.remaining_cost(id) <= GameState.gold:
 			return id
 	# step 4: upgrades; lanes by threat, and next to a lane the towers before the fences, the cheapest affordable of a kind
-	var lanes: Array = LanePlanner.LANES.duplicate()
+	var lanes: Array = tier_lanes.duplicate()
 	lanes.sort_custom(func(a: String, b: String) -> bool:
 		if not is_equal_approx(threat[a], threat[b]):
 			return threat[a] > threat[b]
-		return LanePlanner.LANES.find(a) < LanePlanner.LANES.find(b))  # ties by index order
+		return tier_lanes.find(a) < tier_lanes.find(b))  # ties by index order
 	for l in lanes:
 		if threat[l] <= 0.0:
 			continue
@@ -96,7 +103,7 @@ func next_purchase() -> String:
 			for id in MapLayout.SPOT_IDS:
 				if MapLayout.spot_kind(id) != kind:
 					continue
-				var next_to: bool = (l in MapLayout.TOWER_LANES[id]) if kind == "tower" else (MapLayout.FENCE_LANE[id] == l)
+				var next_to: bool = (l in MapLayout.tower_lanes(id)) if kind == "tower" else (MapLayout.fence_lane(id) == l)
 				if not next_to or int(GameState.buildings[id].level) < 1:
 					continue
 				var rem := GameState.remaining_cost(id)
@@ -109,8 +116,8 @@ func next_purchase() -> String:
 
 func _spot_threat(id: String, threat: Dictionary) -> float:
 	if MapLayout.spot_kind(id) == "fence":
-		return threat[MapLayout.FENCE_LANE[id]]
+		return threat[MapLayout.fence_lane(id)]
 	var m := 0.0
-	for l in MapLayout.TOWER_LANES[id]:
+	for l in MapLayout.tower_lanes(id):
 		m = maxf(m, threat[l])
 	return m
