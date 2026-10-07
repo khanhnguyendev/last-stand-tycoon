@@ -3,6 +3,7 @@ extends GutTest
 ## renderer is needed. The "wired" test uses the World's own OccluderFade (D-139 wiring, applied).
 
 const DT := 1.0 / 60.0
+const DinerArtT3 := preload("res://art/env/diner_art_t3.gd")
 var _visual: Node3D
 var _fade: OccluderFade
 var _cam: Camera3D
@@ -398,11 +399,16 @@ func test_wired_without_a_guard_behind_the_diner_it_stays_opaque() -> void:
 	assert_false(main.world.occluder_fade.is_faded(), "nobody is behind the diner")
 	GameState.new_game(1)
 
+func _tier3_cost() -> void:
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)  # the tier-3 switch is Task 21: the test turns it on
+
 func test_wired_every_mesh_surface_of_the_building_is_faded_at_every_tier() -> void:
+	_tier3_cost()
 	var main := _wired_main_with_tank_at_north()
 	var fade: OccluderFade = main.world.occluder_fade
 	var vis := main.world.diner_body.get_node("Visual")
-	for tier in [1, 2]:
+	for tier in [1, 2, 3]:
 		GameState.debug_set_tier(tier, 1)
 		await get_tree().process_frame
 		for i in 40:
@@ -419,7 +425,97 @@ func test_wired_every_mesh_surface_of_the_building_is_faded_at_every_tier() -> v
 				assert_not_null(mat, "tier %d: %s surface %d is in the fade's set" % [tier, mi.get_path(), k])
 				if mat != null:
 					assert_almost_eq(mat.albedo_color.a, Balance.ui.occluder_alpha, 0.02)
-		assert_gte(surfaces, 2 if tier == 2 else 1)
+		assert_gte(surfaces, 2 if tier >= 2 else 1)
+		var scene: String = (vis.get_node("DinerArt") as Node).scene_file_path
+		assert_eq(scene, World.diner_scene_for(tier).resource_path, "tier %d shows its own building" % tier)
+	GameState.new_game(1)
+
+# ---- E5 tier 3 Task 20 (part D): the tier-3 diner is wired; its roof parts reach the fade ----
+
+func test_diner_scene_for_each_tier() -> void:
+	assert_eq(World.diner_scene_for(1), World.DINER_ART)
+	assert_eq(World.diner_scene_for(2), World.DINER_ART_T2)
+	assert_eq(World.diner_scene_for(3), World.DINER_ART_T3)
+	assert_eq(World.DINER_ART_T3.resource_path, "res://art/env/diner_t3.tscn")
+	assert_eq(World.diner_scene_for(4), World.DINER_ART_T3, "a higher tier keeps the tallest building")
+
+func test_a_world_built_at_tier_3_shows_the_tier_3_diner_and_the_fade_reads_its_roof_boxes() -> void:
+	_tier3_cost()
+	GameState.new_game(5)
+	GameState.debug_set_tier(3, 1)
+	var main := Main.create()
+	add_child_autofree(main)
+	await get_tree().physics_frame
+	var vis := main.world.diner_body.get_node("Visual")
+	assert_eq((vis.get_node("DinerArt") as Node).scene_file_path, "res://art/env/diner_t3.tscn")
+	var fade: OccluderFade = main.world.occluder_fade
+	var added := DinerArtT3.ADDED_BOXES
+	assert_eq(fade._roof_boxes.size(), added.size(), "the fade holds the storey's and the lanterns' boxes")
+	for i in added.size():
+		assert_true(fade._roof_boxes[i].is_equal_approx(added[i]), "roof box %d (the diner stands at the origin)" % i)
+	GameState.new_game(1)  # back to tier 1: the world rebuilds
+	await get_tree().process_frame
+	assert_eq((vis.get_node("DinerArt") as Node).scene_file_path, "res://art/env/diner.tscn")
+	assert_eq(fade._roof_boxes.size(), 0, "tier 1 has no roof parts")
+	assert_eq(vis.get_child_count(), 2, "the art and the fade: no leaked second art")
+
+## Where the camera sees the Archer through a part above the roof: the added boxes block the segment from the camera to the point the guard
+## roster reports for him.
+func _storey_hides_foci(aim: Vector3) -> Array:
+	var out := []
+	for x in range(int(CameraMath.FOCUS_MIN.x), int(CameraMath.FOCUS_MAX.x) + 1):
+		for z in range(int(CameraMath.FOCUS_MIN.y), int(CameraMath.FOCUS_MAX.y) + 1):
+			var f := Vector2(x, z)
+			var from := CameraMath.camera_transform(CameraMath.focus_for(f), Balance.ui).origin
+			for b in DinerArtT3.ADDED_BOXES:
+				if b.intersects_segment(from, aim) != null:
+					out.append(f)
+					break
+	return out
+
+func test_wired_at_tier_3_the_storey_hiding_the_archer_fades_the_diner() -> void:
+	_tier3_cost()
+	GameState.new_game(5)
+	GameState.debug_set_tier(3, 1)
+	var main := Main.create()
+	add_child_autofree(main)
+	main.hero.input.player_control = false
+	await get_tree().physics_frame
+	main.phase_controller.start_new_game(72)
+	GameState.debug_set_tier(3, 1)
+	main.world.wave_director.stop()
+	GameState.debug_grant_card(&"archer")
+	var g: Guard = main.world.guard_roster.guards[&"archer"]
+	g.place_at_post()
+	g.set_physics_process(false)
+	var aim: Vector3 = main.world.guard_roster.occluder_points()[0]  # the real roster's point for him
+	var foci := _storey_hides_foci(aim)
+	gut.p("foci where the tier-3 storey hides the Archer: %d" % foci.size())
+	assert_gt(foci.size(), 6, "the test is live")
+	var fade: OccluderFade = main.world.occluder_fade
+	var checked := 0
+	for k in 3:
+		var f: Vector2 = foci[k * (foci.size() / 3)]
+		main.hero.teleport(f)
+		main.camera_rig.snap()
+		g.visual.visible = true
+		for i in 40:
+			await get_tree().process_frame
+		assert_true(fade.is_faded(), "focus %s: the storey hides the Archer, so the diner fades" % f)
+		# control 1: the hero alone at that focus does not fade it
+		g.visual.visible = false
+		for i in 40:
+			await get_tree().process_frame
+		assert_false(fade.is_faded(), "focus %s: with the Archer out of the roster's points nothing fades" % f)
+		# control 2: the tier-2 building has no storey, so the Archer alone does not fade it
+		g.visual.visible = true
+		GameState.debug_set_tier(2, 1)
+		for i in 40:
+			await get_tree().process_frame
+		assert_false(fade.is_faded(), "focus %s: tier 2 never fades for the Archer alone" % f)
+		GameState.debug_set_tier(3, 1)
+		checked += 1
+	assert_eq(checked, 3)
 	GameState.new_game(1)
 
 func _real_diner_t2() -> OccluderFade:

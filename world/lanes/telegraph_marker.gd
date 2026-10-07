@@ -19,6 +19,10 @@ var target_scale := 0.0
 var row: Node3D
 var items := {}
 var _phase := Phase.NIGHT
+## E5 tier 3 Task 20: the row's local x range [from, to] as _fill_row laid it out (empty when it shows nothing), and the HUD top bar's
+## height in viewport pixels (the safe-area inset + UiTuning.hud_top_bar_px; refreshed on a resize and on a phase change).
+var _row_span := Vector2.ZERO
+var _bar_px := 0.0
 
 func setup(id: String) -> void:
 	lane_id = id
@@ -30,6 +34,7 @@ func setup(id: String) -> void:
 	EventBus.phase_changed.connect(_on_phase_changed)
 	EventBus.state_restored.connect(refresh)
 	EventBus.tier_changed.connect(_on_tier_changed)  # the day the tier is paid, the boss lane already shows
+	_refresh_bar()
 	refresh()
 
 ## A marker made mid-game missed phase_changed: the world hands it the phase it last announced.
@@ -39,7 +44,46 @@ func sync_phase(p: int) -> void:
 
 func _on_phase_changed(p: int, _day: int) -> void:
 	_phase = p
+	_refresh_bar()
 	refresh()
+
+## The HUD top bar's height (viewport px), cached: SafeArea.insets may ask the browser, so it is not read every frame.
+func _refresh_bar() -> void:
+	if not is_inside_tree():
+		return
+	var vp := get_viewport()
+	if not vp.size_changed.is_connected(_refresh_bar):
+		vp.size_changed.connect(_refresh_bar)
+	_bar_px = float(SafeArea.insets(vp.get_visible_rect().size).top) + Balance.ui.hud_top_bar_px
+
+## Visual only, and nothing reads it: a row whose screen rect touches the HUD's top bar (the gold counter and the day label draw over it)
+## is hidden, shown again when it clears. Once per physics frame, only while the flag shows; `visible` is written only on a change.
+func _physics_process(_delta: float) -> void:
+	if row == null or not visible:
+		return
+	var want := not row_under_hud()
+	if row.visible != want:
+		row.visible = want
+
+## True while the row's projected rect (its icons' extent, from the camera now) intersects the top bar. False for an empty row, with
+## no camera, or when any corner is behind the camera.
+func row_under_hud() -> bool:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null or _row_span.x >= _row_span.y:
+		return false
+	var anchor := row_anchor()
+	var half := Balance.ui.telegraph_icon_m * 0.5
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for x in [_row_span.x, _row_span.y]:
+		for dy in [-half, half]:
+			var w := Vector3(anchor.x + x, anchor.y + dy, anchor.z)
+			if cam.is_position_behind(w):
+				return false
+			var p := cam.unproject_position(w)
+			lo = lo.min(p)
+			hi = hi.max(p)
+	return lo.y < _bar_px
 
 func _on_tier_changed(_tier: int, _paid: int, _boss_pending: bool) -> void:
 	refresh()
@@ -146,6 +190,7 @@ func _fill_row(comp: Dictionary) -> void:
 			x = -total * 0.5
 		1:
 			x = -total
+	_row_span = Vector2(x, x + total) if not kinds.is_empty() else Vector2.ZERO
 	for i in kinds.size():
 		var it: Dictionary = items[kinds[i]]
 		var icon := it.icon as Node3D

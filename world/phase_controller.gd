@@ -108,6 +108,27 @@ func _run_dawn() -> void:
 		return
 	_card_pick(offer)
 
+## E5 tier 3 Task 20 (D-273.2): a tap or click anywhere while the tier-up reveal plays fast-forwards it: the card pick opens now (the
+## TierReveal and the camera follow the pick on the bus). The press is consumed here, so it starts no joystick drag and presses no
+## button under the finger. The emulated mouse event a touch also sends is left alone (the touch itself already skipped).
+func _input(event: InputEvent) -> void:
+	if not reveal_pending or event.device == InputEvent.DEVICE_ID_EMULATION:
+		return
+	var tap: bool = (event is InputEventScreenTouch and event.pressed) \
+		or (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT)
+	if not tap:
+		return
+	get_viewport().set_input_as_handled()
+	finish_reveal_now()
+
+## Ends the reveal wait at once and opens the card pick (or, with no offer, the day): the pending reveal timer is spent, never left
+## to open a second pick. No-op when no reveal is pending.
+func finish_reveal_now() -> void:
+	if not reveal_pending:
+		return
+	_reveal_id += 1  # the timer still running carries the old id and is ignored when it fires
+	_on_reveal_timer(_reveal_id)
+
 func _on_reveal_timer(id: int) -> void:
 	if id != _reveal_id or phase != Phase.DAWN:
 		return

@@ -8,6 +8,7 @@ const GROUND_MARGIN := 80.0
 ## S4 art (D-194, D-201): the diner is one baked mesh plus its rooftop board; instanced once.
 const DINER_ART := preload("res://art/env/diner.tscn")
 const DINER_ART_T2 := preload("res://art/env/diner_t2.tscn")
+const DINER_ART_T3 := preload("res://art/env/diner_t3.tscn")
 
 var lanes := {}
 var lighting: LightingDirector
@@ -38,6 +39,8 @@ var tier_reveal: TierReveal
 ## E5 Task 10: the merged ground carries the open yards; the stones ring them (one MultiMesh, no collision).
 var ground: MeshInstance3D
 var yard_stones: MultiMeshInstance3D
+## E5 tier 3 Task 20: the full kerb while a reveal stage shows only some yards' pieces (show_map_stage); null otherwise.
+var _stage_kerb: MultiMesh
 ## The lane edge stones (one MultiMesh); rebuilt when the lane set changes (tier 3 adds the south-west strip's).
 var edge_stones: MultiMeshInstance3D
 var _stone_lanes: Array[String] = []
@@ -176,6 +179,7 @@ func _yard_rects(yards: Array) -> Array[Rect2]:
 	return out
 
 func _set_yard_stones(yards: Array) -> void:
+	_stage_kerb = null
 	if yard_stones != null:
 		remove_child(yard_stones)
 		yard_stones.queue_free()
@@ -184,8 +188,11 @@ func _set_yard_stones(yards: Array) -> void:
 		yard_stones = YardStones.build(yards, Balance.data.enemy.lateral_spread)
 		add_child(yard_stones)
 
-## E5 Task 11: the tier-2 diner (the flank terraces) from tier 2; tier 1 keeps DINER_ART.
+## E5 Task 11 and tier 3 Task 20: the tier-2 diner (the flank terraces) at tier 2, the tier-3 diner (the second storey) from tier 3;
+## tier 1 keeps DINER_ART.
 static func diner_scene_for(tier: int) -> PackedScene:
+	if tier >= 3:
+		return DINER_ART_T3
 	return DINER_ART_T2 if tier >= 2 else DINER_ART
 
 ## E5 spec 7.3: the ground mesh, the yard stones, the props and the spot set follow the tier (tier_changed, tier_reached,
@@ -212,6 +219,34 @@ func rebuild_for_tier() -> void:
 			_make_spot(id)
 	_swap_diner_art(tier)
 	_sync_branch_pads()
+
+## E5 tier 3 Task 20 (visual only, the reveal's hook): the map as it looks with only `yards` and `lanes` built: the ground mesh
+## (paving, lane strips, small props), the kerb pieces of those yards and the lane edge stones. The kerb stays ONE MultiMesh (no extra
+## draw call): the stage swaps its multimesh for the pieces of `yards`, which are the same transforms the full kerb holds for them.
+## show_map_full() puts everything back. Nothing is touched when the tier has no yard.
+func show_map_stage(yards: Array, lanes: Array) -> void:
+	var spread: float = Balance.data.enemy.lateral_spread
+	ground.mesh = GroundArt.terrain_mesh(ground_rect(), yards, lanes, spread)
+	if yard_stones != null:
+		if _stage_kerb == null:
+			_stage_kerb = yard_stones.multimesh
+		var part := YardStones.build(yards, spread)
+		yard_stones.multimesh = part.multimesh
+		part.free()
+	edge_stones.multimesh = LaneStrip.edge_multimesh(lanes)
+
+## Ends a show_map_stage: the ground, the kerb and the edge stones of the tier the map is built for.
+func show_map_full() -> void:
+	var spread: float = Balance.data.enemy.lateral_spread
+	ground.mesh = GroundArt.terrain_mesh(ground_rect(), yard_ids(), lane_ids(), spread)
+	if _stage_kerb != null and yard_stones != null:
+		yard_stones.multimesh = _stage_kerb
+	_stage_kerb = null
+	edge_stones.multimesh = LaneStrip.edge_multimesh(lane_ids())
+
+## The diner's art for `tier` (the reveal shows the old storey until its step); 0 = the tier the map follows. Same as rebuild_for_tier's swap.
+func show_diner_for(tier := 0) -> void:
+	_swap_diner_art(tier if tier > 0 else _effective_tier())
 
 ## The lane nodes, their edge stones and their telegraph markers follow the tier: the lanes of `lane_ids()` exist, no others.
 ## Tiers 1 and 2 have the same three, so nothing is touched for them.
