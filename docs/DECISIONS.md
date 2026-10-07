@@ -2484,3 +2484,24 @@ diner at 4% on one seed at the tier-2 cap (D-258). Order: (1) run the tier-2 cap
 at least 10 seeds; (2) if the median diner margin is under 15%, the cap is too tight: lower `tier_cap[2]` from 11 to
 10, which also gives the boss room; (3) otherwise keep 11 and lighten the boss. Either way the boss must still fail
 the no-yard-towers run (D-267). Within the three-round tuning rule (D-103); the result goes to REVIEW_QUEUE.
+
+**D-270 Tier-3 design section 1 approved with additions (author).** Phases merge one by one; the tier-3 cost entry is
+the switch and arrives in the last task of phase 4.
+1. **Switch test:** with the tier-3 cost absent, no sign offers tier 3 and a full sweep shows no tier-3 content (no
+   brutes, no SW lane, no branch pads). Debug hotkeys may force tier 3 in the debug build only; a release-export
+   check proves the forcing code is absent.
+2. **Save schema 6:** a migration test from a real committed v5 fixture save (not a hand-built dictionary) that loads
+   with no branches and identical gameplay state; a v6 round trip with branches and partial pad payments; the
+   fail/quit snapshot (S3) includes branch state and pad payments.
+3. **RNG identity:** tier-3 lane draws use the `lane_plan` stream only and shift no other stream (spawns, travelers,
+   drops). The byte-identity test covers tier 1 and 2 plans, sweep rows 1 to 7, and a tier-2 fixture night that is
+   identical before and after the slice.
+4. **Margin study ordering (amends D-269):** the cap decision (steps 1 and 2) is in phase 2; "lighten the boss"
+   (step 3) is in phase 3, once the boss exists; the no-yard-towers fail check (D-267) is in phase 5.
+5. **Checkpoint pack** in `docs/review/E5_T3.md` plus media: a 60 to 90 s iOS Simulator video (tier-2 boss night,
+   dawn reveal, a tier-3 night with a brute lane and a branch purchase); before/after growth screenshots; the SW
+   corner shot with all pads; `sim-tiers` results with the policy comparison and the margin study; the profile-build
+   perf reading at a tier-3 night; this slice's REVIEW_QUEUE entries, top first.
+   Main-session reading against D-260: the perf reading is taken once, at the end of phase 5, when every task and
+   phase of this slice is done; never between phases.
+6. **Pools:** the brute and boss pools are sized from the new caps (the S1 rule); the runtime-growth warning applies.
