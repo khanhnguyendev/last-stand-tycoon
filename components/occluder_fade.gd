@@ -3,7 +3,9 @@ extends Node
 ## D-151: fades the MeshInstance3Ds (and Label3Ds, S4) under its parent (the occluder's "Visual") while the occluder
 ## hides an actor from the camera. The boxes come from a node under the parent that exposes `occluder_boxes` (local-space
 ## AABBs, e.g. the diner's walls, chimney and board: any grown box hit fades); with none, the box is the merged AABB of
-## every VisualInstance3D under the parent (S4, D-194). Aim points on the diner's own roof (the Archer) never fade it (D-164).
+## every VisualInstance3D under the parent (S4, D-194). Aim points on the diner's own roof (the Archer) never fade it through the
+## base boxes (D-164: he stands on them), but ARE tested against `roof_part_boxes` (D-276), the boxes of the parts that rise
+## above the roof (the tier-3 storey and lanterns): when one stands between the camera and him the building fades.
 ## Visual only: runs in _process and never touches GameState.
 ## A mesh with a material_override gets a transparent duplicate of it as its override; a mesh without one gets
 ## transparent duplicates of its surface materials as surface overrides. At full opacity the originals are
@@ -12,9 +14,13 @@ extends Node
 ## The merge of the occluder boxes (or of the parent's visuals when it provides none), plus any box passed to setup().
 var bounds := AABB()
 var _boxes: Array[AABB] = []
+## World-space boxes of the parts above the roof, from any node under the parent that exposes `roof_part_boxes` (also in _boxes).
+var _roof_boxes: Array[AABB] = []
 var _extra := AABB()
 var _camera_source: Callable
 var _targets: Callable
+## Offsets from a roof target's aim point (Guard.AIM_HEIGHT 1.0) to his feet + 0.3, the aim point and his head (Guard.BAR_Y 2.0).
+const ROOF_BODY_OFFSETS := [-0.7, 0.0, 1.0]
 var _alpha := 1.0
 var _warned := false
 ## MeshInstance3D -> {"override": Material or null, "fade": BaseMaterial3D or null, "surfaces": {i: {"prior", "fade"}}}
@@ -39,6 +45,7 @@ func setup(box: AABB, camera_source: Callable, targets: Callable) -> void:
 ## Call after the art changes.
 func refresh_bounds() -> void:
 	_boxes = []
+	_roof_boxes = []
 	var parent := get_parent()
 	if parent != null:
 		for n in parent.find_children("*", "Node3D", true, false):
@@ -46,6 +53,9 @@ func refresh_bounds() -> void:
 				var xf := (n as Node3D).global_transform if (n as Node3D).is_inside_tree() else (n as Node3D).transform
 				for b in n.get("occluder_boxes"):
 					_boxes.append(xf * (b as AABB))
+				if "roof_part_boxes" in n:
+					for b in n.get("roof_part_boxes"):
+						_roof_boxes.append(xf * (b as AABB))
 		if _boxes.is_empty():
 			var merged := AABB()
 			var any := false
@@ -100,6 +110,12 @@ func _any_occluded(grow: float) -> bool:
 	var from := cam.global_position
 	for p in _targets.call():
 		if _on_own_roof(p as Vector3):
+			# the Archer on the roof: only the parts above the roof can hide him (the walls and slab he stands on never do), and
+			# the aim point stands for his body: a part that hides his feet or his head fades the building too
+			for dy in ROOF_BODY_OFFSETS:
+				for box in _roof_boxes:
+					if box.intersects_segment(from, (p as Vector3) + Vector3(0, dy, 0)) != null:  # exact: a near miss does not fade
+						return true
 			continue
 		for box in _boxes:
 			if box.grow(grow).intersects_segment(from, p as Vector3) != null:
