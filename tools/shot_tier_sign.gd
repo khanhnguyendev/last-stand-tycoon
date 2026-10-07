@@ -2,7 +2,7 @@ extends SceneTree
 ## The tier sign at phone size (E5 tier 3 Task 3; first written for E5 Task 9). Run WITH rendering (not --headless):
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_tier_sign.gd -- --out=docs/review/media/e5t3/growth --name=sign_after
 ## Tier 1 on day 2 (the sign sells the yards), the hero standing beside the sign, the camera on the sign. Writes
-## <name>.png (720x1280) and <name>_40.png (288x512), and prints whether the sign is on screen from HOME.
+## <name>.png (hero beside the sign) and <name>_on.png (hero standing on its pad), each 720x1280 plus a _40 copy (288x512), and prints whether the sign is on screen from HOME.
 
 func _initialize() -> void:
 	_run.call_deferred()
@@ -36,6 +36,7 @@ func _run() -> void:
 	camera_math.apply_lens(cam, bal.ui, vp.x / vp.y)
 	cam.current = true
 	root.add_child(cam)
+	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(layout.HOME), bal.ui)  # never at the origin (inside the diner's occluder box)
 	main.phase_controller.debug_skip_to_day()
 	for i in 60:
 		await physics_frame
@@ -50,11 +51,25 @@ func _run() -> void:
 	for i in 30:
 		await physics_frame
 	await _grab(main, cam, camera_math, bal, layout.TIER_SIGN, out, shot)
+	main.hero.teleport(layout.TIER_SIGN)
+	for i in 30:
+		await physics_frame
+	await _grab(main, cam, camera_math, bal, layout.TIER_SIGN, out, shot + "_on")
 	quit(0)
 
 func _grab(main, cam: Camera3D, camera_math, bal, focus: Vector2, out: String, name: String) -> void:
 	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(focus), bal.ui)
-	for i in 20:
+	var settled := false
+	for i in 600:  # the diner's occluder fade must be fully opaque before the shot
+		await physics_frame
+		if main.world.occluder_fade.current_alpha() == 1.0 and i >= 20:
+			settled = true
+			break
+	if not settled:
+		push_error("occluder fade never settled")
+		quit(1)
+		return
+	for i in 5:
 		await process_frame
 	var img := root.get_texture().get_image()
 	var dir := ProjectSettings.globalize_path("res://").path_join(out)

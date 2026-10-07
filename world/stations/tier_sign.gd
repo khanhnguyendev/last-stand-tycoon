@@ -5,7 +5,6 @@ extends Node3D
 
 const SIGN_SCENE := preload("res://art/env/tier_sign.tscn")
 const MARKER_SCENE := preload("res://art/env/spot_marker.tscn")
-const LABEL_Y := 3.5  # clear of the gold star on the board top (E5 tier 3: a taller sign)
 
 var label: WorldLabel
 var zone: StationZone
@@ -22,7 +21,7 @@ func setup(world: World) -> void:
 	add_child(_visual)
 	label = WorldLabel.make("", Balance.ui.tier_sign_label_font)
 	label.pixel_size = Balance.ui.tier_sign_label_pixel_size
-	label.position = Vector3(0, LABEL_Y, 0)
+	label.position = Vector3(0, Balance.ui.tier_sign_label_y, 0)
 	add_child(label)
 	marker = MARKER_SCENE.instantiate()
 	add_child(marker)
