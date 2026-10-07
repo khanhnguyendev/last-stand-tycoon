@@ -2664,3 +2664,25 @@ cost-entry switch and the debug-only tier forcing.
   the tower, not 0.5 m. The east exit at tier 3 stays as approved (it reuses the entry line and clears the fence by
   3.80 m).
 - **Implementers sign commits with their own model's trailer** (the model that wrote the commit).
+
+**D-277 Rulings during phase 2 (data and rules) and the start of phase 3.**
+- **Map storage (changes spec 3.1):** the tier-3 map entries are `*_T3` constants behind accessors in
+  `core/map_layout.gd`; the shared dictionaries keep only tier-1/2 entries, because art code iterates them by key and
+  would have drawn the south-west strip at tier 1. A source-scan test bans direct reads outside `core/map_layout.gd`.
+- **`tower_sw` covers the south-west lane only** (`["sw"]`): the west fence (9.15 m) and the west zone's far corner
+  (7.56 m) are beyond level-1 range, so listing west would mislead the bots.
+- **Branch pads:** yard props and kerbs count as obstacles; 14 of 18 pads moved; the worst clearance is 0.15 m.
+- **Plan shape:** waves carry `brute_main` / `brute_side` only from tier 3, so tier-1/2 plans and saves keep their
+  exact shape. `GameState.from_dict` copies the keys only at tier 3 or above.
+- **Brute ramp:** the last d + 1 waves carry a main-lane brute on day d of tier 3; all side brutes arrive on the
+  `brute_ramp_days` night (the same night pressure reaches the cap at the starting values).
+- **Save schema 6:** only the two building fields are added. A pad payment at or above cost clamps on load (D-234);
+  `validate` requires the new fields. Partial pad payments on a fence destroyed at night are refunded to gold at dawn
+  (D-263 only said the branch is lost; no gold may disappear).
+- **Stone wall:** buying it fully repairs the fence (its HP becomes the new maximum).
+- **Wave 3b split:** the Spike fence's monster side (thorns on the attacker, pass damage to hares) moves from Task 12
+  to Task 11, which changes hare-kind behaviour anyway; Task 12 does the towers and two state queries.
+- **Boot warm-up:** it now builds the two placeholder monster meshes and the yard kerb; from the switch on it
+  pre-builds the ground of every tier from 2 to the top. Cost unmeasured until the final perf run.
+- **Hare ramp at tier 2 after the cap change:** `fast_ramp_days[2]` stays 3 while pressure now reaches the cap after 2
+  days, so the first cap night has a slightly lower hare share. Left as is (REVIEW_QUEUE).
