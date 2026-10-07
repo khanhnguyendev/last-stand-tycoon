@@ -32,7 +32,7 @@ Every row of section 10 has its test or report green, the checkpoint pack exists
 |---|---|---|---|
 | 1 Growth readability | `e5/p6-growth` | Tier-2 roof, chimney, sign board; paved yards; tier sign size; fade on the whole building and on guards | self |
 | 2 Data and rules | `e5/p7-t3-data` | Margin study and cap decision; tier-3 balance; monster and branch stats; lanes per tier; plan fields; schema 6; GameState branch API | self |
-| 3 Night | `e5/p8-t3-night` | SW lane and zone; brute; Baron; branch effects; respawn protection; telegraph composition; boss tuning step | self |
+| 3 Night | `e5/p8-t3-night` | SW lane and zone; brute; Baron; branch effects; respawn protection; telegraph composition (the boss tuning step was dropped with the cap change, D-278) | self |
 | 4 World and interface | `e5/p9-t3-world` | Plot, tier-dependent layout, branch pads with preview and refund, models, tier-3 diner, reveal with tap-skip, fourth arrow; **last task adds the tier-3 cost** | self |
 | 5 Proof | `e5/p10-t3-proof` | Tier bot policies, fixtures, tier sims, report scripts, sweep, perf, checkpoint pack | **author's checkpoint** |
 
@@ -252,8 +252,9 @@ cute-dangerous, heavy slow walk; a ground-thump effect and sound on each fence h
 
 ### 6.5 Telegraph and arrows (D-264, D-265.3)
 
-Each lane marker shows per-kind counts (Boar, hare, brute icons with numbers) and the boss icon on the boss lane,
-from `composition_by_lane`. A fourth edge arrow serves the SW lane; an arrow whose lane carries a brute gets a
+Each lane shows a row of per-kind counts (Boar, hare, brute icons with numbers) and the boss icon on the boss lane,
+from `composition_by_lane`. The rows sit up the lanes in a free band (z = -15; south of the road for sw), clear of
+pad labels and the hero (D-278). A fourth edge arrow serves the SW lane; an arrow whose lane carries a brute gets a
 distinct heavy mark. All judged at 40% scale.
 
 ### 6.6 Guards (D-271)

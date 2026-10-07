@@ -119,6 +119,14 @@ Reversible decisions from the tier-3 build, highest impact first. Media: `docs/r
 10. At tier 2 the hare share still ramps over 3 days while pressure now caps after 2, so the first cap night is slightly lighter on hares — [D-277](DECISIONS.md)
 11. The boot warm-up now builds more (kerb, placeholder monster meshes, every tier's ground after the switch); its cost is unmeasured until the final perf run — [D-277](DECISIONS.md)
 
+12. **Tonight's count rows hide under the HUD from the home spot.** They read well near a lane. Options: move the day HUD, lift the tower labels, or a HUD summary of tonight's lanes — [D-278](DECISIONS.md), `e5t3/telegraph/day_tier3_home.png`, `day_tier3.png`
+13. **The siege brute** is a stocky, redder boar at 80% of the Boar King's size; its fence thump is the diner-hit sound pitched down and its dust is hard to see (grey on grey) — [D-278](DECISIONS.md), `e5t3/monsters/brute.png`, `brute_vs_king.png`, `brute_fence.png`
+14. **Baron von Hop** is a saturated red giant hare; its crown reads as a grey comb and its ears as antennae from the front; it hops and lunges with the Boar's values — `e5t3/monsters/baron.png`
+15. **The Boar King's bar now shows its name** (tier 1 too), and tier 2's boss banner says "Baron von Hop comes" — [D-278](DECISIONS.md)
+16. **Spike fence scaling** follows the night's first wave, so it is weaker against the last wave (64% at the cap) and ignores mercy — [D-278](DECISIONS.md)
+17. **Respawned guards:** protected for 1.5 s (respawns only), still attacking (at most 2 swings). Without protection a respawning guard absorbed up to 15 of the diner's 300 HP in the SW zone. Disable the attacker while protected? — [D-278](DECISIONS.md)
+18. A Longbow shot whose target dies in flight is wasted with its 3 s cooldown; the brute mark on an edge arrow shows for the whole remaining night's brutes on that lane — [D-278](DECISIONS.md)
+
 ## Final review playtest questions (S5)
 
 1. Did you know what to do in your first minute without reading anything?
