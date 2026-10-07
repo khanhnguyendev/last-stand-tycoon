@@ -14,6 +14,8 @@ var _t0 := 0
 var bosses_killed := 0
 var growth: Array = []
 var hp_last := -1.0
+var _boss_hp_at_fall := -1.0
+var _boss_max_at_fall := -1.0
 
 func before_each() -> void:
 	Balance.reset()
@@ -22,9 +24,11 @@ func before_each() -> void:
 	bosses_killed = 0
 	growth = []
 	hp_last = -1.0
+	_boss_hp_at_fall = -1.0
+	_boss_max_at_fall = -1.0
 
 func after_each() -> void:
-	for pair in [[EventBus.enemy_killed, _count_kill], [EventBus.diner_damaged, _track_hp], [EventBus.guard_knocked_out, _on_ko], [EventBus.guard_revived, _on_revive]]:
+	for pair in [[EventBus.enemy_killed, _count_kill], [EventBus.diner_damaged, _track_hp], [EventBus.guard_knocked_out, _on_ko], [EventBus.guard_revived, _on_revive], [EventBus.diner_damaged, _record_boss]]:
 		var sig: Signal = pair[0]
 		if sig.is_connected(pair[1]):
 			sig.disconnect(pair[1])
@@ -34,6 +38,13 @@ func after_each() -> void:
 func _count_kill(_i: int, _lane: StringName, _p: Vector3, kind: StringName) -> void:
 	if TierEffects.is_boss_kind(kind, Balance.data.tiers):
 		bosses_killed += 1
+
+## Sim 3's margin: the Baron's HP left (and its maximum) at the last hit on the diner (the Baron is already gone when diner_fell is emitted).
+func _record_boss(_amount: float, _hp_left: float) -> void:
+	for b in h.main.world.wave_director.alive_enemies():
+		if (b as Boar).is_boss:
+			_boss_hp_at_fall = (b as Boar).health.hp
+			_boss_max_at_fall = (b as Boar).health.max_hp
 
 func _track_hp(_amount: float, hp_left: float) -> void:
 	hp_last = hp_left
@@ -45,8 +56,8 @@ func _watch_pools() -> void:
 		var pool: NodePool = p
 		pool.grew.connect(func(n: int): growth.append("%s -> %d" % [pool.name, n]))
 
-func _start(stem: String, bot_script: GDScript, p_seed := 0, mutate := Callable(), phase := "") -> void:
-	h.start_from(stem, bot_script, p_seed, phase, mutate)
+func _start(stem: String, bot_script: GDScript, p_seed := 0, phase := "") -> void:
+	h.start_from(stem, bot_script, p_seed, phase)
 	_watch_pools()
 	if not EventBus.enemy_killed.is_connected(_count_kill):
 		EventBus.enemy_killed.connect(_count_kill)
@@ -72,7 +83,7 @@ func test_2_the_baron_night_with_the_full_tier2_build_is_held_with_0_retries() -
 	assert_eq(GameState.night_fails, 0, "a first attempt")
 	assert_eq(_spot_levels(MapLayout.spots_for_tier(2)), [3, 3, 3, 3, 3, 3, 3], "the full tier-2 build (precondition)")
 	var n := await h.run_night()
-	gut.p("Baron night, full build: %s; diner HP left %.1f" % [n, GameState.diner_hp])
+	gut.p("Baron night, full build: %s; diner HP left %.1f; MARGIN sim 2 diner fraction (minimum during the night) %.4f" % [n, GameState.diner_hp, n.diner_frac])
 	assert_false(n.failed, "no loss, so no retry")
 	assert_true(n.cleared, "the Baron night is held on the first attempt")
 	assert_eq(GameState.night_fails, 0)
@@ -96,7 +107,9 @@ func test_3_the_baron_night_without_the_yard_towers_is_lost() -> void:
 	assert_eq(a, b, "sim 3 is sim 2's night except for the yard towers")
 	assert_eq(_spot_levels(["tower_w", "tower_e"]), [0, 0], "the fixture has no yard towers (precondition: the sim is vacuous with them)")
 	assert_eq(_spot_levels(["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e"]), [3, 3, 3, 3, 3], "everything else is built")
+	EventBus.diner_damaged.connect(_record_boss)
 	var n := await h.run_night()
+	gut.p("MARGIN sim 3: the Baron had %.1f of %.1f HP left at the last hit on the diner (-1 = never alive)" % [_boss_hp_at_fall, _boss_max_at_fall])
 	gut.p("Baron night, no yard towers: %s; diner HP left %.1f; boss kills %d" % [n, GameState.diner_hp, bosses_killed])
 	assert_true(n.failed, "without the yard towers the first attempt is lost (a retry would need mercy, D-267.3)")
 	assert_eq(bosses_killed, 0, "the Baron was never felled")
@@ -155,6 +168,7 @@ func test_4_the_hero_at_the_zone_reaches_the_baron_before_it_reaches_the_zone() 
 			zone_t = t
 		if caught >= 0.0 and zone_t >= 0.0:
 			break
+	gut.p("MARGIN sim 4: %.2f s (bar 5 s)" % (zone_t - caught))
 	gut.p("lane %s: Baron spawned at %.1f s, caught at %.2f s, in the zone at %.2f s (margin %.2f s)" % [lane, spawned, caught, zone_t, zone_t - caught])
 	assert_gte(spawned, 0.0, "the Baron spawned")
 	assert_gte(caught, 0.0, "the hero reached melee range")
@@ -200,6 +214,7 @@ func test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries() -> void:
 	var new_levels := _spot_levels(["tower_sw", "fence_sw"])
 	assert_eq(new_levels, [3, 3], "the bot built tower_sw and fence_sw to level 3 in the day")
 	var n := await h.run_night()
+	gut.p("MARGIN sim 5: minimum diner fraction %.4f" % n.diner_frac)
 	gut.p("first tier-3 night: new spots built to %s in a %.0f s day; %s; diner HP left %.1f; pool growth %s" % [new_levels, d.seconds, n, GameState.diner_hp, growth])
 	assert_false(n.failed)
 	assert_true(n.cleared, "held on the first attempt")
@@ -279,10 +294,11 @@ func test_7_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again
 	_knock_times = {}
 	_revive_times = {}
 	# Respawn protection must be what keeps the tank alive: in memory the tank dies to any hit (max_hp 1, no growth), so without
-	# the protection it is knocked out again right after it respawns. At least 2 knockouts must be seen, else the window checks have no data.
+	# the protection it is knocked out again right after it respawns. Asserted below: the forced knockout happened, the tank respawned, the zone
+	# was occupied at the respawn, the night was watched 5 s past it, and no knockout fell within 5 s of a respawn or beyond 2 in any 15 s window.
 	Balance.data.guards.tank.max_hp = 1.0
 	Balance.data.guards.tank.hp_growth = 0.0
-	_start("tier3_night1", TierBot, 0, Callable(), "NIGHT")  # the night at once: the south-west spots are unbuilt, the zone fills
+	_start("tier3_night1", TierBot, 0, "NIGHT")  # the night at once: the south-west spots are unbuilt, the zone fills
 	EventBus.guard_knocked_out.connect(_on_ko)
 	EventBus.guard_revived.connect(_on_revive)
 	var forced := -1.0
@@ -302,6 +318,8 @@ func test_7_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again
 				occupied_at_revive = _enemies_in_zone("sw")
 	# Watched period: from the night's start to its end (cleared, lost, or the 150 s cap of this loop).
 	gut.p("forced knockout at %.1f s; knockouts %s; revives %s; enemies in the SW zone at the first revive: %d" % [forced, _knock_times, _revive_times, occupied_at_revive])
+	var first_revive: float = _revive_times.get(&"tank", [0.0])[0]
+	gut.p("MARGIN sim 7: watched %.2f s after the first revive (bar 5 s); %d enemies in the SW zone at the revive" % [h.elapsed - first_revive, occupied_at_revive])
 	assert_gte(forced, 0.0, "enemies reached the south-west zone and the tank was knocked out (not vacuous)")
 	assert_gt(_revive_times.get(&"tank", []).size(), 0, "the tank respawned")
 	assert_gt(occupied_at_revive, 0, "the south-west zone was occupied when the tank respawned")
@@ -325,7 +343,8 @@ func test_7_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again
 ## runs them once per wave). Here: tier-1 and tier-2 plans equal the pinned file for every seed, and the tier-1 plans of days 1 to 7 carry exactly the
 ## enemy_count of the baseline sweep's rows 1 to 7 (tests/sim/baseline), so the row inputs are unchanged.
 func test_8a_tier1_and_tier2_plans_and_the_sweep_row_inputs_are_unchanged() -> void:
-	await get_tree().physics_frame  # one tick: a golden entry must be above 0 (a unit test pins it)
+	for i in 10:  # ten ticks: a golden entry of 1 would be +100% against the 20% budget on a +1 jitter (a unit test pins it above 0)
+		await get_tree().physics_frame
 	var f := FileAccess.open("res://tests/fixtures/plans_tier12.json", FileAccess.READ)
 	var fx: Dictionary = JSON.parse_string(f.get_as_text())["plans"]
 	var tb := Balance.data.tiers
@@ -355,6 +374,7 @@ func test_8a_tier1_and_tier2_plans_and_the_sweep_row_inputs_are_unchanged() -> v
 			assert_eq(total, int(cols[7]), "seed %d day %d: the plan's enemies equal the baseline row's enemy_count" % [sd, day])
 
 ## One tier-2 fixture night (slice 1's tier2_night1, played by the tier bot) ends with the diner HP and tick count recorded before this task.
+## The pin equals slice 1's own values (golden 5889 hook count, diner 119/300 = 0.397), so this proves "unchanged since slice 1".
 ## Mutation check: change the hare or Boar HP or a tower's damage and one of the two moves.
 func test_8b_the_tier2_fixture_night_ends_as_recorded() -> void:
 	# Phase alignment: GUT awaits a process frame between tests only when more than 0.1 s of wall time passed since its last paint, so without

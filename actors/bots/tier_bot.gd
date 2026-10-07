@@ -6,7 +6,7 @@ extends UpgraderBot
 ## the tier sign when the gold in hand finishes the payment, then stations, then close up. It never starts a payment it cannot finish.
 
 ## E5 tier 3 (Task 22): how it chooses a branch for each max-level building (spec 9.4, D-263.5): all_a (Longbow, Stone wall), all_b (Volley,
-## Spike fence), mixed (towers A, fences B: the spec names the policy but not its mix; this is the fixed one) volley_stone (towers Volley, fences Stone wall) and threat (Stone wall and
+## Spike fence), mixed (towers A, fences B: the spec names the policy but not its mix; this is the fixed one), volley_stone (towers Volley, fences Stone wall) and threat (Stone wall and
 ## Longbow on a lane with a brute in tonight's plan, Spike fence and Volley elsewhere).
 const POLICIES: Array[String] = ["all_a", "all_b", "mixed", "threat"]
 ## Report-only policy (Task 24 fix round: the 2 x 2 table of tower x fence). Kept out of POLICIES, which the fixtures (make_save) and sim 6 iterate over.
@@ -51,7 +51,7 @@ func think(delta: float) -> void:
 
 ## Pure: {spot_id: branch id} for `spot_ids` under `policy`, from tonight's `plan` (a lane has a brute when composition_by_lane says so).
 static func branch_choices(p_policy: String, spot_ids: Array, plan: Array, tier := 3) -> Dictionary:
-	assert(p_policy in POLICIES or p_policy in REPORT_POLICIES, "unknown policy " + p_policy)  # the sweep runner validates --policy and exits 1 before any bot exists
+	assert(p_policy in POLICIES or p_policy in REPORT_POLICIES, "unknown policy " + p_policy)  # the sweep runner validates --policy and exits 2 before any bot exists
 	var comp := LanePlanner.composition_by_lane(plan, tier)
 	var out := {}
 	for id in spot_ids:

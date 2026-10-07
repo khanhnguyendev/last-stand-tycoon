@@ -3,6 +3,8 @@ extends GutTest
 ## Literals: unbranched levels 8/7.0, 12/7.5, 18/8.0 at 0.5 s; Longbow 120 per 3.0 s at 9.98 m; Volley 3 x 10 per 0.5 s at 8.0 m.
 ## Spike scale (wave balance: hp_growth 0.15): hp_mult(12) = 1 + 0.15 x 11 = 2.65, hp_mult(15) = 1 + 0.15 x 14 = 3.1,
 ## so the scale at pressure 15 is 3.1 / 2.65 = 1.169811; thorns 6 x = 7.0189, pass 10 x = 11.6981.
+## Since D-280 the tier-3 cap is 12, so the LIVE scale is 1.0 (hp_mult(12) / hp_mult(12)); the pressure-15 case is in-memory only
+## (the cap is raised in the test), kept because it covers the formula.
 
 const TOWER := "tower_nw"
 const FENCE := "fence_n"

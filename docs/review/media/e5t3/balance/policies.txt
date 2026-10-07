@@ -1,5 +1,5 @@
 NOTE a retried night counts its final (mercy) attempt; the night statistics count tier-3 nights only
-COMMIT c0ce5e5
+COMMIT 38b7257
 RUN seed policy | nights retry_nights min median mean fences_lost_mean branches branch_gold unspent_last_day hard_break_day
 RUN 20260930 all_a | 14 1 0.097 0.765 0.7101 1.14 22 7600 9849 -1
 RUN 20260930 all_b | 14 0 0.313 0.845 0.7626 2.07 33 10900 4729 -1
@@ -33,4 +33,4 @@ EFFECT interaction ((Volley minus Longbow with Spike) minus (the same with Stone
 DOMINANT_BRANCH_2x2: yes (gap 31.4 points, threshold 15)
 DOMINANT_BRANCH: yes (gap 20.9 points, threshold 15)
 THREAT_BEST: tie (threat 75.4, best other all_b 76.7, mean difference -1.3, per seed +8.4 -12.4 +0.2)
-WALL 975 s (parallel=3, 15 runs started)
+WALL 977 s (parallel=3, 15 runs started)

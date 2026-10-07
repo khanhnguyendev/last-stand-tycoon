@@ -5,6 +5,9 @@ extends GutTest
 ## M1 (single-target DPS) and M3 (DPS against three targets) are RAW by definition: damage x projectiles on distinct
 ## targets / interval. Kill rates (M4, the brute check) use whole hits, so overkill counts against a tower.
 
+## 13 to 15 are UNREACHABLE since D-280 (the tier-3 cap is 12, so the live range is [12]). The cases at 13 to 15 are kept on purpose: they
+## cover the formulas (the branch identity must not depend on the cap). The LIVE range is derived from tier_base[3]..tier_cap[3] and is
+## asserted separately in test_live_pressure_range_*.
 const PRESSURES: Array[int] = [12, 15]
 const ALL_PRESSURES: Array[int] = [12, 13, 14, 15]
 const WAVES := 3
@@ -78,6 +81,40 @@ func test_real_hp_values_are_pinned() -> void:
 			assert_almost_eq(brute, BRUTE_HP[p][w], 1e-3, "brute p%d w%d" % [p, w])
 	assert_almost_eq(_hp(15.0, 12, 0), 39.75, 1e-6, "spec 3.5: about 40 at pressure 12")
 	assert_almost_eq(_hp(15.0, 15, 0), 46.5, 1e-6, "spec 3.5: 46 at pressure 15")
+
+# --- the live pressure range (D-280) --------------------------------------------------------------------
+
+func _live_pressures() -> Array[int]:
+	var out: Array[int] = []
+	for p in range(bd.tiers.tier_base[3], bd.tiers.tier_cap[3] + 1):
+		out.append(p)
+	return out
+
+func test_live_pressure_range_is_inside_the_covered_cases_and_nothing_above_the_cap_is_reached() -> void:
+	var live := _live_pressures()
+	assert_false(live.is_empty())
+	for p in live:
+		assert_true(p in ALL_PRESSURES, "live pressure %d is covered by the identity cases" % p)
+	assert_true(15 > bd.tiers.tier_cap[3], "pressure 15 is above the tier-3 cap: unreachable (D-280)")
+	for day in range(1, 80):
+		assert_lte(WaveMath.pressure(day, 3, 17, bd.tiers), bd.tiers.tier_cap[3], "day %d never passes the cap" % day)
+
+func test_live_pressure_range_real_hp_and_identity_hold() -> void:
+	var t := _towers()
+	for p in _live_pressures():
+		for w in WAVES:
+			if HARE_HP.has(p):
+				assert_almost_eq(_hp(bd.monsters.stats(&"hare").hp, p, w), HARE_HP[p][w], 1e-3, "live hare p%d w%d" % [p, w])
+				assert_almost_eq(_hp(bd.monsters.stats(&"brute").hp, p, w), BRUTE_HP[p][w], 1e-3, "live brute p%d w%d" % [p, w])
+			var hare := _hp(bd.monsters.stats(&"hare").hp, p, w)
+			for n in [3, 5, 8]:
+				var v := {}
+				for id in t:
+					v[id] = BranchMath.kills_per_second(hare, t[id], n)
+				assert_eq(_best(v), &"volley", "live most: p%d w%d n%d" % [p, w + 1, n])
+				assert_eq(_worst(v), &"longbow", "live fewest: p%d w%d n%d" % [p, w + 1, n])
+			var bh := _hp(bd.monsters.stats(&"brute").hp, p, w)
+			assert_gte(BranchMath.kills_per_second(bh, t[&"longbow"], 1), BranchMath.kills_per_second(bh, t[&""], 1) - 1e-9, "live longbow vs brute p%d w%d" % [p, w])
 
 # --- the seven measures, one test each, every wave at both pressures ------------------------------------
 

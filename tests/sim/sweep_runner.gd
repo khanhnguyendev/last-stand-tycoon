@@ -6,9 +6,10 @@ extends Node
 ## and the run then asserts that no brute died, no wave came from the south-west and no branch was chosen (the Task 21 assertion, D-279):
 ## a TIER3_GATE line, exit code 1 on a violation. Tier rows end with brute_kills,sw_waves,branches (per day, appended after the old columns; sw_waves counts waves with a south-west lane, formerly named sw_spawns).
 ## After the SWEEP line it prints a RETRIES line (days, median, max_before_day8, max, target_ok) for the D-184 retries-per-night target.
-## Tuning overrides (in memory only, after Balance.reset(); printed on the first output line; they change the balance of whatever bot runs): `--tier3-cap=<n>` (tier_cap[3]),
+## Tuning overrides (in memory only, after Balance.reset(); printed on the first output line; they apply to EVERY bot, not only the tier bot (not rejected for the
+## planner and upgrader bots: a study may run those on a changed balance on purpose)): `--tier3-cap=<n>` (tier_cap[3]),
 ## `--brute-caps=<main>,<side>` (brute_cap_main[3], brute_cap_side[3]; both numbers are required), `--brute-hp=<n>`, `--fence-mult=<x>` (the brute's fence_damage_mult).
-## `--out=<file name>` writes tests/sim/out/<file name> instead of the default (parallel runs). `--cols=extra` appends fences_lost (fences at 0 HP when the
+## `--out=<file name>` writes tests/sim/out/<file name> (a relative path such as policies/x.csv is allowed, no `..`) instead of the default (parallel runs). `--cols=extra` appends fences_lost (fences at 0 HP when the
 ## night ended, final attempt) and lane_load (enemies per lane in the night's plan, brutes included) to the tier rows; without it the CSV is byte-identical to before.
 ## The TIER3 line (tier bot): nights, retry_nights, retries, cap_nights (pressure at tier_cap[3] when the night began), cap_retry_nights, and the min and median
 ## diner fraction over the tier-3 nights that were held (the final attempt's lowest diner HP). NOTE: `kills` and `brute_kills` in the rows include the kills of failed attempts.
@@ -31,6 +32,8 @@ extends Node
 ##       A retried night's own day phases are excluded. income_at_cap = the median gold the same days' sales paid.
 ##   UNSPENT_TARGET: PASS|FAIL|N/A (spec section 8, limit 650 on max_unspent_during_ladder; N/A unless the ladder completed within the run) and
 ##   FENCE_TAX: yes|no (share of fence_rebuild_gold_median_at_cap in income_at_cap above 30%): both printed with LADDER, asserted nowhere in CI.
+##     The figure UNDER-COUNTS when a rebuild is deferred to a later day (a fence that fell and was rebuilt after the next night is attributed to the day it was paid in, and a
+##     night that follows a skipped rebuild shows no rebuild at all), so FENCE_TAX: no is a lower bound.
 ##   `--cols=extra` also appends fence_rebuild_gold (rebuild + rebranch of that row's day phase) at the END of the tier rows.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
 
@@ -188,7 +191,12 @@ func _run() -> void:
 	gi.close()
 	var out_name := "sweep_tier.csv" if tier_mode else ("sweep_upgrader.csv" if upgrader else "sweep.csv")
 	if String(args.out) != "":
-		out_name = String(args.out).get_file()
+		out_name = String(args.out)
+		if out_name.begins_with("/") or ".." in out_name:
+			push_error("bad --out=%s (a file name or a relative path under tests/sim/out/, no '..')" % out_name)
+			get_tree().quit(2)
+			return
+		DirAccess.make_dir_recursive_absolute(out_dir.path_join(out_name).get_base_dir())
 	var f := FileAccess.open(out_dir.path_join(out_name), FileAccess.WRITE)
 	f.store_string("\n".join(rows) + "\n")
 	f.close()
