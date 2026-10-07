@@ -84,3 +84,20 @@ func test_boss_bar_shows_only_for_a_living_boss() -> void:
 	await get_tree().physics_frame
 	await get_tree().process_frame
 	assert_false(bar.visible)
+
+## E5 tier 3, Task 10: the siege brute is clearly bigger and heavier than the Boar, in budget, on palette.
+func test_brute_is_at_least_1_6x_the_boar_in_height_and_width() -> void:
+	var boar := BoarMesh.get_mesh(&"boar").get_aabb()
+	var brute := BoarMesh.get_mesh(&"brute").get_aabb()
+	assert_gte(brute.size.y, boar.size.y * 1.6, "height")
+	assert_gte(brute.size.x, boar.size.x * 1.6, "width")
+	assert_lt(brute.size.y, BoarMesh.get_mesh(&"boss").get_aabb().size.y * 1.05, "no taller than the Boar King")
+	assert_ne(BoarMesh.params(&"brute").body_scale, BoarMesh.BODY_SCALE, "its own proportions, not a scaled Boar")
+
+func test_brute_triangles_within_its_budget() -> void:
+	var tris: int = BoarMesh.get_mesh(&"brute").surface_get_arrays(0)[Mesh.ARRAY_INDEX].size() / 3
+	assert_gt(ArtBudgets.budget_for("res://art/boar/brute"), 0)
+	assert_lte(tris, ArtBudgets.budget_for("res://art/boar/brute"))
+
+func test_brute_tusks_are_not_the_heros_white() -> void:
+	assert_eq(BoarMesh.params(&"brute").tusk_color, Palette.color(&"stone"))

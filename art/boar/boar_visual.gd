@@ -88,18 +88,18 @@ func set_kind(k: StringName) -> void:
 	if _mesh_node != null:
 		_mesh_node.mesh = BoarMesh.get_mesh(kind)
 
-## Per-kind hop (visual, UiTuning): the hare quick and low, the boss slow and heavy. x = height, y = hz.
+## Per-kind hop (visual, UiTuning): the hare quick and low, the boss and the siege brute slow and heavy. x = height, y = hz.
 func _hop() -> Vector2:
 	var ui := Balance.ui
 	match kind:
 		&"hare":
 			return Vector2(ui.hare_hop_height, ui.hare_hop_hz)
-		&"boss":
+		&"boss", &"brute":
 			return Vector2(ui.boss_hop_height, ui.boss_hop_hz)
 	return Vector2(ui.boar_hop_height, ui.boar_hop_hz)
 
 func _lunge_dist() -> float:
-	return Balance.ui.boss_lunge if kind == &"boss" else Balance.ui.boar_lunge
+	return Balance.ui.boss_lunge if kind == &"boss" or kind == &"brute" else Balance.ui.boar_lunge
 
 func set_flash(on: bool) -> void:
 	flash_active = on

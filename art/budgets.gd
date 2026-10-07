@@ -5,7 +5,7 @@ extends RefCounted
 ## and role kits with hat/hood, cape and weapon measure ~4.8k-5.3k, so 5500 (D-198).
 const TRIANGLES := {
 	"res://art/characters/hero": 5500, "res://art/characters/archer": 5500, "res://art/characters/tank": 5500,
-	"res://art/characters/traveler": 5500, "res://art/boar": 1500, "res://art/env/tower": 4000,
+	"res://art/characters/traveler": 5500, "res://art/boar": 1500, "res://art/boar/brute": 1500, "res://art/env/tower": 4000,
 	"res://art/env/fence": 1500, "res://art/env/diner": 12000, "res://art/env/props": 1500,
 	"res://art/pickups": 1500,
 }

@@ -27,6 +27,8 @@ const SFX := {
 	&"horn": {"path": "res://assets/kenney-music-jingles/jingles_SAX03.ogg", "class": &"single", "mean_db": -20.0, "peak_db": -10.6, "duration_s": 1.12, "volume_db": 2.0, "pitch_spread": 0.0, "min_gap_s": 0.3},
 	&"wave_clear": {"path": "res://assets/kenney-music-jingles/jingles_PIZZI16.ogg", "class": &"single", "mean_db": -17.3, "peak_db": -5.4, "duration_s": 0.46, "volume_db": -0.5, "pitch_spread": 0.0, "min_gap_s": 0.3},
 	&"diner_hit": {"path": "res://assets/kenney-impact-sounds/impactWood_heavy_000.ogg", "class": &"repeated", "mean_db": -19.6, "peak_db": -0.9, "duration_s": 0.31, "volume_db": -4.5, "pitch_spread": 0.08, "min_gap_s": 0.05},
+	# E5 tier 3 (Task 10): the siege brute's fence thump reuses the diner-hit file (impactWood_heavy_000, Kenney Impact Sounds, already in the repo).
+	&"thump": {"path": "res://assets/kenney-impact-sounds/impactWood_heavy_000.ogg", "class": &"repeated", "mean_db": -19.6, "peak_db": -0.9, "duration_s": 0.31, "volume_db": -4.5, "pitch_spread": 0.08, "min_gap_s": 0.05},
 	&"fail": {"path": "res://assets/kenney-music-jingles/jingles_PIZZI14.ogg", "class": &"single", "mean_db": -15.0, "peak_db": -4.9, "duration_s": 0.92, "volume_db": -3.0, "pitch_spread": 0.0, "min_gap_s": 0.3},
 	&"dawn": {"path": "res://assets/kenney-music-jingles/jingles_PIZZI10.ogg", "class": &"single", "mean_db": -15.4, "peak_db": -4.6, "duration_s": 0.8, "volume_db": -2.5, "pitch_spread": 0.0, "min_gap_s": 0.3},
 	&"guard_down": {"path": "res://assets/kenney-music-jingles/jingles_PIZZI09.ogg", "class": &"single", "mean_db": -16.6, "peak_db": -5.1, "duration_s": 0.57, "volume_db": -1.5, "pitch_spread": 0.0, "min_gap_s": 0.3},

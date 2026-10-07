@@ -108,11 +108,18 @@ func _physics_process(delta: float) -> void:
 		var dmg := eb.damage * GameState.mercy_factor()
 		match current_target.kind:
 			&"fence_on_lane":
-				GameState.damage_fence(current_target.spot_id, dmg)
+				GameState.damage_fence(current_target.spot_id, dmg * eb.fence_damage_mult, kind)
+				if eb.fence_damage_mult > 1.0:
+					_thump(String(current_target.spot_id))
 			&"guard":
 				GameState.damage_guard(current_target.guard_id, dmg)
 			&"diner":
 				GameState.damage_diner(dmg)
+
+## The siege brute's ground thump (spec 6.2): a dust burst at the fence and a heavy sound, only for a hit on a fence.
+func _thump(spot_id: String) -> void:
+	EventBus.sfx_requested.emit(&"thump")
+	EventBus.fx_requested.emit(&"dust", MapLayout.to3(MapLayout.spot_position(spot_id)) + Vector3(0, 0.3, 0))
 
 func take_hit(amount: float) -> void:
 	if alive:

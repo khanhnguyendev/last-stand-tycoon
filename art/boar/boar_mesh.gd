@@ -34,12 +34,13 @@ static func params(kind: StringName) -> Dictionary:
 			return {"scale": 2.2, "body_scale": Vector3(1.05, 0.8, 1.15), "upper": maroon.lerp(red, 0.25),
 				"belly": maroon, "ears": snout, "ear_len": 0.0, "tusks": 4, "ridge": 5, "ridge_h": 0.6,
 				"leg_len": 0.25, "leg_xz": Vector2(0.27, 0.3), "head_k": 1.0, "head_dz": 0.0, "tusk_color": Palette.color(&"stone")}
-		# PLACEHOLDER rows (Task 5): the boar shape, scaled, with stone tusks (never the hero's white, R2). Task 10 (the brute's
-		# mesh) and Task 11 (Baron von Hop's mesh) replace them.
+		# The siege brute (E5 tier 3 Task 10): a stocky bulldozer. Wider and deeper in the chest than the Boar, a big head set
+		# low, short thick legs, a taller ridge, darker back over a red belly, `stone` tusks (never the hero's white, R2).
 		&"brute":
-			return {"scale": 1.6, "body_scale": BODY_SCALE, "upper": maroon.lerp(red, 0.4), "belly": red, "ears": snout,
-				"ear_len": 0.0, "tusks": 2, "ridge": 5, "ridge_h": 1.0, "leg_len": 0.25, "leg_xz": Vector2(0.27, 0.3), "head_k": 1.0,
-				"head_dz": 0.0, "tusk_color": Palette.color(&"stone")}
+			return {"scale": 1.75, "body_scale": Vector3(1.3, 0.85, 1.1), "upper": maroon.lerp(red, 0.2), "belly": red.lerp(maroon, 0.3),
+				"ears": snout, "ear_len": 0.0, "tusks": 2, "ridge": 5, "ridge_h": 1.25, "leg_len": 0.22, "leg_xz": Vector2(0.33, 0.3),
+				"head_k": 1.15, "head_dz": 0.04, "tusk_color": Palette.color(&"stone")}
+		# PLACEHOLDER row (Task 5): Task 11 (Baron von Hop's mesh) replaces it.
 		&"baron":
 			return {"scale": 1.3, "body_scale": Vector3(0.65, 0.7, 1.4), "upper": snout, "belly": snout.lerp(maroon, 0.15),
 				"ears": red, "ear_len": 1.2, "tusks": 0, "ridge": 0, "ridge_h": 1.0, "leg_len": 0.32, "leg_xz": Vector2(0.2, 0.42),
