@@ -226,8 +226,11 @@ func _keep_clear(tier: int) -> Array:
 		var t := Geometry.tangent_at(pts, Geometry.path_length(pts) - MapLayout.FENCE_OFFSET_FROM_END)
 		var n := Vector2(-t.y, t.x)
 		var f := MapLayout.fence_spot(id)
-		out.append({"seg": [f - n * 1.5, f + n * 1.5], "lateral": FENCE_BAR_HALF_WIDTH, "what": "fence bar %s" % id})
-	out.append({"seg": [MapLayout.TRAVELER_ENTER, MapLayout.traveler_exit(tier)], "lateral": 1.0, "what": "traveler path"})  # the road's half width
+		out.append({"seg": [f - n * MapLayout.FENCE_BAR_HALF, f + n * MapLayout.FENCE_BAR_HALF], "lateral": FENCE_BAR_HALF_WIDTH, "what": "fence bar %s" % id})
+	# the travelers' lines (lateral 1.0 = the road's half width): from the entry to every queue slot, and from the service point to the exit
+	for q in MapLayout.queue_slots(tier):
+		out.append({"seg": [MapLayout.TRAVELER_ENTER, q], "lateral": 1.0, "what": "traveler entry line"})
+	out.append({"seg": [MapLayout.SERVICE_POINT, MapLayout.traveler_exit(tier)], "lateral": 1.0, "what": "traveler path"})
 	if tier >= 3:  # pads only exist from tier 3
 		for id in MapLayout.BRANCH_PADS:
 			for p in MapLayout.BRANCH_PADS[id]:
@@ -236,9 +239,10 @@ func _keep_clear(tier: int) -> Array:
 		out.append({"rect": MapLayout.yard_rect(id), "r": 0.0, "what": "%s lot" % id, "yard": id})
 	return out
 
-## Tiers whose owned land carries props. The front lot (tier 3) has none yet: a later task adds its props and 3 here.
+## Tiers checked: the tier-2 yards' props must also stay clear of everything tier 3 adds (pads, lane, zone, bar, tower, queue, lines).
+## The front lot (tier 3) has no props yet; its empty list is skipped, never its tier.
 func _owned_tiers() -> Array:
-	return [2]
+	return [2, 3]
 
 ## The least allowed distance from a prop's centre to `rule` (see _keep_clear).
 func _least_distance(rule: Dictionary, radius: float, height: float) -> float:
@@ -259,8 +263,11 @@ func test_owned_props_keep_clear() -> void:
 	for tier in _owned_tiers():
 		var rules := _keep_clear(tier)
 		for id in MapLayout.yards_for_tier(tier):
-			assert_true(PropsLayout.OWNED.has(id), "%s has owned-land props" % id)
-			for it in PropsLayout.OWNED.get(id, []):
+			var items: Array = PropsLayout.OWNED.get(id, [])
+			if items.is_empty():
+				assert_eq(MapLayout.yard_tier(id), 3, "only the tier-3 front lot has no props yet (%s)" % id)
+				continue
+			for it in items:
 				seen += 1
 				var p: Vector2 = it.pos
 				var radius := Props.owned_radius(it.kind, float(it.scale))
@@ -329,7 +336,9 @@ func test_keep_clear_rules_are_ready_for_tier_3() -> void:
 	var slots := t3.filter(func(r): return r.what == "queue slot").map(func(r): return r.pos)
 	assert_eq(slots, MapLayout.queue_slots(3), "tier 3 uses its own queue slots")
 	var road: Dictionary = t3.filter(func(r): return r.what == "traveler path")[0]
-	assert_eq(road.seg[1], MapLayout.traveler_exit(3))
+	assert_eq(road.seg, [MapLayout.SERVICE_POINT, MapLayout.traveler_exit(3)], "the exit segment starts at the service point (not a zero-length segment)")
+	assert_ne(road.seg[0], road.seg[1])
+	assert_eq(t3.filter(func(r): return r.what == "traveler entry line").size(), MapLayout.queue_slots(3).size())
 	assert_eq(road.lateral, 1.0, "the road's half width")
 	var lane: Dictionary = t3.filter(func(r): return r.what == "lane sw")[0]
 	assert_eq(lane.lateral, maxf(LaneStrip.WIDTH * 0.5, Balance.data.enemy.lateral_spread))

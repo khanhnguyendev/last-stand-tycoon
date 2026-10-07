@@ -112,7 +112,7 @@ static func create_for_tier(tier: int) -> WaypointGraph:
 	return g
 
 ## E5 tier 3 (spec 4.1, 4.3): the south-west tower stand point, the south-west fence spot, the tier-3 sign and every branch pad
-## (`pad_<spot_id>_a` / `_b`, joined to the node of their own spot). Every new edge clears the diner, counter and freezer (test_tier_layout).
+## (`pad_<spot_id>_a` / `_b`, joined to the node of their own spot). Every new edge clears the diner, counter and freezer (test_tier3_layout).
 static func _add_tier3(g: WaypointGraph) -> void:
 	g.add_node("tower_sw", MapLayout.tower_spot("tower_sw") + Vector2(-0.75, 0.75))
 	g.add_node("fence_sw", MapLayout.fence_spot("sw"))

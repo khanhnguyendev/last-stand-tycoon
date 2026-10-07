@@ -3,11 +3,11 @@ extends GutTest
 ## every lane, the distance to the lane is the smaller of the distance to the lane's nearest stop point and to its fence spot; sorted,
 ## the THIRD smallest must exceed the Longbow range, so the longest-ranged tower reaches at most two lanes.
 
-# replaced by Balance.data.branches.tower(&"longbow").range when Task 5 merges (main session wiring)
-const LONGBOW_RANGE_FOR_TEST := 9.98
+var longbow_range: float
 
 func before_each() -> void:
 	Balance.reset()
+	longbow_range = Balance.data.branches.tower(&"longbow").attack_range
 
 func _stop_points(lane: String) -> Array:
 	var eb := Balance.data.enemy
@@ -56,21 +56,33 @@ func test_the_third_nearest_lane_is_beyond_the_longbow_range() -> void:
 	var limit := INF
 	for id in all:
 		gut.p("%s: lane distances %s" % [id, (all[id] as Array).map(func(v): return snappedf(v, 0.01))])
-		assert_gt(float(all[id][2]), LONGBOW_RANGE_FOR_TEST, "%s: the third lane is out of Longbow range" % id)
+		assert_gt(float(all[id][2]), longbow_range, "%s: the third lane is out of Longbow range" % id)
 		limit = minf(limit, float(all[id][2]))
 	gut.p("Longbow limit (smallest third-lane distance over all towers) = %.2f" % limit)
 	assert_gte(limit, 10.2, "the margin over the range is visible: at least 10.2 m")
 
 func test_the_rule_has_teeth() -> void:
 	# a Longbow longer than the limit would reach a third lane from some tower (the tier-3 map is what holds it back)
-	assert_eq(_violations(LONGBOW_RANGE_FOR_TEST), [])
+	assert_eq(_violations(longbow_range), [])
 	assert_false(_violations(10.5).is_empty(), "range 10.5 reaches a third lane")
 
-func test_the_south_west_lane_pairs_only_with_west_for_the_towers_beside_it() -> void:
-	# tower_sw's two nearest lanes are sw and west; no tower's two nearest lanes include both north and sw
-	var all := _sorted_distances()
-	var near_sw := _lane_distance(MapLayout.tower_spot("tower_sw"), "sw")
-	var near_west := _lane_distance(MapLayout.tower_spot("tower_sw"), "west")
-	assert_lt(near_sw, near_west)
-	assert_lt(near_west, _lane_distance(MapLayout.tower_spot("tower_sw"), "north"))
-	assert_lt(near_west, float(all["tower_sw"][2]))
+## The two nearest lanes of a tower (by the rule's lane distance), nearest first.
+func _nearest_two(tower_id: String) -> Array:
+	var d: Array = []
+	for lane in MapLayout.lanes_for_tier(3):
+		d.append([_lane_distance(MapLayout.tower_spot(tower_id), lane), lane])
+	d.sort_custom(func(a, b): return a[0] < b[0])
+	return [d[0][1], d[1][1]]
+
+func test_the_south_west_lane_is_only_ever_paired_with_west() -> void:
+	# over every tower: whenever sw is one of a tower's two nearest lanes, the other is west (so no tower pairs sw with north or east)
+	var with_sw := 0
+	for id in _sorted_distances():
+		var two := _nearest_two(id)
+		gut.p("%s: nearest lanes %s" % [id, two])
+		if "sw" in two:
+			with_sw += 1
+			assert_true("west" in two, "%s pairs sw with %s" % [id, two])
+	assert_eq(with_sw, 2, "tower_sw and tower_w see sw")
+	assert_eq(_nearest_two("tower_sw"), ["sw", "west"], "west is tower_sw's second lane by distance (it is not in TOWER_LANES: out of level-1 range)")
+	assert_eq(MapLayout.tower_lanes("tower_sw"), ["sw"])

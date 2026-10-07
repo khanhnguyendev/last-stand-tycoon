@@ -1,6 +1,9 @@
 class_name MapLayout
 extends RefCounted
 ## The single source of map coordinates (spec 6.1, D-054, D-055, D-062, D-091–D-093, D-112).
+## From tier 3 on, read lanes, zones, fences, towers, yards, signs, queue slots and the traveler exit ONLY through the accessors
+## (lane_path, zone_rect, zone_axis, fence_lane, lane_fence, tower_spot, tower_lanes, yard_rect, yard_tier, tier_sign, queue_slots,
+## traveler_exit) and iterate lanes_for_tier / spots_for_tier / yards_for_tier. The shared LANE_PATHS-style dictionaries hold tiers 1 and 2 only.
 ## Positions are Vector2(x, z). North = −z. Origin = diner center.
 
 const DINER_HALF := 4.0
@@ -34,6 +37,7 @@ const TOWER_LANES := {"tower_nw": ["west", "north"], "tower_ne": ["north", "east
 const FENCE_LANE := {"fence_w": "west", "fence_n": "north", "fence_e": "east"}
 const LANE_FENCE := {"west": "fence_w", "north": "fence_n", "east": "fence_e"}
 const FENCE_OFFSET_FROM_END := 4.0
+const FENCE_BAR_HALF := 1.5  ## the fence bar is 2 x this across, centred on the fence spot, perpendicular to the lane
 const TELEGRAPH_OFFSET_FROM_END := 5.5
 
 ## E5 (spec 5.1, D-239, D-240): spots a tier unlocks (appended to spots_for_tier), the side yards (Rect2(x, z, w, h)) and
@@ -52,7 +56,8 @@ const LANE_PATHS_T3 := {"sw": [Vector2(-24, 11), Vector2(-3.5, 11.0), Vector2(-2
 const ZONE_AXIS_T3 := {"sw": Vector2(1, 0)}
 const ZONE_RECTS_T3 := {"sw": Rect2(-4.0, 4.0, 2.5, 1.2)}
 const TOWER_SPOTS_T3 := {"tower_sw": Vector2(-6.6, 5.6)}
-const TOWER_LANES_T3 := {"tower_sw": ["sw", "west"]}
+## Only "sw": the west fence is 9.15 m and the west zone's far corner 7.56 m from the tower, beyond the level-1 range (the west lane is its second lane by distance only).
+const TOWER_LANES_T3 := {"tower_sw": ["sw"]}
 const FENCE_LANE_T3 := {"fence_sw": "sw"}
 const LANE_FENCE_T3 := {"sw": "fence_sw"}
 const YARDS_T3 := {"front": Rect2(-7.6, 5.6, 6.1, 4.3)}
@@ -63,18 +68,18 @@ const TIER_SIGNS := {2: Vector2(-10.0, 7.5), 3: Vector2(-5.6, 9.0)}
 const QUEUE_SLOTS_T3 := [Vector2(0, 6.0), Vector2(1.1, 6.9), Vector2(1.3, 8.0), Vector2(1.4, 9.1),
 	Vector2(1.8, 10.3), Vector2(3.0, 10.3), Vector2(4.2, 10.3), Vector2(5.4, 10.3), Vector2(6.6, 10.3)]
 const TRAVELER_EXIT_T3 := Vector2(24, 11)
-## Branch pads (spec 4.3): radius, and two pad centres per spot, chosen with tools/probe_t3_layout.gd and pinned by test_branch_pad_layout.
+## Branch pads (spec 4.3): radius, and two pad centres per spot, chosen with tools/probe_t3_layout.gd (clear of the tier-2 yards' props and kerb too) and pinned by test_branch_pad_layout.
 const BRANCH_PAD_RADIUS := 0.9
 const BRANCH_PADS := {
-	"tower_sw": [Vector2(-8.2, 6.8), Vector2(-6.5, 3.6)],
+	"tower_sw": [Vector2(-7.4, 3.1), Vector2(-5.4, 4.1)],
 	"fence_sw": [Vector2(-5.6, 7.8), Vector2(-1.0, 10.7)],
-	"fence_w": [Vector2(-9.8, -3.4), Vector2(-8.8, -1.4)],
+	"fence_w": [Vector2(-9.5, -3.7), Vector2(-6.1, -6.1)],
 	"fence_n": [Vector2(-2.5, -10.4), Vector2(2.5, -10.4)],
-	"fence_e": [Vector2(8.8, -1.4), Vector2(9.8, -3.4)],
-	"tower_nw": [Vector2(-5.9, -6.8), Vector2(-3.4, -6.2)],
-	"tower_ne": [Vector2(3.4, -6.2), Vector2(5.9, -6.8)],
-	"tower_w": [Vector2(-12.6, 0.6), Vector2(-9.0, 1.8)],
-	"tower_e": [Vector2(7.6, 2.7), Vector2(10.8, 1.1)],
+	"fence_e": [Vector2(6.1, -6.1), Vector2(9.4, -3.5)],
+	"tower_nw": [Vector2(-4.1, -7.5), Vector2(-3.0, -5.5)],
+	"tower_ne": [Vector2(3.0, -5.5), Vector2(4.1, -7.5)],
+	"tower_w": [Vector2(-10.7, 2.4), Vector2(-8.9, 1.1)],
+	"tower_e": [Vector2(6.6, 2.1), Vector2(8.9, -0.9)],
 }
 
 static func spots_for_tier(tier: int) -> Array[String]:
@@ -131,7 +136,11 @@ static func tower_lanes(spot_id: String) -> Array:
 
 ## Position of the sign that sells `tier`.
 static func tier_sign(tier: int) -> Vector2:
+	assert(TIER_SIGNS.has(tier), "no sign sells tier %d (signs exist for tiers %s)" % [tier, TIER_SIGNS.keys()])
 	return TIER_SIGNS[tier]
+
+static func has_tier_sign(tier: int) -> bool:
+	return TIER_SIGNS.has(tier)
 
 static func queue_slots(tier: int) -> Array:
 	return QUEUE_SLOTS_T3 if tier >= 3 else QUEUE_SLOTS

@@ -7,12 +7,13 @@ extends SceneTree
 ##   B/C tower_sw reach; the Longbow rule per tower (third-smallest lane distance, lane distance = min(stop points, fence spot));
 ##   E  the SW path against towers and the diner; the service layout against the SW lane, zone and fence bar;
 ##   the tier-3 sign against today's west exit line; the front plot; the 18 branch pads (current MapLayout.BRANCH_PADS with their
-##   smallest clearance and what limits it) and, last, a SEARCH for pad pairs per spot printed as BRANCH_PADS source text.
+##   smallest clearance and what limits it) and, last, a SEARCH (env PAD_KEEP=id,id keeps those spots' committed pads) for pad pairs per spot printed as BRANCH_PADS source text.
 ## Information only: the oracles are the unit tests (test_tier3_layout, test_branch_pad_layout, test_longbow_reach).
 
 const ASPECTS := [0.30, 9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0, 21.0 / 9.0, 32.0 / 9.0]
 const SHOW_ASPECTS := [9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0]
 const TIER := 3
+const TRAVELER_RADIUS := 0.3  ## a queued traveler's body, kept clear of a pad
 
 var ui
 var bd
@@ -49,7 +50,8 @@ func line_dist(p: Vector2, lane: String) -> float:
 	return best
 
 func colliders() -> Array:
-	return [Rect2(-4, -4, 8, 8), Rect2(MapLayout.COUNTER - MapLayout.COUNTER_SIZE / 2, MapLayout.COUNTER_SIZE),
+	var h := MapLayout.DINER_HALF
+	return [Rect2(-h, -h, h * 2.0, h * 2.0), Rect2(MapLayout.COUNTER - MapLayout.COUNTER_SIZE / 2, MapLayout.COUNTER_SIZE),
 		Rect2(MapLayout.FREEZER - MapLayout.FREEZER_SIZE / 2, MapLayout.FREEZER_SIZE)]
 
 ## The fence bar of a lane: [end a, end b] (3 m across, perpendicular to the lane's tangent at the fence spot).
@@ -58,7 +60,19 @@ func fence_bar(lane: String) -> Array:
 	var t := Geometry.tangent_at(path, Geometry.path_length(path) - MapLayout.FENCE_OFFSET_FROM_END)
 	var n := Vector2(-t.y, t.x)
 	var f := MapLayout.fence_spot(lane)
-	return [f - n * 1.5, f + n * 1.5]
+	return [f - n * MapLayout.FENCE_BAR_HALF, f + n * MapLayout.FENCE_BAR_HALF]
+
+var _kerb: Array = []  ## [centre-line a, b] of every kerb piece of the tier-2 yards
+var _props: Array = []  ## {pos, radius, height} of every owned-land prop of the tier-2 yards
+
+func load_yard_obstacles() -> void:
+	for id in MapLayout.yards_for_tier(2):
+		for xf in YardStones.transforms(MapLayout.yard_rect(id)):
+			var half := Vector2(xf.basis.x.x, xf.basis.x.z) * 0.5
+			var c := Vector2(xf.origin.x, xf.origin.z)
+			_kerb.append([c - half, c + half])
+		for it in PropsLayout.OWNED.get(id, []):
+			_props.append({"pos": it.pos, "radius": Props.owned_radius(it.kind, float(it.scale)), "height": Props.owned_height(it.kind, float(it.scale)), "what": "%s %s" % [it.kind, id]})
 
 func visibility(lane: String) -> Dictionary:
 	var out := {}
@@ -111,11 +125,16 @@ func pad_clear(p: Vector2, own: String, others: Array) -> Array:
 	checks.append([p.distance_to(MapLayout.DINER_DOOR) - r, "door"])
 	# no tier-sign rule: the tier-3 sign sells tier 3 and is gone when a pad exists (pads need tier 3)
 	for q in MapLayout.queue_slots(TIER):
-		checks.append([p.distance_to(q) - r - 0.3, "queue slot"])
+		checks.append([p.distance_to(q) - r - TRAVELER_RADIUS, "queue slot"])
 		checks.append([Geometry.dist_point_segment(p, MapLayout.TRAVELER_ENTER, q) - r, "traveler entry line"])
 	checks.append([Geometry.dist_point_segment(p, MapLayout.SERVICE_POINT, MapLayout.traveler_exit(TIER)) - r, "traveler exit line"])
 	for c in colliders():
 		checks.append([Geometry.dist_point_rect(p, c) - r, "collider"])
+	var lean_k := 1.0 / tan(deg_to_rad(absf(ui.camera_pitch)))
+	for pr in _props:  # the prop's top leans over its base on screen, so the lean is kept in every direction (as test_yards does)
+		checks.append([p.distance_to(pr.pos) - r - pr.radius - pr.height * lean_k, "owned prop " + pr.what])
+	for k in _kerb:
+		checks.append([Geometry.dist_point_segment(p, k[0], k[1]) - r - YardStones.WIDTH * 0.5, "yard kerb"])
 	checks.append([minf(minf(p.x - MapLayout.BOUNDS_MIN.x, MapLayout.BOUNDS_MAX.x - p.x), minf(p.y - MapLayout.BOUNDS_MIN.y, MapLayout.BOUNDS_MAX.y - p.y)) - r, "bounds"])
 	var best := INF
 	var what := ""
@@ -129,17 +148,52 @@ func on_screen_from(p: Vector2, hero: Vector2, aspect: float) -> bool:
 	var xf := CameraMath.camera_transform(CameraMath.focus_for(hero), ui)
 	return CameraMath.on_screen(MapLayout.to3(p, 0.0), xf, CameraMath.projection(ui, aspect))
 
-## True when the building at `spot` is on screen from a hero standing on `pad`, at the three show aspects.
-func together_on_screen(spot: Vector2, pad: Vector2, _other: Vector2) -> bool:
+## True when the building at `spot` and the pair's `other` pad are on screen from a hero standing on `pad`, at the three show aspects.
+func together_on_screen(spot: Vector2, pad: Vector2, other: Vector2) -> bool:
 	for a in SHOW_ASPECTS:
-		if not on_screen_from(spot, pad, a):
+		if not on_screen_from(spot, pad, a) or not on_screen_from(other, pad, a):
 			return false
 	return true
+
+## The best pair for `id` whose every clearance is >= `thr`: {"cands": n, "pair": [a, b] or [], "loose": best pair ignoring the other-pad screen rule}.
+func search_spot(id: String, c0: Vector2, placed2: Array, thr: float) -> Dictionary:
+	var cands: Array = []
+	for ix in range(-28, 29):
+		for iz in range(-28, 29):
+			var off := Vector2(ix, iz) * 0.1
+			if off.length() > 2.8 or off.length() < 1.0:
+				continue
+			var p := (c0 + off).snapped(Vector2(0.1, 0.1))
+			if p.distance_to(c0) > 2.8:
+				continue
+			var c := pad_clear(p, id, placed2)
+			if c[0] >= thr and together_on_screen(c0, p, c0):
+				cands.append([p, minf(c[0], 0.6), c[1]])
+	var best_pair: Array = []
+	var best_loose: Array = []
+	var loose_score := -INF
+	var best_score := -INF
+	for i in cands.size():
+		for j in range(i + 1, cands.size()):
+			var a: Vector2 = cands[i][0]
+			var b: Vector2 = cands[j][0]
+			if a.distance_to(b) < 2.2:
+				continue
+			var left_right := 1.0 if (a.x - c0.x) * (b.x - c0.x) < 0.0 else 0.0
+			var score := 10.0 * minf(cands[i][1], cands[j][1]) + 3.0 * left_right - 0.5 * (a.distance_to(c0) + b.distance_to(c0))
+			if score > loose_score:
+				loose_score = score
+				best_loose = [a, b]
+			if score > best_score and together_on_screen(c0, a, b) and together_on_screen(c0, b, a):
+				best_score = score
+				best_pair = [a, b]
+	return {"cands": cands.size(), "pair": best_pair, "loose": best_loose}
 
 func _initialize() -> void:
 	root.get_node("Balance").reset()
 	ui = root.get_node("Balance").ui
 	bd = root.get_node("Balance").data
+	load_yard_obstacles()
 	spread = bd.enemy.lateral_spread
 	fade = bd.enemy.offset_fade_distance
 	var sw_path: Array = MapLayout.lane_path("sw")
@@ -213,7 +267,7 @@ func _initialize() -> void:
 				if p.distance_to(tw[t]) < min_t:
 					min_t = p.distance_to(tw[t])
 					min_name = t
-			min_diner = minf(min_diner, Geometry.dist_point_rect(p, Rect2(-4, -4, 8, 8)))
+			min_diner = minf(min_diner, Geometry.dist_point_rect(p, Rect2(-MapLayout.DINER_HALF, -MapLayout.DINER_HALF, MapLayout.DINER_HALF * 2.0, MapLayout.DINER_HALF * 2.0)))
 		d += 0.1
 	print("E SW path nearest tower: %s %.2f (need 1.5); nearest diner wall %.2f (need reach %.1f)" % [min_name, min_t, min_diner, bd.enemy.reach])
 	# service layout
@@ -258,43 +312,29 @@ func _initialize() -> void:
 			print("  %-9s %s  %.2f m from the spot  clr %.2f (%s)  on screen %s" % [id, pads[i], (pads[i] as Vector2).distance_to(sp[id]), c[0], c[1], together_on_screen(sp[id], pads[i], pads[1 - i])])
 	print("  worst pad clearance: %.2f" % worst_all)
 	# the search
-	print("pad SEARCH (0.1 m grid within 2.8 m of the spot, clearance >= 0.3, pair apart >= 2.2, building on screen from either pad):")
+	print("pad SEARCH (0.1 m grid within 2.8 m of the spot, clearance >= 0.3 (relaxed per spot, printed), pair apart >= 2.2, building and the other pad on screen from either pad):")
 	var found: Array = []
 	var placed2: Array = []
-	var ids := ["tower_sw", "fence_sw", "fence_w", "fence_n", "fence_e", "tower_nw", "tower_ne", "tower_w", "tower_e"]
+	var ids := ["fence_sw", "fence_w", "tower_e", "tower_w", "tower_sw", "fence_e", "fence_n", "tower_nw", "tower_ne"]  # the most crowded spots first
+	# PAD_KEEP=tower_nw,tower_ne keeps those spots' committed pads fixed (they are placed first and not searched)
+	for id in OS.get_environment("PAD_KEEP").split(",", false):
+		placed2.append_array(MapLayout.BRANCH_PADS[id])
+		found.append([id, MapLayout.BRANCH_PADS[id]])
+		ids.erase(id)
 	for id in ids:
-		var c0: Vector2 = sp[id]
-		var cands: Array = []
-		for ix in range(-28, 29):
-			for iz in range(-28, 29):
-				var off := Vector2(ix, iz) * 0.1
-				if off.length() > 2.8 or off.length() < 1.0:
-					continue
-				var p := (c0 + off).snapped(Vector2(0.1, 0.1))
-				if p.distance_to(c0) > 2.8:
-					continue
-				var c := pad_clear(p, id, placed2)
-				if c[0] >= 0.3:
-					cands.append([p, minf(c[0], 0.6), c[1]])
-		var best_pair: Array = []
-		var best_score := -INF
-		for i in cands.size():
-			for j in range(i + 1, cands.size()):
-				var a: Vector2 = cands[i][0]
-				var b: Vector2 = cands[j][0]
-				if a.distance_to(b) < 2.2 or not together_on_screen(c0, a, b) or not together_on_screen(c0, b, a):
-					continue
-				var left_right := 1.0 if (a.x - c0.x) * (b.x - c0.x) < 0.0 else 0.0
-				var score := 10.0 * minf(cands[i][1], cands[j][1]) + 3.0 * left_right - 0.5 * (a.distance_to(c0) + b.distance_to(c0))
-				if score > best_score:
-					best_score = score
-					best_pair = [a, b]
-		if best_pair.is_empty():
-			print("  %-9s NO PAIR (%d candidates)" % [id, cands.size()])
+		var r := {}
+		var used := 0.0
+		for thr in [0.3, 0.25, 0.2, 0.15, 0.1, 0.05, 0.0]:
+			r = search_spot(id, sp[id], placed2, thr)
+			used = thr
+			if not (r.pair as Array).is_empty():
+				break
+		if (r.pair as Array).is_empty():
+			print("  %-9s NO PAIR even at clearance >= 0 (%d candidates); best pair without the other-pad-on-screen rule: %s" % [id, r.cands, r.loose])
 			continue
-		placed2.append_array(best_pair)
-		found.append([id, best_pair])
-		print("  %-9s %d candidates, best pair %s %s" % [id, cands.size(), best_pair[0], best_pair[1]])
+		placed2.append_array(r.pair)
+		found.append([id, r.pair])
+		print("  %-9s %d candidates at clearance >= %.1f, best pair %s %s" % [id, r.cands, used, r.pair[0], r.pair[1]])
 	print("const BRANCH_PADS := {")
 	for f in found:
 		print("\t\"%s\": [Vector2(%.1f, %.1f), Vector2(%.1f, %.1f)]," % [f[0], f[1][0].x, f[1][0].y, f[1][1].x, f[1][1].y])

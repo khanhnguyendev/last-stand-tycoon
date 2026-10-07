@@ -17,7 +17,7 @@ func _bar(lane: String) -> Array:
 	var t := Geometry.tangent_at(path, Geometry.path_length(path) - MapLayout.FENCE_OFFSET_FROM_END)
 	var n := Vector2(-t.y, t.x)
 	var f := MapLayout.fence_spot(lane)
-	return [f - n * 1.5, f + n * 1.5]
+	return [f - n * MapLayout.FENCE_BAR_HALF, f + n * MapLayout.FENCE_BAR_HALF]
 
 func _line_dist(p: Vector2, path: Array) -> float:
 	var best := INF
@@ -110,7 +110,7 @@ func test_the_south_west_lane_is_the_spec_s() -> void:
 	assert_eq(MapLayout.zone_rect("sw"), Rect2(-4.0, 4.0, 2.5, 1.2))
 	assert_eq(MapLayout.zone_axis("sw"), Vector2(1, 0))
 	assert_eq(MapLayout.tower_spot("tower_sw"), Vector2(-6.6, 5.6))
-	assert_eq(MapLayout.tower_lanes("tower_sw"), ["sw", "west"])
+	assert_eq(MapLayout.tower_lanes("tower_sw"), ["sw"], "only the lane it reaches at level 1; west is its second lane by distance only")
 	assert_eq(MapLayout.fence_lane("fence_sw"), "sw")
 	assert_eq(MapLayout.lane_fence("sw"), "fence_sw")
 	assert_eq(MapLayout.spot_position("tower_sw"), MapLayout.tower_spot("tower_sw"))
@@ -165,6 +165,13 @@ func test_the_tier_3_sign_is_off_the_exit_line_the_zone_and_the_fence_spot() -> 
 	for lane in MapLayout.lanes_for_tier(2):
 		assert_gte(_line_dist(s, MapLayout.lane_path(lane)) - MapLayout.STATION_RADIUS, Balance.data.enemy.lateral_spread + 1.0, "clear of the %s lane" % lane)
 	assert_eq(MapLayout.TIER_SIGNS.keys(), [2, 3])
+
+func test_signs_exist_only_for_tiers_2_and_3() -> void:
+	# tier_sign(1) and tier_sign(4) assert with "no sign sells tier N" (an assert cannot run inside a test); has_tier_sign guards callers
+	assert_eq([1, 2, 3, 4].map(func(t): return MapLayout.has_tier_sign(t)), [false, true, true, false])
+	assert_eq(MapLayout.tier_sign(2), MapLayout.TIER_SIGN)
+	assert_eq(MapLayout.tier_sign(3), Vector2(-5.6, 9.0))
+	assert_ne(MapLayout.tier_sign(2), MapLayout.tier_sign(3))
 
 # --- the tier-dependent service layout --------------------------------------------------------------------------------------------
 
@@ -225,12 +232,13 @@ func test_the_rest_of_the_service_layout_clears_the_south_west_lane() -> void:
 	for n in stations:
 		var p: Vector2 = stations[n][0]
 		var r: float = stations[n][1]
-		assert_gt(_line_dist(p, MapLayout.lane_path("sw")), spread + MapLayout.HERO_RADIUS, "%s off the SW lane" % n)
+		assert_gt(_line_dist(p, MapLayout.lane_path("sw")), spread + maxf(r, MapLayout.HERO_RADIUS), "%s off the SW lane" % n)
 		assert_gt(Geometry.dist_point_rect(p, MapLayout.zone_rect("sw")), r, "%s outside the SW zone" % n)
 		assert_gt(p.distance_to(MapLayout.fence_spot("sw")), r + MapLayout.HERO_RADIUS, "%s off the SW fence spot" % n)
 		assert_gt(Geometry.dist_point_segment(p, bar[0], bar[1]), MapLayout.HERO_RADIUS, "%s off the SW fence bar" % n)
 	# the two documented exceptions (spec 4.2): the gold pile is 0.29 m from the lane line (it is empty at night, another task proves it)
-	# and the diner door stands on the zone's edge (the guards' respawn, never a hero stand point at night)
+	# and the diner door stands strictly INSIDE the SW zone (the guards' respawn, never a hero stand point at night)
+	assert_true(MapLayout.zone_rect("sw").has_point(MapLayout.DINER_DOOR), "the door is inside the SW zone")
 	assert_almost_eq(_line_dist(MapLayout.GOLD_PILE, MapLayout.lane_path("sw")), 0.29, 0.02, "the gold pile is 0.29 m from the lane line")
 	assert_almost_eq(_line_dist(MapLayout.DINER_DOOR, MapLayout.lane_path("sw")), 0.65, 0.02, "the door is 0.65 m from the lane line")
 
@@ -255,7 +263,8 @@ func test_the_tier_3_exit_is_the_entry_point_and_today_s_west_exit_would_not_do(
 	var west_exit := _seg_to_seg(MapLayout.SERVICE_POINT, MapLayout.TRAVELER_EXIT, tower, tower)
 	var east_exit := _seg_to_seg(MapLayout.SERVICE_POINT, MapLayout.traveler_exit(3), tower, tower)
 	gut.p("SW tower to today's west exit line %.2f m, to the tier-3 exit line %.2f m" % [west_exit, east_exit])
-	assert_lt(west_exit, MapLayout.BUILD_RADIUS + 1.0, "today's west exit walks past the SW tower's pad")
+	assert_almost_eq(west_exit, 1.74, 0.05, "today's west exit line to tower_sw, centre distance")
+	assert_almost_eq(west_exit - MapLayout.BUILD_RADIUS, 0.54, 0.05, "and clear of the tower's pad by only this much")
 	assert_gt(east_exit, west_exit + 3.0, "the tier-3 exit is far from it")
 
 # --- save validation --------------------------------------------------------------------------------------------------------------
@@ -312,3 +321,9 @@ func test_the_tier_3_edges_clear_the_colliders() -> void:
 				for body in bodies:
 					assert_true(Geometry.dist_point_rect(p, body) >= MapLayout.HERO_RADIUS - 0.01, "edge %s-%s hits a collider at %s" % [a, b, p])
 	assert_gt(checked, 40, "the new edges were checked")
+
+func test_tier_3_spots_are_clear_of_the_tier_2_kerb() -> void:
+	# the tier-2 yard kerb is untouched: the new spots' pads stay more than PAD_CLEAR from every tier-2 yard rect
+	for id in MapLayout.TIER_SPOTS[3]:
+		for y in MapLayout.yards_for_tier(2):
+			assert_gt(Geometry.dist_point_rect(MapLayout.spot_position(id), MapLayout.yard_rect(y)), YardStones.PAD_CLEAR, "%s vs the %s yard" % [id, y])

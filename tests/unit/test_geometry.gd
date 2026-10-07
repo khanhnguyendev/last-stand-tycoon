@@ -108,24 +108,14 @@ func test_A_prime_tier3_no_reachable_position_hits_three_of_four_lanes() -> void
 	assert_eq(int(r.pairs.get("west+north", 0)), 16, "the old pairs are unchanged")
 	assert_eq(int(r.pairs.get("north+east", 0)), 16, "the old pairs are unchanged")
 
-## tower_sw lists "west" second in TOWER_LANES (spec 4.1) but only reaches the west zone's corners at the top level (7.24 m against 7.5 and 8.0),
-## and never its fence: the level-1 reach of B and C is claimed for the first lane only; the second lane has its own check (B).
-const SECONDARY_LANES := {"tower_sw": ["west"]}
-
-func _primary_lanes(spot_id: String) -> Array:
-	return MapLayout.tower_lanes(spot_id).filter(func(l): return not (SECONDARY_LANES.get(spot_id, []) as Array).has(l))
-
 func test_B_towers_reach_adjacent_zones() -> void:
 	var tower_range: float = Balance.data.build.tower_range[0]
 	for tier in [2, 3]:
 		for spot_id in _towers_at(tier):
 			var t: Vector2 = MapLayout.tower_spot(spot_id)
-			for lane in _primary_lanes(spot_id):
+			for lane in MapLayout.tower_lanes(spot_id):
 				for c in Geometry.rect_corners(MapLayout.zone_rect(lane)):
 					assert_true(t.distance_to(c) <= tower_range, "tier %d: %s -> %s corner %s" % [tier, spot_id, lane, c])
-	var top: float = Balance.data.build.tower_range[Balance.data.build.tower_range.size() - 1]
-	for c in Geometry.rect_corners(MapLayout.zone_rect("west")):
-		assert_lte(MapLayout.tower_spot("tower_sw").distance_to(c), top, "tower_sw reaches the west zone corner %s at the top level" % c)
 	var worst := 0.0
 	for c in Geometry.rect_corners(MapLayout.zone_rect("sw")):
 		worst = maxf(worst, MapLayout.tower_spot("tower_sw").distance_to(c))
@@ -136,7 +126,7 @@ func test_C_towers_reach_adjacent_fences() -> void:
 	for tier in [2, 3]:
 		for spot_id in _towers_at(tier):
 			var t: Vector2 = MapLayout.tower_spot(spot_id)
-			for lane in _primary_lanes(spot_id):
+			for lane in MapLayout.tower_lanes(spot_id):
 				assert_true(t.distance_to(MapLayout.fence_spot(lane)) <= tower_range, "tier %d: %s -> fence %s" % [tier, spot_id, lane])
 
 func test_D_stop_points_inside_zone() -> void:

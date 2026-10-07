@@ -4,7 +4,9 @@ extends GutTest
 
 const NEAR := 2.8  # a pad stands within this of its spot
 const APART := 2.2  # the two pads of a spot are at least this far apart
-const MARGIN := 0.3  # every chosen pad clears every rule by at least this much
+const MARGIN := 0.1  # every chosen pad clears every rule by at least this much (fence_w and fence_e are the tightest: the yards crowd them)
+const TRAVELER_RADIUS := 0.3  # a queued traveler's body, kept clear of a pad
+const NOT_BOTH_SIDES := ["tower_e", "tower_ne", "tower_nw", "tower_w"]  # pinned: their pads sit on one side of the building
 const ASPECTS := [9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0]
 
 func before_each() -> void:
@@ -32,7 +34,17 @@ func _bar(lane: String) -> Array:
 	var t := Geometry.tangent_at(path, Geometry.path_length(path) - MapLayout.FENCE_OFFSET_FROM_END)
 	var n := Vector2(-t.y, t.x)
 	var f := MapLayout.fence_spot(lane)
-	return [f - n * 1.5, f + n * 1.5]
+	return [f - n * MapLayout.FENCE_BAR_HALF, f + n * MapLayout.FENCE_BAR_HALF]
+
+## Centre lines of every kerb piece of the open yards (tier 2): [a, b].
+func _kerb_segments() -> Array:
+	var out: Array = []
+	for id in MapLayout.yards_for_tier(2):
+		for xf in YardStones.transforms(MapLayout.yard_rect(id)):
+			var half := Vector2(xf.basis.x.x, xf.basis.x.z) * 0.5
+			var c := Vector2(xf.origin.x, xf.origin.z)
+			out.append([c - half, c + half])
+	return out
 
 func _colliders() -> Array:
 	return [
@@ -65,11 +77,22 @@ func _clearances(p: Vector2, own: String, others: Array) -> Array:
 	out.append([p.distance_to(MapLayout.HOME) - r, "HOME"])
 	out.append([p.distance_to(MapLayout.DINER_DOOR) - r, "diner door"])
 	for q in MapLayout.queue_slots(3):
-		out.append([p.distance_to(q) - r - 0.3, "queue slot"])
+		out.append([p.distance_to(q) - r - TRAVELER_RADIUS, "queue slot"])
 		out.append([Geometry.dist_point_segment(p, MapLayout.TRAVELER_ENTER, q) - r, "traveler entry line"])
 	out.append([Geometry.dist_point_segment(p, MapLayout.SERVICE_POINT, MapLayout.traveler_exit(3)) - r, "traveler exit line"])
 	for c in _colliders():
 		out.append([Geometry.dist_point_rect(p, c) - r, "hero collider"])
+	# owned-land props of the open yards: the centres keep pad radius + prop radius apart, plus the camera-lean term for a prop SOUTH of the
+	# pad (its top leans north over the pad on screen); test_yards applies the stricter every-direction lean to the same pads
+	var lean_k := 1.0 / tan(deg_to_rad(absf(Balance.ui.camera_pitch)))
+	for id in MapLayout.yards_for_tier(2):
+		for it in PropsLayout.OWNED.get(id, []):
+			var need := r + Props.owned_radius(it.kind, float(it.scale))
+			if it.pos.y > p.y:
+				need += Props.owned_height(it.kind, float(it.scale)) * lean_k
+			out.append([p.distance_to(it.pos) - need, "owned %s in the %s yard" % [it.kind, id]])
+	for k in _kerb_segments():
+		out.append([Geometry.dist_point_segment(p, k[0], k[1]) - r - YardStones.WIDTH * 0.5, "yard kerb"])
 	var inside := minf(minf(p.x - MapLayout.BOUNDS_MIN.x, MapLayout.BOUNDS_MAX.x - p.x), minf(p.y - MapLayout.BOUNDS_MIN.y, MapLayout.BOUNDS_MAX.y - p.y))
 	out.append([inside - r, "map bounds"])
 	return out
@@ -130,23 +153,26 @@ func test_a_rule_would_catch_a_bad_pad() -> void:
 	assert_lt(float(_least(_clearances(Vector2(0, 0), "tower_nw", []))[0]), 0.0)
 	assert_lt(float(_least(_clearances(MapLayout.tower_spot("tower_sw") + Vector2(1.0, 0), "tower_sw", []))[0]), 0.0)
 
-func test_the_building_is_on_screen_from_either_pad() -> void:
+func test_the_building_and_the_other_pad_are_on_screen_from_either_pad() -> void:
 	for pad in _pad_list():
 		var spot := MapLayout.spot_position(pad.id)
+		var other: Vector2 = (MapLayout.BRANCH_PADS[pad.id] as Array)[1 - pad.i]
 		var xf := CameraMath.camera_transform(CameraMath.focus_for(pad.pos), Balance.ui)
 		for aspect in ASPECTS:
-			assert_true(CameraMath.on_screen(MapLayout.to3(spot), xf, CameraMath.projection(Balance.ui, aspect)), "%s from its pad %s at aspect %.3f" % [pad.id, pad.pos, aspect])
+			var proj := CameraMath.projection(Balance.ui, aspect)
+			assert_true(CameraMath.on_screen(MapLayout.to3(spot), xf, proj), "%s from its pad %s at aspect %.3f" % [pad.id, pad.pos, aspect])
+			assert_true(CameraMath.on_screen(MapLayout.to3(other), xf, proj), "%s: the other pad %s from pad %s at aspect %.3f" % [pad.id, other, pad.pos, aspect])
 
 func test_pad_sides_as_the_camera_sees_them() -> void:
-	# information: the camera looks north from the south, so x is left to right. Pairs on both sides of the building read best.
+	# the camera looks north from the south, so x is left to right: a pair reads best with one pad clearly left (dx <= -0.5) and one
+	# clearly right (dx >= +0.5) of the building. The spots that cannot (the yards and the diner crowd them) are pinned.
+	var not_both: Array = []
 	for id in _ids():
 		var spot := MapLayout.spot_position(id)
 		var pads: Array = MapLayout.BRANCH_PADS[id]
-		gut.p("%-9s pads at dx %+.1f and %+.1f" % [id, pads[0].x - spot.x, pads[1].x - spot.x])
-	var split := 0
-	for id in _ids():
-		var spot := MapLayout.spot_position(id)
-		var pads: Array = MapLayout.BRANCH_PADS[id]
-		if (pads[0].x - spot.x) * (pads[1].x - spot.x) < 0.0:
-			split += 1
-	assert_gte(split, 4, "most spots show their pads on both sides of the building")
+		var dx: Array = [pads[0].x - spot.x, pads[1].x - spot.x]
+		gut.p("%-9s pads at dx %+.1f and %+.1f" % [id, dx[0], dx[1]])
+		if not ((dx[0] <= -0.5 and dx[1] >= 0.5) or (dx[1] <= -0.5 and dx[0] >= 0.5)):
+			not_both.append(id)
+	not_both.sort()
+	assert_eq(not_both, NOT_BOTH_SIDES)
