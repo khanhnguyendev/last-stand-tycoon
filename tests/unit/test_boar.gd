@@ -125,8 +125,8 @@ func test_reuse_resets_state() -> void:
 func test_pool_sizes_from_balance() -> void:
 	# PINNED REFERENCE: spec 11 at the default Balance (D-124: steaks from the CAPPED day-10 counts
 	# 17 + 25 + 30). If Task 35 changes a wave or economy value, update this row and spec 11 together.
-	# E5: the boss is one more spawn; steaks = the top tier's capped night (75 kills x 2) + the boss drop (100), x 1.2
-	assert_eq(World.pool_sizes(Balance.data), {"enemy": 41, "steak": 300, "projectile": 24, "fx": 32})
+	# E5: the boss is one more spawn; steaks = the top tier's capped night (72 kills x 2, tier-2 cap 10) + the boss drop (100), x 1.2
+	assert_eq(World.pool_sizes(Balance.data), {"enemy": 41, "steak": 293, "projectile": 24, "fx": 32})
 
 func test_guard_arm_damages_the_guard_and_stops_the_boar() -> void:
 	GameState.debug_grant_card(&"tank")

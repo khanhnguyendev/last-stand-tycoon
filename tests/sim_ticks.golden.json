@@ -16,5 +16,5 @@
   "res://tests/sim_tier/test_tier_sims.gd::test_1_the_tier_bot_wins_the_boss_night_within_the_allowed_retries": 12739,
   "res://tests/sim_tier/test_tier_sims.gd::test_2_the_boss_alone_needs_at_least_boss_min_hold_s_to_fell_the_diner": 3643,
   "res://tests/sim_tier/test_tier_sims.gd::test_3_the_tier_bot_holds_the_first_tier2_night": 5889,
-  "res://tests/sim_tier/test_tier_sims.gd::test_4_a_full_tier2_build_clears_the_cap_with_0_retries_on_three_seeds": 17495
+  "res://tests/sim_tier/test_tier_sims.gd::test_4_a_full_tier2_build_clears_the_cap_with_0_retries_on_three_seeds": 16680
 }
