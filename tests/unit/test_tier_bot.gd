@@ -268,7 +268,12 @@ func test_branch_choices_covers_every_spot_given_and_is_pure() -> void:
 	var ids := MapLayout.spots_for_tier(3)
 	var a := TierBot.branch_choices("threat", ids, plan)
 	assert_eq(a.keys().size(), ids.size())
-	assert_eq(a, TierBot.branch_choices("threat", ids, plan.duplicate(true)))
+	var before := plan.duplicate(true)
+	var ids_before := ids.duplicate()
+	TierBot.branch_choices("threat", ids, plan)
+	assert_eq(plan, before, "the plan argument is not mutated")
+	assert_eq(ids, ids_before, "the spot list is not mutated")
+	assert_eq(a["tower_sw"], &"longbow")
 	assert_eq(a["fence_sw"], &"stone")
 	assert_eq(a["fence_w"], &"spike", "a tier-3 lane's brute does not leak onto the others")
 
@@ -303,6 +308,9 @@ func test_it_completes_one_tower_and_one_fence_branch_by_standing_on_the_pad() -
 
 ## A short scripted run: tier 2 -> pays the front-lot sign (policy-free) -> or, at tier 3, the policy's first branches. Returns the hash of
 ## the goal sequence and of the final state.
+var _last_goals: Array = []
+var _last_paid := false
+
 func _trace(tier: int, policy: String, gold: int, stop: Callable) -> int:
 	var bot := await _bot_world(tier, 20260930, policy)
 	_max_all_spots()
@@ -319,15 +327,74 @@ func _trace(tier: int, policy: String, gold: int, stop: Callable) -> int:
 	var branches := {}
 	for id in MapLayout.spots_for_tier(GameState.tier):
 		branches[id] = String(GameState.branch_of(id))
+	_last_goals = goals
+	_last_paid = GameState.boss_pending
 	return hash([goals, GameState.gold, GameState.tier_paid, GameState.boss_pending, branches])
 
 func test_two_runs_of_the_same_seed_and_policy_have_identical_traces() -> void:
 	var t2_a := await _trace(2, "threat", 1500, func(): return GameState.boss_pending)
+	var goals_a := _last_goals
+	var paid_a := _last_paid
 	var t2_b := await _trace(2, "threat", 1500, func(): return GameState.boss_pending)
-	assert_eq(t2_a, t2_b, "tier 2 to the tier-3 payment")
+	assert_true(paid_a and _last_paid, "both runs really paid the tier-3 sign (else the comparison is vacuous)")
+	assert_eq(t2_a, t2_b, "tier 2 to the tier-3 payment; goal traces %s | %s" % [goals_a, _last_goals])
 	var done := func(): return GameState.branch_of("tower_nw") != &"" and GameState.branch_of("fence_w") != &""
 	var b_a := await _trace(3, "all_a", 800, done)
 	var b_b := await _trace(3, "all_a", 800, done)
 	var b_t := await _trace(3, "all_b", 800, done)
 	assert_eq(b_a, b_b, "tier 3 branches under all_a")
 	assert_ne(b_a, b_t, "the trace sees the policy (Longbow and Stone wall against Volley and Spike fence)")
+
+## Wiring: the default policy (threat) reads GameState.lane_plan. Mutation: passing [] instead of GameState.lane_plan to branch_choices in
+## _next_branch_pad (hand-checked: the Longbow and Stone rows then return Volley and Spike pads and fail).
+func _one_branch_bot() -> TierBot:
+	GameState.new_game(1)
+	GameState.debug_set_tier(3, 1)
+	for id in MapLayout.spots_for_tier(3):
+		GameState.buildings[id].level = Balance.data.build.max_level  # test-only setup
+		GameState.buildings[id].hp = GameState.fence_max_hp(Balance.data.build.max_level) if MapLayout.spot_kind(id) == "fence" else 0.0
+	GameState.gold = 5000  # test-only setup
+	var bot := TierBot.new()
+	autofree(bot)
+	assert_eq(bot.policy, "threat", "the default")
+	return bot
+
+func _only(bot: TierBot, keep: String) -> void:
+	for id in MapLayout.spots_for_tier(3):  # test-only setup: only `keep` can still branch
+		if id != keep:
+			GameState.buildings[id].branch = "spike" if MapLayout.spot_kind(id) == "fence" else "volley"
+
+func test_the_default_policy_reads_the_nights_plan_for_a_tower() -> void:
+	var bot := _one_branch_bot()
+	_only(bot, "tower_nw")
+	GameState.lane_plan = [_wave("west", 2)]  # tower_nw covers west
+	assert_eq(bot.next_purchase(), "pad_tower_nw_a", "Longbow")
+	GameState.lane_plan = [_wave("sw", 2)]
+	assert_eq(bot.next_purchase(), "pad_tower_nw_b", "Volley")
+
+func test_the_default_policy_reads_the_nights_plan_for_a_fence() -> void:
+	var bot := _one_branch_bot()
+	_only(bot, "fence_w")
+	GameState.lane_plan = [_wave("west", 2)]
+	assert_eq(bot.next_purchase(), "pad_fence_w_a", "Stone wall")
+	GameState.lane_plan = [_wave("sw", 2)]
+	assert_eq(bot.next_purchase(), "pad_fence_w_b", "Spike fence")
+
+## A pad that never arms: the bot gives up after PAD_WAIT_CAP_TICKS, counts one skip and picks another goal (no stall).
+func test_a_pad_that_never_pays_is_skipped_once_after_the_cap() -> void:
+	var bot := await _bot_world(3)
+	_max_all_spots()
+	GameState.gold = 5000  # test-only setup
+	var pad := bot.next_purchase()
+	assert_true(pad.begins_with("pad_"), pad)
+	bot.goal = pad
+	bot._route = []
+	bot.hero.teleport(bot.graph.position_of(pad))  # standing on it, never walked in: the pad is not armed
+	assert_true(bot.arrived())
+	for i in TierBot.PAD_WAIT_CAP_TICKS:
+		bot.day_think(0.0)
+		assert_eq(bot.goal, pad, "still waiting")
+	assert_eq(bot.skipped_goals, 0)
+	bot.day_think(0.0)
+	assert_eq(bot.skipped_goals, 1)
+	assert_ne(bot.next_purchase(), pad, "not picked again today")

@@ -4,7 +4,7 @@ extends Node
 ## `--bot=tier` runs the TierBot -> `sweep_tier.csv` (+ tier,boss_night,boss_retries) and prints a TIER line (E5).
 ## `--policy=all_a|all_b|mixed|threat` sets the tier bot's branch policy (default threat). `--tier3=off` removes the tier-3 cost entry in memory,
 ## and the run then asserts that no brute died, no wave came from the south-west and no branch was chosen (the Task 21 assertion, D-279):
-## a TIER3_GATE line, exit code 1 on a violation. Tier rows end with brute_kills,sw_spawns,branches (per day, appended after the old columns).
+## a TIER3_GATE line, exit code 1 on a violation. Tier rows end with brute_kills,sw_waves,branches (per day, appended after the old columns; sw_waves counts waves with a south-west lane, formerly named sw_spawns).
 ## After the SWEEP line it prints a RETRIES line (days, median, max_before_day8, max, target_ok) for the D-184 retries-per-night target.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
 
@@ -25,6 +25,8 @@ func _run() -> void:
 		push_error("bad --policy=%s (all_a|all_b|mixed|threat) or --tier3=%s (on|off)" % [args.policy, args.tier3])
 		get_tree().quit(2)
 		return
+	if not String(args.bot) == "tier" and (args.policy != "threat" or args.tier3 != "on"):
+		print("WARNING: --policy and --tier3 only apply to --bot=tier; ignored for --bot=%s" % args.bot)
 	Balance.reset()
 	if String(args.tier3) == "off":
 		Balance.data.tiers.tier_costs.resize(2)  # in memory only: no sign sells tier 3
@@ -42,7 +44,7 @@ func _run() -> void:
 	EventBus.steak_sold.connect(_on_sold)
 	EventBus.card_picked.connect(_on_picked)
 	EventBus.guard_knocked_out.connect(_on_knockout)
-	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked" + (",stations" if upgrader else "") + (",tier,boss_night,boss_retries,brute_kills,sw_spawns,branches" if tier_mode else "")]
+	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked" + (",stations" if upgrader else "") + (",tier,boss_night,boss_retries,brute_kills,sw_waves,branches" if tier_mode else "")]
 	var first_fail_day := -1
 	var hard_break_day := -1
 	var retries_per_day: Array = []
@@ -54,7 +56,7 @@ func _run() -> void:
 		_picked = ""
 		_knockouts = 0
 		_brute_kills = 0
-		_sw_spawns = 0
+		_sw_waves = 0
 		_branches = 0
 		var enemy_count := SweepMath.enemy_count(GameState.lane_plan)  # the night's own plan (capped past day 7)
 		var boss_night := GameState.is_boss_night()
@@ -83,7 +85,7 @@ func _run() -> void:
 		if n.failed:
 			hard_break_day = day
 			var tcols := _tier_cols(tier_mode, start_tier, boss_night, retries)
-			tier3_events += _brute_kills + _sw_spawns + _branches
+			tier3_events += _brute_kills + _sw_waves + _branches
 			rows.append("%d,%.3f,%d,%d,0,0,%s,%d,%.1f,,,%s,%d," % [day, n.diner_frac, retries, n.kills, defending, enemy_count, night_s, _cards(), _knockouts] + _stations(upgrader) + tcols)
 			break
 		# dawn moved the night's steaks to the freezer (freezer + carried, as test_night_sims counts); gold is what the day's sales pay out
@@ -91,7 +93,7 @@ func _run() -> void:
 		_gold_sold = 0
 		var d := await h.run_day()
 		var tcols := _tier_cols(tier_mode, start_tier, boss_night, retries)  # after the day: the branches are bought by day
-		tier3_events += _brute_kills + _sw_spawns + _branches
+		tier3_events += _brute_kills + _sw_waves + _branches
 		if not d.closed:
 			rows.append("%d,STALL" % day + _stations(upgrader) + tcols)
 			break
@@ -144,7 +146,7 @@ func _run() -> void:
 
 var _gold_sold := 0
 var _brute_kills := 0
-var _sw_spawns := 0
+var _sw_waves := 0
 var _branches := 0
 
 func _on_enemy_killed(_i: int, _lane: StringName, _p: Vector3, kind: StringName) -> void:
@@ -153,7 +155,7 @@ func _on_enemy_killed(_i: int, _lane: StringName, _p: Vector3, kind: StringName)
 
 func _on_wave_started(_i: int, main_lane: StringName, side_lane: StringName) -> void:
 	if main_lane == &"sw" or side_lane == &"sw":
-		_sw_spawns += 1
+		_sw_waves += 1
 
 func _on_branch_chosen(_spot: StringName, _branch: StringName) -> void:
 	_branches += 1
@@ -196,4 +198,4 @@ func _stations(upgrader: bool) -> String:
 func _tier_cols(tier_mode: bool, start_tier: int, boss_night: bool, retries: int) -> String:
 	if not tier_mode:
 		return ""
-	return ",%d,%d,%d,%d,%d,%d" % [start_tier, 1 if boss_night else 0, retries if boss_night else 0, _brute_kills, _sw_spawns, _branches]
+	return ",%d,%d,%d,%d,%d,%d" % [start_tier, 1 if boss_night else 0, retries if boss_night else 0, _brute_kills, _sw_waves, _branches]

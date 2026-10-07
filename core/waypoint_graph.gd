@@ -98,7 +98,7 @@ static func create_default() -> WaypointGraph:
 	return g
 
 ## E5 (spec 5.2): the default graph plus the tier's sign and yard spots. create_default() stays frozen (D-230);
-## only TierBot and tests use this.
+## only tests use this; TierBot walks create_for_bot(tier), which builds on it.
 static func create_for_tier(tier: int) -> WaypointGraph:
 	var g := create_default()
 	if tier >= 2:
