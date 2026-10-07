@@ -17,7 +17,7 @@ func test_new_game_defaults() -> void:
 	assert_eq(GameState.lane_plan.size(), 3)
 	assert_eq(GameState.lane_plan[0].main, "north")
 	for id in MapLayout.SPOT_IDS:
-		assert_eq(GameState.buildings[id], {"level": 0, "paid": 0, "hp": 0.0})
+		assert_eq(GameState.buildings[id], {"level": 0, "paid": 0, "hp": 0.0, "branch": "", "branch_paid": {}})
 
 func test_round_trip_identity() -> void:
 	GameState.add_gold(55)
@@ -93,7 +93,7 @@ func test_pay_builds_and_levels() -> void:
 	assert_eq(GameState.pay_into_spot("fence_n", cost - 1), cost - 1)
 	assert_eq(GameState.buildings.fence_n.paid, cost - 1)
 	assert_eq(GameState.pay_into_spot("fence_n", cost), 1, "pays only what is left")
-	assert_eq(GameState.buildings.fence_n, {"level": 1, "paid": 0, "hp": GameState.fence_max_hp(1)})
+	assert_eq(GameState.buildings.fence_n, {"level": 1, "paid": 0, "hp": GameState.fence_max_hp(1), "branch": "", "branch_paid": {}})
 	assert_signal_emitted_with_parameters(EventBus, "build_completed", [&"fence_n", 1])
 	assert_eq(GameState.gold, cost * 4)
 	assert_eq(GameState.next_level_cost("fence_n"), Economy.level_cost("fence_n", 1, Balance.data.build))
@@ -116,7 +116,7 @@ func test_fence_damage_rubble_and_dawn() -> void:
 	GameState.damage_diner(_max_hp() / 3.0)
 	GameState.heal_for_dawn()
 	GameState.reset_destroyed_fences()
-	assert_eq(GameState.buildings.fence_w, {"level": 0, "paid": 0, "hp": 0.0})
+	assert_eq(GameState.buildings.fence_w, {"level": 0, "paid": 0, "hp": 0.0, "branch": "", "branch_paid": {}})
 	assert_eq(GameState.buildings.fence_e.hp, GameState.fence_max_hp(1))
 	assert_eq(GameState.diner_hp, _max_hp())
 

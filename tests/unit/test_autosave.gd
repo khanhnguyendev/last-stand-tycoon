@@ -215,3 +215,13 @@ func test_tier_up_dawn_with_every_card_maxed_saves_day_and_opens_no_pick() -> vo
 	EventBus.card_offered.disconnect(cb)
 	assert_eq(pc.phase, Phase.DAY)
 	assert_eq(offers, [])
+
+func test_a_chosen_branch_writes_at_once_in_day_and_never_at_night() -> void:
+	pc.start_new_game(9)
+	var w := main.autosave.writes
+	EventBus.branch_chosen.emit(&"tower_nw", &"longbow")
+	assert_eq(main.autosave.writes, w, "no write at night")
+	pc.debug_skip_to_day()
+	var before: int = main.autosave.writes
+	EventBus.branch_chosen.emit(&"tower_nw", &"longbow")
+	assert_eq(main.autosave.writes, before + 1, "exactly one write at once in DAY")
