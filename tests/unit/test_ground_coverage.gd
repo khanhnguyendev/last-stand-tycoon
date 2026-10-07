@@ -102,3 +102,40 @@ func test_the_reveal_frame_hits_ground_inside_rect() -> void:
 					assert_true(rect.has_point(hxz), "hit %s inside ground: aspect %.3f zoom %.2f" % [hxz, aspect, z])
 			assert_lt(worst, REVEAL_EDGE_SLACK, "aspect %.3f zoom %.2f" % [aspect, z])
 			gut.p("aspect %.3f zoom %.2f: %.1f m past the ground%s" % [aspect, z, maxf(worst, 0.0), "" if strict else " (not strict)"])
+
+## E5 tier 3 Task 2: a yard reads as owned land. Palette indices as literals: 20 grass, 21 grass_dark, 22 dirt, 23 dirt_dark,
+## 24 stone (the road), 28 diner_cream.
+const PAL_GRASS := 20
+const PAL_GRASS_DARK := 21
+const PAL_DIRT := 22
+const PAL_DIRT_DARK := 23
+const PAL_CREAM := 28
+
+func _pal(i: int) -> Color:
+	return Color(Palette.HEX[i])
+
+func _dist(a: Color, b: Color) -> float:
+	return Vector3(a.r - b.r, a.g - b.g, a.b - b.b).length()
+
+func _yard_vertex_colours(id: String) -> Array:
+	var mesh := GroundArt.terrain_mesh(World.ground_rect(), [id])
+	var arrays := mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var cols: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
+	var rect: Rect2 = MapLayout.YARDS[id]
+	var out := []
+	for i in verts.size():
+		if is_equal_approx(verts[i].y, GroundArt.YARD_Y) and rect.grow(1e-4).has_point(Vector2(verts[i].x, verts[i].z)):
+			out.append(cols[i])
+	return out
+
+func test_yard_ground_is_paved_not_lane_dirt_not_grass() -> void:
+	assert_eq(Palette.NAMES[PAL_CREAM], &"diner_cream", "literal index is the cream")
+	assert_eq(Palette.NAMES[PAL_DIRT], &"dirt", "literal index is the lane dirt")
+	for id in MapLayout.YARDS:
+		var cols := _yard_vertex_colours(id)
+		assert_gt(cols.size(), 20, "%s yard has ground vertices" % id)
+		for c in cols:
+			for bad in [PAL_DIRT, PAL_DIRT_DARK, PAL_GRASS, PAL_GRASS_DARK]:
+				assert_gt(_dist(c, _pal(bad)), 0.2, "%s yard colour %s is clearly not palette %d" % [id, c, bad])
+			assert_lt(_dist(c, _pal(PAL_CREAM)), 0.2, "the paved tint stays in the cream family")

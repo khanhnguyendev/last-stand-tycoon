@@ -101,17 +101,19 @@ static func ground_mesh(rect: Rect2) -> ArrayMesh:
 		_cache[key] = mesh_from(ground_arrays(rect))
 	return _cache[key]
 
-## E5 spec 7.3: a yard is a dirt patch in the merged ground, hashed toward dirt_dark like the grass.
+## E5 tier 3 Task 2: owned land is paved: diner_cream hashed toward stone, clearly neither lane dirt nor grass.
+static func paved_at(x: float, z: float) -> Color:
+	return Palette.color(&"diner_cream").lerp(Palette.color(&"stone"), hash01(x, z) * 0.4)
+
+## A yard is a paved patch in the merged ground (spec 7.3, tier 3 spec 5); its border is YardStones.
 static func yard_arrays(rect: Rect2, cell := 1.0) -> Dictionary:
 	var a := ground_arrays(rect, cell)
 	var cols: PackedColorArray = a.c
 	var verts: PackedVector3Array = a.v
-	var dirt := Palette.color(&"dirt")
-	var dark := Palette.color(&"dirt_dark")
 	for i in verts.size():
 		var v := verts[i]
 		verts[i] = Vector3(v.x, YARD_Y, v.z)
-		cols[i] = dirt.lerp(dark, hash01(v.x, v.z) * 0.5)
+		cols[i] = paved_at(v.x, v.z)
 	a.v = verts
 	a.c = cols
 	return a
@@ -123,7 +125,7 @@ static func _terrain_key(rect: Rect2, yards: Array) -> String:
 static func is_cached(rect: Rect2, yards: Array = []) -> bool:
 	return _cache.has(_terrain_key(rect, yards))
 
-## ONE mesh, ONE surface, ONE draw for the ground, the road, the lane strips and the open yards (D-201). Cached per
+## ONE mesh, ONE surface, ONE draw for the ground, the road, the lane strips, the open yards and their small props (D-201). Cached per
 ## (rect, yards); `yards` are MapLayout.YARDS keys. With no yards the mesh is exactly the S4 tier-1 terrain.
 static func terrain_mesh(rect: Rect2, yards: Array = []) -> ArrayMesh:
 	var key := _terrain_key(rect, yards)
@@ -133,6 +135,9 @@ static func terrain_mesh(rect: Rect2, yards: Array = []) -> ArrayMesh:
 			parts.append(LaneStrip.strip_arrays(MapLayout.LANE_PATHS[id]))
 		for y in yards:
 			parts.append(yard_arrays(MapLayout.YARDS[y]))
+		var owned := PropsLayout.owned_for(yards)  # E5 tier 3 Task 2: small props on owned land, same mesh, no extra draw
+		if not owned.is_empty():
+			parts.append(Props.owned_arrays(owned))
 		_cache[key] = mesh_from(merge_arrays(parts))
 	return _cache[key]
 

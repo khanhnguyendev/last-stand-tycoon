@@ -96,18 +96,18 @@ func test_tier1_terrain_is_unchanged_by_the_yards_feature() -> void:
 	assert_eq(_array_hash(a[Mesh.ARRAY_COLOR]), 599500315)
 	assert_eq(_array_hash(a[Mesh.ARRAY_INDEX]), 1529329421)
 
-func test_yard_cells_are_dirt_and_inside_the_rect() -> void:
+func test_yard_cells_are_paved_and_inside_the_rect() -> void:
 	var r := Rect2(2, 2, 4, 6)
 	var a := GroundArt.yard_arrays(r)
 	assert_gt((a.v as PackedVector3Array).size(), 0)
-	var dirt := Palette.color(&"dirt")
-	var dark := Palette.color(&"dirt_dark")
+	var cream := Palette.color(&"diner_cream")
+	var stone := Palette.color(&"stone")
 	for i in (a.v as PackedVector3Array).size():
 		var v: Vector3 = a.v[i]
 		assert_true(r.grow(1e-4).has_point(Vector2(v.x, v.z)), str(v))
 		assert_almost_eq(v.y, GroundArt.YARD_Y, 1e-6)
 		var c: Color = a.c[i]
-		assert_true(c.is_equal_approx(dirt.lerp(dark, GroundArt.hash01(v.x, v.z) * 0.5)), "dirt hashed toward dirt_dark, palette only")
+		assert_true(c.is_equal_approx(cream.lerp(stone, GroundArt.hash01(v.x, v.z) * 0.4)), "paved: cream hashed toward stone, palette only")
 
 func test_terrain_with_yards_is_one_surface_and_cached() -> void:
 	var m := GroundArt.terrain_mesh(World.ground_rect(), ["west"])
@@ -124,14 +124,35 @@ func test_yard_stones_ring_the_outline() -> void:
 		assert_lte(Geometry.dist_point_rect(p, r), 0.4, "on the outline")
 		assert_gte(Geometry.dist_point_rect(p, r.grow(-0.5)), 0.1, "not inside the yard")
 
-func test_yard_stones_keep_clear_of_the_tier_sign() -> void:
+func test_yard_kerb_is_continuous_around_the_sign_corner() -> void:
+	# Fix round 1 ruling: the sign and an open yard never coexist, so the kerb is closed at the west yard's south-east
+	# corner. Before: no piece within SIGN_CLEAR (1.3) of the sign, a gap there. After: no uncovered stretch wider than
+	# the build-spot pad gaps allow, and a piece stands where the sign's edge point is.
 	var r: Rect2 = MapLayout.YARDS["west"]
+	var segs := []
 	for xf in YardStones.transforms(r):
-		assert_gte(Vector2(xf.origin.x, xf.origin.z).distance_to(MapLayout.TIER_SIGN), YardStones.SIGN_CLEAR)
-	# A synthetic rect whose top edge passes 0.2 m from the sign: 6 x 3 m gives 2 * (5 + 2) = 14 stones without the guard.
+		var half := Vector2(xf.basis.x.x, xf.basis.x.z) * 0.5
+		var c := Vector2(xf.origin.x, xf.origin.z)
+		segs.append([c - half, c + half])
+	var corners := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y), r.position]
+	var uncovered := 0
+	for e in 4:
+		var a: Vector2 = corners[e]
+		var b: Vector2 = corners[e + 1]
+		for k in 101:
+			var p := a.lerp(b, k / 100.0)
+			var covered := segs.any(func(s): return Geometry2D.get_closest_point_to_segment(p, s[0], s[1]).distance_to(p) < 0.01)
+			if covered:
+				continue
+			uncovered += 1
+			var near_pad := false
+			for q in YardStones.pad_points():
+				if p.distance_to(q) < YardStones.PAD_CLEAR + YardStones.SPACING:
+					near_pad = true
+			assert_true(near_pad, "uncovered kerb at %s is not at a pad" % p)
+	assert_gt(uncovered, 0, "the tower_w pad gap is still there")
+	var corner := Vector2(MapLayout.TIER_SIGN.x, r.end.y)
+	assert_true(segs.any(func(s): return Geometry2D.get_closest_point_to_segment(corner, s[0], s[1]).distance_to(corner) < 0.01), "kerb under the sign's edge point")
+	# a synthetic rect whose top edge passes 0.2 m from the sign: 6 x 3 m gives 2 * (5 + 2) = 14 pieces, none dropped
 	var near := Rect2(MapLayout.TIER_SIGN - Vector2(3, 0.2), Vector2(6, 3))
-	var xfs := YardStones.transforms(near)
-	assert_lt(xfs.size(), 14, "the stone under the sign is dropped")
-	assert_gt(xfs.size(), 10, "the rest of the ring stays")
-	for xf in xfs:
-		assert_gte(Vector2(xf.origin.x, xf.origin.z).distance_to(MapLayout.TIER_SIGN), YardStones.SIGN_CLEAR)
+	assert_eq(YardStones.transforms(near).size(), 14, "nothing is dropped for the sign")
