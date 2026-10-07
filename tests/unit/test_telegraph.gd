@@ -302,21 +302,39 @@ func test_tier3_rows_clear_every_cost_label_pip_the_hero_and_the_queue() -> void
 					if not _marker(lane).shown().is_empty():
 						assert_false(_row_rect(_marker(lane), v).intersects(body), "%s row on the queue slot %s" % [lane, slot])
 
-func test_rows_with_three_pairs_and_the_boss_are_fully_on_screen_from_home() -> void:
+## The rows the game shows are fully on screen: the three northern ones from a camera up north (from HOME at 9:16 the game hides them,
+## they project under the HUD's top bar: the next test), the south-west one from HOME.
+func test_rows_with_three_pairs_and_the_boss_are_fully_on_screen_where_the_game_shows_them() -> void:
 	_tier3()
 	await get_tree().physics_frame
 	for aspect in [9.0 / 21.0, 720.0 / 1280.0]:
-		var v := View.new(MapLayout.HOME, aspect)
 		for lane in ["west", "east", "sw", "north"]:
+			var focus := {"west": Vector2(-6.0, -8.0), "east": Vector2(6.0, -8.0), "north": Vector2(0.0, -8.0), "sw": MapLayout.HOME}[lane] as Vector2
+			var v := View.new(focus, aspect)
 			_set_plan(_plan_boss_on(lane))
 			var mk := _marker(lane)
 			assert_eq(mk.shown().size(), 4, "%s carries three pairs and the boss" % lane)
 			var r := _row_rect(mk, v)
-			gut.p("home %.2f %s row %s" % [aspect, lane, r])
+			gut.p("%.2f %s row %s" % [aspect, lane, r])
 			assert_gte(r.position.x, -360.0, lane + " left edge on screen")
 			assert_lte(r.end.x, 360.0, lane + " right edge on screen")
 			assert_gte(r.position.y, -_base_height(aspect) * 0.5)
 			assert_lte(r.end.y, _base_height(aspect) * 0.5)
+
+## From HOME at 9:16 the three northern rows project under the HUD's top bar (the game hides them); the south-west row and, at 9:21, all rows clear it.
+func test_from_home_at_9_16_the_three_northern_rows_are_under_the_hud_bar_and_the_sw_row_is_not() -> void:
+	_tier3()
+	await get_tree().physics_frame
+	_set_plan(_plan_boss_on("east"))
+	var v := View.new(MapLayout.HOME, 720.0 / 1280.0)
+	var h := _base_height(720.0 / 1280.0)
+	for lane in ["west", "north", "east"]:
+		var top := _row_rect(_marker(lane), v).position.y + h * 0.5
+		assert_lt(top, Balance.ui.hud_top_bar_px, "%s: the row's top (%.0f px) is inside the top bar" % [lane, top])
+	assert_gt(_row_rect(_marker("sw"), v).position.y + h * 0.5, Balance.ui.hud_top_bar_px)
+	var tall := View.new(MapLayout.HOME, 9.0 / 21.0)
+	for lane in ["west", "north", "east", "sw"]:
+		assert_gt(_row_rect(_marker(lane), tall).position.y + _base_height(9.0 / 21.0) * 0.5, Balance.ui.hud_top_bar_px, "9:21: %s clears the bar" % lane)
 
 func test_the_row_is_up_path_of_its_marker_at_a_fixed_height_and_grows_inward() -> void:
 	_tier3()
@@ -353,3 +371,111 @@ func test_every_glyph_triangulates_every_layer_and_stays_off_gold() -> void:
 			assert_eq(Geometry2D.triangulate_polygon(l[0]).size(), 3 * (l[0].size() - 2), "%s: a fill layer is a simple polygon" % kind)
 			assert_false(String(l[1]).begins_with("gold"), "%s: gold is the hero-and-reward colour" % kind)
 			assert_false(String(l[1]).contains("white"), "%s: no white" % kind)
+
+# --- E5 tier 3 Task 20: a row under the HUD's top bar hides (visual only) ---
+
+const NO_INSETS := {"top": 0.0, "bottom": 0.0, "left": 0.0, "right": 0.0}
+
+func _sized_main(size: Vector2i, insets := NO_INSETS) -> void:
+	SafeArea.override_for_tests = insets
+	remove_child(main)
+	main.free()
+	var vp := SubViewport.new()
+	vp.size = size
+	add_child_autofree(vp)
+	main = Main.create()
+	vp.add_child(main)
+	main.hero.input.player_control = false
+	main.phase_controller.start_new_game(41)
+	main.phase_controller.debug_skip_to_day()
+	_tier3()
+	# every lane has a row: west, sw, north and east all carry monsters tonight
+	_set_plan([_wave("west", 5, 2, "sw", 3, 0, 1, 0), _wave("north", 4, 1, "east", 2, 0, 2, 1)])
+
+func _at(p: Vector2) -> void:
+	main.hero.teleport(p)
+	main.camera_rig.snap()
+
+func _settle() -> void:
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	await get_tree().process_frame
+
+func after_each() -> void:
+	SafeArea.override_for_tests = {}
+	Balance.reset()
+	GameState.new_game(1)
+
+func test_from_home_at_9_16_the_three_northern_rows_hide_and_the_sw_row_shows() -> void:
+	_sized_main(Vector2i(720, 1280))
+	_at(MapLayout.HOME)
+	await _settle()
+	for lane in ["west", "north", "east"]:
+		assert_false(_marker(lane).row.visible, "%s row would draw under the gold counter and the day label" % lane)
+		assert_false(_marker(lane).shown().is_empty(), "%s: the row still has its contents (only its visibility moved)" % lane)
+		assert_true(_marker(lane).visible, "%s: the flag is untouched" % lane)
+	assert_true(_marker("sw").row.visible, "the south-west row (tier 3) is clear of the bar")
+
+func test_a_taller_window_shows_every_row_from_home() -> void:
+	_sized_main(Vector2i(720, 1680))
+	_at(MapLayout.HOME)
+	await _settle()
+	for lane in ["west", "north", "east", "sw"]:
+		assert_true(_marker(lane).row.visible, "9:21: the %s row clears the bar" % lane)
+
+func test_with_the_hero_at_the_north_zone_the_north_row_shows() -> void:
+	_sized_main(Vector2i(720, 1280))
+	_at(MapLayout.HOME)
+	await _settle()
+	assert_false(_marker("north").row.visible)
+	_at((MapLayout.ZONE_RECTS["north"] as Rect2).get_center())
+	await _settle()
+	assert_true(_marker("north").row.visible, "the camera is up north: the row is mid-screen")
+	_at(MapLayout.HOME)
+	await _settle()
+	assert_false(_marker("north").row.visible, "and it hides again when the camera comes back")
+
+func test_the_safe_area_inset_moves_the_bar() -> void:
+	_sized_main(Vector2i(720, 1680), {"top": 150.0, "bottom": 0.0, "left": 0.0, "right": 0.0})
+	_at(MapLayout.HOME)
+	await _settle()
+	for lane in ["west", "north", "east"]:
+		assert_false(_marker(lane).row.visible, "%s: the notch pushes the bar down over the row (y 222 < 150 + 90)" % lane)
+	assert_true(_marker("sw").row.visible)
+
+func test_the_bar_height_is_the_huds_real_bottom() -> void:
+	_sized_main(Vector2i(720, 1280))
+	await _settle()
+	var hud := main.hud
+	var bottom := maxf(maxf(hud._top_column.get_global_rect().end.y, hud.gold_label.get_global_rect().end.y), hud.icons.coin_rect().end.y)
+	assert_gte(Balance.ui.hud_top_bar_px, bottom, "the tuning value covers the whole top bar")
+	assert_lte(Balance.ui.hud_top_bar_px, bottom + 8.0, "and is not a loose guess")
+
+func test_hiding_a_row_is_visual_only_and_nothing_reads_it() -> void:
+	_sized_main(Vector2i(720, 1280))
+	_at(MapLayout.HOME)
+	await _settle()
+	var lane_plan_before := GameState.lane_plan.duplicate(true)
+	var dict_before := GameState.to_dict()
+	assert_false(_marker("north").row.visible)
+	assert_eq(GameState.lane_plan, lane_plan_before)
+	assert_eq(GameState.to_dict(), dict_before, "no state moved")
+	for dir in ["res://actors", "res://autoload", "res://core", "res://components", "res://ui", "res://balance"]:
+		for f in DirAccess.get_files_at(dir):
+			if f.ends_with(".gd"):
+				var src := FileAccess.get_file_as_string(dir + "/" + f)
+				assert_false("row_under_hud" in src or "row.visible" in src, "%s does not read the row's visibility" % f)
+	var src := FileAccess.get_file_as_string("res://world/lanes/telegraph_marker.gd")
+	assert_true("_physics_process" in src)
+	assert_false("func _process" in src, "once per physics frame, never per rendered frame")
+
+func test_a_row_whose_flag_is_hidden_is_not_checked() -> void:
+	_sized_main(Vector2i(720, 1280))
+	_at(MapLayout.HOME)
+	await _settle()
+	main.phase_controller.close_up()  # night: the flags hide
+	var m := _marker("north")
+	assert_false(m.visible)
+	m.row.visible = true  # a stale value: the check does not run while the flag is hidden, so it is left alone
+	await _settle()
+	assert_true(m.row.visible)

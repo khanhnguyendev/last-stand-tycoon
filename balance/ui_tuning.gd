@@ -41,6 +41,19 @@ extends Resource
 @export var tier_reveal_in_s := 0.6
 @export var tier_reveal_out_s := 0.8
 @export var tier_reveal_step_s := 0.35
+## E5 tier 3 Task 20: a tap during the reveal sends the camera back to the hero over this long; the tier-3 camera frames this much of the
+## south-west lane's last stretch (m, along the lane from its end)
+## (the tier-3 reveal only).
+@export var tier_reveal_skip_ease_s := 0.25
+@export var tier_reveal_lane_stretch_m := 8.0
+## A press in the first this-many seconds of a reveal (physics time since the dawn started) does not skip it: step 1 is always seen.
+@export var tier_reveal_skip_guard_s := 0.6
+## The tier-3 camera fits its subject points inside this fraction of the half-screen (1.0 = the very edge, as tier 2): air for the HUD's
+## top bar and for the finger.
+@export var tier_reveal_fit_t3 := 0.8
+## E5 tier 3 Task 20: the HUD's top bar (gold counter, day label, moons) in BASE pixels from the top of the safe area down: a telegraph
+## count row whose screen rect touches it is hidden (it would draw under the bar).
+@export var hud_top_bar_px := 90.0
 @export var hit_flash_time := 0.08
 @export var banner_time := 2.0
 @export var telegraph_scale_min := 0.5
@@ -185,3 +198,14 @@ extends Resource
 @export var tier_sign_label_pixel_size := 0.01
 @export var tier_sign_label_y := 4.27
 @export var tier_sign_min_px := 36.0
+
+## E5 tier 3 Task 17: the branch pads read at phone size (D-263.3, D-273.4). Glyph height (m), the font sizes (px at the
+## WorldLabel pixel size 0.01) of the branch name, the cost and the fence pads' "lost if broken" line; the *_min_px floors are
+## the smallest projected height in base pixels (the 720x1280 base: view heights 1680, 1280, 1280; tests/unit/test_branch_pads.gd).
+@export var branch_pad_icon_m := 1.0
+@export var branch_pad_label_font := 49
+@export var branch_pad_cost_font := 56
+@export var branch_pad_warn_font := 38
+@export var branch_pad_icon_min_px := 28.0
+@export var branch_pad_label_min_px := 28.0
+@export var branch_pad_warn_min_px := 20.0

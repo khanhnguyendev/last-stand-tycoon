@@ -9,6 +9,10 @@ func before_each() -> void:
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(71)
 
+func after_each() -> void:
+	Balance.reset()
+	GameState.new_game(1)
+
 func test_camera_lens_follows_d145() -> void:
 	var cam := main.camera_rig.camera
 	var vp := main.get_viewport().get_visible_rect().size
@@ -133,3 +137,34 @@ func test_the_bus_request_starts_the_reveal() -> void:
 	assert_true(main.camera_rig.has_focus_override())
 	main.camera_rig._process(0.2)
 	assert_almost_eq(main.camera_rig.zoom_now(), 1.5, 0.001)
+
+# --- E5 tier 3 Task 20: the return request (a skipped reveal) ---
+
+func test_the_return_request_does_nothing_on_an_idle_rig() -> void:
+	var rig := main.camera_rig
+	var before := rig.camera.global_transform
+	rig.reveal(0.0, 0.0, 0.25, 1.0)  # in_s 0, zoom 1.0, no focus
+	rig._process(1.0 / 60.0)
+	assert_false(rig._rv_active, "no reveal was started by it")
+	assert_false(rig.has_focus_override())
+	assert_almost_eq(rig.zoom_now(), 1.0, 1e-6)
+	assert_true(rig.camera.global_transform.is_equal_approx(before), "the camera did not move")
+
+func test_the_return_request_eases_from_the_current_pose_to_the_hero_with_no_jump() -> void:
+	var rig := main.camera_rig
+	rig.reveal(0.2, 5.0, 0.8, 1.5, Vector2(-5, 2))
+	for i in 40:  # held at the reveal pose
+		rig._process(1.0 / 60.0)
+	var held := rig.camera.global_transform
+	assert_gt(rig.zoom_now(), 1.4)
+	rig.reveal(0.0, 0.0, 0.25, 1.0)
+	rig._process(1.0 / 60.0)
+	var first := rig.camera.global_transform
+	assert_lt(first.origin.distance_to(held.origin), 0.6, "the first frame is a step of the ease, not a jump to the hero")
+	assert_gt(rig.zoom_now(), 1.3, "still pulled back")
+	for i in 20:  # 0.33 s: past the ease
+		rig._process(1.0 / 60.0)
+	var expect := CameraMath.camera_transform(CameraMath.focus_for(main.hero.xz()), Balance.ui)
+	assert_true(rig.camera.global_transform.is_equal_approx(expect), "back on the hero")
+	assert_false(rig._rv_active)
+	assert_false(rig.has_focus_override())

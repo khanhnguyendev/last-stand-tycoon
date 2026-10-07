@@ -84,7 +84,7 @@ func test_tier_3_builds_the_south_west_lane_marker_and_spots() -> void:
 	for n in SW_NODES:
 		assert_true(n in _names(), n)
 	var count: int = main.world.get_child_count()
-	assert_eq(count, 44 + 4, "tier 2's 44 plus Lane_sw, Telegraph_sw and the two spots")
+	assert_eq(count, 44 + 4 + 18, "tier 2's 44 plus Lane_sw, Telegraph_sw, the two spots and the 18 branch pads (two for each of the nine spots)")
 	main.world.rebuild_for_tier()
 	main.world.rebuild_for_tier()
 	main.world._sync_lanes()

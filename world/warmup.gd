@@ -85,7 +85,10 @@ static func _prebuild_tier_caches() -> void:
 		var yards := MapLayout.yards_for_tier(t)
 		if yards.is_empty():
 			continue
-		GroundArt.terrain_mesh(World.ground_rect(), yards, MapLayout.lanes_for_tier(t))
+		var spread: float = Balance.data.enemy.lateral_spread  # the world's own key: a different spread is a different cache entry
+		GroundArt.terrain_mesh(World.ground_rect(), yards, MapLayout.lanes_for_tier(t), spread)
+		if t == 3:  # the tier-3 reveal's first step shows the lot's paving with the tier-2 lanes
+			GroundArt.terrain_mesh(World.ground_rect(), yards, MapLayout.lanes_for_tier(2), spread)
 		var rects: Array[Rect2] = []
 		for id in yards:
 			rects.append(MapLayout.yard_rect(id))

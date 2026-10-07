@@ -79,7 +79,7 @@ const BRANCH_PADS := {
 	"tower_nw": [Vector2(-4.1, -7.5), Vector2(-3.0, -5.5)],
 	"tower_ne": [Vector2(3.0, -5.5), Vector2(4.1, -7.5)],
 	"tower_w": [Vector2(-10.7, 2.4), Vector2(-8.9, 1.1)],
-	"tower_e": [Vector2(6.6, 2.1), Vector2(8.9, -0.9)],
+	"tower_e": [Vector2(6.6, 2.1), Vector2(7.5, 0.0)],
 }
 
 static func spots_for_tier(tier: int) -> Array[String]:
