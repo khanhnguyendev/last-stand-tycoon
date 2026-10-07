@@ -2773,4 +2773,10 @@ cost-entry switch and the debug-only tier forcing.
   fixture). Sim 8 proves identity at planner level; the full rows stay with `tools/baseline_rows.sh 7`.
 - **Bot:** it buys tier 3 only after every other purchase (tier 2 on day 13 or 14, tier 3 on day 18 to 22). The
   policy "mixed" (undefined in the spec) is towers Longbow, fences Spike fence.
-
+- **Reports (Task 24):** policy ranking and the ladder line are report scripts, not CI. A fifth, report-only policy
+  `volley_stone` completes the tower x fence table. Results: Volley + Stone 87.2 points, Volley + Spike 76.7,
+  threat-matched 75.4, Longbow + Stone 67.2, Longbow + Spike 55.8; `DOMINANT_BRANCH_2x2: yes` (gap 31.4, threshold
+  15); `THREAT_BEST: tie`. Ladder: the front lot is paid in sweep row 16 to 20, everything is bought 5 to 8 tier-3
+  days later, `UNSPENT_TARGET: PASS`, `FENCE_TAX: yes` (31% to 35% of income). Per spec 9.2 these go to the review
+  queue; the branch values are NOT retuned in this slice (tier 3 holds with 0 retries; which branch should win is
+  the author's design call).
