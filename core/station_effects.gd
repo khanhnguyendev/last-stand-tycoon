@@ -39,5 +39,6 @@ static func max_carry(hb: HeroBalance, cb: CardBalance, sb: StationBalance) -> i
 
 ## Travelers alive at once at max level: a full queue, plus the ones still walking out, plus a margin.
 static func traveler_pool_size(sb: StationBalance, eb: EconomyBalance) -> int:
-	var walk_out := MapLayout.SERVICE_POINT.distance_to(MapLayout.TRAVELER_EXIT) / eb.traveler_speed
+	# The pool is built once for the whole run: the longer walk-out of the exits of tier 1 (the old one) and tier 3 (east).
+	var walk_out := maxf(MapLayout.SERVICE_POINT.distance_to(MapLayout.traveler_exit(1)), MapLayout.SERVICE_POINT.distance_to(MapLayout.traveler_exit(3))) / eb.traveler_speed
 	return queue_max(sb.max_level, sb) + int(ceil(walk_out / service_time(sb.max_level, sb))) + 2

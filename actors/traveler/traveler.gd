@@ -58,7 +58,7 @@ func set_target(p: Vector2) -> void:
 
 func leave() -> void:
 	leaving = true
-	_target = MapLayout.TRAVELER_EXIT
+	_target = MapLayout.traveler_exit(GameState.tier)  # E5 tier 3: east from tier 3 (spec 4.2); the layout only switches with no traveler alive
 
 func xz() -> Vector2:
 	return Vector2(position.x, position.z)

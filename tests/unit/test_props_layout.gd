@@ -107,7 +107,7 @@ func test_props_node_is_two_static_meshes_without_collision() -> void:
 ## E5 tier 3 Task 2: owned-land props are keyed by yard id, only for the open yards, outside the hand-placed layout.
 func test_owned_props_are_keyed_by_yard() -> void:
 	for id in PropsLayout.OWNED:
-		assert_true(MapLayout.YARDS.has(id), "%s is a yard id" % id)
+		assert_true(MapLayout.all_yards().has(id), "%s is a yard id" % id)
 	var west: Array = PropsLayout.owned_for(["west"])
 	assert_eq(west.size(), PropsLayout.OWNED["west"].size())
 	assert_eq(PropsLayout.owned_for([]).size(), 0, "no open yard, no owned props")

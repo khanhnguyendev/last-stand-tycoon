@@ -106,6 +106,13 @@ const OWNED := {
 		{"kind": "barrel", "pos": Vector2(12.4, 0.3), "rot": 0.0, "scale": 1.0},
 		{"kind": "bench", "pos": Vector2(11.0, 0.5), "rot": 0.0, "scale": 1.0},
 	],
+	# The front lot (tier 3) is crowded: the SW lane, tower_sw, fence_sw's bar, the tier-3 sign and four branch pads leave two strips,
+	# so the props are small (scale 0.5 to 0.6). Positions found by test_yards' clearance rules (footprint and lean).
+	"front": [
+		{"kind": "crate", "pos": Vector2(-7.2, 7.55), "rot": 0.4, "scale": 0.5},
+		{"kind": "barrel", "pos": Vector2(-7.25, 8.25), "rot": 0.0, "scale": 0.6},
+		{"kind": "crate", "pos": Vector2(-4.85, 6.35), "rot": 1.0, "scale": 0.6},
+	],
 }
 
 ## The owned-land items of the yards in `ids` (MapLayout yard ids), in yard order.

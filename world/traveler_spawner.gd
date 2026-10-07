@@ -28,6 +28,10 @@ func stop() -> void:
 	leaving.append_array(queue)
 	queue.clear()
 
+## Travelers alive: queued, walking out, or still out of the pool. The tier-3 layout switch asserts this is 0 (World.rebuild_for_tier).
+func live_count() -> int:
+	return maxi(queue.size() + leaving.size(), pool.active().size() if pool != null else 0)
+
 ## D-128 interface: drop every traveler immediately (restore / new game).
 func clear_queue() -> void:
 	queue.clear()
@@ -51,8 +55,9 @@ func _physics_process(delta: float) -> void:
 				var t: Traveler = pool.acquire()
 				t.begin(_rng.randi_range(e.traveler_want_min, e.traveler_want_max))
 				queue.append(t)
+	var slots := MapLayout.queue_slots(GameState.tier)  # E5 tier 3: the east side from tier 3 (spec 4.2); the same slots below
 	for i in queue.size():
-		(queue[i] as Traveler).set_target(MapLayout.QUEUE_SLOTS[i])
+		(queue[i] as Traveler).set_target(slots[i])
 	if active and not queue.is_empty():
 		var front: Traveler = queue[0]
 		if front.at_target() and GameState.counter_steaks > 0:

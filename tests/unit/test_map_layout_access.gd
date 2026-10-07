@@ -9,13 +9,7 @@ const BANNED := ["LANE_PATHS", "ZONE_RECTS", "ZONE_AXIS", "FENCE_LANE", "LANE_FE
 const SKIP_PREFIXES := ["res://core/map_layout.gd", "res://tests/", "res://tools/", "res://addons/", "res://export/", "res://docs/", "res://.godot/"]
 ## file -> code substrings that may keep a direct tier-1 read. Every entry says why.
 const ALLOW := {
-	# Task 16 (the layout switch at dawn, live travelers, the tier-3 sign position) owns these sites; below tier 3 they are the only layout.
-	"res://world/traveler_spawner.gd": ["MapLayout.QUEUE_SLOTS["],
-	"res://actors/traveler/traveler.gd": ["MapLayout.TRAVELER_EXIT"],
-	"res://core/station_effects.gd": ["MapLayout.TRAVELER_EXIT"],
-	"res://world/stations/tier_sign.gd": ["MapLayout.TIER_SIGN"],
-	"res://world/fx/reactions.gd": ["MapLayout.TIER_SIGN"],
-	# The tier-2 graph node: the tier-2 sign. The tier-3 sign is its own node (tier_sign(3)) in _add_tier3.
+	# The frozen tier-1/2 waypoint graph (bots and the guide walk it; it never changes): its tier_sign node is the tier-2 sign. The tier-3 sign is its own node (tier_sign(3)) in _add_tier3.
 	"res://core/waypoint_graph.gd": ["MapLayout.TIER_SIGN"],
 }
 
