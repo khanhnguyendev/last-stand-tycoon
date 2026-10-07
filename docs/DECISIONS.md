@@ -2369,3 +2369,21 @@ tier-2 visual complaints are fixed in this slice, first, because the SW lane tou
 sign). Targets: the diner visibly grows per tier; yards read as owned land, not lane stubs (ground tint, low border
 or decor); the tier sign is readable at phone size (checked on a 40% screenshot). Before/after screenshots under
 `docs/review/media/`, and REVIEW_QUEUE entries.
+
+**D-263 Branching at level 3 is chosen on two branch pads beside the building; the choice lasts the building's
+lifetime (author).** Chosen over a two-card pick at dawn and over fixed branches per spot. Rules:
+1. **Commitment only on full payment.** A partial payment belongs to the pad it was paid on. When one branch
+   completes, any partial payment on the other pad is refunded to gold, with the coins flying back to the hero.
+   Arming (D-121) and the stand-still threshold apply. Test: a hero walking across both pads commits nothing.
+2. **"Permanent" means the building's lifetime.** A fence destroyed at night resets to level 0 at dawn as today
+   (`GameState.reset_destroyed_fences`), so its branch is lost and is chosen again when it is rebuilt to level 3. The
+   spec and the pad's label say so.
+3. **Informed choice (pillar 3).** While the hero stands on a branch pad, before the payment completes, a preview
+   shows: a 2 to 3 word label plus the effect (e.g. the new range ring, a target-count hint). Icons are
+   distinguishable at phone size (checked on a 40% screenshot).
+4. **Geometry.** Both pads of every spot clear all lanes, attack zones, fence spots, other pads, stations, signs and
+   HOME; they join the geometry and waypoint tests, the SW lane included.
+5. **Sims.** PlannerBot gets a deterministic branch policy. `sim-tiers` runs three full tier-3 builds (all branch A,
+   all branch B, mixed); each holds the tier-3 cap with no retries. If one policy beats another by more than 15 points
+   of diner HP, a REVIEW_QUEUE entry ("possible dominant branch") is added instead of a blind retune.
+6. **Out of scope:** respec or refunds after commitment. "Paid respec as a gold sink" goes to Post-tier-3 ideas.
