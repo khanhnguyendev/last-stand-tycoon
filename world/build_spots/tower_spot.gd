@@ -7,6 +7,11 @@ const MODELS: Array[PackedScene] = [
 	preload("res://art/env/tower_l1.tscn"), preload("res://art/env/tower_l2.tscn"), preload("res://art/env/tower_l3.tscn"),
 ]
 const MODEL_HEIGHTS: Array[float] = [2.2, 2.8, 3.4]
+## E5 tier 3 (Task 18, spec 7): a level-3 tower with a branch shows its branch model. Heights are the baked meshes' tops (the pips float 0.3 m above).
+const BRANCH_MODELS := {
+	&"longbow": preload("res://art/env/tower_longbow.tscn"), &"volley": preload("res://art/env/tower_volley.tscn"),
+}
+const BRANCH_HEIGHTS := {&"longbow": 4.35, &"volley": 2.3}
 
 var attacker: Attacker
 
@@ -33,10 +38,24 @@ static func stats_for(p_level: int, branch: StringName) -> TowerBranchStats:
 	s.count = 1
 	return s
 
+## The branch that shows on the model: only at the top level (the same rule as stats_for), else &"".
+static func shown_branch(p_level: int, branch: StringName) -> StringName:
+	return branch if p_level == Balance.data.build.max_level and BRANCH_MODELS.has(branch) else &""
+
+## The model of a level (1-based; 0 = none) and branch.
+static func model_for(p_level: int, branch: StringName) -> PackedScene:
+	if p_level < 1:
+		return null
+	var br := shown_branch(p_level, branch)
+	return BRANCH_MODELS[br] if br != &"" else MODELS[mini(p_level, MODELS.size()) - 1]
+
 func _apply_level(p_level: int, b: Dictionary) -> void:
 	var built := p_level >= 1
 	visual.visible = built
-	_show_model(p_level, MODELS[mini(p_level, MODELS.size()) - 1] if built else null)
+	var br := shown_branch(p_level, StringName(String(b.get("branch", ""))))
+	# _show_model swaps on a change of its first argument: a branch model takes a number above every plain level.
+	_show_model(p_level + (MODELS.size() * (1 + BRANCH_MODELS.keys().find(br)) if br != &"" else 0),
+		model_for(p_level, br) if built else null)
 	attacker.enabled = built
 	if built:
 		# refresh() runs on building_changed (a branch purchase emits it), state_restored (load, new_game) and phase changes.
@@ -45,6 +64,9 @@ func _apply_level(p_level: int, b: Dictionary) -> void:
 			Balance.data.build.tower_projectile_speed, st.count)
 
 func _pip_y(p_level: int) -> float:
+	var br := shown_branch(p_level, GameState.branch_of(spot_id))
+	if br != &"":
+		return float(BRANCH_HEIGHTS[br]) + 0.3
 	return MODEL_HEIGHTS[clampi(p_level, 1, MODEL_HEIGHTS.size()) - 1] + 0.3
 
 func _label_y(p_level: int) -> float:

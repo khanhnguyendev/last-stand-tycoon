@@ -1,0 +1,42 @@
+[gd_scene format=4]
+
+[ext_resource type="PackedScene" path="res://assets/kenney-tower-defense/tower-round-bottom-a.glb" id="1_ubilj"]
+[ext_resource type="PackedScene" path="res://assets/kenney-tower-defense/tower-round-middle-a.glb" id="2_0lqo8"]
+[ext_resource type="PackedScene" path="res://assets/kenney-tower-defense/tower-round-top-a.glb" id="3_j7vgn"]
+[ext_resource type="PackedScene" path="res://assets/kenney-tower-defense/weapon-ballista.glb" id="4_7c5tp"]
+[ext_resource type="Material" path="res://art/materials/kenney-tower-defense__colormap.tres" id="5_ro3yj"]
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_wcw7r"]
+_surfaces = [{
+"aabb": AABB(-0.1, 3.7512858, -1.75, 0.2, 0.35660243, 2.05),
+"attribute_data": PackedByteArray("AAABPgBAAD8AAAE+AEAAPwAAAT4AQAA/AAABPgBAAD8AAAE+AEAAPwAAAT4AQAA/AAABPgBAAD8AAAE+AEAAPwAAAT4AQAA/AAABPgBAAD8AAAE+AEAAPwAAAT4AQAA/AAABPgBAAD8AAAE+AEAAPwAAAT4AQAA/AAABPgBAAD8AAAE+AEAAPwAAAT4AQAA/AAABPgBAAD8AAAE+AEAAPwAAAT4AQAA/AAABPgBAAD8AAAE+AEAAPwAAAT4AQAA/AAABPgBAAD8AAAE+AEAAPwAAAT4AQAA/AAABPgBAAD8AAAE+AEAAPwAAAT4AQAA/AAABPgBAAD8AAAE+AEAAPwAAAT4AQAA/AAABPgBAAD8AAAE+AEAAPwAAAT4AQAA/AABBPgCAiT4AAEE+AICJPgAAQT4AgIk+AABBPgCAiT4AAEE+AICJPgAAQT4AgIk+AABBPgCAiT4AAEE+AICJPgAAQT4AgIk+AABBPgCAiT4AAEE+AICJPgAAQT4AgIk+AABBPgCAiT4AAEE+AICJPgAAQT4AgIk+AABBPgCAiT4AAEE+AICJPgAAQT4AgIk+AABBPgCAiT4AAEE+AICJPgAAQT4AgIk+AABBPgCAiT4AAEE+AICJPgAAQT4AgIk+AABBPgCAiT4AAEE+AICJPgAAQT4AgIk+AABBPgCAiT4AAEE+AICJPgAAQT4AgIk+AABBPgCAiT4AAEE+AICJPgAAQT4AgIk+AABBPgCAiT4AAEE+AICJPgAAQT4AgIk+AMARPwBAQD8AwBE/AEBAPwDAET8AQEA/AMARPwBAQD8AwBE/AEBAPwDAET8AQEA/AMARPwBAQD8AwBE/AEBAPwDAET8AQEA/AMARPwBAQD8AwBE/AEBAPwDAET8AQEA/AMARPwBAQD8AwBE/AEBAPwDAET8AQEA/AMARPwBAQD8AwBE/AEBAPwDAET8AQEA/AMARPwBAQD8AwBE/AEBAPwDAET8AQEA/AMARPwBAQD8AwBE/AEBAPwDAET8AQEA/AMARPwBAQD8AwBE/AEBAPwDAET8AQEA/AMARPwBAQD8AwBE/AEBAPwDAET8AQEA/AMARPwBAQD8AwBE/AEBAPwDAET8AQEA/AMARPwBAQD8AwBE/AEBAPwDAET8AQEA/"),
+"format": 34359738391,
+"material": ExtResource("5_ro3yj"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 108,
+"vertex_data": PackedByteArray("KVyPvbSFfUCamZk+KVyPPeSZgkCamZk+KVyPPbSFfUCamZk+KVyPvbSFfUCamZk+KVyPveSZgkCamZk+KVyPPeSZgkCamZk+KVyPPbSFfUCamZm/KVyPveSZgkCamZm/KVyPvbSFfUCamZm/KVyPPbSFfUCamZm/KVyPPeSZgkCamZm/KVyPveSZgkCamZm/KVyPPbSFfUCamZk+KVyPPeSZgkCamZm/KVyPPbSFfUCamZm/KVyPPbSFfUCamZk+KVyPPeSZgkCamZk+KVyPPeSZgkCamZm/KVyPvbSFfUCamZm/KVyPveSZgkCamZk+KVyPvbSFfUCamZk+KVyPvbSFfUCamZm/KVyPveSZgkCamZm/KVyPveSZgkCamZk+KVyPveSZgkCamZk+KVyPPeSZgkCamZm/KVyPPeSZgkCamZk+KVyPveSZgkCamZk+KVyPveSZgkCamZm/KVyPPeSZgkCamZm/KVyPvbSFfUCamZm/KVyPPbSFfUCamZk+KVyPPbSFfUCamZm/KVyPvbSFfUCamZm/KVyPvbSFfUCamZk+KVyPPbSFfUCamZk+zczMPV+ugECamZm/AAAAAF+ugEAAAOC/zcxMPdnRe0CamZm/AAAAAF+ugECamZm/zczMPV+ugECamZm/zcxMPdnRe0CamZm/zcxMPdnRe0CamZm/AAAAAF+ugEAAAOC/zcxMvdnRe0CamZm/AAAAAF+ugECamZm/zcxMPdnRe0CamZm/zcxMvdnRe0CamZm/zcxMvdnRe0CamZm/AAAAAF+ugEAAAOC/zczMvV+ugECamZm/AAAAAF+ugECamZm/zcxMvdnRe0CamZm/zczMvV+ugECamZm/zczMvV+ugECamZm/AAAAAF+ugEAAAOC/zcxMvdJzg0CamZm/AAAAAF+ugECamZm/zczMvV+ugECamZm/zcxMvdJzg0CamZm/zcxMvdJzg0CamZm/AAAAAF+ugEAAAOC/zcxMPdJzg0CamZm/AAAAAF+ugECamZm/zcxMvdJzg0CamZm/zcxMPdJzg0CamZm/zcxMPdJzg0CamZm/AAAAAF+ugEAAAOC/zczMPV+ugECamZm/AAAAAF+ugECamZm/zcxMPdJzg0CamZm/zczMPV+ugECamZm/zcxMvREVcECamRm+zcxMPTlxf0CamRm+zcxMPREVcECamRm+zcxMvREVcECamRm+zcxMvTlxf0CamRm+zcxMPTlxf0CamRm+zcxMPREVcEAAAIC+zcxMvTlxf0AAAIC+zcxMvREVcEAAAIC+zcxMPREVcEAAAIC+zcxMPTlxf0AAAIC+zcxMvTlxf0AAAIC+zcxMPREVcECamRm+zcxMPTlxf0AAAIC+zcxMPREVcEAAAIC+zcxMPREVcECamRm+zcxMPTlxf0CamRm+zcxMPTlxf0AAAIC+zcxMvREVcEAAAIC+zcxMvTlxf0CamRm+zcxMvREVcECamRm+zcxMvREVcEAAAIC+zcxMvTlxf0AAAIC+zcxMvTlxf0CamRm+zcxMvTlxf0CamRm+zcxMPTlxf0AAAIC+zcxMPTlxf0CamRm+zcxMvTlxf0CamRm+zcxMvTlxf0AAAIC+zcxMPTlxf0AAAIC+zcxMvREVcEAAAIC+zcxMPREVcECamRm+zcxMPREVcEAAAIC+zcxMvREVcEAAAIC+zcxMvREVcECamRm+zcxMPREVcECamRm+/3//f/9/AID/f/9//38AgP9//3//fwCA/3//f/9/AID/f/9//38AgP9//3//fwCA//////9/AID//////38AgP//////fwCA//////9/AID//////38AgP//////fwCA////f/9//7////9//3//v////3//f/+/////f/9//7////9//3//v////3//f/+/AAD/f/9//78AAP9//3//vwAA/3//f/+/AAD/f/9//78AAP9//3//vwAA/3//f/+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//38AAAAA/7//fwAAAAD/v/9/AAAAAP+//38AAAAA/7//fwAAAAD/v/9/AAAAAP+//NXCSJx1Eqv81cJInHUSq/zVwkicdRKr/3//f/9/AID/f/9//38AgP9//3//fwCAaZEAALsTp75pkQAAuxOnvmmRAAC7E6e+/3//f/9/AID/f/9//38AgP9//3//fwCAAirCSIhhF9ACKsJIiGEX0AIqwkiIYRfQ/3//f/9/AID/f/9//38AgP9//3//fwCAAio8t11fqawCKjy3XV+prAIqPLddX6ms/3//f/9/AID/f/9//38AgP9//3//fwCAaZH//68CIbZpkf//rwIhtmmR//+vAiG2/3//f/9/AID/f/9//38AgP9//3//fwCA/NU8t85z5NX81Ty3znPk1fzVPLfOc+TV/3//f/9/AID/f/9//38AgP9//3//fwCA/3//f/9/AID/f/9//38AgP9//3//fwCA/3//f/9/AID/f/9//38AgP9//3//fwCA//////9/AID//////38AgP//////fwCA//////9/AID//////38AgP//////fwCA////f/9//7////9//3//v////3//f/+/////f/9//7////9//3//v////3//f/+/AAD/f/9//78AAP9//3//vwAA/3//f/+/AAD/f/9//78AAP9//3//vwAA/3//f/+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//38AAAAA/7//fwAAAAD/v/9/AAAAAP+//38AAAAA/7//fwAAAAD/v/9/AAAAAP+/")
+}]
+
+[node name="TowerLongbowSrc" type="Node3D" unique_id=2100851609]
+
+[node name="tower_round_bottom_a0" type="Node3D" parent="." unique_id=1750691359 instance=ExtResource("1_ubilj")]
+transform = Transform3D(0.95, 0, 0, 0, 1.2142857, 0, 0, 0, 0.95, 0, 0, 0)
+
+[node name="tower_round_middle_a1" type="Node3D" parent="." unique_id=1651870002 instance=ExtResource("2_0lqo8")]
+transform = Transform3D(0.95, 0, 0, 0, 1.2142857, 0, 0, 0, 0.95, 0, 0.7285714, 0)
+
+[node name="tower_round_middle_a2" type="Node3D" parent="." unique_id=1231571750 instance=ExtResource("2_0lqo8")]
+transform = Transform3D(0.95, 0, 0, 0, 1.2142857, 0, 0, 0, 0.95, 0, 1.4571428, 0)
+
+[node name="tower_round_middle_a3" type="Node3D" parent="." unique_id=274147748 instance=ExtResource("2_0lqo8")]
+transform = Transform3D(0.95, 0, 0, 0, 1.2142857, 0, 0, 0, 0.95, 0, 2.1857142, 0)
+
+[node name="tower_round_top_a4" type="Node3D" parent="." unique_id=263701391 instance=ExtResource("3_j7vgn")]
+transform = Transform3D(0.95, 0, 0, 0, 1.2142857, 0, 0, 0, 0.95, 0, 2.9142857, 0)
+
+[node name="weapon_ballista5" type="Node3D" parent="." unique_id=1491888007 instance=ExtResource("4_7c5tp")]
+transform = Transform3D(1.6, 0, 0, 0, 1.6, 0, 0, 0, 1.6, 0, 3.5212855, 0)
+
+[node name="Parts" type="MeshInstance3D" parent="." unique_id=401514087]
+mesh = SubResource("ArrayMesh_wcw7r")
