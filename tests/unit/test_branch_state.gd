@@ -8,7 +8,8 @@ const FENCE_B := "fence_w"
 
 func before_each() -> void:
 	Balance.reset()
-	Balance.data.tiers.tier_costs.append(1500)
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)
 	GameState.new_game(20261007)
 	GameState.day = 10
 	GameState.debug_set_tier(3, 8)

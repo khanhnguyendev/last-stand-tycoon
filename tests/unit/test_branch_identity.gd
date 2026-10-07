@@ -301,11 +301,12 @@ func test_brute_keeps_the_boars_reach_and_target_order() -> void:
 	assert_eq(Array(b.priority), Array(boar.priority))
 	assert_eq(b.attack_interval, boar.attack_interval)
 
-func test_tier_3_arrays_are_data_only_and_the_top_tier_is_still_2() -> void:
+func test_tier_3_arrays_are_live_and_the_top_tier_is_3() -> void:
 	var tb := bd.tiers
-	assert_eq(Array(tb.tier_costs), [0, 500])
-	assert_eq(TierEffects.top_tier(tb), 2)
-	assert_eq(TierEffects.tier_cost(2, tb), -1, "nothing of tier 3 is reachable")
+	assert_eq(Array(tb.tier_costs), [0, 500, 1500])
+	assert_eq(TierEffects.top_tier(tb), 3)
+	assert_eq(TierEffects.tier_cost(2, tb), 1500, "tier 3 is reachable (the switch)")
+	assert_eq(TierEffects.tier_cost(3, tb), -1, "nothing is sold beyond tier 3")
 	var n := tb.tier_costs.size() + 1
 	for arr in [tb.tier_base, tb.tier_cap, tb.fast_share_start, tb.fast_share, tb.fast_ramp_days, tb.brute_cap_main, tb.brute_cap_side, tb.brute_ramp_days, tb.boss_kind]:
 		assert_gte((arr as Array).size(), n)

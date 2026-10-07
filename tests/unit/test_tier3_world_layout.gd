@@ -15,11 +15,13 @@ var _sold := 0
 var _tier_changes: Array = []
 var _grew := 0
 
-## `with_cost`: the build knows tier 3 (the entry is test-only until Task 21). It must be set before Main.create (pools, top tier).
+## `with_cost`: the build knows tier 3 (the shipped build does; false makes a two-tier build). It must be set before Main.create (pools, top tier).
 func _make(with_cost := true) -> void:
 	Balance.reset()
 	if with_cost and Balance.data.tiers.tier_costs.size() < 3:
 		Balance.data.tiers.tier_costs.append(1500)
+	elif not with_cost:
+		Balance.data.tiers.tier_costs = [0, 500]  # setup: a two-tier build (the shipped build has three)
 	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
@@ -149,10 +151,11 @@ func test_the_whole_tier_3_sign_board_is_on_screen_from_home_at_9_16_and_9_21() 
 	assert_gt(m921, 8.0, "and at 9:21")
 
 ## Both texts the sign will carry (Task 21 changes the first): the whole label rect is inside the screen from HOME at 9:16 and 9:21 and clears the others.
-func _label_fits_and_clears(text: String) -> void:
+func _label_fits_and_clears(text: String) -> void:  # a coroutine: callers await it
 	var xf := CameraMath.camera_transform(CameraMath.focus_for(MapLayout.HOME), Balance.ui)
 	var sign := main.world.tier_sign
 	sign.label.text = text
+	await get_tree().process_frame  # a Label3D is shaped on the next frame: before that its AABB is a placeholder cube
 	assert_true(CameraMath.on_screen(MapLayout.to3(MapLayout.tier_sign(3)), xf, CameraMath.projection(Balance.ui)), "the sign's base")
 	for aspect in [9.0 / 16.0, 9.0 / 21.0]:
 		var proj := CameraMath.projection(Balance.ui, aspect)
@@ -169,13 +172,14 @@ func _label_fits_and_clears(text: String) -> void:
 			assert_false(mine.grow(4.0).intersects(_screen_rect(other, xf, proj, half_h)), "'%s' clears '%s' at %s" % [text.replace("\n", " "), other.text.replace("\n", " "), other.global_position])
 		assert_gt(others, 2, "the close-up sign's and the stations' labels were compared")
 
-func test_the_tier_3_sign_label_fits_with_the_text_of_today() -> void:
+func test_the_tier_3_sign_label_fits_with_its_real_tier_2_text() -> void:
 	await _tier_3_sign_in_the_day()
-	_label_fits_and_clears(tr("Open the yards") + "\n1500")
+	assert_eq(main.world.tier_sign.label.text, tr("Buy the front lot") + "\n1500", "the sign's own text at tier 2")
+	await _label_fits_and_clears(tr("Buy the front lot") + "\n1500")
 
-func test_the_tier_3_sign_label_fits_with_the_longer_text_of_task_21() -> void:
+func test_the_tier_3_sign_label_still_fits_the_old_shorter_text() -> void:
 	await _tier_3_sign_in_the_day()
-	_label_fits_and_clears("Buy the front lot\n1500")
+	await _label_fits_and_clears(tr("Open the yards") + "\n1500")
 
 # --- the kerb and the lot ---------------------------------------------------
 

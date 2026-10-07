@@ -262,7 +262,10 @@ func test_the_sign_stays_clear_of_the_west_tower_pad_and_its_label() -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	_pad = _pad_geometry()
-	sign.label.text = text  # restore for the metrics (the sign is hidden at tier 2)
+	# restore the tier-1 sign for the metrics: at tier 2 it now sells the front lot, on its own land with a shifted label
+	sign.label.text = text
+	sign.position = MapLayout.to3(MapLayout.TIER_SIGN)
+	sign.label.position.x = 0.0
 	assert_true(blk_scale_sign.y > 0.0)
 	for aspect in ASPECTS:
 		var r := _sign_and_pad_rects(aspect, 1.0)

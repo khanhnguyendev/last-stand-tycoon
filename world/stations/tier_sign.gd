@@ -7,7 +7,7 @@ extends Node3D
 const SIGN_SCENE := preload("res://art/env/tier_sign.tscn")
 const MARKER_SCENE := preload("res://art/env/spot_marker.tscn")
 ## The front-lot sign (selling tier 3) stands near the left edge of the view from HOME (its board keeps about 16 px to the edge); its wide
-## label is moved 1.4 m toward the lot (a 0.05 m window: more hits the DINER label) so the whole label shows at 9:16 and 9:21, for "Open the yards" and the longer "Buy the front lot" (test_tier3_world_layout).
+## label is moved 1.4 m toward the lot (a 0.05 m window: more hits the DINER label) so the whole label shows at 9:16 and 9:21, for the longer "Buy the front lot" and for "Open the yards" (test_tier3_world_layout).
 ## The tier-2 sign's label stays centred.
 const LABEL_SHIFT_FRONT := 1.4
 
@@ -78,7 +78,8 @@ func refresh() -> void:
 		&"boss":
 			label.text = tr("Boss tonight")
 		_:
-			label.text = tr("Open the yards") + "\n" + str(GameState.tier_remaining_cost())
+			var what := tr("Buy the front lot") if GameState.tier + 1 >= 3 else tr("Open the yards")
+			label.text = what + "\n" + str(GameState.tier_remaining_cost())
 	label.visible = day and st != &"hidden"
 	marker.visible = day and st == &"selling"
 	if GameState.tier_paid == 0:
