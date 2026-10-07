@@ -15,7 +15,7 @@ Build: profile export of `32b4f95` (the phase branch head; this task's only code
 | discarded (`disturbed_a`) | 78% | 71% | 62% | 58.6 | 125.0 | 18.02 | 1.07 | 48 | 1.2 | 125@0.2s 39@18.7s 33@0.2s |
 | tier-2 comparison (`tier2`, `tier2_night`, day 16) | 78% | 65% | 64% | 59.4 | 110.0 | 16.05 | 1.03 | 43 | 0.4 | 110@47.5s 110@48.3s 107@50.5s |
 
-Raw lines are in each `attN/night3_80s_crop.png` (crop of the overlay) and `attN/night3_80s.png` (full screenshot), the script output in `attN/run.txt`.
+Raw lines are in each `attN/night3_80s_crop.png` (crop of the overlay); the one full screenshot kept is `att1/night3_80s.png` (run 1; the other runs' full screenshots, 1 MB each, were deleted and only their crops kept); the script output is in `<run>/run.txt`.
 
 ## What the runs say
 - All three gate runs and both extra runs read 58.5 to 58.9 average fps: a spread of 0.4 fps. Worst frame 110 to 153 ms; in every tier-3 run it lands at 0.1 to 0.2 s of the window (the window's own start, the known issue below). Apart from it the next frames are 37 to 47 ms at about 18.7 s (the same moment each run: a wave spawn).

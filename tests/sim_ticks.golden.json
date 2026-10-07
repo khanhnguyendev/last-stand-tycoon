@@ -19,7 +19,7 @@
   "res://tests/sim_tier/test_tier3_sims.gd::test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries": 7927,
   "res://tests/sim_tier/test_tier3_sims.gd::test_6_every_branch_policy_holds_the_tier3_cap_with_0_retries": 31985,
   "res://tests/sim_tier/test_tier3_sims.gd::test_7_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again_within_5_s": 1992,
-  "res://tests/sim_tier/test_tier3_sims.gd::test_8a_tier1_and_tier2_plans_and_the_sweep_row_inputs_are_unchanged": 1,
+  "res://tests/sim_tier/test_tier3_sims.gd::test_8a_tier1_and_tier2_plans_and_the_sweep_row_inputs_are_unchanged": 10,
   "res://tests/sim_tier/test_tier3_sims.gd::test_8b_the_tier2_fixture_night_ends_as_recorded": 5889,
   "res://tests/sim_tier/test_tier_sims.gd::test_1_the_tier_bot_wins_the_boss_night_within_the_allowed_retries": 12739,
   "res://tests/sim_tier/test_tier_sims.gd::test_2_the_boss_alone_needs_at_least_boss_min_hold_s_to_fell_the_diner": 3643,

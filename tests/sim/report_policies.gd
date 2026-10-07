@@ -2,12 +2,12 @@ extends SceneTree
 ## E5 tier-3 policy ranking (Task 24, spec 9.2 and 9.4). NOT a CI test (the name does not start with test_); asserts nothing, changes no balance value.
 ## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_policies.gd [-- --seeds=20260930,1,2 --days=32 --parallel=3 --reuse=1]
 ## For every seed x policy (the spec's four: all_a, all_b, mixed, threat; plus the report-only volley_stone: towers Volley, fences Stone wall) it starts the REAL
-## tier sweep in its own Godot process (`sweep.gd -- --bot=tier --days=32 --seed=S --policy=P --out=policy_S_P.csv`, stdout in tests/sim/out/policy_S_P.log, whose first
+## tier sweep in its own Godot process (`sweep.gd -- --bot=tier --days=32 --seed=S --policy=P --out=policies/policy_S_P.csv`, stdout in tests/sim/out/policies/policy_S_P.log, whose first
 ## line records the git commit, seed, policy and days) and reads the `T3RUN` line that sweep prints: the day loop is the sweep's, not a copy. At most --parallel
 ## (1 to 3, default 3) processes run at once; one run takes about 220 s idle; 15 runs, 3 at a time, about 15 min.
 ## --reuse=1 skips a run whose log holds a T3RUN line AND whose first line matches the seed, policy, days and the current commit (a dirty tree never matches); other runs are redone.
 ## A run that ends without a T3RUN line, or with a hard break (a night lost after its retries), stops the report: the rows so far are printed, the verdict lines are
-## skipped, the running children are killed and the exit code is 1. Everything is written under tests/sim/out/ (gitignored); the output is also saved as policies.txt there.
+## skipped, the running children are killed and the exit code is 1. Everything is written under tests/sim/out/ (gitignored): each run's log and CSV (policy_<seed>_<policy>.log|csv) under tests/sim/out/policies/, always kept; the output is also saved as tests/sim/out/policies.txt. A job's old log and CSV are deleted before the first start (an early failure must not print a stale run's RUN row), except for runs --reuse=1 accepts.
 ## Output: NOTE, COMMIT, RUN per run (tier-3 nights only; diner fractions are the lowest diner HP of the night's final attempt), POLICY per policy (mean over seeds of
 ## the mean diner fraction, in POINTS = percent of the diner's maximum HP; retry nights summed; fences lost per night and branch gold, means over seeds), RANKING, GAP,
 ## the 2 x 2 table (tower Longbow | Volley x fence Stone | Spike) with per-seed values and the main effects and the interaction, and the verdict lines for the review queue
@@ -58,6 +58,14 @@ func _initialize() -> void:
 				notes.append("REUSE refused seed=%d policy=%s: %s (run again)" % [s, p, why])
 			jobs.append([s, p])
 	var started := jobs.size()
+	for j in jobs:  # an early failure must not print a stale run's RUN row
+		var old := _log_path(out_dir, j[0], j[1])
+		DirAccess.make_dir_recursive_absolute(old.get_base_dir())
+		if FileAccess.file_exists(old):
+			DirAccess.remove_absolute(old)
+		var old_csv := old.get_basename() + ".csv"
+		if FileAccess.file_exists(old_csv):
+			DirAccess.remove_absolute(old_csv)
 	var running: Array = []  # {pid, seed, policy}
 	var failed := false
 	while not failed and (not jobs.is_empty() or not running.is_empty()):
@@ -74,7 +82,7 @@ func _initialize() -> void:
 			var j: Array = jobs.pop_front()
 			var log := _log_path(out_dir, j[0], j[1])
 			var first := "REPORT_RUN commit=%s seed=%d policy=%s days=%d" % [commit, j[0], j[1], days]
-			var cmd := "echo %s > %s && exec %s --headless --path %s --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=%d --seed=%d --policy=%s --out=policy_%d_%s.csv >> %s 2>&1" % [
+			var cmd := "echo %s > %s && exec %s --headless --path %s --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=%d --seed=%d --policy=%s --out=policies/policy_%d_%s.csv >> %s 2>&1" % [
 				_q(first), _q(log), _q(OS.get_executable_path()), _q(proj), days, j[0], j[1], j[0], j[1], _q(log)]
 			var pid := OS.create_process("/bin/sh", ["-c", cmd])
 			if pid < 0:
@@ -143,7 +151,7 @@ func _q(s: String) -> String:
 	return "'" + s.replace("'", "'\\''") + "'"
 
 func _log_path(out_dir: String, s: int, p: String) -> String:
-	return out_dir.path_join("policy_%d_%s.log" % [s, p])
+	return out_dir.path_join("policies").path_join("policy_%d_%s.log" % [s, p])
 
 ## The HEAD hash, "-dirty" appended when a tracked file differs (untracked files are ignored: the results are copied into the repo after a run).
 func _commit(proj: String) -> String:
