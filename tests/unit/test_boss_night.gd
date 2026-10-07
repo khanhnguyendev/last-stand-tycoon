@@ -177,3 +177,19 @@ func test_a_won_tier_2_boss_night_tiers_up_to_3_with_the_baron_on_the_wave() -> 
 	main.phase_controller.debug_skip_to_day()
 	assert_eq([GameState.tier, GameState.boss_pending], [3, false])
 	Balance.reset()
+	GameState.new_game(1)
+
+## Mutation: the banner keyed on boss_pending / always the King's text fails this (the tier-2 night shows the Baron's, never the King's).
+func test_the_tier_2_boss_night_announces_the_baron_not_the_king() -> void:
+	Balance.data.tiers.tier_costs.append(1500)
+	main.phase_controller.debug_skip_to_day()
+	GameState.debug_set_tier(2, GameState.day)
+	main.world.rebuild_for_tier()
+	GameState.add_gold(1500)
+	GameState.pay_into_tier(1500)
+	banners.clear()
+	main.phase_controller.debug_skip_to_night()
+	assert_true(banners.has(tr("Baron von Hop comes")), str(banners))
+	assert_false(banners.has(tr("The Boar King comes")), str(banners))
+	Balance.reset()
+	GameState.new_game(1)

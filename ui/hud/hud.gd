@@ -241,7 +241,7 @@ func _on_wave_started(w: int, _main_lane: StringName, _side_lane: StringName) ->
 	icons.queue_redraw()
 
 func _on_enemy_killed(_spawn_index: int, _lane: StringName, _position: Vector3, kind: StringName) -> void:
-	if kind == &"boss":
+	if TierEffects.is_boss_kind(kind, Balance.data.tiers):
 		icons.boss_alive = false
 		icons.queue_redraw()
 

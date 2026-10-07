@@ -113,3 +113,21 @@ func test_brutes_shift_with_the_boss_lead() -> void:
 	var s := WaveSchedule.build(w, wb, tb)
 	assert_eq(s.map(func(e): return e.kind), [&"boss", &"boar", &"boar", &"brute"])
 	assert_almost_eq(float(s[3].t), tb.boss_lead + 2.0 * wb.spawn_interval, 1e-6)
+
+## The full order by hand (spawn_interval 0.8, side_group_delay 4.0): five main boars at 0, 0.8, 1.6, 2.4, 3.2; the main brute at
+## 5 x 0.8 = 4.0, the same moment as the side boar (4.0 + 0), the main one first; the side brute at 4.0 + 1 x 0.8 = 4.8.
+func test_the_full_spawn_order_with_a_brute_on_each_lane() -> void:
+	assert_almost_eq(wb.spawn_interval, 0.8, 1e-9)
+	assert_almost_eq(wb.side_group_delay, 4.0, 1e-9)
+	var w := _wave(5, 1)
+	w["brute_main"] = 1
+	w["brute_side"] = 1
+	var s := WaveSchedule.build(w, wb, Balance.data.tiers)
+	var want := [
+		[0.0, "west", &"boar"], [0.8, "west", &"boar"], [1.6, "west", &"boar"], [2.4, "west", &"boar"], [3.2, "west", &"boar"],
+		[4.0, "west", &"brute"], [4.0, "east", &"boar"], [4.8, "east", &"brute"],
+	]
+	assert_eq(s.size(), want.size())
+	for i in want.size():
+		assert_almost_eq(float(s[i].t), float(want[i][0]), 1e-6, "entry %d time" % i)
+		assert_eq([s[i].lane, s[i].kind], [want[i][1], want[i][2]], "entry %d" % i)

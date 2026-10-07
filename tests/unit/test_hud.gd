@@ -332,6 +332,19 @@ func test_boss_moon_breathes_from_its_wave_until_the_boss_dies() -> void:
 	EventBus.enemy_killed.emit(0, &"north", Vector3.ZERO, &"boss")
 	assert_false(hud.icons.boss_alive)
 
+## Mutation: `kind == &"boss"` leaves the moon lit after Baron von Hop dies; clearing on any kill clears it for the hare.
+func test_the_moon_clears_for_the_baron_and_not_for_a_hare() -> void:
+	await _boss_night()
+	EventBus.wave_started.emit(2, &"north", &"")
+	EventBus.enemy_killed.emit(3, &"north", Vector3.ZERO, &"hare")
+	assert_true(hud.icons.boss_alive, "a killed hare leaves it lit")
+	EventBus.enemy_killed.emit(4, &"north", Vector3.ZERO, &"baron")
+	assert_false(hud.icons.boss_alive, "the Baron clears it")
+	EventBus.wave_started.emit(2, &"north", &"")
+	assert_true(hud.icons.boss_alive)
+	EventBus.enemy_killed.emit(0, &"north", Vector3.ZERO, &"boss")
+	assert_false(hud.icons.boss_alive, "the King clears it")
+
 func test_a_restore_clears_the_breathing_moon() -> void:
 	await _boss_night()
 	EventBus.wave_started.emit(2, &"north", &"")

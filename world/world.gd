@@ -377,9 +377,17 @@ static func pool_sizes(bd: BalanceData) -> Dictionary:
 	var steaks := 0
 	for w in bd.wave.base_counts.size():
 		steaks += WaveMath.total_count(bd.tiers.tier_cap[top], w, bd.wave)  # capped counts (D-124)
+	# The biggest boss drop of any tier left on the way up, and the top tier's brutes (data-driven: a new boss or cap moves it).
+	var boss_drop := 0
+	for t in range(1, top):
+		var k := TierEffects.boss_kind_for(t, bd.tiers)
+		if k != &"":
+			boss_drop = maxi(boss_drop, bd.monsters.stats(k).steaks_per_kill)
+	var brute_steaks: int = bd.wave.base_counts.size() * (bd.tiers.brute_cap_main[top] + bd.tiers.brute_cap_side[top]) \
+		* bd.monsters.stats(&"brute").steaks_per_kill
 	return {
 		"enemy": bd.wave.max_wave_size + 1 + 10,
-		"steak": int(ceil((steaks * bd.economy.steaks_per_kill + bd.monsters.stats(&"boss").steaks_per_kill) * 1.2)),
+		"steak": int(ceil((steaks * bd.economy.steaks_per_kill + brute_steaks + boss_drop) * 1.2)),
 		"projectile": World.projectile_pool_size(bd),
 		"fx": 32,
 	}

@@ -9,7 +9,7 @@ func before_each() -> void:
 
 func test_arrays_cover_every_tier_including_the_top() -> void:
 	var n := tb.tier_costs.size() + 1  # index 0 unused, tiers 1..top where top = tier_costs.size()
-	for arr in [tb.tier_base, tb.tier_cap, tb.fast_share_start, tb.fast_share, tb.fast_ramp_days]:
+	for arr in [tb.tier_base, tb.tier_cap, tb.fast_share_start, tb.fast_share, tb.fast_ramp_days, tb.brute_cap_main, tb.brute_cap_side, tb.brute_ramp_days]:
 		assert_gte((arr as Array).size(), n)  # tier 3 (E5 tier-3 spec 3.3) adds an index-3 entry before tier_costs gains its third
 
 func test_tiers_are_ordered() -> void:

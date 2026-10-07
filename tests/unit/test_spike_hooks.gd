@@ -122,9 +122,11 @@ func test_a_monster_killed_by_thorns_counts_one_kill_and_drops_its_steaks() -> v
 	var cb := func(i, l, p, k): killed.append([i, k])
 	EventBus.enemy_killed.connect(cb)
 	_step(b, 60)
+	var fence_hp := float(GameState.buildings[FENCE].hp)
 	_step(b, 120)  # dead: more ticks change nothing
 	EventBus.enemy_killed.disconnect(cb)
 	assert_false(b.alive)
+	assert_eq(float(GameState.buildings[FENCE].hp), fence_hp, "a dead monster no longer hits the fence (mutation: a corpse that keeps attacking)")
 	assert_eq(killed, [[b.spawn_index, &"boar"]], "one kill, from the thorn")
 	assert_eq(main.world.steak_pool.active().size() - steaks0, Balance.data.economy.steaks_per_kill, "it dropped its steaks")
 	assert_eq(wd.alive_count(), 0)

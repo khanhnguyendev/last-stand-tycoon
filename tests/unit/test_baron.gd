@@ -204,7 +204,7 @@ func test_the_baron_ignores_a_standing_fence() -> void:
 	assert_almost_eq(hp0 - GameState.diner_hp, 12.0, 1e-4, "it hits the diner for its own 12")
 	assert_eq(float(GameState.buildings.fence_n.hp), fence0)
 
-func test_the_baron_hits_a_guard_in_reach_before_the_diner() -> void:
+func test_the_baron_has_the_hares_target_list_and_reach_1_6() -> void:
 	var b := _walker(&"baron")
 	assert_eq(b.stats().priority, [&"guard", &"diner"] as Array[StringName], "the hare's list at boss scale")
 	assert_almost_eq(b.stats().reach, 1.6, 1e-6)
@@ -247,10 +247,15 @@ func test_the_drop_is_150_steaks_and_dawn_sweeps_all_of_it() -> void:
 	var before := freezer0 + GameState.carried_steaks
 	var got: Array = []
 	var cb := func(i, l, p, k): got.append(k)
+	var grew: Array = []
+	var gcb := func(n): grew.append(n)
+	main.world.steak_pool.grew.connect(gcb)
 	EventBus.enemy_killed.connect(cb)
 	baron.take_hit(1e9)
 	await get_tree().physics_frame
 	EventBus.enemy_killed.disconnect(cb)
+	main.world.steak_pool.grew.disconnect(gcb)
+	assert_eq(grew, [], "the pool held the whole drop without growing")
 	assert_eq(got, [&"baron"])
 	assert_eq(main.world.steak_pool.active().size(), drop, "exactly the drop is on the ground")
 	for s in main.world.steak_pool.active():
@@ -259,6 +264,22 @@ func test_the_drop_is_150_steaks_and_dawn_sweeps_all_of_it() -> void:
 	main.phase_controller.debug_skip_to_day()
 	assert_eq(GameState.freezer_steaks + GameState.carried_steaks - before, drop, "all 150 reached the freezer or the hero")
 	assert_eq(main.world.steak_pool.active().size(), 0, "none left on the ground")
+
+## Spec 7.1: the steak pool holds the top tier's capped night plus the Baron's drop, x 1.2. By hand with three costs:
+## the tier-2 cap (10) night is 72 kills (WaveMath), 72 x 2 = 144 steaks, + 150 = 294 (>= 294 with the 1.2 margin on top).
+func test_the_steak_pool_holds_the_barons_drop_plus_the_tier_2_cap_night() -> void:
+	var bd := Balance.data
+	var kills := 0
+	for w in bd.wave.base_counts.size():
+		kills += WaveMath.total_count(bd.tiers.tier_cap[2], w, bd.wave)
+	assert_eq(kills, 72, "the tier-2 cap night")
+	var need: int = kills * bd.economy.steaks_per_kill + bd.monsters.stats(&"baron").steaks_per_kill
+	assert_eq(need, 294)
+	assert_gte(World.pool_sizes(bd).steak, 294, "three costs: the Baron's 150 is the biggest drop")
+	assert_eq(World.pool_sizes(bd).steak, 440, "literal with three costs: ceil((tier-3 cap night + 6 brutes x 8 + 150) x 1.2)")
+	var two: BalanceData = bd.duplicate(true)
+	two.tiers.tier_costs = two.tiers.tier_costs.slice(0, 2)
+	assert_eq(World.pool_sizes(two).steak, 293, "two costs: the King's 100")
 
 # --- numbers by hand ---
 
@@ -326,7 +347,8 @@ func test_a_hero_from_the_zone_centre_catches_the_baron_on_every_tier_2_lane() -
 			assert_gte(r.caught, 0.0, "%s offset %.0f: caught at all" % [lane, offset])
 			assert_gt(r.zone, 0.0, "%s: the Baron reached the zone" % lane)
 			assert_lt(r.caught, r.zone, "%s offset %.0f: caught at %.2f s, the Baron enters the zone at %.2f s" % [lane, offset, r.caught, r.zone])
-			assert_gt(r.zone - r.caught, 2.0, "%s offset %.0f: at least 2 s of margin" % [lane, offset])
+			assert_gt(r.zone - r.caught, 5.0, "%s offset %.0f: at least 5 s of margin" % [lane, offset])
+			gut.p("%s offset %.0f: margin %.2f s" % [lane, offset, r.zone - r.caught])
 		var r0 := _catch(lane, 0.0)
 		gut.p("%s: caught %.2f s, zone at %.2f s, margin %.2f s" % [lane, r0.caught, r0.zone, r0.zone - r0.caught])
 
@@ -353,12 +375,13 @@ func test_the_barons_mesh_is_a_big_hare_with_a_crown() -> void:
 	assert_lte(tris, ArtBudgets.budget_for("res://art/boar/x"))
 	gut.p("baron %s vs boar %s, hare %s, king %s, %d tris" % [baron.size, boar.size, hare.size, king.size, tris])
 
-## Hare and Boar King hashes captured from main; the brute from its Task 10 review state.
+## Hare and Boar King hashes captured from main; the brute from its Task 10 review state; the Baron from the phase-3 cleanup.
 func test_the_other_kinds_meshes_are_unchanged() -> void:
 	var want := {
 		&"hare": "398149e8feb96260d82a63b91478ceb559b2f3c147e3050d6c53f1715ff8bdc5",
 		&"boss": "b9ed4d4349b9e33e17defdf8df20b9c3fc6af58872974384282f49b04a8ef589",
 		&"brute": "2a489997ce5f32669fc0973b44a11b5a91f42c0521090ec9cd712fae0e81972a",
+		&"baron": "2afc1db46da35ee1f6c9c0c99be3215de1ae188f7f9f55b503108029919bbdab",
 	}
 	for kind in want:
 		var a := BoarMesh.get_mesh(kind).surface_get_arrays(0)
