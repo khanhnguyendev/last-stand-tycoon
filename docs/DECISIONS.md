@@ -2447,4 +2447,21 @@ IDEA.md's Later list.
    the plot reads as owned land, by phase 1's growth-readability rules.
 4. Economy: the plot price, the two new spots and all tier-3 branch purchases form the tier-3 sink, sized against the
    tier-2 pile-up data (D-264). The full tier-3 purchase ladder with costs is listed in the spec and in REVIEW_QUEUE.
-5. The bot buys the plot when affordable, then follows its branch policy; the sweep covers it.
+5. Buying the plot IS the tier-3 tier-up: pay on the tier sign standing on the plot, that night is the boss night, and
+   everything new arrives the next dawn. The plot price is the tier-3 cost. The tier bot pays it as it paid tier 2,
+   then follows its branch policy; the sweep covers it. The branch policies belong to the tier bot: PlannerBot stays
+   at tier 1 and byte-identical for days 1 to 7.
+
+**D-267 The tier-3 boss is a giant hare; rule: each boss examines the tier you are finishing (author).** The Boar King
+again is rejected as a repeat. Several bosses at once go to Post-tier-3 ideas (the bar, the moon and the hold check
+assume one boss).
+1. **Behavior:** the hare's rules at boss scale. It walks past fences (Spike fence pass damage applies once, D-264).
+   HP, speed and diner damage in `balance/`. Fast for a boss, but catchable: a test proves a hero starting at that
+   lane's attack zone reaches melee range of it before it reaches the zone.
+2. **Fairness (pillar 3):** the boss lane is fixed by the seeded lane plan and shown in the day telegraph before
+   close-up with a distinct boss icon. Mercy applies as for any night.
+3. **A meaningful test of tier 2, as `sim-tiers` runs:** the tier bot with the full tier-2 build holds the boss night
+   with no retries; the tier bot WITHOUT the yard towers fails it or needs mercy retries; determinism for the night.
+4. **Readability:** built with the hare builder, clearly bigger, with a boss marker consistent with the Boar King's
+   (crown or equivalent); its own bar name, light and comedic; readable at phone size (40% scale).
+5. **Reward:** the boss steak drop in `balance/`, included in the tier-3 economy math.
