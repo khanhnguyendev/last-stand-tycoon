@@ -63,7 +63,7 @@ const LANE_FENCE_T3 := {"sw": "fence_sw"}
 const YARDS_T3 := {"front": Rect2(-7.6, 5.6, 6.1, 4.3)}
 const YARD_TIER_T3 := {"front": 3}
 ## The sign of tier N sells tier N and is shown at tier N - 1 (TIER_SIGN is the tier-2 value, kept).
-const TIER_SIGNS := {2: Vector2(-10.0, 7.5), 3: Vector2(-5.6, 9.0)}
+const TIER_SIGNS := {2: Vector2(-10.0, 7.5), 3: Vector2(-4.7, 8.5)}
 ## From tier 3 (spec 4.2): today's slots 2 to 4 would sit on the south-west lane or in its fence, and today's west exit would pass the tower.
 const QUEUE_SLOTS_T3 := [Vector2(0, 6.0), Vector2(1.1, 6.9), Vector2(1.3, 8.0), Vector2(1.4, 9.1),
 	Vector2(1.8, 10.3), Vector2(3.0, 10.3), Vector2(4.2, 10.3), Vector2(5.4, 10.3), Vector2(6.6, 10.3)]
@@ -71,15 +71,15 @@ const TRAVELER_EXIT_T3 := Vector2(24, 11)
 ## Branch pads (spec 4.3): radius, and two pad centres per spot, chosen with tools/probe_t3_layout.gd (clear of the tier-2 yards' props and kerb too) and pinned by test_branch_pad_layout.
 const BRANCH_PAD_RADIUS := 0.9
 const BRANCH_PADS := {
-	"tower_sw": [Vector2(-7.4, 3.1), Vector2(-5.4, 4.1)],
+	"tower_sw": [Vector2(-7.7, 3.1), Vector2(-5.4, 4.1)],
 	"fence_sw": [Vector2(-5.6, 7.8), Vector2(-1.0, 10.7)],
 	"fence_w": [Vector2(-9.5, -3.7), Vector2(-6.1, -6.1)],
 	"fence_n": [Vector2(-2.5, -10.4), Vector2(2.5, -10.4)],
 	"fence_e": [Vector2(6.1, -6.1), Vector2(9.4, -3.5)],
-	"tower_nw": [Vector2(-4.1, -7.5), Vector2(-3.0, -5.5)],
-	"tower_ne": [Vector2(3.0, -5.5), Vector2(4.1, -7.5)],
+	"tower_nw": [Vector2(-4.0, -7.6), Vector2(-3.0, -5.5)],
+	"tower_ne": [Vector2(3.0, -5.5), Vector2(4.0, -7.6)],
 	"tower_w": [Vector2(-10.7, 2.4), Vector2(-8.9, 1.1)],
-	"tower_e": [Vector2(6.6, 2.1), Vector2(8.9, -0.9)],
+	"tower_e": [Vector2(6.6, 2.1), Vector2(7.5, 0.0)],
 }
 
 static func spots_for_tier(tier: int) -> Array[String]:

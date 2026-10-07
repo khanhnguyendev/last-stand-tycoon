@@ -477,3 +477,92 @@ func test_the_brute_mark_texture_is_on_palette_and_within_the_texture_rule() -> 
 	assert_true(c.is_equal_approx(Palette.color(&"ink")), "the baked brow is palette ink, got %s" % c)
 	var m := img.get_pixel(32, 36)  # the face: apron_white, tinted enemy_maroon at draw time (R4: no enemy colour in an icon file)
 	assert_true(m.is_equal_approx(Palette.color(&"apron_white")), "the baked face is the tint base, got %s" % m)
+
+# --- E5 tier 3 Task 20: the edge arrows serve the south-west lane ---
+
+const SIZES := {"9:21": Vector2i(720, 1680), "9:16": Vector2i(720, 1280), "16:9": Vector2i(1280, 720)}
+
+func _sized(size: Vector2i) -> SubViewport:
+	var old := main.get_parent()
+	old.remove_child(main)
+	main.free()
+	if old != self:
+		old.queue_free()
+	var vp := SubViewport.new()
+	vp.size = size
+	add_child_autofree(vp)
+	main = Main.create()
+	vp.add_child(main)
+	main.hero.input.player_control = false
+	main.phase_controller.start_new_game(81)
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)  # the tier-3 switch is Task 21: the test turns it on
+	GameState.debug_set_tier(3, 5)
+	hud = main.hud
+	return vp
+
+func _hero_at(p: Vector2) -> void:
+	main.hero.teleport(p)
+	main.camera_rig.snap()
+
+func _check_sw_arrow(arrow: HudArrow, size: Vector2i, what: String) -> void:
+	var vp := Vector2(size)
+	var g: Vector2 = arrow.position + hud.root.position
+	assert_true(arrow.visible, what + ": shown")
+	assert_true(Rect2(Vector2.ZERO, vp).has_point(g), what + ": on screen, at %s" % g)
+	assert_true(hud.arrow_rect().grow(1.0).has_point(g), what + ": inside the arrow rect")
+	assert_almost_eq(g.x, hud.arrow_rect().position.x, 1.0, what + ": on the left edge, the one nearest the lane's approach")
+	assert_gt(g.y, vp.y * 0.5, what + ": below the middle: the lane comes in from the south-west")
+	assert_almost_eq(arrow.rotation, PI * 0.5, 0.5, what + ": points left (tip down at 0, so +90 degrees)")
+	assert_gte(g.y - Hud.arrow_extent(), Balance.ui.hud_top_bar_px, what + ": not under the HUD's top bar")
+
+func test_the_sw_arrow_sits_on_the_left_edge_for_a_main_and_a_side_slot_at_every_aspect_and_hero_place() -> void:
+	var checked := 0
+	for name in SIZES:
+		_sized(SIZES[name])
+		for where in [["HOME", MapLayout.HOME], ["the SW zone", MapLayout.zone_rect("sw").get_center()]]:
+			_hero_at(where[1])
+			await get_tree().process_frame
+			EventBus.wave_incoming.emit(0, &"sw", &"west")
+			await get_tree().process_frame
+			await get_tree().process_frame
+			_check_sw_arrow(hud.arrows.main, SIZES[name], "%s %s sw as main" % [name, where[0]])
+			EventBus.wave_incoming.emit(0, &"west", &"sw")
+			await get_tree().process_frame
+			await get_tree().process_frame
+			_check_sw_arrow(hud.arrows.side, SIZES[name], "%s %s sw as side" % [name, where[0]])
+			checked += 2
+	assert_eq(checked, 12)
+
+func test_the_sw_arrow_carries_the_brute_mark_when_due_and_the_mark_is_clear_of_the_bar() -> void:
+	for name in SIZES:
+		_sized(SIZES[name])
+		_hero_at(MapLayout.HOME)
+		GameState.lane_plan = [_w("sw", "west", 1, 0), _w("north", "west")]
+		EventBus.phase_changed.emit(Phase.NIGHT, 5)
+		EventBus.wave_incoming.emit(0, &"sw", &"west")
+		await get_tree().process_frame
+		await get_tree().process_frame
+		assert_true(hud.arrows.main.heavy, name + ": sw brings a brute in wave 1")
+		assert_false(hud.arrows.side.heavy, name + ": west does not")
+		assert_eq(hud.icons.heavy_drawn.size(), 1, name + ": one mark reached the canvas")
+		var r: Rect2 = hud.icons.heavy_drawn[0]
+		var g := r.position + hud.root.position
+		assert_gte(g.y, Balance.ui.hud_top_bar_px, name + ": the mark is below the bar")
+		assert_true(Rect2(Vector2.ZERO, Vector2(SIZES[name])).encloses(Rect2(g, r.size)), name + ": the mark is on screen")
+		EventBus.wave_incoming.emit(1, &"north", &"west")
+		await get_tree().process_frame
+		assert_false(hud.arrows.main.heavy, name + ": wave 2's sw has no brute (north)")
+
+func test_the_sw_arrow_does_not_appear_below_tier_3() -> void:
+	# a tier-2 world has no sw lane: an arrow naming it stays where it was and is not placed (no crash)
+	main.phase_controller.debug_skip_to_day()
+	assert_false(main.world.lanes.has("sw"))
+	var before: Vector2 = hud.arrows.main.position
+	EventBus.wave_incoming.emit(0, &"sw", &"west")
+	await get_tree().process_frame
+	assert_eq(hud.arrows.main.position, before, "not placed: no lane to point at")
+
+func after_each() -> void:
+	Balance.reset()
+	GameState.new_game(1)

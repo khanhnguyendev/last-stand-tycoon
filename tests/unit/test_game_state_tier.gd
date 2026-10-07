@@ -95,10 +95,22 @@ func test_complete_tier_up_adds_the_spots_and_replans() -> void:
 	assert_eq(GameState.buildings["tower_w"], {"level": 0, "paid": 0, "hp": 0.0, "branch": "", "branch_paid": {}})
 	assert_eq(GameState.pressure(), 8, "tier 2 starts at its base")
 	assert_eq(_events, [["changed", 2, 0, false], ["reached", 2]], "tier_changed, then tier_reached")
-	assert_eq(GameState.tier_next_cost(), -1, "tier 2 is the top of this build")
+	assert_eq(GameState.tier_next_cost(), 1500, "tier 2 sells tier 3 (the switch)")
+	assert_eq(GameState.tier_remaining_cost(), 1500)
+	assert_false(GameState.is_boss_night(), "the next plan has no boss until tier 3 is paid")
+	assert_eq(GameState.pay_into_tier(100), 0, "no gold, nothing paid")
+	GameState.add_gold(100)
+	assert_eq(GameState.pay_into_tier(100), 100, "tier 3 is for sale at tier 2")
+	assert_eq(GameState.tier_remaining_cost(), 1400)
+
+func test_tier_3_is_the_top_of_this_build_nothing_to_buy() -> void:
+	GameState.debug_set_tier(3, 12)
+	assert_eq(GameState.tier, 3)
+	assert_eq(GameState.tier_next_cost(), -1, "tier 3 is the top of this build")
 	assert_eq(GameState.tier_remaining_cost(), -1)
-	assert_false(GameState.is_boss_night(), "the next plan has no boss")
+	GameState.add_gold(5000)
 	assert_eq(GameState.pay_into_tier(100), 0, "nothing to buy at the top")
+	assert_eq([GameState.tier_paid, GameState.gold], [0, 5000])
 
 func test_complete_tier_up_emits_building_changed_for_each_new_spot() -> void:
 	GameState.add_gold(500)

@@ -10,7 +10,11 @@ signal finished
 const DISTANCE := 6.0
 const SPREAD := 1.0
 const FRAMES := 3
+## Five per row (x in -2..2 m) and seven rows centred vertically (y in -3..3 m), 6 m from the camera: on a 9:21 phone (KEEP_WIDTH,
+## camera_fov_h 42) the half-width there is 6 * tan 21 deg = 2.30 m and at 9:16 the half-height is 4.09 m. Room for 35 nodes (31 at tier 3).
 const ROW := 5
+const ROWS := 7
+const CAPACITY := ROW * ROWS
 const BOAR := preload("res://actors/enemy/boar.gd")
 const SCENES: Array[String] = [
 	"res://art/pickups/knife_projectile.tscn",
@@ -64,6 +68,8 @@ func run(main: Main, resume_phase := "") -> void:
 	cube.material_override = main.world.occluder_fade.fade_material_for_warmup()
 	_place(cube)
 	_prebuild_tier_caches()
+	for n in branch_pad_visuals():
+		_place(n)
 	if not MapLayout.yards_for_tier(TierEffects.top_tier(Balance.data.tiers)).is_empty():
 		_place(YardStones.build_sample())  # the kerb's mesh and material are first drawn at the tier-2 reveal
 	for _i in FRAMES:
@@ -78,6 +84,26 @@ func run(main: Main, resume_phase := "") -> void:
 		print("WARMUP built=%d track=%s" % [built_count, track])
 	finished.emit()
 
+## E5 tier 3 Task 17: the first-use visuals of the branch pads (drawn at the tier-3 dawn): the ground ring and its alpha material, the
+## preview ring, and every glyph with both its materials (depth-tested for a far pad, not for the near and stood stages). Nothing
+## when the build has no tier 3.
+static func branch_pad_visuals() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	if TierEffects.top_tier(Balance.data.tiers) < 3:
+		return out
+	for ring in [BranchIcons.ring_mesh(&"ice_blue", 0.82, 0.22), BranchIcons.ring_mesh(&"steel", 0.985, 0.0)]:
+		var r := MeshInstance3D.new()
+		r.mesh = ring
+		r.material_override = BranchIcons.ground_material()
+		out.append(r)
+	for kind in BranchIcons.KINDS:
+		for mat in [BranchIcons.material(), BranchIcons.far_material()]:
+			var g := MeshInstance3D.new()
+			g.mesh = BranchIcons.mesh(kind)
+			g.material_override = mat
+			out.append(g)
+	return out
+
 ## E5 Task 12: each tier-up would build that tier's terrain mesh (10.5k vertices, in GDScript) and re-merge the props
 ## inside the tier-up frame. Fill both caches now; no node is added, nothing in the world changes.
 static func _prebuild_tier_caches() -> void:
@@ -85,7 +111,10 @@ static func _prebuild_tier_caches() -> void:
 		var yards := MapLayout.yards_for_tier(t)
 		if yards.is_empty():
 			continue
-		GroundArt.terrain_mesh(World.ground_rect(), yards, MapLayout.lanes_for_tier(t))
+		var spread: float = Balance.data.enemy.lateral_spread  # the world's own key: a different spread is a different cache entry
+		GroundArt.terrain_mesh(World.ground_rect(), yards, MapLayout.lanes_for_tier(t), spread)
+		if t == 3:  # the tier-3 reveal's first step shows the lot's paving with the tier-2 lanes
+			GroundArt.terrain_mesh(World.ground_rect(), yards, MapLayout.lanes_for_tier(2), spread)
 		var rects: Array[Rect2] = []
 		for id in yards:
 			rects.append(MapLayout.yard_rect(id))
@@ -94,7 +123,7 @@ static func _prebuild_tier_caches() -> void:
 func _place(n: Node3D) -> void:
 	add_child(n)
 	# 1 m apart, centred on the view axis, in a row inside the frustum.
-	n.global_position = _origin + _right * (SPREAD * (float(_slot % ROW) - float(ROW - 1) * 0.5)) + _up * (SPREAD * float(_slot / ROW))
+	n.global_position = _origin + _right * (SPREAD * (float(_slot % ROW) - float(ROW - 1) * 0.5)) + _up * (SPREAD * (float(_slot / ROW) - float(ROWS - 1) * 0.5))
 	placed.append(n.global_position)
 	_slot += 1
 	built_count += 1

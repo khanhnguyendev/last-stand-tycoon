@@ -8,6 +8,8 @@ func before_each() -> void:
 	dir = "user://test_saves/wu_%d" % Time.get_ticks_usec()
 
 func after_each() -> void:
+	Balance.reset()
+	GameState.new_game(1)
 	SaveStore.with_dir(dir).wipe()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_saves"))
@@ -140,6 +142,14 @@ func test_warmup_nodes_sit_inside_the_camera_frustum() -> void:
 	assert_eq(warmup.placed.size(), warmup.built_count)
 	for p in warmup.placed:
 		assert_true(cam.is_position_in_frustum(p), "%s is in view" % p)
+	# The real lens at each supported aspect, not the headless viewport's own frustum (mutation: ROW = 8 puts slots 0, 7, 8, 15
+	# at x = +-3.5 and +-2.5 m, outside the 2.30 m half-width of 9:16 and 9:21; the old un-centred ROW = 5 with 31 nodes puts the 7th row at y = +6 m).
+	var xf := cam.global_transform
+	for aspect in [9.0 / 21.0, 9.0 / 16.0, 16.0 / 9.0]:
+		var proj := CameraMath.projection(Balance.ui, aspect)
+		for p in warmup.placed:
+			assert_true(CameraMath.on_screen(p, xf, proj), "%s is on screen at aspect %.3f" % [p, aspect])
+	assert_true(warmup.built_count <= Warmup.CAPACITY, "%d nodes fit the %d-slot grid" % [warmup.built_count, Warmup.CAPACITY])
 
 func test_music_track_is_night_without_a_phase() -> void:
 	assert_eq(Warmup.music_for(""), &"night")
@@ -159,19 +169,23 @@ func test_boot_fade_safety_cap_lifts_without_fade_out() -> void:
 
 func test_warmup_prebuilds_the_top_tier_terrain_and_props() -> void:
 	_main()
-	var yards := MapLayout.yards_for_tier(TierEffects.top_tier(Balance.data.tiers))
+	var top := TierEffects.top_tier(Balance.data.tiers)
+	assert_eq(top, 3, "the shipped build's top tier")
+	var yards := MapLayout.yards_for_tier(top)
+	var lanes := MapLayout.lanes_for_tier(top)
+	var spread: float = Balance.data.enemy.lateral_spread
 	var rects: Array[Rect2] = []
 	for id in yards:
-		rects.append(MapLayout.YARDS[id])
-	GroundArt._cache.erase(GroundArt._terrain_key(World.ground_rect(), yards))
+		rects.append(MapLayout.yard_rect(id))
+	GroundArt._cache.erase(GroundArt._terrain_key(World.ground_rect(), yards, lanes, spread))
 	Props._merged.erase(Props._key(rects))
-	assert_false(GroundArt.is_cached(World.ground_rect(), yards))
+	assert_false(GroundArt.is_cached(World.ground_rect(), yards, lanes))
 	assert_false(Props.is_cached(rects))
 	var warmup := Warmup.new()
 	main.add_child(warmup)
 	await warmup.run(main)
-	assert_true(GroundArt.is_cached(World.ground_rect(), yards), "tier-2 terrain built by the warm-up")
-	assert_true(Props.is_cached(rects), "tier-2 props merged by the warm-up")
+	assert_true(GroundArt.is_cached(World.ground_rect(), yards, lanes), "top-tier terrain built by the warm-up")
+	assert_true(Props.is_cached(rects), "top-tier props merged by the warm-up")
 	assert_eq(warmup.get_child_count(), 0, "no node left behind")
 
 func test_warmup_draws_a_kerb_piece_when_the_top_tier_has_yards() -> void:
@@ -184,3 +198,18 @@ func test_warmup_draws_a_kerb_piece_when_the_top_tier_has_yards() -> void:
 	assert_eq(kerbs.size(), 1, "one kerb piece with the kerb material")
 	await warmup.finished
 	assert_eq(warmup.get_child_count(), 0)
+
+## E5 tier 3 Task 20: the tier-3 reveal's first step shows the lot's paving with the tier-2 lanes: that mesh is built before the tier-up.
+func test_warmup_prebuilds_the_tier_3_reveals_first_step_mesh() -> void:
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)  # the tier-3 switch is Task 21: the test turns it on
+	var spread: float = Balance.data.enemy.lateral_spread
+	var first_step := GroundArt._terrain_key(World.ground_rect(), MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(2), spread)
+	var full := GroundArt._terrain_key(World.ground_rect(), MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(3), spread)
+	GroundArt._cache.erase(first_step)
+	GroundArt._cache.erase(full)
+	assert_false(GroundArt._cache.has(first_step))
+	Warmup._prebuild_tier_caches()
+	assert_true(GroundArt._cache.has(first_step), "the lot's paving with the tier-2 lanes")
+	assert_true(GroundArt._cache.has(full), "the tier-3 terrain too")
+	assert_true(GroundArt.is_cached(World.ground_rect(), MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(2), spread))

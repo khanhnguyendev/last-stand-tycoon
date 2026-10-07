@@ -146,7 +146,7 @@ pins each by a test.
 | `tower_sw` | (-6.6, 5.6); its lanes are `["sw"]` (the west fence, 9.15 m, and the west zone's far corner, 7.56 m, are beyond level-1 range; west is its second lane by distance only) |
 | `TIER_SPOTS[3]` | `["tower_sw", "fence_sw"]` |
 | Plot (`YARDS["front"]`, `YARD_TIER` 3) | `Rect2(-7.6, 5.6, 6.1, 4.3)` |
-| `TIER_SIGNS` | `{2: (-10.0, 7.5), 3: (-5.6, 9.0)}` (the sign of tier N is shown at tier N - 1) |
+| `TIER_SIGNS` | `{2: (-10.0, 7.5), 3: (-4.7, 8.5)}` (the sign of tier N is shown at tier N - 1) |
 
 Probe results (the tests re-derive them):
 
@@ -265,10 +265,12 @@ door stays the respawn point. The hero has no HP, so nothing changes for the her
 ## 7. World and interface at tier 3 (D-273)
 
 - **Reveal:** the tier-2 reveal system with a per-tier step list (plot paving, fence spot, tower spot, lane strip with
-  its arrow, second storey, branch pads); the camera frames the diner and the plot. A tap anywhere fast-forwards it;
+  its arrow, second storey); the camera frames the diner and the plot. Branch pads are day-only, so they are not a
+  reveal step: they appear with the first tier-3 day (D-279). A tap anywhere fast-forwards it after a 0.6 s guard;
   the joystick stays disabled until it ends or is skipped. A tab closed mid-reveal resumes at the card pick at tier 3.
-- **Branch pads:** at a level-3 building at tier 3 or above, the single pad is replaced by two pads with icon, cost
-  and a 2 to 3 word label. Standing on a pad shows the preview before any gold is committed: Longbow's range ring,
+- **Branch pads:** at a level-3 building at tier 3 or above, the single pad is replaced by two pads. Information
+  shows in stages (D-279): far away a ring and an icon; within 3.5 m of the building also the cost; on the pad the
+  name, the effect line and the preview, while the sibling pad shows only its ring. Standing on a pad shows the preview before any gold is committed: Longbow's range ring,
   "x3", a shield, spikes. Fence pads add a broken-fence icon and "lost if broken". Arming (D-121) and the stand-still
   threshold apply; a hero walking across both pads commits nothing. On completion the other pad vanishes and its
   partial payment flies back to the hero as coins.
@@ -278,7 +280,7 @@ door stays the respawn point. The hero has no HP, so nothing changes for the her
   repo, logged in `docs/ASSET_LICENSES.md`.
 - **Onboarding:** the first time branch pads appear, the pointer points at one pad once.
 - **Texts** (all through `tr()`): "Longbow", "Volley", "Stone wall", "Spike fence", their preview lines, "lost if
-  broken", "Buy the front lot", "Baron von Hop".
+  broken", "Buy the lot" (D-279: "Buy the front lot" did not fit the sign), "Baron von Hop".
 
 ## 8. Economy (D-274)
 

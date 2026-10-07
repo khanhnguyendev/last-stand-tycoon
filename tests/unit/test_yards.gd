@@ -213,7 +213,8 @@ func _keep_clear(tier: int) -> Array:
 	out.append({"pos": MapLayout.HOME, "r": MapLayout.HERO_RADIUS, "what": "HOME"})
 	out.append({"pos": MapLayout.DINER_DOOR, "r": MapLayout.STATION_RADIUS, "what": "DINER_DOOR"})
 	for t in MapLayout.TIER_SIGNS:  # every sign that stands while this tier's land is owned: the tier's own and the next tier's
-		if t <= tier + 1:
+		# (fix round 1: the tier-3 sign is hidden once tier 3 is bought, so at tier 3 no sign stands on the front lot)
+		if t <= tier + 1 and not (t == 3 and tier >= 3):
 			out.append({"pos": MapLayout.tier_sign(t), "r": MapLayout.STATION_RADIUS, "what": "tier %d sign" % t})
 	for q in MapLayout.queue_slots(tier):
 		out.append({"pos": q, "r": MapLayout.HERO_RADIUS, "what": "queue slot"})
@@ -329,8 +330,10 @@ func test_keep_clear_rules_are_ready_for_tier_3() -> void:
 	var t3 := _keep_clear(3)
 	var what2 := t2.map(func(r): return r.what)
 	var what3 := t3.map(func(r): return r.what)
-	for w in ["lane sw", "zone sw", "fence bar sw", "tower_sw", "fence_sw", "front lot", "pad of tower_sw", "pad of fence_sw", "tier 3 sign"]:
+	for w in ["lane sw", "zone sw", "fence bar sw", "tower_sw", "fence_sw", "front lot", "pad of tower_sw", "pad of fence_sw"]:
 		assert_true(what3.has(w), "tier 3 keeps clear of %s" % w)
+	assert_true(what2.has("tier 3 sign"), "tier 2: the tier-3 sign stands on the lot for sale")
+	assert_false(what3.has("tier 3 sign"), "tier 3: the lot is owned and its sign is gone")
 	for w in ["lane sw", "zone sw", "fence bar sw", "tower_sw", "front lot", "pad of tower_sw"]:
 		assert_false(what2.has(w), "tier 2 does not know %s" % w)
 	var slots := t3.filter(func(r): return r.what == "queue slot").map(func(r): return r.pos)

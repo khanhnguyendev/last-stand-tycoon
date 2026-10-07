@@ -2715,3 +2715,38 @@ cost-entry switch and the debug-only tier forcing.
 - **Process:** `git stash` is forbidden to implementers (it is shared by all worktrees and swapped two tasks' files
   once). A fix round left the Boar King's back colour at the brute's value; the merged unit run caught it and the
   hare, Boar King, brute and Baron meshes are now hash-pinned like the Boar's.
+
+**D-279 Rulings during phase 4 (world and interface).**
+
+- **Tier-3 map in the world:** the tier-3 sign stands at (-4.7, 8.5) (the spec's (-5.6, 9.0) collided once phase 1's
+  larger board was merged). The front lot is paved. The traveler spawner owns the queue and exit switch at the tier
+  change. At tier 3 the roof plank is removed and DINER is written on the storey wall.
+- **Tier-3 camera rule:** portrait must satisfy the strict "hides nothing tier 1 does not hide" rule. Landscape is
+  exempt beyond 10 m from the diner. The Archer may stand behind a roof part only if the diner fades there.
+- **Branch pads show information in stages** (D-273 said icon, cost and label at all times; with nine level-3
+  buildings that piled 18 labels on each other, the HUD and the hero). Far: ring and a depth-tested icon. Near, for
+  ONE focus building within 3.5 m (kept until 4.5 m): also the cost. On the pad: name, effect line, warning and the
+  preview, and the sibling pad shows only its ring and payment ring. Payment never reads the stage.
+- **Known pad overlaps are pinned exactly** in a passing test (pad, label, obstacle, pixels per aspect), never behind
+  a pending or skipped test. The hull margin for pads north of a tower is 6.5 px (8 asked, 6.8 reachable). The stood
+  stack may reach 3.2 screen-metres from its pad. The near-stage size floors hold up to 3.5 m; the 3.5 to 4.5 m band
+  is exempt. To meet the 28 px cost floor at 3.45 m the cost text size went from 0.0123 to 0.0132 (worst reachable view 28.46 px, at `fence_e`), and the near
+  block's width cap from 1.2 to 1.25 m (the floor outranks the width heuristic). Pinned today: 10 on-pad findings
+  (station labels count as obstacles) and the near-stage ones, measured only from ground the hero can reach, from
+  HOME's side and from due south. The kerb hash in tests is taken on positions quantized to 0.1 mm: raw float
+  bytes differ between macOS and the Linux runner. The near-stage test scans each spot's worst
+  reachable point; after three rounds on that test the residual overlaps are pinned and parked (REVIEW_QUEUE 20).
+- **Onboarding flag** for the pad pointer lives in `SettingsStore` (`branch_hint_done`), not in its own file.
+- **Reveal:** five steps at tier 3 (0.60, 0.95, 1.30, 1.65, 2.00 s; ends at 3.0 s). Branch pads are day-only, so
+  they are not a step. A tap skips ANY reveal (tier 2 too) after a 0.6 s guard, so the player re-gripping the stick
+  at dawn cannot skip it before step 1. The settings gear stays tappable; the pause freezes the reveal. The skip's
+  camera return reuses `camera_reveal_requested` with a documented sentinel.
+- **Count rows hide under the HUD bar** (a visible tier-1 change): from HOME at 9:16 the three northern rows are
+  hidden and appear as the hero walks toward a lane.
+- **The switch (Task 21):** `tier_costs = [0, 500, 1500]`. The tier-2 sign reads "Buy the lot" ("Buy the front lot"
+  was 292 px wide against 270 free). The tier bot's tier-2 behaviour is frozen until Task 22 teaches it tier 3; with
+  that, every sim's tick count and both baselines are unchanged by the switch. The sweep assertion planned for Task
+  21 moves to Task 22. Pools grow to the tier-3 worst case (steaks 440, projectiles 42). A build from before the
+  switch that shares the origin zeroes a partial tier-3 payment and rejects a tier-3 save.
+- **Warm-up grid:** 5 columns, centred rows, checked against the portrait projection (an 8-column grid passed the
+  headless test but left the boar, knife, arrow and steak draws outside a phone's frustum).

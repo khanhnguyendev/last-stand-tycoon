@@ -1,6 +1,6 @@
 class_name SettingsStore
 extends RefCounted
-## Device preferences, separate from the save (S5 D-210): {v, muted, guide_done}. Web: localStorage key
+## Device preferences, separate from the save (S5 D-210): {v, muted, guide_done, branch_hint_done}. Web: localStorage key
 ## lst:<pathname>:settings, through SaveStore's try/catch JS. Elsewhere: <dir>/settings.json. Missing or corrupt
 ## means defaults; SaveStore.wipe() and New game never touch it.
 
@@ -9,6 +9,8 @@ const VERSION := 1
 
 var muted := false
 var guide_done := false
+## E5 tier 3 Task 17: the one-time pointer at a branch pad has been shown (BranchPadHint).
+var branch_hint_done := false
 var _web := false
 var _key := ""
 var _dir := ""
@@ -30,6 +32,7 @@ static func with_dir(dir: String) -> SettingsStore:
 func load_settings() -> void:
 	muted = false
 	guide_done = false
+	branch_hint_done = false
 	var j := JSON.new()
 	if j.parse(_read()) != OK or typeof(j.data) != TYPE_DICTIONARY:
 		return
@@ -38,9 +41,11 @@ func load_settings() -> void:
 		muted = d.muted
 	if typeof(d.get("guide_done")) == TYPE_BOOL:
 		guide_done = d.guide_done
+	if typeof(d.get("branch_hint_done")) == TYPE_BOOL:
+		branch_hint_done = d.branch_hint_done
 
 func save_settings() -> bool:
-	return _write(JSON.stringify({"v": VERSION, "muted": muted, "guide_done": guide_done}))
+	return _write(JSON.stringify({"v": VERSION, "muted": muted, "guide_done": guide_done, "branch_hint_done": branch_hint_done}))
 
 ## Tests only: remove the stored value.
 func wipe_for_tests() -> void:

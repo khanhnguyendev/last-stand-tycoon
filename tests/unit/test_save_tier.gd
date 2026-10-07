@@ -103,6 +103,7 @@ func test_rejects_bad_wave_keys() -> void:
 	assert_eq(SaveCodec.validate(s, Balance.data), "lane fields", "a non-bool boss")
 
 func test_tier_above_the_top_is_clamped_only_when_its_spots_are_known() -> void:
+	Balance.data.tiers.tier_costs = [0, 500]  # setup: a two-tier build (the shipped build now has three), so tier 3 is above its top
 	GameState.debug_set_tier(2, 1)
 	var s := GameState.to_dict()
 	s.tier = 3

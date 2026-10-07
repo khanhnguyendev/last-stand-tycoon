@@ -1,10 +1,15 @@
 class_name TierSign
 extends Node3D
 ## E5 spec 7.2: stand-still payment for the next diner tier. All state comes from GameState (tier_paid, boss_pending).
-## Stands on the land it sells (MapLayout.TIER_SIGN). Hidden when this build has no next tier.
+## Stands on the land it sells: MapLayout.tier_sign(GameState.tier + 1) (tier 1: the west yard; tier 2: the front lot). Hidden when this
+## build has no next tier, or no sign for it.
 
 const SIGN_SCENE := preload("res://art/env/tier_sign.tscn")
 const MARKER_SCENE := preload("res://art/env/spot_marker.tscn")
+## The front-lot sign (selling tier 3) stands near the left edge of the view from HOME (its board keeps about 16 px to the edge); its wide
+## label is moved 1.4 m toward the lot (a 0.05 m window: more hits the DINER label) so the whole label shows at 9:16 and 9:21, for "Buy the lot" and for "Open the yards" (test_tier3_world_layout).
+## The tier-2 sign's label stays centred.
+const LABEL_SHIFT_FRONT := 1.4
 
 var label: WorldLabel
 var zone: StationZone
@@ -16,7 +21,6 @@ var _paid_ticks := 0
 func setup(world: World) -> void:
 	name = "TierSign"
 	_fx = world.fly_fx
-	position = MapLayout.to3(MapLayout.TIER_SIGN)
 	_visual = SIGN_SCENE.instantiate()
 	add_child(_visual)
 	label = WorldLabel.make("", Balance.ui.tier_sign_label_font)
@@ -38,7 +42,7 @@ func setup(world: World) -> void:
 	refresh()
 
 func state() -> StringName:
-	if GameState.tier_next_cost() < 0:
+	if GameState.tier_next_cost() < 0 or not MapLayout.has_tier_sign(GameState.tier + 1):
 		return &"hidden"
 	return &"boss" if GameState.boss_pending else &"selling"
 
@@ -54,7 +58,7 @@ func _on_phase_changed(_phase: int, _day: int) -> void:
 ## Runs on the zone's physics ticks (gameplay, D-118). The zone is active by day only.
 func _on_tick() -> void:
 	var cost := GameState.tier_next_cost()
-	if cost < 0 or GameState.boss_pending:
+	if state() == &"hidden" or GameState.boss_pending:
 		return
 	var paid := GameState.pay_into_tier(Economy.drain_per_tick(cost, Balance.data.build))
 	if paid > 0:
@@ -64,6 +68,9 @@ func _on_tick() -> void:
 func refresh() -> void:
 	var st := state()
 	var day := zone != null and zone.is_active()
+	# Hidden: it waits where it always stood (the tier-2 sign), so nothing hidden stands on land that is not for sale.
+	position = MapLayout.to3(MapLayout.tier_sign(2) if st == &"hidden" else MapLayout.tier_sign(GameState.tier + 1))
+	label.position.x = LABEL_SHIFT_FRONT if (st != &"hidden" and GameState.tier + 1 >= 3) else 0.0
 	visible = st != &"hidden"
 	match st:
 		&"hidden":
@@ -71,7 +78,8 @@ func refresh() -> void:
 		&"boss":
 			label.text = tr("Boss tonight")
 		_:
-			label.text = tr("Open the yards") + "\n" + str(GameState.tier_remaining_cost())
+			var what := tr("Buy the lot") if GameState.tier + 1 >= 3 else tr("Open the yards")
+			label.text = what + "\n" + str(GameState.tier_remaining_cost())
 	label.visible = day and st != &"hidden"
 	marker.visible = day and st == &"selling"
 	if GameState.tier_paid == 0:

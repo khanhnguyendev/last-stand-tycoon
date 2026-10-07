@@ -22,6 +22,8 @@ var snapshot: Dictionary = {}
 var failing := false
 ## E5: true from a tier-up dawn until its card pick opens (the reveal plays meanwhile).
 var reveal_pending := false
+## Physics seconds since the reveal began (the skip guard reads it).
+var _reveal_age := 0.0
 ## Bumped whenever the state is replaced, so a stale reveal timer never opens a pick over it.
 var _reveal_id := 0
 ## Bumped whenever a fail flow starts or is cancelled, so a stale fail timer never restores a snapshot.
@@ -103,10 +105,43 @@ func _run_dawn() -> void:
 			_card_pick(offer)
 			return
 		reveal_pending = true
+		_reveal_age = 0.0
 		_reveal_id += 1
 		get_tree().create_timer(Balance.data.tiers.tier_reveal_time, false, true).timeout.connect(_on_reveal_timer.bind(_reveal_id))
 		return
 	_card_pick(offer)
+
+## E5 tier 3 Task 20 (D-273.2): a tap or click anywhere while the tier-up reveal plays fast-forwards it: the card pick opens now (the
+## TierReveal and the camera follow the pick on the bus). A press in the first tier_reveal_skip_guard_s of the reveal is consumed and
+## does nothing (the joystick is blocked at DAWN, so nothing else could start from it either).
+## What protects the card pick from the tap that skipped: the overlay and the joystick run their _input BEFORE this node (they are later
+## in the tree) and the pick was not open for them then, so they never owned this press; the overlay acts on a release only for a press
+## it owned, so the release of the skipping tap picks nothing, and its own guard (card_input_guard_s) covers a fresh press right after
+## it opens. A drag of the same touch continues to the joystick, which only follows a press it began. The press is also consumed
+## here, so nothing after this node (the GUI, _unhandled_input) sees it. The emulated mouse event of a touch (device
+## DEVICE_ID_EMULATION) is left alone: the touch itself already skipped.
+func _input(event: InputEvent) -> void:
+	if not reveal_pending or event.device == InputEvent.DEVICE_ID_EMULATION:
+		return
+	var tap: bool = (event is InputEventScreenTouch and event.pressed) \
+		or (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT)
+	if not tap:
+		return
+	get_viewport().set_input_as_handled()
+	if _reveal_age >= Balance.ui.tier_reveal_skip_guard_s:
+		finish_reveal_now()
+
+func _physics_process(delta: float) -> void:
+	if reveal_pending:
+		_reveal_age += delta
+
+## Ends the reveal wait at once and opens the card pick (or, with no offer, the day): the pending reveal timer is spent, never left
+## to open a second pick. No-op when no reveal is pending.
+func finish_reveal_now() -> void:
+	if not reveal_pending:
+		return
+	_reveal_id += 1  # the timer still running carries the old id and is ignored when it fires
+	_on_reveal_timer(_reveal_id)
 
 func _on_reveal_timer(id: int) -> void:
 	if id != _reveal_id or phase != Phase.DAWN:

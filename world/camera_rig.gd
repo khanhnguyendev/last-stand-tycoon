@@ -21,6 +21,7 @@ var _rv_zoom := 1.0
 var _rv_focus := Vector2.ZERO
 var _rv_has_focus := false
 var _rv_w := 0.0  ## 0..1: how far into the reveal pose (zoom and focus) the camera is
+var _rv_w_from := 1.0  ## the weight the ease-out starts from (1.0, or less when a skipped reveal returns early)
 
 func _ready() -> void:
 	camera = Camera3D.new()
@@ -84,6 +85,17 @@ func _on_state_restored() -> void:
 ## follow focus to it during the ease-in and back to the follow focus during the ease-out. Runs in _process; writes
 ## nothing but the camera transform.
 func reveal(seconds_in: float, hold_s: float, seconds_out: float, zoom: float, reveal_focus := Vector2.INF) -> void:
+	# Sentinel (in_s <= 0, zoom 1.0, no focus) = "return to the hero from the current pose over seconds_out" (a skipped reveal); a no-op when idle.
+	if seconds_in <= 0.0 and is_equal_approx(zoom, 1.0) and not reveal_focus.is_finite():
+		if not _rv_active:
+			return
+		_rv_in = 1e-3
+		_rv_hold = 0.0
+		_rv_out = maxf(seconds_out, 1e-3)
+		_rv_t = _rv_in  # the ease-in is over: the next phase is the ease-out, from the current weight
+		_rv_w_from = _rv_w
+		return
+	_rv_w_from = 1.0
 	_rv_has_focus = reveal_focus.is_finite()
 	_rv_focus = reveal_focus if _rv_has_focus else Vector2.ZERO
 	_rv_in = maxf(seconds_in, 1e-3)
@@ -116,7 +128,7 @@ func _zoom_step(delta: float) -> void:
 	elif _rv_t < _rv_in + _rv_hold:
 		_rv_w = 1.0
 	elif _rv_t < _rv_in + _rv_hold + _rv_out:
-		_rv_w = 1.0 - ease((_rv_t - _rv_in - _rv_hold) / _rv_out, -2.0)
+		_rv_w = _rv_w_from * (1.0 - ease((_rv_t - _rv_in - _rv_hold) / _rv_out, -2.0))
 	else:
 		cancel_reveal()
 		return

@@ -7,13 +7,14 @@ const TIER1_CHILDREN := ["EnemyPool", "SteakPool", "ProjectilePool", "FxPool", "
 	"CounterBody", "Pad_counter", "Pad_freezer", "GoldPile", "CloseUpSign", "TierSign", "Telegraph_west", "Telegraph_north",
 	"Telegraph_east", "GuardRoster", "FxField", "Reactions", "TierReveal"]
 const SW_NODES := ["Lane_sw", "Telegraph_sw", "Spot_tower_sw", "Spot_fence_sw"]
-const SW_STONES := 16  # 22 stones along the lane, 6 skipped near pads, the counter and the close-up sign
+const SW_STONES := 17  # 22 stones along the lane, 5 skipped near pads, the counter and the close-up sign (16 before the tier-3 sign moved to (-4.7, 8.5): one stone is no longer within its station radius)
 
 var main: Main
 
 func before_each() -> void:
 	Balance.reset()
-	Balance.data.tiers.tier_costs.append(1500)  # test-only: the build knows tier 3
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)  # test-only: the build knows tier 3
 	main = Main.create()
 	add_child_autofree(main)
 	GameState.new_game(1)
@@ -84,7 +85,7 @@ func test_tier_3_builds_the_south_west_lane_marker_and_spots() -> void:
 	for n in SW_NODES:
 		assert_true(n in _names(), n)
 	var count: int = main.world.get_child_count()
-	assert_eq(count, 44 + 4, "tier 2's 44 plus Lane_sw, Telegraph_sw and the two spots")
+	assert_eq(count, 44 + 4 + 18, "tier 2's 44 plus Lane_sw, Telegraph_sw, the two spots and the 18 branch pads (two for each of the nine spots)")
 	main.world.rebuild_for_tier()
 	main.world.rebuild_for_tier()
 	main.world._sync_lanes()
@@ -110,7 +111,9 @@ func test_the_south_west_strip_is_in_the_merged_ground_above_the_road() -> void:
 	var without := _vertices(GroundArt.terrain_mesh(rect, yards, ["west", "north", "east"]))
 	var with := _vertices(GroundArt.terrain_mesh(rect, yards, MapLayout.lanes_for_tier(3)))
 	# the sw path has 3 points and the strip builder emits 4 vertices per point (dark edge, dirt, dirt, dark edge): 12
-	assert_eq(with.size() - without.size(), 12)
+	# Fix round 1 (ruling B): with the front lot among the yards the lane also draws its narrow track over the lot's paving, clipped to the lot:
+	# 2 clipped points x 4 vertices = 8 more (was 12 for the strip alone)
+	assert_eq(with.size() - without.size(), 12 + 8)
 	# the strip's two outer-edge vertices at the entrance (-24, 11) run along +x, so the width is along z: 11 -+ 1.5; y = 0.02 + 0.005
 	assert_true(_has_vertex(with, Vector3(-24, 0.025, 9.5)), "outer edge, north side")
 	assert_true(_has_vertex(with, Vector3(-24, 0.025, 12.5)), "outer edge, south side")
