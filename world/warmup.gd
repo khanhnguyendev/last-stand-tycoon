@@ -78,17 +78,18 @@ func run(main: Main, resume_phase := "") -> void:
 		print("WARMUP built=%d track=%s" % [built_count, track])
 	finished.emit()
 
-## E5 Task 12: the first tier-up would build the top tier's terrain mesh (10.5k vertices, in GDScript) and re-merge the props
+## E5 Task 12: each tier-up would build that tier's terrain mesh (10.5k vertices, in GDScript) and re-merge the props
 ## inside the tier-up frame. Fill both caches now; no node is added, nothing in the world changes.
 static func _prebuild_tier_caches() -> void:
-	var yards := MapLayout.yards_for_tier(TierEffects.top_tier(Balance.data.tiers))
-	if yards.is_empty():
-		return
-	GroundArt.terrain_mesh(World.ground_rect(), yards)
-	var rects: Array[Rect2] = []
-	for id in yards:
-		rects.append(MapLayout.YARDS[id])
-	Props.prebuild(rects)
+	for t in range(2, TierEffects.top_tier(Balance.data.tiers) + 1):  # every tier-up past the first builds one, not just the last
+		var yards := MapLayout.yards_for_tier(t)
+		if yards.is_empty():
+			continue
+		GroundArt.terrain_mesh(World.ground_rect(), yards, MapLayout.lanes_for_tier(t))
+		var rects: Array[Rect2] = []
+		for id in yards:
+			rects.append(MapLayout.yard_rect(id))
+		Props.prebuild(rects)
 
 func _place(n: Node3D) -> void:
 	add_child(n)

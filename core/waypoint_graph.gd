@@ -84,8 +84,8 @@ static func create_default() -> WaypointGraph:
 	g.add_node("fence_w", MapLayout.fence_spot("west"))
 	g.add_node("fence_n", MapLayout.fence_spot("north"))
 	g.add_node("fence_e", MapLayout.fence_spot("east"))
-	g.add_node("tower_nw", MapLayout.TOWER_SPOTS.tower_nw + Vector2(-0.75, -0.75))
-	g.add_node("tower_ne", MapLayout.TOWER_SPOTS.tower_ne + Vector2(0.75, -0.75))
+	g.add_node("tower_nw", MapLayout.tower_spot("tower_nw") + Vector2(-0.75, -0.75))
+	g.add_node("tower_ne", MapLayout.tower_spot("tower_ne") + Vector2(0.75, -0.75))
 	for e in [
 		["home", "sign"], ["home", "sw"], ["home", "se"], ["home", "front_e"], ["home", "gold_pile"], ["sw", "gold_pile"],
 		["front_e", "freezer"], ["front_e", "counter_drop"], ["se", "freezer"],
@@ -103,8 +103,8 @@ static func create_for_tier(tier: int) -> WaypointGraph:
 	var g := create_default()
 	if tier >= 2:
 		g.add_node("tier_sign", MapLayout.TIER_SIGN)
-		g.add_node("tower_w", MapLayout.TOWER_SPOTS.tower_w + Vector2(-0.75, 0.75))
-		g.add_node("tower_e", MapLayout.TOWER_SPOTS.tower_e + Vector2(0.75, 0.75))
+		g.add_node("tower_w", MapLayout.tower_spot("tower_w") + Vector2(-0.75, 0.75))
+		g.add_node("tower_e", MapLayout.tower_spot("tower_e") + Vector2(0.75, 0.75))
 		for e in [["sw", "tier_sign"], ["sw", "tower_w"], ["zone_west", "tower_w"], ["se", "tower_e"], ["zone_east", "tower_e"]]:
 			g.add_edge(e[0], e[1])
 	if tier >= 3:

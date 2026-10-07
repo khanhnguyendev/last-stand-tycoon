@@ -12,8 +12,8 @@ const PIP_Y := 1.2  ## model height 0.9 + 0.3
 var _rubble := false
 
 func _build_visual() -> void:
-	var lane: String = MapLayout.FENCE_LANE[spot_id]
-	var path: Array = MapLayout.LANE_PATHS[lane]
+	var lane: String = MapLayout.fence_lane(spot_id)
+	var path: Array = MapLayout.lane_path(lane)
 	var tangent := Geometry.tangent_at(path, MapLayout.path_length(lane) - MapLayout.FENCE_OFFSET_FROM_END)
 	visual.rotation.y = atan2(tangent.x, tangent.y)
 

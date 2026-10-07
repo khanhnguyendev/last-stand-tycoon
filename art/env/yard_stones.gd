@@ -57,11 +57,11 @@ static func transforms(rect: Rect2) -> Array[Transform3D]:
 			out.append(Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(piece_len, 1.0, 1.0)), Vector3(p.x, HEIGHT * 0.5, p.y)))
 	return out
 
-## ONE MultiMeshInstance3D for the kerb of every yard in `yards` (MapLayout.YARDS keys).
+## ONE MultiMeshInstance3D for the kerb of every yard in `yards` (MapLayout yard ids).
 static func build(yards: Array) -> MultiMeshInstance3D:
 	var xfs: Array[Transform3D] = []
 	for id in yards:
-		xfs.append_array(transforms(MapLayout.YARDS[id]))
+		xfs.append_array(transforms(MapLayout.yard_rect(id)))
 	return _instance(xfs)
 
 ## One piece at the origin: the warm-up draws it so the kerb's mesh and material are uploaded before the tier-2 reveal.

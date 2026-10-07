@@ -1,7 +1,7 @@
 extends SceneTree
 ## Renders the real game and saves a 720x1280 PNG. Run WITH rendering (no --headless):
 ## "$GODOT" --path . --resolution 720x1280 -s res://tests/sim/capture.gd -- --out=docs/screenshots/s1/x.png --seconds=12
-## --lane=<west|north|east>: hero parked at that lane's zone, one Boar 2 s before it reaches hero range.
+## --lane=<west|north|east|sw>: hero parked at that lane's zone, one Boar 2 s before it reaches hero range.
 ## --hero-at=zone_center (with --lane): hero at the centre of that lane's attack zone instead of the lane end.
 ## --phase=day|night|fail|build|retry (default night; unknown values fail): day = skip to day + 12 s of travelers queueing; build = hero walking into the NW tower spot with the ring filling; fail = diner destroyed (banner); retry = fail, then banner_time + 1 s so the restore runs and the "monsters look tired" banner shows.
 ## --crop-top=N: save only the top N pixels. --debug: keep the DebugOverlay visible (hidden by default).
@@ -167,7 +167,7 @@ func _run() -> void:
 	root.add_child(cam)
 	if _args.has("lane"):
 		var lane: String = _args.lane
-		if not map_layout.LANE_PATHS.has(lane):
+		if not lane in map_layout.lanes_for_tier(4):
 			push_error("bad --lane %s" % lane)
 			quit(2)
 			return
@@ -175,7 +175,7 @@ func _run() -> void:
 		main.world.wave_director.stop()
 		var hero_at: Vector2 = map_layout.lane_end(lane)
 		if _args.get("hero-at", "") == "zone_center":
-			hero_at = (map_layout.ZONE_RECTS[lane] as Rect2).get_center()
+			hero_at = map_layout.zone_rect(lane).get_center()
 		main.hero.teleport(hero_at)
 		bot.queue_free()
 		var eb = _bal.data.enemy
