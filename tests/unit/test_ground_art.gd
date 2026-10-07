@@ -96,18 +96,18 @@ func test_tier1_terrain_is_unchanged_by_the_yards_feature() -> void:
 	assert_eq(_array_hash(a[Mesh.ARRAY_COLOR]), 599500315)
 	assert_eq(_array_hash(a[Mesh.ARRAY_INDEX]), 1529329421)
 
-func test_yard_cells_are_dirt_and_inside_the_rect() -> void:
+func test_yard_cells_are_paved_and_inside_the_rect() -> void:
 	var r := Rect2(2, 2, 4, 6)
 	var a := GroundArt.yard_arrays(r)
 	assert_gt((a.v as PackedVector3Array).size(), 0)
-	var dirt := Palette.color(&"dirt")
-	var dark := Palette.color(&"dirt_dark")
+	var cream := Palette.color(&"diner_cream")
+	var stone := Palette.color(&"stone")
 	for i in (a.v as PackedVector3Array).size():
 		var v: Vector3 = a.v[i]
 		assert_true(r.grow(1e-4).has_point(Vector2(v.x, v.z)), str(v))
 		assert_almost_eq(v.y, GroundArt.YARD_Y, 1e-6)
 		var c: Color = a.c[i]
-		assert_true(c.is_equal_approx(dirt.lerp(dark, GroundArt.hash01(v.x, v.z) * 0.5)), "dirt hashed toward dirt_dark, palette only")
+		assert_true(c.is_equal_approx(cream.lerp(stone, GroundArt.hash01(v.x, v.z) * 0.4)), "paved: cream hashed toward stone, palette only")
 
 func test_terrain_with_yards_is_one_surface_and_cached() -> void:
 	var m := GroundArt.terrain_mesh(World.ground_rect(), ["west"])

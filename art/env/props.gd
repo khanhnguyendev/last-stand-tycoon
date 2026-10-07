@@ -109,3 +109,78 @@ static func _append(g: Dictionary, arrays: Array, xf: Transform3D) -> void:
 	g.n = n
 	g.uv = uv
 	g.i = idx
+
+## E5 tier 3 Task 2: the owned-land props of the open yards (PropsLayout.OWNED) as palette vertex-colour arrays. GroundArt.terrain_mesh
+## merges them into the ground mesh, so no draw is added (D-201). Procedural, no collision, no Rng.
+static func owned_arrays(items: Array) -> Dictionary:
+	var g := {"v": PackedVector3Array(), "n": PackedVector3Array(), "c": PackedColorArray(), "i": PackedInt32Array()}
+	var wood := Palette.color(&"wood")
+	var dark := Palette.color(&"wood_dark")
+	var steel := Palette.color(&"steel_dark")
+	for it in items:
+		var xf := Transform3D(Basis(Vector3.UP, float(it.rot)).scaled(Vector3.ONE * float(it.scale)), MapLayout.to3(it.pos))
+		match String(it.kind):
+			"crate":
+				_box(g, xf, Vector3(0, 0.3, 0), Vector3(0.6, 0.6, 0.6), wood)
+				_box(g, xf, Vector3(0, 0.62, 0), Vector3(0.66, 0.06, 0.66), dark)
+			"barrel":
+				_cylinder(g, xf, 0.0, 0.7, 0.28, dark)
+				_cylinder(g, xf, 0.16, 0.06, 0.3, steel)
+				_cylinder(g, xf, 0.48, 0.06, 0.3, steel)
+			"bench":
+				_box(g, xf, Vector3(0, 0.45, 0), Vector3(1.2, 0.08, 0.4), wood)
+				_box(g, xf, Vector3(-0.45, 0.2, 0), Vector3(0.1, 0.4, 0.34), dark)
+				_box(g, xf, Vector3(0.45, 0.2, 0), Vector3(0.1, 0.4, 0.34), dark)
+			_:
+				assert(false, "unknown owned prop kind %s" % it.kind)
+	return g
+
+## One triangle with the front face clockwise seen from outside (Godot's winding), whatever order a, b, c come in.
+static func _tri(g: Dictionary, a: Vector3, b: Vector3, c: Vector3, n: Vector3, col: Color) -> void:
+	if (b - a).cross(c - a).dot(n) > 0.0:
+		var t := b
+		b = c
+		c = t
+	var base: int = (g.v as PackedVector3Array).size()
+	for p in [a, b, c]:
+		g.v.append(p)
+		g.n.append(n)
+		g.c.append(col)
+	g.i.append_array([base, base + 1, base + 2])
+
+static func _box(g: Dictionary, xf: Transform3D, center: Vector3, size: Vector3, col: Color) -> void:
+	var h := size * 0.5
+	for axis in 3:
+		for sgn in [-1.0, 1.0]:
+			var n := Vector3.ZERO
+			n[axis] = sgn
+			var u := Vector3.ZERO
+			u[(axis + 1) % 3] = h[(axis + 1) % 3]
+			var w := Vector3.ZERO
+			w[(axis + 2) % 3] = h[(axis + 2) % 3]
+			var c := center + n * h[axis]
+			var wn := (xf.basis * n).normalized()
+			var p0 := xf * (c - u - w)
+			var p1 := xf * (c + u - w)
+			var p2 := xf * (c + u + w)
+			var p3 := xf * (c - u + w)
+			_tri(g, p0, p1, p2, wn, col)
+			_tri(g, p0, p2, p3, wn, col)
+
+static func _cylinder(g: Dictionary, xf: Transform3D, y0: float, height: float, radius: float, col: Color) -> void:
+	const SIDES := 8
+	var nb := xf.basis.inverse().transposed()
+	for k in SIDES:
+		var a0 := TAU * k / SIDES
+		var a1 := TAU * (k + 1) / SIDES
+		var d0 := Vector3(cos(a0), 0, sin(a0))
+		var d1 := Vector3(cos(a1), 0, sin(a1))
+		var p0 := xf * (d0 * radius + Vector3(0, y0, 0))
+		var p1 := xf * (d1 * radius + Vector3(0, y0, 0))
+		var p2 := xf * (d1 * radius + Vector3(0, y0 + height, 0))
+		var p3 := xf * (d0 * radius + Vector3(0, y0 + height, 0))
+		var n := (nb * (d0 + d1)).normalized()
+		_tri(g, p0, p1, p2, n, col)
+		_tri(g, p0, p2, p3, n, col)
+		var top := xf * Vector3(0, y0 + height, 0)
+		_tri(g, top, p3, p2, (nb * Vector3.UP).normalized(), col)

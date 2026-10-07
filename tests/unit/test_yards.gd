@@ -136,3 +136,114 @@ func test_props_rebuild_for_open_yards_keeps_two_draws_and_shrinks() -> void:
 		if not c.is_queued_for_deletion():
 			back += ((c as MeshInstance3D).mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX].size()
 	assert_eq(back, before, "closing the yards brings the props back")
+
+## The border: a low kerb (<= 0.25 m), gaps where a pad or the tier sign touches the edge.
+func test_the_border_is_a_low_kerb_with_gaps_at_pads_and_the_sign() -> void:
+	GameState.debug_set_tier(2, 3)
+	var kerb := main.world.yard_stones
+	assert_not_null(kerb)
+	var top := 0.0
+	var bottom := 1.0
+	var count := 0
+	for id in main.world.yard_ids():  # the headless dummy renderer keeps no instance transforms: use the builder's own
+		for xf in YardStones.transforms(MapLayout.YARDS[id]):
+			count += 1
+			var box: AABB = xf * kerb.multimesh.mesh.get_aabb()
+			top = maxf(top, box.end.y)
+			bottom = minf(bottom, box.position.y)
+	assert_eq(kerb.multimesh.instance_count, count, "every piece is an instance")
+	assert_lte(top - bottom, 0.25, "kerb height")
+	assert_gt(top - bottom, 0.05, "and it is a real kerb, not a flat line")
+	assert_gte(bottom, -0.001, "on the ground")
+	var tower_e := MapLayout.spot_position("tower_e")
+	assert_lt(Geometry.dist_point_rect(tower_e, MapLayout.YARDS["east"]), MapLayout.BUILD_RADIUS, "tower_e's pad touches the yard edge")
+	for id in MapLayout.YARDS:
+		for xf in YardStones.transforms(MapLayout.YARDS[id]):
+			var p := Vector2(xf.origin.x, xf.origin.z)
+			assert_gt(p.distance_to(MapLayout.TIER_SIGN), MapLayout.STATION_RADIUS, "no kerb piece at the sign")
+			for q in YardStones.pad_points():
+				assert_gt(p.distance_to(q), MapLayout.BUILD_RADIUS, "no kerb piece inside a pad at %s" % q)
+	# each piece is as long as its spacing ALONG its edge and WIDTH across it (a global-axis scale gets this wrong)
+	for xf in YardStones.transforms(MapLayout.YARDS["west"]):
+		var along := (xf.basis.x as Vector3).length()
+		assert_between(along, YardStones.SPACING - 0.01, YardStones.SPACING * 1.5, "piece length")
+		assert_almost_eq((xf.basis.z as Vector3).length(), 1.0, 1e-4)
+		var d := (xf.basis.x as Vector3).normalized()
+		assert_true(is_equal_approx(absf(d.x), 1.0) or is_equal_approx(absf(d.z), 1.0), "axis aligned along an edge")
+	# the gap is a gap, not a missing kerb: the same edge elsewhere still has pieces
+	var near_tower := YardStones.transforms(MapLayout.YARDS["east"]).filter(func(xf): return Vector2(xf.origin.x, xf.origin.z).distance_to(tower_e) < 3.0)
+	assert_gt(near_tower.size(), 0, "kerb continues beside the gap")
+
+## The "things to stay clear of" for a tier, from MapLayout. Task 8 extends this for tier 3 (the plot, SW lane, the
+## new spots): add them HERE and add 3 to _owned_tiers(). Each entry is {pos: Vector2, d: float} (a point and the least
+## distance from a prop centre) or {rect: Rect2, d: float}, or {seg: [a, b], d: float} (a lane or path line).
+func _keep_clear(tier: int) -> Array:
+	var out := []
+	for id in MapLayout.spots_for_tier(tier):
+		out.append({"pos": MapLayout.spot_position(id), "d": MapLayout.BUILD_RADIUS + 0.8, "what": id})
+	for id in MapLayout.STATION_PADS:
+		out.append({"pos": MapLayout.STATION_PADS[id], "d": MapLayout.BUILD_RADIUS + 0.8, "what": "pad %s" % id})
+	var points := {"COUNTER": MapLayout.COUNTER, "FREEZER": MapLayout.FREEZER, "GOLD_PILE": MapLayout.GOLD_PILE, "SIGN": MapLayout.SIGN,
+		"HOME": MapLayout.HOME, "DINER_DOOR": MapLayout.DINER_DOOR, "SERVICE_POINT": MapLayout.SERVICE_POINT,
+		"FREEZER_ZONE": MapLayout.FREEZER_ZONE, "COUNTER_DROP": MapLayout.COUNTER_DROP}
+	for name in points:
+		out.append({"pos": points[name], "d": 2.0, "what": name})
+	out.append({"pos": MapLayout.TIER_SIGN, "d": 2.5, "what": "tier sign"})
+	for q in MapLayout.QUEUE_SLOTS:
+		out.append({"pos": q, "d": 1.5, "what": "queue slot"})
+	for id in MapLayout.LANE_PATHS:
+		var pts: Array = MapLayout.LANE_PATHS[id]
+		for i in range(1, pts.size()):
+			out.append({"seg": [pts[i - 1], pts[i]], "d": 2.5, "what": "lane %s" % id})
+	for id in MapLayout.ZONE_RECTS:
+		out.append({"rect": MapLayout.ZONE_RECTS[id], "d": 1.5, "what": "zone %s" % id})
+	out.append({"seg": [MapLayout.TRAVELER_ENTER, MapLayout.TRAVELER_EXIT], "d": 3.0, "what": "traveler path"})
+	return out
+
+func _owned_tiers() -> Array:
+	return [2]
+
+func _distance_to(p: Vector2, rule: Dictionary) -> float:
+	if rule.has("pos"):
+		return p.distance_to(rule.pos)
+	if rule.has("rect"):
+		return Geometry.dist_point_rect(p, rule.rect)
+	return Geometry2D.get_closest_point_to_segment(p, rule.seg[0], rule.seg[1]).distance_to(p)
+
+func test_owned_props_keep_clear() -> void:
+	var seen := 0
+	for tier in _owned_tiers():
+		var rules := _keep_clear(tier)
+		for id in MapLayout.yards_for_tier(tier):
+			assert_true(PropsLayout.OWNED.has(id), "%s has owned-land props" % id)
+			for it in PropsLayout.OWNED.get(id, []):
+				seen += 1
+				var p: Vector2 = it.pos
+				assert_true((MapLayout.YARDS[id] as Rect2).grow(-0.4).has_point(p), "%s %s inside the %s yard, off the kerb" % [it.kind, p, id])
+				for rule in rules:
+					assert_gte(_distance_to(p, rule), float(rule.d), "tier %d: %s at %s clear of %s" % [tier, it.kind, p, rule.what])
+	assert_gt(seen, 6, "props were checked")
+
+func test_owned_props_ride_the_ground_mesh_and_have_no_collider() -> void:
+	var tier1 := GroundArt.terrain_mesh(World.ground_rect(), [])
+	assert_eq(_props_height_vertices(tier1, MapLayout.YARDS["west"]) + _props_height_vertices(tier1, MapLayout.YARDS["east"]), 0, "tier 1: nothing above the ground")
+	GameState.debug_set_tier(2, 3)
+	var ground := _ground_meshes()[0] as MeshInstance3D
+	assert_eq(_ground_meshes().size(), 1, "no extra draw")
+	assert_eq(ground.mesh.get_surface_count(), 1)
+	for id in ["west", "east"]:
+		assert_gt(_props_height_vertices(ground.mesh, MapLayout.YARDS[id]), 50, "%s yard carries its props" % id)
+	assert_eq(main.world.props.find_children("*", "MeshInstance3D", true, false).size(), 2, "the atlas props are still two meshes")
+	assert_eq(main.world.find_children("*", "CollisionObject3D", true, false).filter(func(n): return n.get_parent() == ground or n == ground).size(), 0)
+	var top := 0.0
+	for v in ground.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+		top = maxf(top, v.y)
+	assert_lt(top, 1.0, "small props")
+
+## Vertices of `mesh` inside `rect` that stand clearly above the paved ground (a prop).
+func _props_height_vertices(mesh: ArrayMesh, rect: Rect2) -> int:
+	var n := 0
+	for v in mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+		if v.y > 0.1 and rect.has_point(Vector2(v.x, v.z)):
+			n += 1
+	return n

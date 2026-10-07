@@ -3,6 +3,9 @@ extends SceneTree
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_yards.gd -- --out=docs/review/media/e5/task10
 ## Writes yards_home.png, yards_west.png and yards_east.png (720x1280) and a _40 copy of each (288x512). The hero stands
 ## at HOME, then at the tower_w stand point, then at tower_e's; the camera follows the hero's xz.
+## E5 tier 3 Task 2: the shots are named by --prefix= (default "yards"); the growth evidence uses
+##   --out=docs/review/media/e5t3/growth --prefix=yards_after   (writes yards_after_west.png, ...).
+## Its yards_after.png is a copy of the west view.
 var _focus := Vector2.ZERO
 
 func _initialize() -> void:
@@ -10,9 +13,12 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var out := "docs/review/media/e5/task10"
+	var prefix := "yards"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			out = a.trim_prefix("--out=")
+		elif a.begins_with("--prefix="):
+			prefix = a.trim_prefix("--prefix=")
 	var bal = root.get_node("Balance")
 	bal.reset()
 	bal.ui.shake_enabled = false
@@ -41,7 +47,7 @@ func _run() -> void:
 	main.world.wave_director.stop()
 	var graph = load("res://core/waypoint_graph.gd").create_for_tier(2)
 	var map_layout = load("res://core/map_layout.gd")
-	var spots := {"yards_home": map_layout.HOME, "yards_west": graph.position_of("tower_w"), "yards_east": graph.position_of("tower_e")}
+	var spots := {prefix + "_home": map_layout.HOME, prefix + "_west": graph.position_of("tower_w"), prefix + "_east": graph.position_of("tower_e")}
 	for name in spots:
 		main.hero.teleport(spots[name])
 		for i in 20:
