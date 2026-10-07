@@ -85,7 +85,7 @@ func current_alpha() -> float:
 func _process(delta: float) -> void:
 	var ui := Balance.ui
 	var target := ui.occluder_alpha if _any_occluded(ui.occluder_grow) else 1.0
-	if is_equal_approx(_alpha, target):
+	if _alpha == target:  # exact: move_toward lands on the target, and an approx test would strand a rise just under 1.0
 		return
 	var step := (1.0 - ui.occluder_alpha) / maxf(ui.occluder_fade_s, 1e-4) * delta
 	_alpha = move_toward(_alpha, target, step)

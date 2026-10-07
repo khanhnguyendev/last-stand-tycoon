@@ -73,3 +73,56 @@ func test_props_node_is_two_static_meshes_without_collision() -> void:
 		for i in mesh.get_surface_count():
 			expect += (mesh.surface_get_arrays(i)[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
 	assert_eq(tris, expect, "every item is in the merge")
+
+## E5 tier 3 Task 2: owned-land props are keyed by yard id, only for the open yards, outside the hand-placed layout.
+func test_owned_props_are_keyed_by_yard() -> void:
+	for id in PropsLayout.OWNED:
+		assert_true(MapLayout.YARDS.has(id), "%s is a yard id" % id)
+	var west: Array = PropsLayout.owned_for(["west"])
+	assert_eq(west.size(), PropsLayout.OWNED["west"].size())
+	assert_eq(PropsLayout.owned_for([]).size(), 0, "no open yard, no owned props")
+	for it in PropsLayout.OWNED["east"]:
+		assert_true(it.kind in ["crate", "barrel", "bench"])
+		assert_true((MapLayout.YARDS["east"] as Rect2).has_point(it.pos))
+
+func test_owned_mesh_is_palette_coloured_wound_outward_and_small() -> void:
+	var a := Props.owned_arrays(PropsLayout.OWNED["west"])
+	var verts: PackedVector3Array = a.v
+	var normals: PackedVector3Array = a.n
+	var idx: PackedInt32Array = a.i
+	assert_gt(idx.size(), 0)
+	var palette := Palette.hex_set()
+	for t in idx.size() / 3:
+		var p0 := verts[idx[t * 3]]
+		var p1 := verts[idx[t * 3 + 1]]
+		var p2 := verts[idx[t * 3 + 2]]
+		assert_lt((p1 - p0).cross(p2 - p0).dot(normals[idx[t * 3]]), 0.0, "front face is clockwise seen from outside")
+	for c in a.c:
+		assert_true(palette.has((c as Color).to_html(false)), "palette colour %s" % c)
+	for v in verts:
+		assert_lt(v.y, 1.0)
+
+## Winding against an oracle that is not the builder's own normal: on a crate or barrel side face the stored normal points
+## away from the item centre, and the geometric (clockwise) face normal points toward it.
+func test_side_faces_point_away_from_the_item_centre() -> void:
+	for kind in ["crate", "barrel"]:
+		var centre := Vector2(3.0, -2.0)
+		var a := Props.owned_arrays([{"kind": kind, "pos": centre, "rot": 0.7, "scale": 1.0}])
+		var verts: PackedVector3Array = a.v
+		var normals: PackedVector3Array = a.n
+		var idx: PackedInt32Array = a.i
+		var sides := 0
+		for t in idx.size() / 3:
+			var p0 := verts[idx[t * 3]]
+			var p1 := verts[idx[t * 3 + 1]]
+			var p2 := verts[idx[t * 3 + 2]]
+			var n: Vector3 = normals[idx[t * 3]]
+			if absf(n.y) > 0.5:
+				continue
+			sides += 1
+			var out := (p0 + p1 + p2) / 3.0 - Vector3(centre.x, 0.0, centre.y)
+			out.y = 0.0
+			assert_gt(n.dot(out), 0.0, "%s: the stored normal points away from the centre" % kind)
+			var geometric := (p1 - p0).cross(p2 - p0)
+			assert_lt(geometric.dot(out), 0.0, "%s: clockwise from outside, so the right-hand normal points inward" % kind)
+		assert_gt(sides, 8, "%s has side faces" % kind)

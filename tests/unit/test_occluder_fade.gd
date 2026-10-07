@@ -121,6 +121,31 @@ func test_fades_back_and_restores_opaque_material() -> void:
 		assert_same(mat, originals[m], "the original opaque material is back")
 		assert_eq(mat.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)
 
+## Regression (E5 slice 2 Task 1): a rise that lands a hair under 1.0 (within is_equal_approx of the target) used to
+## return early, so the restore branch never ran and the diner kept its transparent material duplicates.
+func test_a_fade_that_ends_a_hair_under_full_alpha_still_restores_the_materials() -> void:
+	var originals := {}
+	for m in _meshes():
+		originals[m] = (m as MeshInstance3D).material_override
+	var hero := _hero_at_north_center()
+	_aim_camera_at(Vector2(hero.x, hero.z))
+	_targets = [_hero_aim(hero)]
+	_run(1.0)
+	assert_true(_fade.is_faded())
+	assert_almost_eq(_fade.current_alpha(), Balance.ui.occluder_alpha, 1e-4)
+	_targets = []
+	var rate := (1.0 - Balance.ui.occluder_alpha) / Balance.ui.occluder_fade_s
+	_fade._process((1.0 - Balance.ui.occluder_alpha - 5e-6) / rate)  # leaves alpha 5e-6 under 1.0
+	assert_lt(_fade.current_alpha(), 1.0, "precondition: not yet 1.0")
+	assert_gt(_fade.current_alpha(), 1.0 - 1e-5, "precondition: within is_equal_approx of 1.0")
+	_fade._process(0.016)
+	assert_false(_fade.is_faded(), "the fade has ended")
+	assert_eq(_fade.current_alpha(), 1.0)
+	for m in _meshes():
+		assert_same((m as MeshInstance3D).material_override, originals[m], "the original opaque material is back")
+		for i in (m as MeshInstance3D).mesh.get_surface_count():
+			assert_null((m as MeshInstance3D).get_surface_override_material(i), "surface %d override is null" % i)
+
 func test_faded_material_does_not_leak_into_shared_cache() -> void:
 	var shared := FixtureBox.material(FixtureBox.COLORS.diner)
 	var hero := _hero_at_north_center()
@@ -335,3 +360,128 @@ func test_setup_merges_a_passed_box_and_empty_box_is_ignored() -> void:
 	assert_true(fade.bounds.encloses(big) and fade.bounds.encloses(without))
 	fade.setup(AABB(), func(): return _cam, func(): return _targets)
 	assert_eq(fade.bounds, without)
+
+# ---- E5 slice 2 Task 1: guards trigger the fade; every mesh of the building is in the fade's set at every tier ----
+
+func _wired_main_with_tank_at_north() -> Main:
+	var main := Main.create()
+	add_child_autofree(main)
+	main.hero.input.player_control = false
+	main.phase_controller.start_new_game(72)
+	main.world.wave_director.stop()
+	main.hero.teleport(MapLayout.HOME)
+	GameState.debug_grant_card(&"tank")
+	var g: Guard = main.world.guard_roster.guards[&"tank"]
+	g.place_at_post()
+	g.set_physics_process(false)  # stays where the test puts it
+	g.global_position = MapLayout.to3((MapLayout.ZONE_RECTS["north"] as Rect2).get_center())
+	main.camera_rig.snap()
+	return main
+
+func test_wired_a_guard_alone_at_the_north_zone_fades_the_diner() -> void:
+	var main := _wired_main_with_tank_at_north()
+	assert_eq(main.world.wave_director.alive_enemies().size(), 0, "no monster")
+	var fade: OccluderFade = main.world.occluder_fade
+	for i in 40:
+		await get_tree().process_frame
+	assert_eq(main.world.wave_director.alive_enemies().size(), 0, "still no monster after the frames")
+	assert_true(fade.is_faded(), "a guard behind the diner fades it, as the hero does")
+	GameState.new_game(1)
+
+func test_wired_without_a_guard_behind_the_diner_it_stays_opaque() -> void:
+	var main := _wired_main_with_tank_at_north()
+	var g: Guard = main.world.guard_roster.guards[&"tank"]
+	g.global_position = MapLayout.to3(MapLayout.guard_post(&"tank"))  # back at its post, clear of the diner
+	main.camera_rig.snap()
+	for i in 40:
+		await get_tree().process_frame
+	assert_false(main.world.occluder_fade.is_faded(), "nobody is behind the diner")
+	GameState.new_game(1)
+
+func test_wired_every_mesh_surface_of_the_building_is_faded_at_every_tier() -> void:
+	var main := _wired_main_with_tank_at_north()
+	var fade: OccluderFade = main.world.occluder_fade
+	var vis := main.world.diner_body.get_node("Visual")
+	for tier in [1, 2]:
+		GameState.debug_set_tier(tier, 1)
+		await get_tree().process_frame
+		for i in 40:
+			await get_tree().process_frame
+		assert_true(fade.is_faded(), "tier %d faded" % tier)
+		var meshes := vis.find_children("*", "MeshInstance3D", true, false)
+		assert_gt(meshes.size(), 0)
+		var surfaces := 0
+		for m in meshes:
+			var mi := m as MeshInstance3D
+			for k in mi.mesh.get_surface_count():
+				surfaces += 1
+				var mat := mi.get_surface_override_material(k) as BaseMaterial3D
+				assert_not_null(mat, "tier %d: %s surface %d is in the fade's set" % [tier, mi.get_path(), k])
+				if mat != null:
+					assert_almost_eq(mat.albedo_color.a, Balance.ui.occluder_alpha, 0.02)
+		assert_gte(surfaces, 2 if tier == 2 else 1)
+	GameState.new_game(1)
+
+func _real_diner_t2() -> OccluderFade:
+	var visual := Visuals.visual_root()
+	add_child_autofree(visual)
+	visual.add_child(load("res://art/env/diner_t2.tscn").instantiate())
+	var fade := OccluderFade.new()
+	fade.name = "RealFadeT2"
+	visual.add_child(fade)
+	fade.setup(AABB(), func(): return _cam, func(): return _targets)
+	return fade
+
+## The fade tests every box of the building: the tier-1 ones plus the chimney and the board the tier-2 art adds. (What the added parts hide is already hidden by the walls: see the sweeps in test_diner_art.gd.)
+func test_tier2_fade_boxes_include_the_added_parts() -> void:
+	var fade := _real_diner_t2()
+	var added: Array[AABB] = load("res://art/env/diner_art_t2.gd").ADDED_BOXES
+	assert_gt(added.size(), 0)
+	for b in added:
+		var found := false
+		for fb in fade.boxes():
+			if fb.position.is_equal_approx(b.position) and fb.size.is_equal_approx(b.size):
+				found = true
+		assert_true(found, "the fade tests the added box %s" % b)
+	var tier1: Array = autofree(load("res://art/env/diner_art.gd").new()).occluder_boxes
+	assert_eq(fade.boxes().size(), tier1.size() + added.size(), "exactly the tier-1 boxes plus the added ones")
+
+## Fix round 1 item 4, real fixture, real camera geometry: something directly behind the building fades the tier-2 diner,
+## parts included (the Body's surfaces and the Board label); the home, counter and a far-north Boar leave it opaque.
+func test_tier2_diner_fades_for_a_hero_and_a_boar_behind_it() -> void:
+	var fade := _real_diner_t2()
+	var hero := _hero_at_north_center()
+	_aim_camera_at(Vector2(hero.x, hero.z))
+	_targets = [_hero_aim(hero)]
+	_run_fade(fade, Balance.ui.occluder_fade_s * 3.0)
+	assert_true(fade.is_faded(), "the hero behind the diner fades it")
+	var body := fade.get_parent().find_child("Body", true, false) as MeshInstance3D
+	for k in body.mesh.get_surface_count():
+		assert_almost_eq((body.get_surface_override_material(k) as BaseMaterial3D).albedo_color.a, Balance.ui.occluder_alpha, 0.02, "surface %d" % k)
+	assert_almost_eq(_real_board(fade).modulate.a, Balance.ui.occluder_alpha, 1e-3, "the Board label fades with it")
+	_targets = []
+	_run_fade(fade, 2.0)
+	assert_false(fade.is_faded())
+	# a Boar (a monster) on the north lane behind the diner, the hero at HOME
+	var boar := _boar_aim(MapLayout.to3(Vector2(0.0, -6.5)))
+	_aim_camera_at(MapLayout.HOME)
+	_targets = [_hero_aim(MapLayout.to3(MapLayout.HOME)), boar]
+	_run_fade(fade, Balance.ui.occluder_fade_s * 3.0)
+	assert_true(fade.is_faded(), "a monster behind the diner fades it")
+
+func test_tier2_diner_stays_opaque_for_the_hero_at_home_and_the_counter_and_a_far_north_boar() -> void:
+	var fade := _real_diner_t2()
+	_aim_camera_at(MapLayout.COUNTER_DROP)
+	_targets = [_hero_aim(MapLayout.to3(MapLayout.COUNTER_DROP))]
+	_run_fade(fade, Balance.ui.occluder_fade_s * 3.0)
+	assert_false(fade.is_faded(), "the hero at the counter")
+	_aim_camera_at(MapLayout.HOME)
+	_targets = [_hero_aim(MapLayout.to3(MapLayout.HOME))]
+	_run_fade(fade, Balance.ui.occluder_fade_s * 3.0)
+	assert_false(fade.is_faded(), "the hero at HOME")
+	_targets = [_hero_aim(MapLayout.to3(MapLayout.HOME)), _boar_aim(Vector3(0, 0, -14))]
+	_run_fade(fade, Balance.ui.occluder_fade_s * 3.0)
+	assert_false(fade.is_faded(), "a Boar at (0, -14) with the hero at HOME")
+	for m in fade.get_parent().find_children("*", "MeshInstance3D", true, false):
+		for k in (m as MeshInstance3D).mesh.get_surface_count():
+			assert_null((m as MeshInstance3D).get_surface_override_material(k), "opaque: surface %d untouched" % k)
