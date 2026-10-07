@@ -77,7 +77,7 @@ func _physics_process(delta: float) -> void:
 func _start_wave(w: int) -> void:
 	wave_index = w
 	var plan: Dictionary = _plan[w]
-	_schedule = WaveSchedule.build(plan, Balance.data.wave, Balance.data.tiers)
+	_schedule = WaveSchedule.build(plan, Balance.data.wave, Balance.data.tiers, GameState.tier)
 	_next = 0
 	_t = 0.0
 	_spawned_out_sent = false
@@ -120,7 +120,7 @@ func on_enemy_died(boar: Boar) -> void:
 
 func boss_alive() -> bool:
 	for b in _alive:
-		if (b as Boar).kind == &"boss":
+		if (b as Boar).is_boss:
 			return true
 	return false
 

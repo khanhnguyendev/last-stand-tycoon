@@ -3,9 +3,11 @@ extends RefCounted
 ## Spawn times for one wave and the clear rule (spec 7.1, D-044).
 
 ## E5 (spec 4.2): entries carry `kind`. The last fast_main / fast_side entries of each group are hares (they spawn behind
-## the boars and overtake them). A boss wave puts one &"boss" entry first at t = 0 and shifts the rest by boss_lead.
+## the boars and overtake them). A boss wave puts one boss entry first at t = 0 (the kind of `tier`, TierEffects.boss_kind_for:
+## the Boar King leaving tier 1, Baron von Hop leaving tier 2) and shifts the rest by boss_lead; a tier with no boss (the top)
+## gets neither the entry nor the lead.
 ## Brutes (E5 tier 3) are appended after each group. A wave without the new keys (a schema 4 plan before its first dawn) is all boars.
-static func build(wave: Dictionary, wb: WaveBalance, tb: TierBalance = null) -> Array:
+static func build(wave: Dictionary, wb: WaveBalance, tb: TierBalance = null, tier := 1) -> Array:
 	var out: Array = []
 	var main_n := int(wave.main_count)
 	var side_n := int(wave.side_count)
@@ -13,13 +15,14 @@ static func build(wave: Dictionary, wb: WaveBalance, tb: TierBalance = null) -> 
 	var fast_side := int(wave.get("fast_side", 0))
 	var brute_main := int(wave.get("brute_main", 0))
 	var brute_side := int(wave.get("brute_side", 0))
-	var boss := bool(wave.get("boss", false))
 	var lead := 0.0
-	if boss:
+	if bool(wave.get("boss", false)):
 		if tb == null:
 			tb = Balance.data.tiers
-		lead = tb.boss_lead
-		out.append({"t": 0.0, "lane": String(wave.main), "side": false, "kind": &"boss"})
+		var boss_kind := TierEffects.boss_kind_for(tier, tb)
+		if boss_kind != &"":
+			lead = tb.boss_lead
+			out.append({"t": 0.0, "lane": String(wave.main), "side": false, "kind": boss_kind})
 	for i in main_n:
 		var kind: StringName = &"hare" if i >= main_n - fast_main else &"boar"
 		out.append({"t": lead + i * wb.spawn_interval, "lane": String(wave.main), "side": false, "kind": kind})

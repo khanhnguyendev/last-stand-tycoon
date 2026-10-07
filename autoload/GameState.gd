@@ -123,8 +123,8 @@ func from_dict(d: Dictionary) -> void:
 			wave["brute_main"] = int(w.get("brute_main", 0))
 			wave["brute_side"] = int(w.get("brute_side", 0))
 		lane_plan.append(wave)
-	# A pending boss always rides tonight's plan (a hand-edited save cannot skip it).
-	if boss_pending and not lane_plan.is_empty():
+	# A pending boss always rides tonight's plan (a hand-edited save cannot skip it), when the tier has a boss to send.
+	if boss_pending and not lane_plan.is_empty() and TierEffects.boss_kind_for(tier, Balance.data.tiers) != &"":
 		lane_plan[lane_plan.size() - 1].boss = true
 	cards = {}
 	for k in d.cards:
@@ -446,13 +446,18 @@ func advance_day() -> void:
 
 func _plan_today() -> Array:
 	var p := LanePlanner.plan(run_seed, day, Balance.data.wave, tier, tier_day, Balance.data.tiers)
-	return LanePlanner.with_boss(p) if boss_pending else p
+	return _with_tonights_boss(p) if boss_pending else p
+
+## Marks the last wave as the boss wave, unless this tier has no boss to send (the top tier: a pending boss there is a clamped save).
+func _with_tonights_boss(p: Array) -> Array:
+	return LanePlanner.with_boss(p) if TierEffects.boss_kind_for(tier, Balance.data.tiers) != &"" else p
 
 func pressure() -> int:
 	return WaveMath.pressure(day, tier, tier_day, Balance.data.tiers)
 
 func is_boss_night() -> bool:
-	return not lane_plan.is_empty() and bool(lane_plan[lane_plan.size() - 1].get("boss", false))
+	return not lane_plan.is_empty() and bool(lane_plan[lane_plan.size() - 1].get("boss", false)) \
+		and TierEffects.boss_kind_for(tier, Balance.data.tiers) != &""
 
 ## -1 when this build has no next tier. Also -1 before the first new_game (buildings is empty while the world warms up).
 func tier_next_cost() -> int:
@@ -480,7 +485,7 @@ func pay_into_tier(amount: int) -> int:
 	if tier_paid >= cost:
 		tier_paid = 0
 		boss_pending = true
-		lane_plan = LanePlanner.with_boss(lane_plan)  # the boss rides tonight's plan; with_boss copies and draws no RNG
+		lane_plan = _with_tonights_boss(lane_plan)  # the boss rides tonight's plan; with_boss copies and draws no RNG
 		EventBus.tier_changed.emit(tier, tier_paid, boss_pending)
 		EventBus.tier_paid_up.emit(tier + 1)
 	else:
