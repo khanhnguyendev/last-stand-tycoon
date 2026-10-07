@@ -126,9 +126,9 @@ func test_pool_sizes_from_balance() -> void:
 	# PINNED REFERENCE: spec 11 at the default Balance (D-124: steaks from the CAPPED day-10 counts
 	# 17 + 25 + 30). If Task 35 changes a wave or economy value, update this row and spec 11 together.
 	# E5: the boss is one more spawn; steaks = the top tier's capped night (72 kills x 2, tier-2 cap 10) + the boss drop (100), x 1.2
-	# The switch (Task 21): the top tier is 3: 84 kills x 2 (tier-3 cap 15) + 6 brutes x 8 + the Baron's 150 = 366, x 1.2 = 440 steaks;
+	# The switch (Task 21): the top tier is 3: 78 kills x 2 (tier-3 cap 12, the ruling) + 3 main-lane brutes x 8 + the Baron's 150 = 330, x 1.2 = 396 steaks;
 	# projectiles: the tier-3 tower list (5 towers) at the worst in-flight count. Before the switch: steak 293, projectile 35.
-	assert_eq(World.pool_sizes(Balance.data), {"enemy": 41, "steak": 440, "projectile": 42, "fx": 32})
+	assert_eq(World.pool_sizes(Balance.data), {"enemy": 41, "steak": 396, "projectile": 42, "fx": 32})
 
 func test_guard_arm_damages_the_guard_and_stops_the_boar() -> void:
 	GameState.debug_grant_card(&"tank")

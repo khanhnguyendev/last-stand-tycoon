@@ -293,7 +293,7 @@ func test_the_steak_pool_holds_the_barons_drop_plus_the_tier_2_cap_night() -> vo
 	var need: int = kills * bd.economy.steaks_per_kill + bd.monsters.stats(&"baron").steaks_per_kill
 	assert_eq(need, 294)
 	assert_gte(World.pool_sizes(bd).steak, 294, "three costs: the Baron's 150 is the biggest drop")
-	assert_eq(World.pool_sizes(bd).steak, 440, "literal with three costs: ceil((tier-3 cap night + 6 brutes x 8 + 150) x 1.2)")
+	assert_eq(World.pool_sizes(bd).steak, 396, "literal with three costs: ceil((tier-3 cap night + 3 main-lane brutes x 8 + 150) x 1.2) = ceil((78 x 2 + 24 + 150) x 1.2)")
 	var two: BalanceData = bd.duplicate(true)
 	two.tiers.tier_costs = two.tiers.tier_costs.slice(0, 2)
 	assert_eq(World.pool_sizes(two).steak, 293, "two costs: the King's 100")

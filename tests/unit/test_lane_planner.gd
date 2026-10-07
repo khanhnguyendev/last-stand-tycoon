@@ -235,8 +235,13 @@ func test_tier3_lanes_follow_the_four_lane_oracle() -> void:
 ## Brute rule (doc comment of TierEffects.brute_counts): d = day - tier_day; the last d + 1 waves carry the cap on their
 ## main lane until d reaches brute_ramp_days; from then on every wave does, and side lanes get brute_cap_side.
 func test_brute_counts_every_day_of_the_ramp() -> void:
-	var tb := Balance.data.tiers
-	assert_eq([tb.brute_cap_main[3], tb.brute_cap_side[3], tb.brute_ramp_days[3]], [1, 1, 3])
+	# The ruling: the live balance carries main-lane brutes only (side cap 0). The side-lane CODE path is kept covered by
+	# an explicit in-memory override of the side cap (1), the values this test pinned before the ruling.
+	var live := Balance.data.tiers
+	assert_eq([live.brute_cap_main[3], live.brute_cap_side[3], live.brute_ramp_days[3]], [1, 0, 3], "the ruling")
+	var tb: TierBalance = live.duplicate(true)
+	tb.brute_cap_side.assign([0, 0, 0, 1])
+	assert_eq(Array(live.brute_cap_side), [0, 0, 0, 0], "the override is in memory only")
 	var main_by_day := {
 		22: [0, 0, 1], 23: [0, 1, 1], 24: [1, 1, 1], 25: [1, 1, 1], 30: [1, 1, 1],
 	}
@@ -247,6 +252,8 @@ func test_brute_counts_every_day_of_the_ramp() -> void:
 			assert_eq([c.main, c.side], [main_by_day[day][w], side_by_day[day][w]], "day %d wave %d" % [day, w])
 			var no_side := TierEffects.brute_counts(day, 3, 22, w, 3, false, tb)
 			assert_eq([no_side.main, no_side.side], [main_by_day[day][w], 0], "day %d wave %d without a side lane" % [day, w])
+			var real := TierEffects.brute_counts(day, 3, 22, w, 3, true, live)
+			assert_eq([real.main, real.side], [main_by_day[day][w], 0], "day %d wave %d live balance: no side brutes" % [day, w])
 
 func test_brute_counts_are_zero_below_tier_3() -> void:
 	# Non-zero caps at tiers 1 and 2: only the `tier < 3` gate keeps them at zero (mutation: dropping the gate fails this).
@@ -261,21 +268,25 @@ func test_brute_counts_are_zero_below_tier_3() -> void:
 	assert_eq(TierEffects.brute_counts(30, 3, 22, 0, 3, true, tb), {"main": 1, "side": 1}, "the gate opens at tier 3")
 
 func test_tier3_plan_first_night_has_one_brute_on_the_last_main_lane() -> void:
-	var tb := Balance.data.tiers
-	for seed in [1, 2, 3, 555, 20260930]:
-		var p := LanePlanner.plan(seed, 22, wb, 3, 22, tb)
-		var total := 0
-		for w in p.size():
-			total += int(p[w].brute_main) + int(p[w].brute_side)
-		assert_eq(total, 1)
-		assert_eq([p[0].brute_main, p[1].brute_main, p[2].brute_main], [0, 0, 1])
-		assert_eq([p[0].brute_side, p[1].brute_side, p[2].brute_side], [0, 0, 0])
-		var full := LanePlanner.plan(seed, 25, wb, 3, 22, tb)
-		for w in full.size():
-			assert_eq([full[w].brute_main, full[w].brute_side], [1, 1 if full[w].side != "" else 0])
-			# brutes are added, not taken out of the groups
-			var s := WaveMath.split(WaveMath.pressure(25, 3, 22, tb), w, wb)
-			assert_eq([full[w].main_count, full[w].side_count], [int(s.main), int(s.side)])
+	# Run on the live balance (side brutes 0, the ruling) and on an in-memory override with side brutes 1 (code path).
+	var over: TierBalance = Balance.data.tiers.duplicate(true)
+	over.brute_cap_side.assign([0, 0, 0, 1])
+	for tb in [Balance.data.tiers, over]:
+		var side_cap: int = tb.brute_cap_side[3]
+		for seed in [1, 2, 3, 555, 20260930]:
+			var p := LanePlanner.plan(seed, 22, wb, 3, 22, tb)
+			var total := 0
+			for w in p.size():
+				total += int(p[w].brute_main) + int(p[w].brute_side)
+			assert_eq(total, 1)
+			assert_eq([p[0].brute_main, p[1].brute_main, p[2].brute_main], [0, 0, 1])
+			assert_eq([p[0].brute_side, p[1].brute_side, p[2].brute_side], [0, 0, 0])
+			var full := LanePlanner.plan(seed, 25, wb, 3, 22, tb)
+			for w in full.size():
+				assert_eq([full[w].brute_main, full[w].brute_side], [1, side_cap if full[w].side != "" else 0], "side cap %d" % side_cap)
+				# brutes are added, not taken out of the groups
+				var s := WaveMath.split(WaveMath.pressure(25, 3, 22, tb), w, wb)
+				assert_eq([full[w].main_count, full[w].side_count], [int(s.main), int(s.side)])
 
 func test_threat_keys_per_tier_and_brute_hp() -> void:
 	var tb := Balance.data.tiers
