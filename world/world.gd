@@ -384,6 +384,7 @@ func _sync_branch_pads() -> void:
 	var want: Array[String] = []
 	if _effective_tier() >= 3:
 		want = MapLayout.spots_for_tier(_effective_tier())
+	var had_pads := not branch_pads.is_empty()
 	for id in branch_pads.keys():
 		if not id in want:
 			for p in branch_pads[id]:
@@ -402,8 +403,9 @@ func _sync_branch_pads() -> void:
 			pad.refresh()
 			pads.append(pad)
 		branch_pads[id] = pads
-	for id in build_spots:
-		(build_spots[id] as BuildSpot).refresh()
+	if had_pads or not want.is_empty():  # tiers 1 and 2 never touch a spot here
+		for id in build_spots:
+			(build_spots[id] as BuildSpot).refresh()
 
 func _make_spot(id: String) -> void:
 	var s: BuildSpot = TowerSpot.new() if MapLayout.spot_kind(id) == "tower" else FenceSpot.new()

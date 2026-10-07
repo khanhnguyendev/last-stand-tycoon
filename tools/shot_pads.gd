@@ -1,12 +1,15 @@
 extends SceneTree
-## The branch pads at phone size (E5 tier 3 Task 17). Run WITH rendering (not --headless):
+## The branch pads at phone size, in stages (E5 tier 3 Task 17, fix round 1). Run WITH rendering (not --headless):
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_pads.gd -- --out=docs/review/media/e5t3/pads
-## A real tier-3 world (the cost entry appended here, tier 3 forced, all nine buildings at level 3). Writes, each 720x1280 plus a
-## _40 copy (288x512): pad_<spot_id>.png for every spot (the hero standing on its first pad, the preview showing) and
-## pad_<spot_id>_b.png (on its second pad), sw_corner.png (the hero on fence_sw's first pad: tower_sw's and fence_sw's four pads
-## all on screen), and refund.png (the other pad's partial payment flying back to the hero).
-## The capture camera is placed at its framing when it is created, label_dim_alpha is 1 (no label dimmed under the HUD), and
-## every grab waits for the diner's fade to settle.
+## A real tier-3 world (the cost entry appended here, tier 3 forced). Writes, each 720x1280 plus a _40 copy (288x512):
+##   dawn_all_pads.png (the hero at HOME, the seven buildings of the tier-3 dawn at level 3: the far stage),
+##   near_stage.png (the hero 3 m from tower_nw's nearest pad, not on one: cost under each glyph),
+##   pad_<spot_id>_a.png and pad_<spot_id>_b.png (the hero standing on each of the 18 pads, preview showing; all nine buildings built),
+##   sw_corner.png (the hero on fence_sw's first pad: tower_sw's and fence_sw's four pads all on screen), refund.png.
+## The capture camera is placed at its framing when it is created. The HUD dims world labels by the GAME camera
+## (main.camera_rig.camera), so every grab snaps that camera to the hero's framing and copies its transform to the capture camera:
+## the dimmer and the picture use one view (the tool prints the largest difference from CameraMath's framing). label_dim_alpha is
+## NOT forced: the real dimming shows. Every grab waits for the diner's fade to settle.
 
 var _out := ""
 
@@ -28,7 +31,6 @@ func _run() -> void:
 	var bus = root.get_node("EventBus")
 	bal.reset()
 	bal.ui.shake_enabled = false
-	bal.ui.label_dim_alpha = 1.0
 	var camera_math = load("res://core/camera_math.gd")
 	var layout = load("res://core/map_layout.gd")
 	var main = load("res://world/main.gd").create()
@@ -61,18 +63,20 @@ func _run() -> void:
 	gs.lane_plan = [_wave("west", 6, 2, "sw", 4, 0, 1, 0), _wave("north", 4, 0, "east", 3, 0, 0, 1)]
 	for m in main.world.telegraph_markers.values():
 		m.refresh()
-	gs.gold = 100000
-	for id in layout.spots_for_tier(3):
-		while gs.next_level_cost(id) >= 0:
-			gs.pay_into_spot(id, 100000)
-	gs.gold = 0
+	var seven := ["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e", "tower_w", "tower_e"]
+	_max(gs, layout, seven)
+	for i in 30:
+		await physics_frame
+	await _grab(main, cam, camera_math, bal, "dawn_all_pads", layout.HOME, true)
+	await _grab(main, cam, camera_math, bal, "near_stage", Vector2(-3.0, -2.5), true)
+	_max(gs, layout, layout.spots_for_tier(3))
 	for i in 30:
 		await physics_frame
 	for id in layout.spots_for_tier(3):
 		for i in 2:
 			var p: Vector2 = (layout.BRANCH_PADS[id] as Array)[i]
-			await _grab(main, cam, camera_math, bal, "pad_%s%s" % [id, "" if i == 0 else "_b"], p)
-	await _grab(main, cam, camera_math, bal, "sw_corner", (layout.BRANCH_PADS["fence_sw"] as Array)[0])
+			await _grab(main, cam, camera_math, bal, "pad_%s_%s" % [id, "ab"[i]], p, true)
+	await _grab(main, cam, camera_math, bal, "sw_corner", (layout.BRANCH_PADS["fence_sw"] as Array)[0], true)
 	# the four pads of the corner: each on screen from the framing of the shot
 	var vr := Rect2(Vector2.ZERO, vp)
 	for id in ["tower_sw", "fence_sw"]:
@@ -86,7 +90,6 @@ func _run() -> void:
 	gs.gold = cost
 	var a: Vector2 = (layout.BRANCH_PADS["tower_e"] as Array)[0]
 	main.hero.teleport(a)
-	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(a), bal.ui)
 	for i in 20:
 		await physics_frame
 	gs.pay_into_branch("tower_e", &"longbow", cost)  # completes: the Volley pad's gold flies back to the hero
@@ -95,14 +98,24 @@ func _run() -> void:
 	await _save(main, cam, camera_math, bal, "refund", a, false)
 	quit(0)
 
-func _grab(main, cam: Camera3D, camera_math, bal, name: String, focus: Vector2) -> void:
+func _max(gs, layout, ids: Array) -> void:
+	gs.gold = 100000
+	for id in ids:
+		while gs.next_level_cost(id) >= 0:
+			gs.pay_into_spot(id, 100000)
+	gs.gold = 0
+
+func _grab(main, cam: Camera3D, camera_math, bal, name: String, focus: Vector2, _settle: bool) -> void:
 	main.hero.teleport(focus)
-	for i in 30:  # the hero is inside the pad: the preview shows
+	for i in 30:  # the hero is inside the pad: the stage and the preview settle
 		await physics_frame
 	await _save(main, cam, camera_math, bal, name, focus, true)
 
 func _save(main, cam: Camera3D, camera_math, bal, name: String, focus: Vector2, settle: bool) -> void:
-	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(focus), bal.ui)
+	main.camera_rig.snap_to(camera_math.focus_for(focus))  # the HUD's dimmer reads this camera
+	cam.global_transform = main.camera_rig.camera.global_transform
+	var want: Transform3D = camera_math.camera_transform(camera_math.focus_for(focus), bal.ui)
+	print("camera agreement for ", name, ": origin diff ", (want.origin - cam.global_transform.origin).length())
 	if settle:
 		for i in 90:  # the diner's fade settles
 			await process_frame

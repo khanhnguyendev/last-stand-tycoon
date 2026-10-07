@@ -71,13 +71,13 @@ const TRAVELER_EXIT_T3 := Vector2(24, 11)
 ## Branch pads (spec 4.3): radius, and two pad centres per spot, chosen with tools/probe_t3_layout.gd (clear of the tier-2 yards' props and kerb too) and pinned by test_branch_pad_layout.
 const BRANCH_PAD_RADIUS := 0.9
 const BRANCH_PADS := {
-	"tower_sw": [Vector2(-7.4, 3.1), Vector2(-5.4, 4.1)],
+	"tower_sw": [Vector2(-7.7, 3.1), Vector2(-5.4, 4.1)],
 	"fence_sw": [Vector2(-5.6, 7.8), Vector2(-1.0, 10.7)],
 	"fence_w": [Vector2(-9.5, -3.7), Vector2(-6.1, -6.1)],
 	"fence_n": [Vector2(-2.5, -10.4), Vector2(2.5, -10.4)],
 	"fence_e": [Vector2(6.1, -6.1), Vector2(9.4, -3.5)],
-	"tower_nw": [Vector2(-4.1, -7.5), Vector2(-3.0, -5.5)],
-	"tower_ne": [Vector2(3.0, -5.5), Vector2(4.1, -7.5)],
+	"tower_nw": [Vector2(-4.0, -7.6), Vector2(-3.0, -5.5)],
+	"tower_ne": [Vector2(3.0, -5.5), Vector2(4.0, -7.6)],
 	"tower_w": [Vector2(-10.7, 2.4), Vector2(-8.9, 1.1)],
 	"tower_e": [Vector2(6.6, 2.1), Vector2(7.5, 0.0)],
 }
