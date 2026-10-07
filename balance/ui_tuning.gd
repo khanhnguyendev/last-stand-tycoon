@@ -212,7 +212,7 @@ extends Resource
 @export var branch_pad_cost_font := 48
 @export var branch_pad_warn_font := 40
 @export var branch_pad_label_pixel_size := 0.011
-@export var branch_pad_cost_pixel_size := 0.0130
+@export var branch_pad_cost_pixel_size := 0.0132
 @export var branch_pad_warn_pixel_size := 0.0105
 @export var branch_pad_icon_min_px := 28.0
 @export var branch_pad_far_icon_min_px := 20.0
