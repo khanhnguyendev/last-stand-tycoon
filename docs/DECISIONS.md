@@ -2410,3 +2410,26 @@ costs. Every number is in `balance/`; sims tune them.
 - **Sims:** the three full-build policies of D-263 plus a threat-matched policy (the bot picks the branch matching
   its lane's dominant threat). Threat-matched should do best; if not, REVIEW_QUEUE gets "branches don't reward
   reading the telegraph".
+
+**D-265 The tier-3 monster is a siege brute (author).** The roadmap's "reach beyond fences" wording is replaced by
+"wrecks fences": the brute keeps the Boar's attack reach, so the attack-zone stop points and test A' stay valid. The
+thrower (ranged, stops outside the fence) goes to Post-tier-3 ideas as a possible tier-4/5 enemy; it needs ranged
+monster attacks and its own coverage rules. The charger is rejected: burst damage makes Stone wall the only answer.
+1. **Behavior:** the Boar's target order (lane fence, guard in reach, diner). A fence damage multiplier in `balance/`
+   (several times normal); normal damage against guards and the diner. Stone wall applies its brute-specific
+   reduction (D-264).
+2. **Numbers, all in `balance/`:** HP, speed (clearly slower than the Boar), count per wave as a curve over day and
+   tier with a cap. Only from the tier-3 unlock. Never a swarm: a small cap per wave, and at most 1 per lane per wave
+   unless the sims prove more is needed.
+3. **Telegraph and readability:** shown per lane in the day telegraph (D-264); at night a distinct big silhouette, a
+   heavy slow walk and a ground-thump hit on the fence; the edge arrow marks a brute lane distinctly; readable at
+   phone size (40% screenshot).
+4. **Reward:** more steaks than a Boar, in `balance/`; included in the economy math and the tier-3 sink sizing.
+5. **Sims and tests:** targeting order and the fence multiplier; the Stone wall reduction applies only to brute hits;
+   a brute lane with no fence behaves as a tanky Boar; determinism with brutes; `sim-tiers` branch policies face
+   brute lanes and the threat-matched policy (Stone wall or Longbow on brute lanes) should do best; pools sized from
+   the new caps.
+6. **Art:** a CC0 model per ART_BIBLE: big, cute-dangerous, in the Boar's style family; walk, attack, hit and death
+   (or tween fakes). Main-session note: the Boar, the hare and the Boar King are procedural meshes (D-192, D-246); if
+   no CC0 pack model sits in that family, the fallback is the same procedural builder, logged with a REVIEW_QUEUE
+   entry.
