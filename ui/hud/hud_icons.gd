@@ -15,6 +15,10 @@ const MOON_LIT := Color.WHITE
 ## The lane edge arrows (S5 Task 9): the guide_arrow cell, tinted enemy_red, in a square of Balance.ui.arrow_px centred 2 px below the
 ## holder's origin (the old polygon spanned -16..20), tip down at rotation 0.
 const ARROW_CENTER := Vector2(0, 2)
+## The brute glyph on a heavy arrow (E5 tier 3 Task 14): this fraction of arrow_px.
+const HEAVY_FRAC := 0.6
+## and sits this fraction of arrow_px toward the arrow's tail, so the tip still points.
+const HEAVY_LIFT := 0.16
 
 ## The diner-bar slot; the heart sits left of it, centred on its height.
 var heart_anchor: Control
@@ -98,4 +102,7 @@ func _draw() -> void:
 			continue
 		draw_set_transform(a.position, a.rotation, a.scale)
 		draw_texture_rect_region(atlas, IconAtlas.shape_dest(Rect2(ARROW_CENTER - Vector2.ONE * px * 0.5, Vector2.ONE * px)), cell, red)
+		if a.heavy:  # the heavy mark: the brute head with its ink outline, upright (the arrow may be rotated), y flipped for the screen
+			draw_set_transform(a.position + (ARROW_CENTER + Vector2(0, -px * HEAVY_LIFT)).rotated(a.rotation) * a.scale, 0.0, a.scale * Vector2(px, -px) * HEAVY_FRAC)
+			draw_mesh(LaneIcons.mesh(&"brute"), null)
 	draw_set_transform_matrix(Transform2D.IDENTITY)

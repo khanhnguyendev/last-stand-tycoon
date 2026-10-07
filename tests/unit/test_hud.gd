@@ -383,3 +383,45 @@ func test_day_label_shows_the_new_day_at_the_tier_up_dawn_before_the_reveal() ->
 	main.phase_controller.debug_skip_to_day()
 	assert_true(main.phase_controller.reveal_pending, "the reveal has not fired")
 	assert_eq(hud.day_label.text, tr("Day %d") % GameState.day)
+
+# --- E5 tier 3 Task 14 (spec 6.5, D-264): the heavy mark on the arrow of a lane that carries a brute ---
+
+func _brute_plan() -> Array:
+	# West carries one brute (wave 0 main) and east none; north and the rest nothing.
+	return [
+		{"main": "west", "side": "east", "main_count": 5, "side_count": 3, "hp_mult": 1.0, "fast_main": 0, "fast_side": 0, "boss": false, "brute_main": 1, "brute_side": 0},
+		{"main": "north", "side": "", "main_count": 4, "side_count": 0, "hp_mult": 1.0, "fast_main": 0, "fast_side": 0, "boss": false, "brute_main": 0, "brute_side": 0},
+	]
+
+func test_an_arrow_for_a_lane_with_a_brute_carries_the_mark_and_others_do_not() -> void:
+	GameState.lane_plan = _brute_plan()
+	EventBus.phase_changed.emit(Phase.NIGHT, 5)
+	EventBus.wave_incoming.emit(0, &"west", &"east")
+	assert_true(hud.arrows.main.visible and hud.arrows.side.visible)
+	assert_true(hud.arrows.main.heavy, "west carries a brute")
+	assert_false(hud.arrows.side.heavy, "east does not")
+	EventBus.wave_incoming.emit(1, &"east", &"west")
+	assert_false(hud.arrows.main.heavy, "the mark follows the lane, not the slot")
+	assert_true(hud.arrows.side.heavy)
+	EventBus.wave_incoming.emit(1, &"north", &"")
+	assert_false(hud.arrows.main.heavy)
+	assert_false(hud.arrows.side.heavy)
+
+func test_no_arrow_carries_the_mark_when_the_plan_has_no_brute() -> void:
+	var plan := _brute_plan()
+	plan[0].brute_main = 0
+	GameState.lane_plan = plan
+	EventBus.phase_changed.emit(Phase.NIGHT, 5)
+	for pair in [[&"west", &"east"], [&"east", &"west"], [&"north", &"west"]]:
+		EventBus.wave_incoming.emit(0, pair[0], pair[1])
+		assert_false(hud.arrows.main.heavy)
+		assert_false(hud.arrows.side.heavy)
+
+func test_the_heavy_arrow_is_drawn_with_a_brute_glyph_mesh() -> void:
+	GameState.lane_plan = _brute_plan()
+	EventBus.phase_changed.emit(Phase.NIGHT, 5)
+	EventBus.wave_incoming.emit(0, &"west", &"east")
+	var mesh := LaneIcons.mesh(&"brute")
+	assert_gt(mesh.surface_get_array_len(0), 12, "the glyph has its outline and fill layers")
+	assert_ne(mesh, LaneIcons.mesh(&"boar"), "each kind has its own glyph")
+	await get_tree().process_frame  # the HUD draws it without a script error

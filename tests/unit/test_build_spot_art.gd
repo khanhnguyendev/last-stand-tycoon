@@ -312,7 +312,7 @@ func test_sign_is_the_baked_model_with_a_world_label() -> void:
 func test_telegraph_flag_uses_the_enemy_red_override() -> void:
 	for lane in main.world.telegraph_markers:
 		var m: TelegraphMarker = main.world.telegraph_markers[lane]
-		var meshes := m.find_children("*", "MeshInstance3D", true, false)
+		var meshes := m.get_child(0).find_children("*", "MeshInstance3D", true, false)  # the flag's own Visual: the composition row (Task 14) has meshes of its own
 		assert_eq(meshes.size(), 1, "one flag mesh")
 		var mat := (meshes[0] as MeshInstance3D).material_override as StandardMaterial3D
 		assert_not_null(mat, "an override material")

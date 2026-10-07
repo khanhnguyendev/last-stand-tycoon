@@ -262,8 +262,16 @@ func _on_wave_incoming(_w: int, main_lane: StringName, side_lane: StringName) ->
 	_arrow_lane.side = String(side_lane)
 	arrows.main.visible = _arrow_lane.main != ""
 	arrows.side.visible = _arrow_lane.side != ""
+	_mark_brute_arrows()
 	_place_arrows()
 	_punch_arrows()
+
+## E5 tier 3 Task 14 (D-264): an arrow whose lane carries a brute tonight gets the heavy mark. Night-wide, as the telegraph
+## row is: the composition of the whole plan. Arrows show only from wave_incoming, at night (today's timing, unchanged).
+func _mark_brute_arrows() -> void:
+	var comp := LanePlanner.composition_by_lane(GameState.lane_plan, GameState.tier)
+	for key in ["main", "side"]:
+		arrows[key].heavy = int(comp.get(_arrow_lane[key], {}).get("brute", 0)) > 0
 
 ## S5 Task 5: the arrows pop when a wave is announced (visual only).
 func _punch_arrows() -> void:
