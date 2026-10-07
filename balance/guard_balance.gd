@@ -5,6 +5,9 @@ extends Resource
 @export var archer: GuardStats = GuardBalance._archer()
 @export var tank: GuardStats = GuardBalance._tank()
 
+## E5 tier-3 spec 6.6: a respawned guard is untargetable this long and walks to its post.
+@export var respawn_protect_s := 1.5
+
 func stats(id: StringName) -> GuardStats:
 	assert(id == &"archer" or id == &"tank", "no guard stats for %s" % id)
 	return archer if id == &"archer" else tank
