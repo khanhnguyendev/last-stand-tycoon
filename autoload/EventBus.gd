@@ -56,6 +56,7 @@ signal banner_requested(text: String)
 ## PhaseController -> Hero, CameraRig. Place the hero (new game, restore). Replaces a node call (D-128).
 signal hero_place_requested(position: Vector2)
 ## TierReveal -> CameraRig. A visual pull-back: ease to (focus, zoom) over in_s, hold, ease back to the hero over out_s (E5 spec 7.5). Never read by gameplay.
+## Sentinel: in_s <= 0, zoom 1.0, focus INF = "return to the hero from the current pose over out_s" (a skipped reveal); CameraRig ignores it when no reveal runs.
 signal camera_reveal_requested(in_s: float, hold_s: float, out_s: float, zoom: float, focus: Vector2)
 
 ## PhaseController (via GameState) -> overlay, HUD, bots. The dawn offer, in display order.

@@ -127,6 +127,11 @@ func _ready() -> void:
 		settings_store = SettingsStore.for_platform()
 		settings_store.load_settings()
 		_maybe_build_guide()
+		if TierEffects.top_tier(Balance.data.tiers) >= 3 and not settings_store.branch_hint_done:
+			var pad_hint := BranchPadHint.new()
+			pad_hint.name = "BranchPadHint"
+			add_child(pad_hint)
+			pad_hint.setup(world, settings_store)
 		audio_director.setup(settings_store)
 		# S5 (D-215): the boot fade always; the warm-up unless ?warmup=0 (so A and B differ only in the warm-up).
 		boot_fade = BootFade.new()
