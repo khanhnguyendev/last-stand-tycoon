@@ -15,7 +15,7 @@ var _fx: FlyFx
 ## Paid ticks since the last empty refresh; drives the build dust only (S5 Task 5, visual).
 var _paid_ticks := 0
 var _pop: Tween
-## level * 2 + rubble of the model shown now (-1: none yet). The model is swapped only when this changes.
+## variant * 2 + rubble of the model shown now (-1: none yet). The model is swapped only when this changes.
 var _model_key := -1
 
 const MARKER_SCENE := preload("res://art/env/spot_marker.tscn")
@@ -120,9 +120,10 @@ func _pip_y(_level: int) -> float:
 func _label_y(_level: int) -> float:
 	return 2.6
 
-## Swaps the model under `visual` for `scene` (null = nothing) when the "level/rubble" key changes; never otherwise.
-func _show_model(p_level: int, scene: PackedScene) -> void:
-	var key := p_level * 2 + int(is_rubble())
+## Swaps the model under `visual` for `scene` (null = nothing) when the "variant/rubble" key changes; never otherwise. `variant` is
+## the level, or a number above every plain level for a branch model (tower_spot.gd, fence_spot.gd).
+func _show_model(variant: int, scene: PackedScene) -> void:
+	var key := variant * 2 + int(is_rubble())
 	if key == _model_key:
 		return
 	_model_key = key

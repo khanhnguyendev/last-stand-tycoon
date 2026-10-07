@@ -16,6 +16,7 @@ const GROUND_Y := 0.04
 
 static var _cache := {}
 static var _ground_mat: StandardMaterial3D
+static var _far_mat: StandardMaterial3D
 
 static func _arc_band(center: Vector2, r_out: float, r_in: float, a0: float, a1: float, steps := 14) -> PackedVector2Array:
 	var pts := PackedVector2Array()
@@ -151,6 +152,13 @@ static func ring_mesh(colour: StringName, inner: float, disc_alpha: float) -> Ar
 	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	_cache[key] = m
 	return m
+
+## The glyph material of a FAR pad: the billboard material with the depth test ON, so buildings hide the glyph.
+static func far_material() -> StandardMaterial3D:
+	if _far_mat == null:
+		_far_mat = LaneIcons.material().duplicate()
+		_far_mat.no_depth_test = false
+	return _far_mat
 
 static func ground_material() -> StandardMaterial3D:
 	if _ground_mat == null:

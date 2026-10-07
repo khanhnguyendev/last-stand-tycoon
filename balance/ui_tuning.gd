@@ -186,13 +186,21 @@ extends Resource
 @export var tier_sign_label_y := 4.27
 @export var tier_sign_min_px := 36.0
 
-## E5 tier 3 Task 17: the branch pads read at phone size (D-263.3, D-273.4). Glyph height (m), the font sizes (px at the
-## WorldLabel pixel size 0.01) of the branch name, the cost and the fence pads' "lost if broken" line; the *_min_px floors are
-## the smallest projected height in base pixels (the 720x1280 base: view heights 1680, 1280, 1280; tests/unit/test_branch_pads.gd).
-@export var branch_pad_icon_m := 1.0
-@export var branch_pad_label_font := 49
-@export var branch_pad_cost_font := 56
-@export var branch_pad_warn_font := 38
+## E5 tier 3 Task 17: the branch pads read at phone size and show information in stages (D-263.3, D-273.4). The focus spot is the
+## branchable spot whose nearest pad is closest to the hero within branch_pad_near_m, kept until the hero is beyond
+## branch_pad_leave_m. Glyph height (m): branch_pad_icon_m near and on the pad, branch_pad_far_icon_m for a far pad. Font sizes are the
+## project's own (48 / 40); the WorldLabel pixel sizes set how large they read. The *_min_px floors are the smallest projected
+## height in base pixels (the 720x1280 base: view heights 1680, 1280, 1280; tests/unit/test_branch_pads.gd).
+@export var branch_pad_near_m := 3.5
+@export var branch_pad_leave_m := 4.5
+@export var branch_pad_icon_m := 0.9
+@export var branch_pad_far_icon_m := 0.7
+@export var branch_pad_label_font := 48
+@export var branch_pad_cost_font := 48
+@export var branch_pad_warn_font := 40
+@export var branch_pad_label_pixel_size := 0.011
+@export var branch_pad_cost_pixel_size := 0.0123
+@export var branch_pad_warn_pixel_size := 0.0105
 @export var branch_pad_icon_min_px := 28.0
 @export var branch_pad_label_min_px := 28.0
 @export var branch_pad_warn_min_px := 20.0
