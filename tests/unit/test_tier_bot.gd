@@ -111,3 +111,18 @@ func test_builds_a_yard_tower_at_tier_2() -> void:
 			break
 	assert_true(ok, "a yard tower is built")
 	assert_eq(bot.stuck_count, 0)
+
+## Task 21: the switch makes tier 2 sell tier 3, but the bot does not buy it before Task 22. Mutation: the old unguarded condition
+## (rem > 0 and rem <= gold) returns "tier_sign" here.
+func test_at_tier_2_with_5000_gold_the_bot_does_not_seek_the_tier_3_sign() -> void:
+	GameState.new_game(1)
+	GameState.debug_set_tier(2, 1)
+	GameState.add_gold(5000)
+	assert_eq(GameState.tier_remaining_cost(), 1500, "the sign is for sale")
+	var bot := TierBot.new()
+	autofree(bot)
+	var upgrader := UpgraderBot.new()
+	autofree(upgrader)
+	assert_ne(bot.idle_goal(), "tier_sign")
+	assert_eq(bot.idle_goal(), upgrader.idle_goal(), "exactly what it was before the switch: the upgrader's goal")
+	assert_eq(bot.idle_goal(), "pad_freezer", "the cheapest affordable station level")

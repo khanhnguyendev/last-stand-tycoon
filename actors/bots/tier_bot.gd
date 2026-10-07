@@ -45,7 +45,8 @@ func day_think(delta: float) -> void:
 ## The tier-up when the gold in hand finishes it, else the upgrader's cheapest station level, else the sign.
 func idle_goal() -> String:
 	var rem := GameState.tier_remaining_cost()
-	if rem > 0 and rem <= GameState.gold:
+	var seeks_sign := GameState.tier < 2  # Task 22: the bot buys tier 3
+	if seeks_sign and rem > 0 and rem <= GameState.gold:
 		return "tier_sign"
 	return super.idle_goal()
 

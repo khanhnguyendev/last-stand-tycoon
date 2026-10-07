@@ -68,7 +68,8 @@ func _v5_state(file: String) -> Dictionary:
 	return SaveCodec._parse(env.state_json)
 
 func _tier3_setup() -> void:
-	Balance.data.tiers.tier_costs.append(1500)
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)
 	GameState.new_game(20261007)
 	GameState.day = 12
 	GameState.debug_set_tier(3, 9)
@@ -183,7 +184,8 @@ func test_v6_round_trip_with_a_branch_a_partial_payment_a_lane_sw_and_brutes() -
 
 func test_the_same_save_is_rejected_when_the_build_has_no_tier_3() -> void:
 	var s := _t3_dict()
-	Balance.reset()  # tier_costs back to [0, 500]: the top tier is 2
+	Balance.reset()
+	Balance.data.tiers.tier_costs = [0, 500]  # setup: a two-tier build (the shipped build has three now): the top tier is 2
 	var why := SaveCodec.validate(s, Balance.data)
 	# tower_nw (branched, tier clamps to 2) comes first in building order, so the branch rule names it first
 	assert_eq(why, "branch level tower_nw longbow")

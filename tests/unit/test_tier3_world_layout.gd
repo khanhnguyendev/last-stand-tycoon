@@ -15,11 +15,13 @@ var _sold := 0
 var _tier_changes: Array = []
 var _grew := 0
 
-## `with_cost`: the build knows tier 3 (the entry is test-only until Task 21). It must be set before Main.create (pools, top tier).
+## `with_cost`: the build knows tier 3 (the shipped build does; false makes a two-tier build). It must be set before Main.create (pools, top tier).
 func _make(with_cost := true) -> void:
 	Balance.reset()
 	if with_cost and Balance.data.tiers.tier_costs.size() < 3:
 		Balance.data.tiers.tier_costs.append(1500)
+	elif not with_cost:
+		Balance.data.tiers.tier_costs = [0, 500]  # setup: a two-tier build (the shipped build has three)
 	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
@@ -107,7 +109,7 @@ func test_the_paid_up_sparkle_is_at_the_sign_that_sold() -> void:
 			found = true
 	assert_true(found, "a sparkle at the tier-3 sign")
 
-func _screen_rect(label: Label3D, xf: Transform3D, proj: Projection, half_h := 640.0) -> Rect2:
+func _screen_rect(label: Label3D, xf: Transform3D, proj: Projection, half_h := 640.0, half_w := 360.0) -> Rect2:
 	var box := label.get_aabb()
 	var c := label.global_position
 	var lo := Vector2(INF, INF)
@@ -116,7 +118,7 @@ func _screen_rect(label: Label3D, xf: Transform3D, proj: Projection, half_h := 6
 		for sy in [-0.5, 0.5]:
 			var w: Vector3 = c + xf.basis.x * box.size.x * sx + xf.basis.y * box.size.y * sy
 			var n := CameraMath.to_ndc(w, xf, proj)
-			var px := Vector2(n.x * 360.0, -n.y * half_h)
+			var px := Vector2(n.x * half_w, -n.y * half_h)
 			lo = lo.min(px)
 			hi = hi.max(px)
 	return Rect2(lo, hi - lo)
@@ -148,34 +150,40 @@ func test_the_whole_tier_3_sign_board_is_on_screen_from_home_at_9_16_and_9_21() 
 	assert_gt(m916, 8.0, "every corner of the board's AABB is on screen at 9:16")
 	assert_gt(m921, 8.0, "and at 9:21")
 
-## Both texts the sign will carry (Task 21 changes the first): the whole label rect is inside the screen from HOME at 9:16 and 9:21 and clears the others.
-func _label_fits_and_clears(text: String) -> void:
+## The text the sign carries (Task 21: "Buy the lot" at tier 2) and the one it had: the whole label rect is inside the screen from HOME at
+## 9:16, 9:21 and 16:9 (base height 1280, so 2275 wide), clears every other world label (the DINER, the close-up sign, the stations) and the HUD bar.
+## HUD_BOTTOM: the top column (day, moons, bar) ends 140 base px below the safe-area top; 88 px is the notch inset: a conservative 228 px.
+func _label_fits_and_clears(text: String) -> void:  # a coroutine: callers await it
 	var xf := CameraMath.camera_transform(CameraMath.focus_for(MapLayout.HOME), Balance.ui)
 	var sign := main.world.tier_sign
 	sign.label.text = text
+	await get_tree().process_frame  # a Label3D is shaped on the next frame: before that its AABB is a placeholder cube
 	assert_true(CameraMath.on_screen(MapLayout.to3(MapLayout.tier_sign(3)), xf, CameraMath.projection(Balance.ui)), "the sign's base")
-	for aspect in [9.0 / 16.0, 9.0 / 21.0]:
+	for aspect in [9.0 / 16.0, 9.0 / 21.0, 16.0 / 9.0]:
 		var proj := CameraMath.projection(Balance.ui, aspect)
-		var half_h: float = 360.0 / aspect
-		var mine := _screen_rect(sign.label, xf, proj, half_h)
+		var half_h: float = 640.0 if aspect > 0.5625 - 1e-6 else 360.0 / aspect  # 9:16 and 16:9 are 1280 tall, 9:21 is 1680
+		var half_w: float = 360.0 if aspect < 1.0 else half_h * aspect
+		var mine := _screen_rect(sign.label, xf, proj, half_h, half_w)
 		assert_gt(mine.size.x, 20.0, "the label has a real extent")
-		assert_true(Rect2(-360, -half_h, 720, half_h * 2.0).grow(-8.0).encloses(mine), "'%s': the whole label is on screen from HOME at %.3f, not cut by an edge: %s" % [text.replace("\n", " "), aspect, mine])
+		assert_gt(mine.position.y, -half_h + 228.0, "'%s' stays below the HUD bar at %.3f: %s" % [text.replace("\n", " "), aspect, mine])
+		assert_true(Rect2(-half_w, -half_h, half_w * 2.0, half_h * 2.0).grow(-8.0).encloses(mine), "'%s': the whole label is on screen from HOME at %.3f, not cut by an edge: %s" % [text.replace("\n", " "), aspect, mine])
 		var others := 0
 		for l in get_tree().get_nodes_in_group(&"world_labels"):
 			var other := l as Label3D
 			if other == sign.label or not other.is_visible_in_tree() or other.text == "":
 				continue
 			others += 1
-			assert_false(mine.grow(4.0).intersects(_screen_rect(other, xf, proj, half_h)), "'%s' clears '%s' at %s" % [text.replace("\n", " "), other.text.replace("\n", " "), other.global_position])
+			assert_false(mine.grow(4.0).intersects(_screen_rect(other, xf, proj, half_h, half_w)), "'%s' clears '%s' at %s" % [text.replace("\n", " "), other.text.replace("\n", " "), other.global_position])
 		assert_gt(others, 2, "the close-up sign's and the stations' labels were compared")
 
-func test_the_tier_3_sign_label_fits_with_the_text_of_today() -> void:
+func test_the_tier_3_sign_label_fits_with_its_real_tier_2_text() -> void:
 	await _tier_3_sign_in_the_day()
-	_label_fits_and_clears(tr("Open the yards") + "\n1500")
+	assert_eq(main.world.tier_sign.label.text, tr("Buy the lot") + "\n1500", "the sign's own text at tier 2")
+	await _label_fits_and_clears(tr("Buy the lot") + "\n1500")
 
-func test_the_tier_3_sign_label_fits_with_the_longer_text_of_task_21() -> void:
+func test_the_tier_3_sign_label_still_fits_the_old_shorter_text() -> void:
 	await _tier_3_sign_in_the_day()
-	_label_fits_and_clears("Buy the front lot\n1500")
+	await _label_fits_and_clears(tr("Open the yards") + "\n1500")
 
 # --- the kerb and the lot ---------------------------------------------------
 

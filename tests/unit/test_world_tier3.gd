@@ -13,7 +13,8 @@ var main: Main
 
 func before_each() -> void:
 	Balance.reset()
-	Balance.data.tiers.tier_costs.append(1500)  # test-only: the build knows tier 3
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)  # test-only: the build knows tier 3
 	main = Main.create()
 	add_child_autofree(main)
 	GameState.new_game(1)

@@ -16,7 +16,8 @@ var _fx_log: Array = []
 func before_each() -> void:
 	BranchPad.reset_focus()
 	Balance.reset()
-	Balance.data.tiers.tier_costs.append(1500)  # test-only: the build knows tier 3
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)  # test-only: the build knows tier 3
 	pile_sparkles = 0
 	_fx_log = []
 
@@ -422,7 +423,8 @@ func test_standing_inside_a_pad_shows_the_preview_before_any_gold_moves_and_leav
 
 func test_the_longbow_preview_draws_a_ring_at_its_range_beside_the_ring_at_todays() -> void:
 	Balance.reset()
-	Balance.data.tiers.tier_costs.append(1500)
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)
 	Balance.data.branches.longbow.attack_range = 7.3  # a number the pad must read, not remember
 	await _start()
 	_max("tower_sw")
@@ -439,7 +441,8 @@ func test_the_longbow_preview_draws_a_ring_at_its_range_beside_the_ring_at_today
 
 func test_the_volley_stone_and_spike_previews() -> void:
 	Balance.reset()
-	Balance.data.tiers.tier_costs.append(1500)
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)
 	Balance.data.branches.volley.count = 4  # the hint and the line read the count
 	Balance.data.branches.stone.hp = 480.0  # 480 / 320 = 1.5
 	await _start()

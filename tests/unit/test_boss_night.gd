@@ -163,7 +163,8 @@ func test_the_boss_drop_is_swept_into_the_freezer_at_dawn() -> void:
 
 ## E5 tier 3 Task 11: the tier-2 boss night is the Baron's; a won one tiers up to 3 at dawn exactly like the King's.
 func test_a_won_tier_2_boss_night_tiers_up_to_3_with_the_baron_on_the_wave() -> void:
-	Balance.data.tiers.tier_costs.append(1500)  # the build's third tier (reset by the next before_each)
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)  # the build's third tier (reset by the next before_each)
 	main.phase_controller.debug_skip_to_day()
 	GameState.debug_set_tier(2, GameState.day)
 	main.world.rebuild_for_tier()
@@ -181,7 +182,8 @@ func test_a_won_tier_2_boss_night_tiers_up_to_3_with_the_baron_on_the_wave() -> 
 
 ## Mutation: the banner keyed on boss_pending / always the King's text fails this (the tier-2 night shows the Baron's, never the King's).
 func test_the_tier_2_boss_night_announces_the_baron_not_the_king() -> void:
-	Balance.data.tiers.tier_costs.append(1500)
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)
 	main.phase_controller.debug_skip_to_day()
 	GameState.debug_set_tier(2, GameState.day)
 	main.world.rebuild_for_tier()
