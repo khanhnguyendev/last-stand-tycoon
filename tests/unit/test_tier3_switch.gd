@@ -156,7 +156,6 @@ func test_a_won_baron_night_tiers_up_and_the_world_has_everything_of_tier_3() ->
 	assert_false(reveal.running(), "it ran out")
 	assert_eq(sfx.count(&"build_done") - base, 5, "five step sounds")
 	var w := main.world
-	assert_true(MapLayout.lanes_for_tier(3).has("sw"))
 	assert_true(w.telegraph_markers.has("sw"), "the SW lane's flag")
 	assert_true((w.telegraph_markers["sw"] as TelegraphMarker).is_inside_tree())
 	assert_true(w.build_spots.has("tower_sw"))
@@ -164,8 +163,8 @@ func test_a_won_baron_night_tiers_up_and_the_world_has_everything_of_tier_3() ->
 	assert_true(GameState.buildings.has("tower_sw") and GameState.buildings.has("fence_sw"))
 	assert_true(w.yard_ids().has("front"), "the front lot")
 	assert_eq((w.diner_body.get_node("Visual").get_node("DinerArt") as Node).scene_file_path, "res://art/env/diner_t3.tscn")
-	assert_eq(MapLayout.queue_slots(3)[1], Vector2(1.1, 6.9))
-	assert_gt(MapLayout.traveler_exit(3).x, 0.0, "the exit is east")
+	# The night plan the dawn built is the tier-3 plan (mutation: a plan left from tier 2, or one made with tier 2's lanes, differs).
+	assert_eq(GameState.lane_plan, LanePlanner.plan(GameState.run_seed, GameState.day, Balance.data.wave, 3, GameState.tier_day, Balance.data.tiers))
 
 ## Mutation: a queue still on the west slots at tier 3 fails; so does an exit left in the west.
 func test_after_the_reveal_the_queue_stands_east_and_the_served_leave_east() -> void:
@@ -186,7 +185,14 @@ func test_after_the_reveal_the_queue_stands_east_and_the_served_leave_east() -> 
 	while not (sp.queue[0] as Traveler).at_target() and guard < 60 * 20:
 		await get_tree().physics_frame
 		guard += 1
-	assert_lt((sp.queue[0] as Traveler).xz().distance_to(MapLayout.queue_slots(3)[0]), 0.06, "at the east slot")
+	# Slot 0 is (0, 6.0) in BOTH layouts, so it cannot tell them apart; the second slot can: east (1.1, 6.9), west (-1.2, 7.0).
+	guard = 0
+	while not (sp.queue[1] as Traveler).at_target() and guard < 60 * 20:
+		await get_tree().physics_frame
+		guard += 1
+	var second := (sp.queue[1] as Traveler).xz()
+	assert_lt(second.distance_to(Vector2(1.1, 6.9)), 0.06, "the second traveler stands at the east slot (1.1, 6.9), not the west (-1.2, 7.0): %s" % second)
+	assert_gt(second.x, 0.0, "east of the counter")
 	var front: Traveler = sp.queue[0]
 	GameState.counter_steaks = 20
 	guard = 0
@@ -195,6 +201,7 @@ func test_after_the_reveal_the_queue_stands_east_and_the_served_leave_east() -> 
 		guard += 1
 	assert_true(front.leaving)
 	assert_eq(front._target, MapLayout.traveler_exit(3), "it walks to the east exit")
+	assert_gt(front._target.x, 0.0, "east")
 
 ## Mutation: lanes_for_tier(3) without "sw" (or a planner that never draws it) fails: some tier-3 plan of 40 days has an sw wave.
 func test_a_night_plan_at_tier_3_can_contain_the_south_west_lane() -> void:
@@ -216,7 +223,6 @@ func test_a_night_plan_at_tier_3_can_contain_the_south_west_lane() -> void:
 func test_branch_pads_show_at_the_first_tier_3_day_for_max_level_buildings() -> void:
 	await _to_tier_2_day()
 	assert_eq(main.world.branch_pads.size(), 0, "no pad node at tier 2")
-	GameState.add_gold(1500)
 	await _pay_tier_3_by_standing()
 	GameState.gold = 100000
 	var id := "tower_nw"
@@ -277,6 +283,29 @@ func test_a_schema_6_save_at_tier_2_keeps_its_partial_tier_3_payment() -> void:
 	assert_eq(GameState.tier_remaining_cost(), 800)
 	assert_eq(main.world.tier_sign.label.text, tr("Buy the lot") + "\n800")
 	assert_eq(main.world.tier_sign.state(), &"selling")
+
+## Mutation: a load that trusts the saved tier (4 on a three-tier build: the world and the sign index past the ladder) fails the first line;
+## one that keeps a payment at the full price (the sign could never complete it) fails the second.
+func test_a_save_claiming_tier_4_loads_at_3_and_a_full_payment_loads_one_short() -> void:
+	await _to_tier_3_dawn()
+	var saved := GameState.to_dict()
+	assert_eq(int(saved.tier), 3)
+	saved.tier = 4
+	GameState.new_game(1)
+	_load_state(saved)
+	assert_eq(GameState.tier, 3, "clamped to the top of the ladder")
+	assert_eq(GameState.tier_paid, 0)
+	assert_eq(GameState.tier_next_cost(), -1)
+	GameState.new_game(1)
+	main.phase_controller.start_new_game(20260930)
+	await _to_tier_2_day()
+	var s2 := GameState.to_dict()
+	assert_eq(int(s2.tier), 2)
+	s2.tier_paid = 1500
+	GameState.new_game(1)
+	_load_state(s2)
+	assert_eq([GameState.tier, GameState.tier_paid], [2, 1499], "a payment at the price loads one short")
+	assert_eq(GameState.tier_remaining_cost(), 1)
 
 ## Mutation: a save at tier 2 that cannot show the sign (its payment field coerced to the top) fails: it loads unpaid and the sign says 1500.
 func test_a_save_made_before_the_switch_loads_and_shows_the_sign_at_1500() -> void:
@@ -373,8 +402,9 @@ func test_nothing_compares_the_top_tier_against_a_literal() -> void:
 				uses += 1
 			if re.search(line) != null:
 				hits.append("%s: %s" % [path, line])
-	# Two tolerated, both "only when the build has pads at all": Main builds the branch-pad hint, the warm-up draws the pad visuals. With the
-	# switch both are always on; wiring notes ask for the guards to go (hot file / not this task's). A third one fails this.
+	# Two tolerated guards, kept deliberately: they are correct for any ladder length (Main builds the branch-pad hint and the warm-up draws the
+	# pad visuals only when the build has a tier 3 at all). A third one fails this. The scan is literal: it misses an alias such as
+	# `var top := TierEffects.top_tier(tb)` followed by `if top < 3`.
 	hits.sort()
 	assert_eq(hits, ["res://world/main.gd: if TierEffects.top_tier(Balance.data.tiers) >= 3 and not settings_store.branch_hint_done:",
 		"res://world/warmup.gd: if TierEffects.top_tier(Balance.data.tiers) < 3:"])

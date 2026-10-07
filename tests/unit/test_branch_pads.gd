@@ -4,6 +4,7 @@ extends GutTest
 ## The build's top tier is 2, so each test appends the tier-3 cost entry (Balance.reset() drops it).
 
 const ASPECTS := [9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0]
+const ASPECT_NAMES := ["9:21", "9:16", "16:9"]
 const HINT_DIR := "user://test_branch_hint"
 ## The seven buildings that stand at the tier-3 dawn (tower_sw and fence_sw are bought afterwards).
 const SEVEN := ["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e", "tower_w", "tower_e"]
@@ -553,7 +554,7 @@ func test_near_stage_shows_the_cost_on_exactly_the_focus_spots_two_pads() -> voi
 		assert_eq(p.icon.material_override, BranchIcons.material(), "near: the glyph is drawn over the ground, readable")
 		assert_almost_eq(p.icon.scale.x, Balance.ui.branch_pad_icon_m, 1e-6)
 		var w := BranchPad.glyph_box(p.icon).x
-		assert_lte(maxf(w, BranchPad.text_box(p.cost_label).x), 1.2, "the block is at most 1.2 m wide")
+		assert_lte(maxf(w, BranchPad.text_box(p.cost_label).x), 1.25, "the block is at most 1.25 m wide (was 1.2: the cost font is raised to its 28 px floor, a ruled change)")
 	var other: BranchPad = _pads("tower_ne")[0]
 	assert_eq(other.stage, BranchPad.FAR, "another spot stays far")
 
@@ -643,22 +644,24 @@ func test_far_glyphs_meet_their_floor_from_home() -> void:
 		_max(id)
 	main.hero.teleport(MapLayout.HOME)
 	await _settle()
-	var v := View.new(MapLayout.HOME, 720.0 / 1280.0)
-	var worst := INF
-	var seen := 0
-	var sizes: Array = []
-	for id in SEVEN:
-		for p: BranchPad in _pads(id):
-			assert_eq(p.stage, BranchPad.FAR)
-			if not v.screen().has_point(v.pt(p.icon.global_position)):
-				continue
-			var h := _node_rect(p.icon, v).size.y / 1.14
-			sizes.append("%s %.0f" % [p.name.trim_prefix("BranchPad_"), h])
-			worst = minf(worst, h)
-			seen += 1
-	assert_gt(seen, 6, "most pads are on screen from HOME")
-	gut.p("far glyph heights from HOME at 9:16 (base px): %s; worst %.1f, floor %.0f" % [sizes, worst, Balance.ui.branch_pad_far_icon_min_px])
-	assert_gte(worst, Balance.ui.branch_pad_far_icon_min_px)
+	# Mutation: a far glyph size under branch_pad_far_icon_min_px fails at any aspect. Pads off screen at an aspect are skipped (9:21 sees fewer).
+	for a in ASPECTS.size():
+		var v := View.new(MapLayout.HOME, ASPECTS[a])
+		var worst := INF
+		var seen := 0
+		var sizes: Array = []
+		for id in SEVEN:
+			for p: BranchPad in _pads(id):
+				assert_eq(p.stage, BranchPad.FAR)
+				if not v.screen().has_point(v.pt(p.icon.global_position)):
+					continue
+				var h := _node_rect(p.icon, v).size.y / 1.14
+				sizes.append("%s %.0f" % [p.name.trim_prefix("BranchPad_"), h])
+				worst = minf(worst, h)
+				seen += 1
+		assert_gt(seen, 6, "most pads are on screen from HOME at %s" % ASPECT_NAMES[a])
+		gut.p("far glyph heights from HOME at %s (base px): %s; worst %.1f, floor %.0f" % [ASPECT_NAMES[a], sizes, worst, Balance.ui.branch_pad_far_icon_min_px])
+		assert_gte(worst, Balance.ui.branch_pad_far_icon_min_px, "far glyph floor at %s" % ASPECT_NAMES[a])
 
 func test_at_night_nothing_of_any_pad_shows() -> void:
 	await _start()
@@ -737,7 +740,7 @@ func test_the_stage_never_changes_what_a_tick_pays() -> void:
 	for case in [["tower_w", tower_drain], ["fence_n", fence_drain]]:
 		var id: String = case[0]
 		var drain: int = case[1]
-		for st in [BranchPad.FAR, BranchPad.NEAR, BranchPad.ON]:
+		for st in [BranchPad.FAR, BranchPad.NEAR, BranchPad.ON, BranchPad.SIBLING_QUIET]:
 			var pad: BranchPad = _pads(id)[0]
 			GameState.buildings[id].branch_paid = {}
 			GameState.gold = 100000
@@ -746,6 +749,8 @@ func test_the_stage_never_changes_what_a_tick_pays() -> void:
 					main.hero.teleport(MapLayout.HOME)
 				BranchPad.NEAR:
 					main.hero.teleport(_pad_pos(id, 0) + Vector2(1.0, 3.0))
+				BranchPad.SIBLING_QUIET:
+					main.hero.teleport(_pad_pos(id, 1))  # the hero stands on pad 1: pad 0 is the quiet sibling, and still pays
 				_:
 					main.hero.teleport(_pad_pos(id, 0))
 			await _settle()
@@ -937,15 +942,46 @@ func _attach_m(r: Rect2, centre: Vector2, ppm: float) -> float:
 const ATTACH_ON_M := 3.2
 const ATTACH_NEAR_M := 1.5
 const HULL_MARGIN_PX := 6.5
-## The findings that remain, pinned exactly: "spot:pad|item|obstacle" -> max overlap (w, h) in px rounded up, or (distance, 0) for attachment.
+## The findings that remain, pinned EXACTLY per aspect: "spot:pad|item|obstacle" -> max overlap (w, h) in px rounded up, or (distance, 0) for
+## attachment. The three aspects agree today (the views are in base px); they are listed separately so one that moves is re-pinned alone.
 const OPEN_VIEWS := {
-	"fence_w:1|icon|the building's pips": Vector2(37, 23),
-	"fence_e:0|cost|the building's pips": Vector2(35, 22),
-	"fence_sw:1|icon|the hero": Vector2(15, 6),
-	"fence_sw:1|cost|the hero": Vector2(28, 5),
-	"fence_sw:1|name|the close-up sign's label": Vector2(90, 27),
-	"fence_sw:1|warn_icon|the building's pips": Vector2(25, 4),
-	"fence_sw:1|effect|attachment": Vector2(4.56, 0),
+	"9:21": {
+		"fence_w:1|icon|the building's pips": Vector2(38, 23),
+		"fence_e:0|cost|the building's pips": Vector2(36, 24),
+		"fence_sw:1|icon|the hero": Vector2(13, 5),
+		"fence_sw:1|cost|the hero": Vector2(30, 6),
+		"fence_sw:1|name|the close-up sign's label": Vector2(90, 27),
+		"fence_sw:1|warn_icon|the building's pips": Vector2(25, 2),
+		"fence_sw:1|effect|attachment": Vector2(4.6, 0),
+	},
+	"9:16": {
+		"fence_w:1|icon|the building's pips": Vector2(38, 23),
+		"fence_e:0|cost|the building's pips": Vector2(36, 24),
+		"fence_sw:1|icon|the hero": Vector2(13, 5),
+		"fence_sw:1|cost|the hero": Vector2(30, 6),
+		"fence_sw:1|name|the close-up sign's label": Vector2(90, 27),
+		"fence_sw:1|warn_icon|the building's pips": Vector2(25, 2),
+		"fence_sw:1|effect|attachment": Vector2(4.6, 0),
+	},
+	"16:9": {
+		"fence_w:1|icon|the building's pips": Vector2(38, 23),
+		"fence_e:0|cost|the building's pips": Vector2(36, 24),
+		"fence_sw:1|icon|the hero": Vector2(13, 5),
+		"fence_sw:1|cost|the hero": Vector2(30, 6),
+		"fence_sw:1|name|the close-up sign's label": Vector2(90, 27),
+		"fence_sw:1|warn_icon|the building's pips": Vector2(25, 2),
+		"fence_sw:1|effect|attachment": Vector2(4.6, 0),
+	},
+}
+## The NEAR findings that remain, pinned exactly per aspect: "spot|what|obstacle" -> max (w, h) in px rounded up (the overflow past the screen
+## edge for a block). The tower pads stand 2 m apart on the map, so their two NEAR blocks overlap a little on screen; fence_sw's far pad (the
+## hero 3 m from the other) clips the left edge of the two portrait views. Both need a map or layout change: open, reported.
+const NEAR_OPEN_VIEWS := {
+	"9:21": {"tower_e|blocks|each other": Vector2(24, 22), "tower_ne|blocks|each other": Vector2(14, 24), "tower_nw|blocks|each other": Vector2(14, 24),
+		"fence_sw:0|block|the screen edge": Vector2(32, 0)},
+	"9:16": {"tower_e|blocks|each other": Vector2(24, 22), "tower_ne|blocks|each other": Vector2(14, 24), "tower_nw|blocks|each other": Vector2(14, 24),
+		"fence_sw:0|block|the screen edge": Vector2(32, 0)},
+	"16:9": {"tower_e|blocks|each other": Vector2(24, 22), "tower_ne|blocks|each other": Vector2(14, 24), "tower_nw|blocks|each other": Vector2(14, 24)},
 }
 
 func test_the_ui_floors_are_the_plans() -> void:
@@ -967,7 +1003,6 @@ func test_sizes_meet_the_floors_for_the_stood_pad() -> void:
 				await _settle()
 				var v := View.new(_pad_pos(id, i), aspect)
 				var p: BranchPad = _pads(id)[i]
-				var sib: BranchPad = _pads(id)[1 - i]
 				for it in _pad_items(p, v):
 					var n: Node3D = it[1]
 					if n == p.icon:
@@ -984,6 +1019,105 @@ func test_sizes_meet_the_floors_for_the_stood_pad() -> void:
 	assert_gte(worst.label, ui.branch_pad_label_min_px, "name and preview line em")
 	assert_gte(worst.cost, ui.branch_pad_label_min_px, "the stood pad's cost em")
 	assert_gte(worst.warn, ui.branch_pad_warn_min_px, "the warning line em")
+
+## The nearest distance from `at` to any pad of `id` (or, with `others`, to any pad of another spot).
+func _pad_dist(at: Vector2, id: String, others := false) -> float:
+	var best := INF
+	for oid in MapLayout.BRANCH_PADS:
+		if (oid == id) == others:
+			continue
+		for pp in MapLayout.BRANCH_PADS[oid]:
+			best = minf(best, at.distance_to(pp))
+	return best
+
+## Where a player comes up to a spot's pads from: `dist` metres from the pad nearest HOME, on the line towards HOME, turned (in 15 degree
+## steps, smallest turn first) until that point is not on a pad and the spot's own pad is the nearest of the map (no other spot takes the focus).
+func _near_hero_at(id: String, dist: float) -> Vector2:
+	var pads: Array = MapLayout.BRANCH_PADS[id]
+	var nearest: Vector2 = pads[0] if (pads[0] as Vector2).distance_to(MapLayout.HOME) <= (pads[1] as Vector2).distance_to(MapLayout.HOME) else pads[1]
+	var toward := (MapLayout.HOME - nearest).normalized()
+	for k in range(0, 13):
+		for sign in ([1.0] if k == 0 else [1.0, -1.0]):
+			var at := nearest + toward.rotated(deg_to_rad(15.0 * k) * sign) * dist
+			if _pad_dist(at, id) <= dist + 0.01 and _pad_dist(at, id) > MapLayout.BRANCH_PAD_RADIUS and _pad_dist(at, id, true) > _pad_dist(at, id) + 0.5 \
+					and at.x > -16.0 and at.x < 16.0 and at.y > -19.0 and at.y < 14.0:
+				return at
+	return nearest + toward * dist
+
+## The NEAR stage, measured like the stood pad: the hero 3 m from a spot's pads, and again at branch_pad_near_m - 0.05, on the side a
+## player comes from (towards HOME), not on a pad. The floors must hold UP TO branch_pad_near_m (3.5 m); the 3.5 to 4.5 m hysteresis band
+## (the focus is kept while the hero walks away) is exempt: the glyph and the cost may be smaller there than the floors.
+## Hard asserts: the focus, the stage, the glyph and cost floors, the block within ATTACH_NEAR_M of its pad. The screen edge and the
+## two-blocks rule are findings pinned per aspect in NEAR_OPEN_VIEWS (the pads' map positions are not this task's to move).
+## Mutation: a cost pixel size that puts the cost under its floor at 3.45 m (0.0123 does, at tower_nw) fails the cost floor; a focus that
+## never reaches the spot, or one that stays on a neighbour, fails the focus line; a block moved away from its pad fails the attachment.
+func test_near_stage_meets_the_floors_on_screen_and_beside_its_pad_at_every_spot() -> void:
+	await _start()
+	_all_max()
+	var ui := Balance.ui
+	var worst := {"icon": INF, "cost": INF, "attach": 0.0}
+	var found := {}
+	for an in ASPECT_NAMES:
+		found[an] = {}
+	var cases := 0
+	for dist in [3.0, ui.branch_pad_near_m - 0.05]:
+		for id in MapLayout.spots_for_tier(3):
+			var at := _near_hero_at(id, dist)
+			main.hero.teleport(Vector2(15.0, 8.0))  # far from every pad: no focus kept from the last spot (hysteresis)
+			await _settle()
+			main.hero.teleport(at)
+			await _settle()
+			assert_eq(BranchPad.focus_spot(), id, "%s at %.2f m: the focus is on the spot" % [id, dist])
+			assert_null(BranchPad.pad_hero_stands_on(), "%s: the hero is not on a pad" % id)
+			for a in ASPECTS.size():
+				var v := View.new(at, ASPECTS[a])
+				var blocks: Array = []
+				for i in 2:
+					var p: BranchPad = _pads(id)[i]
+					assert_eq(p.stage, BranchPad.NEAR, "%s pad %d is NEAR" % [id, i])
+					var block := Rect2()
+					var first := true
+					for it in _pad_items(p, v):
+						var n: Node3D = it[1]
+						var r: Rect2 = it[2]
+						if n == p.icon:
+							var h := r.size.y / 1.14
+							worst.icon = minf(worst.icon, h)
+							assert_gte(h, ui.branch_pad_icon_min_px, "%s pad %d glyph at %.2f m, %s" % [id, i, dist, ASPECT_NAMES[a]])
+						elif n == p.cost_label:
+							var em := _px_h(n.global_position, float(p.cost_label.font_size) * p.cost_label.pixel_size, v)
+							worst.cost = minf(worst.cost, em)
+							assert_gte(em, ui.branch_pad_label_min_px, "%s pad %d cost at %.2f m, %s" % [id, i, dist, ASPECT_NAMES[a]])
+						block = r if first else block.merge(r)
+						first = false
+					assert_false(first, "%s pad %d shows a block" % [id, i])
+					if not v.screen().encloses(block):
+						var s := v.screen()
+						var out := Vector2(maxf(0.0, maxf(s.position.x - block.position.x, block.end.x - s.end.x)), maxf(0.0, maxf(s.position.y - block.position.y, block.end.y - s.end.y)))
+						_fold([{"key": "%s:%d|block|the screen edge" % [id, i], "val": Vector2(ceilf(out.x), ceilf(out.y))}], found[ASPECT_NAMES[a]])
+					var d := _attach_m(block, v.pt(p.global_position), v.px_per_m(p.global_position))
+					worst.attach = maxf(worst.attach, d)
+					assert_lte(d, ATTACH_NEAR_M, "%s pad %d: the block stands %.2f screen-m from its pad" % [id, i, d])
+					blocks.append(block)
+				if (blocks[0] as Rect2).intersects(blocks[1]):
+					var ov := (blocks[0] as Rect2).intersection(blocks[1])
+					_fold([{"key": "%s|blocks|each other" % id, "val": Vector2(ceilf(ov.size.x), ceilf(ov.size.y))}], found[ASPECT_NAMES[a]])
+				cases += 1
+	assert_eq(cases, 2 * 9 * 3)
+	var lines: Array = []
+	for an in ASPECT_NAMES:
+		var got: Dictionary = found[an]
+		var pins: Dictionary = NEAR_OPEN_VIEWS.get(an, {})
+		for key in got:
+			if not pins.has(key):
+				fail_test("%s: NEAR %s (%s) is not in NEAR_OPEN_VIEWS" % [an, key, got[key]])
+			else:
+				assert_eq(got[key], pins[key], "%s: NEAR %s is pinned at %s" % [an, key, pins[key]])
+			lines.append("%s %s -> %s" % [an, key, got[key]])
+		for key in pins:
+			assert_true(got.has(key), "%s: NEAR %s no longer happens: delete it from NEAR_OPEN_VIEWS" % [an, key])
+	lines.sort()
+	gut.p("NEAR worst (base px): glyph %.1f (floor %.0f), cost %.1f (floor %.0f), block %.2f screen-m from its pad (limit %.1f)\n  %s" % [worst.icon, ui.branch_pad_icon_min_px, worst.cost, ui.branch_pad_label_min_px, worst.attach, ATTACH_NEAR_M, "\n  ".join(lines)])
 
 func test_the_clutter_cap_at_twenty_positions_over_the_map() -> void:
 	await _start()
@@ -1073,8 +1207,10 @@ func _view_violations(id: String, i: int, aspect: float, rows: Array, gap_out: A
 				var ov := (e[2] as Rect2).intersection(o[1])
 				add.call(item, o[0], Vector2(ceilf(ov.size.x), ceilf(ov.size.y)), "%s %s overlaps %s %s by %.0f x %.0f px" % [e[0], e[2], o[0], o[1], ov.size.x, ov.size.y])
 			gap_out[0] = minf(gap_out[0], _gap(e[2], o[1]))
-	if pr != null:  # the preview (glyph and its text) clears the pips and the sibling's ring too
-		for o in [["the building's pips", pips_rect], ["the sibling's ring", sib_disc]]:
+	if pr != null:  # the preview (glyph and its text) clears the SAME obstacles as the stack (everything in `others` but itself), and the sibling's ring
+		var preview_obstacles: Array = others.filter(func(o): return o[0] != "the preview glyph")
+		preview_obstacles.append(["the sibling's ring", sib_disc])
+		for o in preview_obstacles:
 			if (pr as Rect2).intersects(o[1]):
 				var ov := (pr as Rect2).intersection(o[1])
 				add.call("preview", o[0], Vector2(ceilf(ov.size.x), ceilf(ov.size.y)), "the preview %s overlaps %s %s by %.0f x %.0f px" % [pr, o[0], o[1], ov.size.x, ov.size.y])
@@ -1099,31 +1235,34 @@ func test_with_the_hero_on_any_pad_the_stack_is_on_screen_and_clear_of_everythin
 	var rows := _all_rows(plans)
 	var gap := [INF]
 	var views := 0
-	var found := {}
-	for aspect in ASPECTS:
+	var found := {}  # "9:21" / "9:16" / "16:9" -> {key: max val}
+	for a in ASPECTS.size():
+		var aspect: float = ASPECTS[a]
+		found[ASPECT_NAMES[a]] = {}
 		for id in MapLayout.spots_for_tier(3):
 			for i in 2:
 				main.hero.teleport(_pad_pos(id, i))
 				await _settle()
-				_fold(_view_violations(id, i, aspect, rows, gap), found)
+				_fold(_view_violations(id, i, aspect, rows, gap), found[ASPECT_NAMES[a]])
 				views += 1
 	assert_eq(views, 54)
-	# The open views, pinned EXACTLY (see the task report): a finding not in OPEN_VIEWS fails, a listed one that grew fails, and a
-	# listed one that no longer happens fails too (delete it), so the list stays honest.
-	for key in found:
-		if not OPEN_VIEWS.has(key):
-			fail_test("%s collides (%s) and is not in OPEN_VIEWS" % [key, found[key]])
-		else:
-			var pin: Vector2 = OPEN_VIEWS[key]
-			assert_true(found[key].x <= pin.x and found[key].y <= pin.y, "%s grew: %s is past its pin %s" % [key, found[key], pin])
-	for key in OPEN_VIEWS:
-		assert_true(found.has(key), "%s no longer collides: delete it from OPEN_VIEWS" % key)
-	assert_eq(found.size(), OPEN_VIEWS.size())
+	# The open views, pinned EXACTLY per aspect: a finding not in OPEN_VIEWS fails, a listed one that changed in either direction fails (a
+	# shrunk one must be re-pinned too), and a listed one that no longer happens fails (delete it), so the list stays honest.
 	var lines: Array = []
-	for key in found:
-		lines.append("%s -> %s" % [key, found[key]])
+	for an in ASPECT_NAMES:
+		var got: Dictionary = found[an]
+		var pins: Dictionary = OPEN_VIEWS.get(an, {})
+		for key in got:
+			if not pins.has(key):
+				fail_test("%s: %s collides (%s) and is not in OPEN_VIEWS" % [an, key, got[key]])
+			else:
+				assert_eq(got[key], pins[key], "%s: %s is pinned at %s" % [an, key, pins[key]])
+			lines.append("%s %s -> %s" % [an, key, got[key]])
+		for key in pins:
+			assert_true(got.has(key), "%s: %s no longer collides: delete it from OPEN_VIEWS" % [an, key])
+		assert_eq(got.size(), pins.size(), "%s: the finding count" % an)
 	lines.sort()
-	gut.p("54 views, %d open findings (pinned exactly); smallest gap %.1f base px\n  %s" % [found.size(), gap[0], "\n  ".join(lines)])
+	gut.p("54 views, open findings (pinned exactly, per aspect); smallest gap %.1f base px\n  %s" % [gap[0], "\n  ".join(lines)])
 
 ## The world-space box of a spot's level-3 model: every mesh under its visual, transformed to the world.
 func _model_corners(sp: BuildSpot) -> Array:

@@ -10,7 +10,11 @@ signal finished
 const DISTANCE := 6.0
 const SPREAD := 1.0
 const FRAMES := 3
-const ROW := 8  # Task 21: 31 nodes once the build has tier 3 (the branch-pad visuals): five per row put the top rows out of the frustum
+## Five per row (x in -2..2 m) and seven rows centred vertically (y in -3..3 m), 6 m from the camera: on a 9:21 phone (KEEP_WIDTH,
+## camera_fov_h 42) the half-width there is 6 * tan 21 deg = 2.30 m and at 9:16 the half-height is 4.09 m. Room for 35 nodes (31 at tier 3).
+const ROW := 5
+const ROWS := 7
+const CAPACITY := ROW * ROWS
 const BOAR := preload("res://actors/enemy/boar.gd")
 const SCENES: Array[String] = [
 	"res://art/pickups/knife_projectile.tscn",
@@ -119,7 +123,7 @@ static func _prebuild_tier_caches() -> void:
 func _place(n: Node3D) -> void:
 	add_child(n)
 	# 1 m apart, centred on the view axis, in a row inside the frustum.
-	n.global_position = _origin + _right * (SPREAD * (float(_slot % ROW) - float(ROW - 1) * 0.5)) + _up * (SPREAD * float(_slot / ROW))
+	n.global_position = _origin + _right * (SPREAD * (float(_slot % ROW) - float(ROW - 1) * 0.5)) + _up * (SPREAD * (float(_slot / ROW) - float(ROWS - 1) * 0.5))
 	placed.append(n.global_position)
 	_slot += 1
 	built_count += 1

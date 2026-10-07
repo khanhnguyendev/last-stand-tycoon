@@ -161,6 +161,23 @@ func test_a_pending_boss_at_the_top_tier_spawns_none() -> void:
 	assert_false(bool(GameState.lane_plan.back().boss), "restored plan carries no boss")
 	assert_false(GameState.is_boss_night())
 
+## Mutation: `tier > top_tier` instead of `>=` in boss_kind_for fails: on a two-tier build tier 2 is the top and boss_kind[2] is the Baron.
+func test_a_pending_boss_at_the_top_of_a_two_tier_build_spawns_none() -> void:
+	Balance.data.tiers.tier_costs = [0, 500]  # setup: a two-tier build (the shipped one has three), so tier 2 is the top
+	main.phase_controller.debug_skip_to_day()
+	GameState.debug_set_tier(2, GameState.day)
+	main.world.rebuild_for_tier()
+	assert_eq(TierEffects.top_tier(Balance.data.tiers), 2)
+	assert_eq(TierEffects.boss_kind_for(2, Balance.data.tiers), &"", "the top has no boss even though the Baron's entry exists")
+	GameState.boss_pending = true  # test-only: a clamped save
+	GameState.lane_plan = LanePlanner.with_boss(GameState.lane_plan)
+	assert_false(GameState.is_boss_night())
+	var alive := await _boss_wave_alive()
+	assert_gt(alive.size(), 0)
+	for b in alive:
+		assert_false((b as Boar).is_boss, "no boss entry")
+	assert_false(wd.boss_alive())
+
 func test_boss_alive_is_true_for_either_boss_and_false_for_the_rest() -> void:
 	for kind in [&"boar", &"hare", &"brute"]:
 		var b := wd.debug_spawn("north", 0.0, 1.0, kind)

@@ -200,12 +200,13 @@ func test_projectile_pool_covers_five_volley_towers() -> void:
 	# Top tier 2 (4 towers; a two-tier build): ceil((4 x 6 + 5) x 1.2) = 35. With the tier-3 entry (5 towers; the shipped build): ceil((5 x 6 + 5) x 1.2) = 42.
 	# in_flight(3, 8.0, 0.5, 16) = 3 x (floor(1.0) + 1) = 6.
 	assert_eq(World.in_flight(3, 8.0, 0.5, 16.0), 6)
-	assert_eq(World.pool_sizes(Balance.data).projectile, 42, "tier-3 entry appended in before_each")
+	assert_eq(World.pool_sizes(Balance.data).projectile, 42, "the shipped build")
 	assert_gte(World.pool_sizes(Balance.data).projectile, 5 * 6 + 5)
 	Balance.reset()
 	assert_eq(World.pool_sizes(Balance.data).projectile, 42, "the shipped build: top tier 3")
 	Balance.data.tiers.tier_costs = [0, 500]  # a two-tier build (the shipped one has three)
 	assert_eq(World.pool_sizes(Balance.data).projectile, 35, "top tier 2")
+	assert_eq(World.pool_sizes(Balance.data).steak, 293, "the two-tier steak pool (a pin: it must not change with the switch)")
 
 # --- select_many -------------------------------------------------------------
 

@@ -156,16 +156,21 @@ func test_the_whole_tier_3_sign_board_is_on_screen_from_home_at_9_16_and_9_21() 
 func _label_fits_and_clears(text: String) -> void:  # a coroutine: callers await it
 	var xf := CameraMath.camera_transform(CameraMath.focus_for(MapLayout.HOME), Balance.ui)
 	var sign := main.world.tier_sign
+	var old_text: String = sign.label.text
+	var old_width := sign.label.get_aabb().size.x
 	sign.label.text = text
 	await get_tree().process_frame  # a Label3D is shaped on the next frame: before that its AABB is a placeholder cube
+	if text != old_text:  # mutation: measuring before the frame (a stale AABB) leaves the width unchanged and fails
+		assert_ne(sign.label.get_aabb().size.x, old_width, "the label was re-shaped for '%s': its width changed" % text.replace("\n", " "))
 	assert_true(CameraMath.on_screen(MapLayout.to3(MapLayout.tier_sign(3)), xf, CameraMath.projection(Balance.ui)), "the sign's base")
+	var hud_bottom: float = 88.0 + Balance.ui.hud_top_bar_px + 50.0  # the notch inset, the bar's tuned depth, and 50 px of air (228 at 90)
 	for aspect in [9.0 / 16.0, 9.0 / 21.0, 16.0 / 9.0]:
 		var proj := CameraMath.projection(Balance.ui, aspect)
 		var half_h: float = 640.0 if aspect > 0.5625 - 1e-6 else 360.0 / aspect  # 9:16 and 16:9 are 1280 tall, 9:21 is 1680
 		var half_w: float = 360.0 if aspect < 1.0 else half_h * aspect
 		var mine := _screen_rect(sign.label, xf, proj, half_h, half_w)
 		assert_gt(mine.size.x, 20.0, "the label has a real extent")
-		assert_gt(mine.position.y, -half_h + 228.0, "'%s' stays below the HUD bar at %.3f: %s" % [text.replace("\n", " "), aspect, mine])
+		assert_gt(mine.position.y, -half_h + hud_bottom, "'%s' stays below the HUD bar at %.3f: %s" % [text.replace("\n", " "), aspect, mine])
 		assert_true(Rect2(-half_w, -half_h, half_w * 2.0, half_h * 2.0).grow(-8.0).encloses(mine), "'%s': the whole label is on screen from HOME at %.3f, not cut by an edge: %s" % [text.replace("\n", " "), aspect, mine])
 		var others := 0
 		for l in get_tree().get_nodes_in_group(&"world_labels"):
