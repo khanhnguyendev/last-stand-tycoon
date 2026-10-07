@@ -1,0 +1,9 @@
+day_fixture=night3_closeup
+night_fixture=tier3_cap_threat
+cpu_idle_before=79%
+cpu_idle_mid=68% phase=night
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: 0E764590-179F-4E5D-97FD-7199EBF5E4C8 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/ryan/ws/1.GAME/wt/e5-p10-t25/docs/review/media/e5t3/checkpoint/perf/att5/night3_80s.png
+ios: docs/review/media/e5t3/checkpoint/perf/att5/night3_80s.png
+cpu_idle_after=63%

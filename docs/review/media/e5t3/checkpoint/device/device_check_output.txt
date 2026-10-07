@@ -1,0 +1,10 @@
+ios: docs/review/media/e5t3/checkpoint/device/ios.png
+[console.warning] [.WebGL-0x11c0043ae00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[console.log] Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+[console.log] OpenGL API OpenGL ES 3.0 (WebGL 2.0 (OpenGL ES 3.0 Chromium)) - Compatibility - Using Device: WebKit - WebKit WebGL
+[console.log] Build configuration: Emscripten 4.0.20, single-threaded, no GDExtension support.
+[console.warning] [.WebGL-0x11c0044d400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[console.warning] [.WebGL-0x11c0044e600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)
+[console.log] WARMUP built=31 track=night
+[console.log] BOOTFADE done=4.17 frames=3
+android (emulated): build=local screenshot=docs/review/media/e5t3/checkpoint/device/android_emulated.png
