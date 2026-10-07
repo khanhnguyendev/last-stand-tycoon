@@ -2,27 +2,36 @@ extends Node
 ## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1-14 by default -> tests/sim/out/sweep.csv.
 ## `--bot=upgrader` runs the UpgraderBot and writes `sweep_upgrader.csv` with a `stations` column (E1).
 ## `--bot=tier` runs the TierBot -> `sweep_tier.csv` (+ tier,boss_night,boss_retries) and prints a TIER line (E5).
-## `--policy=all_a|all_b|mixed|threat` sets the tier bot's branch policy (default threat). `--tier3=off` removes the tier-3 cost entry in memory,
+## `--policy=all_a|all_b|mixed|threat|volley_stone` sets the tier bot's branch policy (default threat). `--tier3=off` removes the tier-3 cost entry in memory,
 ## and the run then asserts that no brute died, no wave came from the south-west and no branch was chosen (the Task 21 assertion, D-279):
 ## a TIER3_GATE line, exit code 1 on a violation. Tier rows end with brute_kills,sw_waves,branches (per day, appended after the old columns; sw_waves counts waves with a south-west lane, formerly named sw_spawns).
 ## After the SWEEP line it prints a RETRIES line (days, median, max_before_day8, max, target_ok) for the D-184 retries-per-night target.
-## Tuning overrides (in memory only, after Balance.reset(); printed on the first output line, tier bot only): `--tier3-cap=<n>` (tier_cap[3]),
-## `--brute-caps=<main>,<side>` (brute_cap_main[3], brute_cap_side[3]), `--brute-hp=<n>`, `--fence-mult=<x>` (the brute's fence_damage_mult).
+## Tuning overrides (in memory only, after Balance.reset(); printed on the first output line; they change the balance of whatever bot runs): `--tier3-cap=<n>` (tier_cap[3]),
+## `--brute-caps=<main>,<side>` (brute_cap_main[3], brute_cap_side[3]; both numbers are required), `--brute-hp=<n>`, `--fence-mult=<x>` (the brute's fence_damage_mult).
 ## `--out=<file name>` writes tests/sim/out/<file name> instead of the default (parallel runs). `--cols=extra` appends fences_lost (fences at 0 HP when the
 ## night ended, final attempt) and lane_load (enemies per lane in the night's plan, brutes included) to the tier rows; without it the CSV is byte-identical to before.
 ## The TIER3 line (tier bot): nights, retry_nights, retries, cap_nights (pressure at tier_cap[3] when the night began), cap_retry_nights, and the min and median
 ## diner fraction over the tier-3 nights that were held (the final attempt's lowest diner HP). NOTE: `kills` and `brute_kills` in the rows include the kills of failed attempts.
 ## Tier mode also prints, after TIER3_GATE (stdout only; the CSV is not touched):
 ##   T3RUN seed policy nights retry_nights min median mean fences_lost_mean branches branch_gold unspent_last_day hard_break_day: the tier-3 facts of this run
-##   (SweepMath.tier3_stats; nights with tier >= 3 at the night's start; branch_gold = the cost of every branch bought, re-buys included; read by tests/sim/report_policies.gd).
-##   LADDER plot_day=<d> ladder_done_day=<d> max_unspent_during_ladder=<g> fence_rebuild_gold_median_at_cap=<g> income_at_cap=<g> (SweepMath.ladder_summary; run with --days=30 or more):
-##     plot_day = the day the tier-3 sign (the front lot) is paid in full (-1 never); ladder_done_day = the first day whose close-up leaves nothing purchasable
-##     (tier 3, every spot of the tier at max level, every tower and fence branched, both stations at max level) or -1;
-##     max_unspent_during_ladder = the largest unspent gold at close-up over the days whose night began at tier 3, up to and including ladder_done_day (every such day when -1)
-##       (spec section 8: "from the tier-3 dawn until the ladder completes"; the tier-2 saving for the plot is not counted);
-##     fence_rebuild_gold_median_at_cap = over the tier-3 cap nights (pressure = tier_cap[3] at the start), the median of the gold paid during the day that follows
-##       for fences and fence branches (goal = a fence spot or a fence pad), a retried night's own day excluded; income_at_cap = the median gold the same days' sales paid.
-##   UNSPENT_TARGET: PASS|FAIL (max_unspent <g>, limit 650, ladder complete|incomplete) printed with LADDER (spec section 8; asserted nowhere in CI).
+##   (SweepMath.tier3_stats; the night statistics count nights that STARTED at tier >= 3; branches and branch_gold count every row that CLOSED at tier >= 3, the
+##   tier-3 dawn day's purchases included; branch_gold = the cost of every branch bought, re-buys included; read by tests/sim/report_policies.gd). A retried night counts its final (mercy) attempt.
+##   LADDER plot_day=<d> ladder_done_day=<d> max_unspent_during_ladder=<g> fence_rebuild_gold_median_at_cap=<g> income_at_cap=<g> t3_days_to_done=<n> max_unspent_while_purchasable=<g>
+##   (SweepMath.ladder_summary; run with --days=30 or more). ALL days are ROW numbers of the sweep CSV (row N = night N, then the day phase that follows it):
+##     plot_day = the row whose day phase paid the tier-3 sign (the front lot) in full (-1 never). The Baron night is row plot_day + 1 (it closes at tier 3: the tier-3 dawn day);
+##       the first tier-3 night is row plot_day + 2.
+##     ladder_done_day = the first row whose close-up leaves nothing purchasable (tier 3, every spot of the tier at max level, every tower and fence branched, both stations at
+##       max level) or -1; t3_days_to_done = the day phases that closed at tier 3, from the tier-3 dawn day to ladder_done_day inclusive (-1 when never).
+##     max_unspent_during_ladder = the largest unspent gold at close-up over the rows that closed at tier 3, up to and including ladder_done_day (every such row when -1)
+##       (spec section 8: "from the tier-3 dawn until the ladder completes"); max_unspent_while_purchasable = the same without the done row (its leftover is not unspent
+##       while something is still to buy).
+##     fence_rebuild_gold_median_at_cap = over the tier-3 cap nights (pressure = tier_cap[3] at the start) the median of the gold paid in the day phase that follows for
+##       (a) levels of fences that fell that night, from the payment signals (building_changed on a fence that stood at the night's start and was rubble at its end) and
+##       (b) the re-purchase of the branch such a fence had lost (branch_chosen on it, the branch's cost net of refunds). First-time fence branches are not counted.
+##       A retried night's own day phases are excluded. income_at_cap = the median gold the same days' sales paid.
+##   UNSPENT_TARGET: PASS|FAIL|N/A (spec section 8, limit 650 on max_unspent_during_ladder; N/A unless the ladder completed within the run) and
+##   FENCE_TAX: yes|no (share of fence_rebuild_gold_median_at_cap in income_at_cap above 30%): both printed with LADDER, asserted nowhere in CI.
+##   `--cols=extra` also appends fence_rebuild_gold (rebuild + rebranch of that row's day phase) at the END of the tier rows.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
 
 func _ready() -> void:
@@ -38,8 +47,8 @@ func _run() -> void:
 		push_error("unknown --bot=%s (planner|upgrader|tier)" % args.bot)
 		get_tree().quit(2)
 		return
-	if not String(args.policy) in TierBot.POLICIES or not String(args.tier3) in ["on", "off"]:
-		push_error("bad --policy=%s (all_a|all_b|mixed|threat) or --tier3=%s (on|off)" % [args.policy, args.tier3])
+	if not (String(args.policy) in TierBot.POLICIES or String(args.policy) in TierBot.REPORT_POLICIES) or not String(args.tier3) in ["on", "off"]:
+		push_error("bad --policy=%s (all_a|all_b|mixed|threat|volley_stone) or --tier3=%s (on|off)" % [args.policy, args.tier3])
 		get_tree().quit(2)
 		return
 	if not String(args.bot) == "tier" and (args.policy != "threat" or args.tier3 != "on"):
@@ -54,6 +63,10 @@ func _run() -> void:
 		ov.append("tier3-cap=%d" % int(args["tier3-cap"]))
 	if String(args["brute-caps"]) != "":
 		var bc := String(args["brute-caps"]).split(",")
+		if bc.size() != 2 or not bc[0].is_valid_int() or not bc[1].is_valid_int():
+			push_error("bad --brute-caps=%s (expected <main>,<side>, two integers)" % args["brute-caps"])
+			get_tree().quit(2)
+			return
 		Balance.data.tiers.brute_cap_main[3] = int(bc[0])
 		Balance.data.tiers.brute_cap_side[3] = int(bc[1])
 		ov.append("brute-caps=%s" % args["brute-caps"])
@@ -77,11 +90,11 @@ func _run() -> void:
 		EventBus.wave_started.connect(_on_wave_started)
 		EventBus.branch_chosen.connect(_on_branch_chosen)
 		EventBus.tier_paid_up.connect(_on_tier_paid_up)
-		EventBus.gold_changed.connect(_on_gold_changed)
+		EventBus.building_changed.connect(_on_building_changed)
 	EventBus.steak_sold.connect(_on_sold)
 	EventBus.card_picked.connect(_on_picked)
 	EventBus.guard_knocked_out.connect(_on_knockout)
-	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked" + (",stations" if upgrader else "") + (",tier,boss_night,boss_retries,brute_kills,sw_waves,branches" if tier_mode else "") + (",fences_lost,lane_load" if extra else "")]
+	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked" + (",stations" if upgrader else "") + (",tier,boss_night,boss_retries,brute_kills,sw_waves,branches" if tier_mode else "") + (",fences_lost,lane_load,fence_rebuild_gold" if extra else "")]
 	var first_fail_day := -1
 	var hard_break_day := -1
 	var retries_per_day: Array = []
@@ -91,6 +104,10 @@ func _run() -> void:
 	var day_records: Array = []
 	var last_unspent := 0
 	for day in range(1, int(args.days) + 1):
+		_row_day = day
+		_rebuild_gold = 0
+		_rebranch_gold = 0
+		_tax_on = false
 		var retries := 0
 		_picked = ""
 		_knockouts = 0
@@ -105,6 +122,7 @@ func _run() -> void:
 		var at_cap3 := start_tier == 3 and GameState.pressure() == int(Balance.data.tiers.tier_cap[3])
 		var lane_load := _lane_load()
 		_fence_hp = {}
+		_fence_branch = {}
 		var defending := _builds()  # what stands when the night starts (spent during the day before)
 		var stock0 := GameState.freezer_steaks + GameState.carried_steaks
 		var t0 := h.elapsed
@@ -126,7 +144,8 @@ func _run() -> void:
 		var lost_now := 0
 		for fid in _fence_hp:
 			lost_now += 1 if float(_fence_hp[fid]) <= 0.0 else 0
-		nights.append({"day": day, "tier": start_tier, "boss_night": boss_night, "retries": retries, "at_cap": at_cap, "at_cap3": at_cap3, "frac": n.diner_frac, "failed": n.failed,
+		_capture_night_end()
+		nights.append({"day": day, "tier": start_tier, "tier_close": start_tier, "boss_night": boss_night, "retries": retries, "at_cap": at_cap, "at_cap3": at_cap3, "frac": n.diner_frac, "failed": n.failed,
 			"fences_lost": lost_now, "branches": _branches, "branch_gold": _branch_gold})
 		var night_s := h.elapsed - t0
 		if n.failed:
@@ -138,8 +157,11 @@ func _run() -> void:
 		# dawn moved the night's steaks to the freezer (freezer + carried, as test_night_sims counts); gold is what the day's sales pay out
 		var steaks := GameState.freezer_steaks + GameState.carried_steaks - stock0
 		_gold_sold = 0
-		_fence_spend = 0
+		_snapshot_fence_paid()
+		_tax_on = tier_mode
 		var d := await h.run_day()
+		_tax_on = false
+		nights[nights.size() - 1].tier_close = GameState.tier
 		nights[nights.size() - 1].branches = _branches  # the branches are bought by day
 		nights[nights.size() - 1].branch_gold = _branch_gold
 		var tcols := _tier_cols(tier_mode, start_tier, boss_night, retries) + (_extra_cols(lane_load) if extra else "")  # after the day: the branches are bought by day
@@ -151,7 +173,7 @@ func _run() -> void:
 			_gold_sold, defending, enemy_count, night_s, d.seconds, int(h.main.phase_controller.snapshot.gold), _cards(), _knockouts, _picked] + _stations(upgrader) + tcols)
 		last_unspent = int(h.main.phase_controller.snapshot.gold)
 		if tier_mode:
-			day_records.append({"day": day, "tier": start_tier, "at_cap3": at_cap3, "income": _gold_sold, "rebuild": _fence_spend, "unspent": last_unspent, "done": _ladder_done()})
+			day_records.append({"day": day, "tier": GameState.tier, "at_cap3": at_cap3, "income": _gold_sold, "rebuild": _rebuild_gold, "rebranch": _rebranch_gold, "unspent": last_unspent, "done": _ladder_done()})
 		if day == 14:
 			unspent_day14 = int(h.main.phase_controller.snapshot.gold)
 	if EventBus.steak_sold.is_connected(_on_sold):
@@ -185,7 +207,7 @@ func _run() -> void:
 		max_early = maxi(max_early, retries_per_day[i])
 	print("RETRIES days=%d median=%s max_before_day8=%d max=%d target_ok=%s" % [retries_per_day.size(), median, max_early, max_r, str(median == 0.0 and max_early <= 2).to_lower()])
 	if tier_mode:
-		for pair in [[EventBus.enemy_killed, _on_enemy_killed], [EventBus.wave_started, _on_wave_started], [EventBus.branch_chosen, _on_branch_chosen], [EventBus.tier_paid_up, _on_tier_paid_up], [EventBus.gold_changed, _on_gold_changed]]:
+		for pair in [[EventBus.enemy_killed, _on_enemy_killed], [EventBus.wave_started, _on_wave_started], [EventBus.branch_chosen, _on_branch_chosen], [EventBus.tier_paid_up, _on_tier_paid_up], [EventBus.building_changed, _on_building_changed]]:
 			var sig: Signal = pair[0]
 			if sig.is_connected(pair[1]):
 				sig.disconnect(pair[1])
@@ -214,10 +236,10 @@ func _run() -> void:
 		print("T3RUN seed=%s policy=%s nights=%d retry_nights=%d min=%.3f median=%.3f mean=%.4f fences_lost_mean=%.2f branches=%d branch_gold=%d unspent_last_day=%d hard_break_day=%d" % [
 			args.seed, args.policy, rs.nights, rs.retry_nights, rs.min, rs.median, rs.mean, rs.fences_lost_mean, rs.branches, rs.branch_gold, last_unspent, hard_break_day])
 		var ls := SweepMath.ladder_summary(_plot_day, day_records)
-		print("LADDER plot_day=%d ladder_done_day=%d max_unspent_during_ladder=%d fence_rebuild_gold_median_at_cap=%d income_at_cap=%d" % [ls.plot_day, ls.ladder_done_day,
-			ls.max_unspent_during_ladder, ls.fence_rebuild_gold_median_at_cap, ls.income_at_cap])
-		print("UNSPENT_TARGET: %s (max_unspent %d, limit 650, ladder %s)" % ["PASS" if int(ls.max_unspent_during_ladder) <= 650 else "FAIL", ls.max_unspent_during_ladder,
-			"complete" if int(ls.ladder_done_day) >= 0 else "incomplete"])
+		print("LADDER plot_day=%d ladder_done_day=%d max_unspent_during_ladder=%d fence_rebuild_gold_median_at_cap=%d income_at_cap=%d t3_days_to_done=%d max_unspent_while_purchasable=%d" % [
+			ls.plot_day, ls.ladder_done_day, ls.max_unspent_during_ladder, ls.fence_rebuild_gold_median_at_cap, ls.income_at_cap, ls.t3_days_to_done, ls.max_unspent_while_purchasable])
+		print(SweepMath.unspent_target_line(ls))
+		print(SweepMath.fence_tax_line(ls))
 		if String(args.tier3) == "off" and tier3_events != 0:
 			push_error("tier 3 is not for sale but %d brute kills, south-west spawns and branches were counted" % tier3_events)
 			h.finish()
@@ -238,6 +260,7 @@ func _physics_process(_delta: float) -> void:
 	for id in GameState.buildings:
 		if MapLayout.spot_kind(id) == "fence" and int(GameState.buildings[id].level) > 0:
 			_fence_hp[id] = float(GameState.buildings[id].hp)
+			_fence_branch[id] = String(GameState.buildings[id].branch)
 
 func _extra_cols(lane_load: String) -> String:
 	var lost: Array = []
@@ -245,7 +268,7 @@ func _extra_cols(lane_load: String) -> String:
 		if float(_fence_hp[id]) <= 0.0:
 			lost.append(id)
 	lost.sort()
-	return ",%s,%s" % ["|".join(lost), lane_load]
+	return ",%s,%s,%d" % ["|".join(lost), lane_load, _rebuild_gold + _rebranch_gold]
 
 func _lane_load() -> String:
 	var comp := LanePlanner.composition_by_lane(GameState.lane_plan, GameState.tier)
@@ -269,23 +292,55 @@ func _on_wave_started(_i: int, main_lane: StringName, side_lane: StringName) -> 
 func _on_branch_chosen(spot: StringName, _branch: StringName) -> void:
 	_branches += 1
 	_branch_gold += GameState.branch_cost(String(spot))
+	if _tax_on and String(spot) in _had_branch:
+		_rebranch_gold += GameState.branch_cost(String(spot))
 var _branch_gold := 0
 var _plot_day := -1
-var _fence_spend := 0
+var _row_day := 0
+var _rebuild_gold := 0
+var _rebranch_gold := 0
+var _tax_on := false
+var _fence_branch := {}    # fence id -> its branch while it stands at night (read every night tick)
+var _rubble := []          # fences that fell in the night just ended
+var _had_branch := []      # of those, the ones that had a branch
+var _fence_paid := {}      # fence id -> cumulative gold put into its levels (+ the current level's payment) at the last building_changed
 
 func _on_tier_paid_up(next_tier: int) -> void:
 	if next_tier == 3 and _plot_day < 0:
-		_plot_day = GameState.day
+		_plot_day = _row_day
 
-## Gold paid while the bot's goal is a fence spot or one of its branch pads (pad_<spot>_<a|b>): the day's fence rebuilding.
-func _on_gold_changed(_gold: int, delta: int) -> void:
-	if delta >= 0 or _h == null or _h.bot == null:
+## The night's end (before the day): which fences fell and which of those had lost a branch with them.
+func _capture_night_end() -> void:
+	_rubble = []
+	_had_branch = []
+	for id in _fence_hp:
+		if float(_fence_hp[id]) <= 0.0:
+			_rubble.append(id)
+			if String(_fence_branch.get(id, "")) != "":
+				_had_branch.append(id)
+
+func _fence_paid_total(id: String) -> int:
+	var b: Dictionary = GameState.buildings[id]
+	var sum := int(b.paid)
+	for lv in int(b.level):
+		sum += maxi(Economy.level_cost(id, lv, Balance.data.build), 0)
+	return sum
+
+func _snapshot_fence_paid() -> void:
+	_fence_paid = {}
+	for id in GameState.buildings:
+		if MapLayout.spot_kind(id) == "fence":
+			_fence_paid[id] = _fence_paid_total(id)
+
+## Gold put into a fence that fell last night (rebuilding its levels), read from the building's own signals.
+func _on_building_changed(spot_id: StringName, _level: int, _paid: int) -> void:
+	var id := String(spot_id)
+	if not GameState.buildings.has(id) or MapLayout.spot_kind(id) != "fence":
 		return
-	var g := String(_h.bot.goal)
-	if g.begins_with("pad_"):
-		g = g.trim_prefix("pad_").trim_suffix(g.right(2))
-	if g in MapLayout.ALL_SPOT_IDS and MapLayout.spot_kind(g) == "fence":
-		_fence_spend += -delta
+	var total := _fence_paid_total(id)
+	if _tax_on and id in _rubble and total > int(_fence_paid.get(id, total)):
+		_rebuild_gold += total - int(_fence_paid.get(id, total))
+	_fence_paid[id] = total
 
 func _ladder_done() -> bool:
 	if GameState.tier < 3:
