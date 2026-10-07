@@ -2465,3 +2465,22 @@ assume one boss).
 4. **Readability:** built with the hare builder, clearly bigger, with a boss marker consistent with the Boar King's
    (crown or equivalent); its own bar name, light and comedic; readable at phone size (40% scale).
 5. **Reward:** the boss steak drop in `balance/`, included in the tier-3 economy math.
+
+**D-268 The diner grows upward inside its footprint, and the land grows on the ground (author).** Low annexes on the
+walls are rejected: every wall is now a lane wall or the service side, the trap the awnings fell into (D-253).
+1. **Silhouette per tier, nothing overhanging:** tier 2 = roof color, chimney, rooftop sign board; tier 3 = a set-back
+   second storey with lanterns. Before/after screenshots at 40% phone scale in `docs/review/media/`.
+2. **Land:** a paved tint plus a low border for the yards and the SW plot. Small props (crates, barrels, a bench) are
+   allowed on owned land only, outside every lane, attack zone, fence spot, pad, station, sign, HOME, queue slot and
+   traveler path; they join the geometry tests and never collide with the hero.
+3. **Occlusion:** the occluder fade (D-151) covers the whole building at every tier (roof, chimney, sign board,
+   second storey); its trigger includes guards as well as the hero and monsters. Camera tests at tier 3: the hero, a
+   monster and a guard at the north zone are visible (the fade triggers and no opaque face covers them); the tower
+   bases at the NW and NE spots are never covered by the taller diner at any focus inside the clamp.
+4. **Perf:** the new meshes stay inside the perf budget, measured on the profile build at the end (D-260).
+
+**D-269 The tier-2 cap margin is decided with data before the tier-3 boss is tuned (author).** Slice 1 measured the
+diner at 4% on one seed at the tier-2 cap (D-258). Order: (1) run the tier-2 cap night with the full tier-2 build on
+at least 10 seeds; (2) if the median diner margin is under 15%, the cap is too tight: lower `tier_cap[2]` from 11 to
+10, which also gives the boss room; (3) otherwise keep 11 and lighten the boss. Either way the boss must still fail
+the no-yard-towers run (D-267). Within the three-round tuning rule (D-103); the result goes to REVIEW_QUEUE.
