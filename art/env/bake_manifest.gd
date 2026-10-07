@@ -17,6 +17,11 @@ const ENTRIES := [
 	{"in": "res://art/env/src/fence_l2_src.tscn", "out": "res://art/env/baked/fence_l2.res"},
 	{"in": "res://art/env/src/fence_l3_src.tscn", "out": "res://art/env/baked/fence_l3.res"},
 	{"in": "res://art/env/src/fence_rubble_src.tscn", "out": "res://art/env/baked/fence_rubble.res"},
+	# E5 Task 18: the four tier-3 branch models (tools/make_branch_src.gd writes the sources).
+	{"in": "res://art/env/src/tower_longbow_src.tscn", "out": "res://art/env/baked/tower_longbow.res"},
+	{"in": "res://art/env/src/tower_volley_src.tscn", "out": "res://art/env/baked/tower_volley.res"},
+	{"in": "res://art/env/src/fence_stone_src.tscn", "out": "res://art/env/baked/fence_stone.res"},
+	{"in": "res://art/env/src/fence_spike_src.tscn", "out": "res://art/env/baked/fence_spike.res"},
 	{"in": "res://art/env/src/spot_marker_src.tscn", "out": "res://art/env/baked/spot_marker.res"},
 	{"in": "res://art/env/src/closeup_sign_src.tscn", "out": "res://art/env/baked/closeup_sign.res"},
 	{"in": "res://art/env/src/tier_sign_src.tscn", "out": "res://art/env/baked/tier_sign.res"},

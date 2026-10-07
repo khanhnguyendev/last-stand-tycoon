@@ -10,7 +10,7 @@ const BAKE_NORMAL_TOL := 2e-3
 const Bake := preload("res://tools/bake_static.gd")
 const ENV := "res://art/env/"
 const NAMES := ["tower_l1", "tower_l2", "tower_l3", "fence_l1", "fence_l2", "fence_l3", "fence_rubble", "spot_marker",
-	"closeup_sign", "telegraph_flag", "lane_gate", "tier_sign"]
+	"closeup_sign", "telegraph_flag", "lane_gate", "tier_sign", "tower_longbow", "tower_volley", "fence_stone", "fence_spike"]
 
 var main: Main
 
