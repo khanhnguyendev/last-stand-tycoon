@@ -19,7 +19,8 @@ extends Resource
 @export var brute_cap_side: Array[int] = [0, 0, 0, 1]
 @export var brute_ramp_days: Array[int] = [0, 1, 1, 3]
 ## The boss fought to LEAVE the tier at that index (index 0 unused): tier 1 -> the Boar King, tier 2 -> Baron von Hop.
-@export var boss_kind: Array[StringName] = [&"", &"boss", &"baron"]
+## One entry per tier including the top; the top tier's entry is empty (no boss leaves the top).
+@export var boss_kind: Array[StringName] = [&"", &"boss", &"baron", &""]
 ## Seconds between the boss (first spawn of wave 3) and the rest of that wave.
 @export var boss_lead := 3.0
 ## Sim 2 (spec 8.1): the boss alone must need at least this long to fell the diner from its first hit.

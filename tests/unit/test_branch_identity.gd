@@ -2,8 +2,11 @@ extends GutTest
 ## E5 tier-3 spec 6.4 (D-272.3, D-273.0): the branch identity test on Balance, plus the data shape of tier 3.
 ## Real HP = base HP x WaveMath.hp_mult(pressure, wave): the multiplier also grows when a wave's raw size passes
 ## max_wave_size. Whole-hit math: a monster of HP h dies after ceil(h / d) hits (BranchMath).
+## M1 (single-target DPS) and M3 (DPS against three targets) are RAW by definition: damage x projectiles on distinct
+## targets / interval. Kill rates (M4, the brute check) use whole hits, so overkill counts against a tower.
 
 const PRESSURES: Array[int] = [12, 15]
+const ALL_PRESSURES: Array[int] = [12, 13, 14, 15]
 const WAVES := 3
 
 # Real hare HP per [pressure][wave], verified by hand: 15 x (1 + 0.15 x (p - 1)) x max(1, raw / 30).
@@ -43,6 +46,17 @@ func _best(values: Dictionary) -> StringName:
 		elif absf(values[id] - top) <= 1e-9:
 			tied = true
 	return &"tie" if tied else top_id
+
+## Every id whose value equals the top value (a shared top counts for all of them).
+func _top_set(values: Dictionary) -> Array:
+	var top := -INF
+	for id in values:
+		top = maxf(top, values[id])
+	var out := []
+	for id in values:
+		if absf(values[id] - top) <= 1e-9:
+			out.append(id)
+	return out
 
 func _worst(values: Dictionary) -> StringName:
 	var neg := {}
@@ -100,16 +114,58 @@ func test_m3_dps_against_three_targets_volley_highest() -> void:
 
 func test_m4_hares_per_second_volley_most_longbow_fewest() -> void:
 	var t := _towers()
-	for p in PRESSURES:
+	for p in ALL_PRESSURES:
 		for w in WAVES:
 			var hare := _hp(bd.monsters.stats(&"hare").hp, p, w)
 			for n in [3, 5, 8]:
 				var v := {}
 				for id in t:
 					v[id] = BranchMath.kills_per_second(hare, t[id], n)
-				gut.p("p%d w%d n=%d hare %.2f kills/s: unbranched %.3f longbow %.3f volley %.3f" % [p, w + 1, n, hare, v[&""], v[&"longbow"], v[&"volley"]])
+				gut.p("M4 p%d w%d n=%d hare %.2f kills/s: unbranched %.3f longbow %.3f volley %.3f" % [p, w + 1, n, hare, v[&""], v[&"longbow"], v[&"volley"]])
 				assert_eq(_best(v), &"volley", "most: p%d w%d n%d" % [p, w + 1, n])
 				assert_eq(_worst(v), &"longbow", "fewest: p%d w%d n%d" % [p, w + 1, n])
+
+func test_m4_kill_rate_literals() -> void:
+	var t := _towers()
+	var hare := _hp(15.0, 15, 2)  # 72.85: unbranched 5 hits (2.5 s), Longbow one shot per 3 s, Volley 8 hits per target
+	assert_almost_eq(BranchMath.kills_per_second(hare, t[&""], 5), 0.4, 1e-9)
+	assert_almost_eq(BranchMath.kills_per_second(hare, t[&"longbow"], 5), 1.0 / 3.0, 1e-9)
+	assert_almost_eq(BranchMath.kills_per_second(hare, t[&"volley"], 5), 0.75, 1e-9)
+	var easy := _hp(15.0, 12, 0)  # 39.75: 3 hits, 1 shot, 4 hits
+	assert_almost_eq(BranchMath.kills_per_second(easy, t[&""], 5), 2.0 / 3.0, 1e-9)
+	assert_almost_eq(BranchMath.kills_per_second(easy, t[&"volley"], 5), 1.5, 1e-9)
+
+## Whole-shot check against the brute with ONE target in range: Longbow is never slower than the unbranched tower.
+func test_longbow_kills_a_lone_brute_at_least_as_fast_as_unbranched() -> void:
+	var t := _towers()
+	var ties := 0
+	var waves_checked := 0
+	for p in ALL_PRESSURES:
+		for w in WAVES:
+			var hp := _hp(bd.monsters.stats(&"brute").hp, p, w)
+			var u: TowerBranchStats = t[&""]
+			var l: TowerBranchStats = t[&"longbow"]
+			var uh := BranchMath.hits_to_kill(hp, u.damage)
+			var lh := BranchMath.hits_to_kill(hp, l.damage)
+			var ku := BranchMath.kills_per_second(hp, u, 1)
+			var kl := BranchMath.kills_per_second(hp, l, 1)
+			var tie := absf(ku - kl) <= 1e-9
+			ties += 1 if tie else 0
+			waves_checked += 1
+			gut.p("BRUTE p%d w%d hp %.1f: unbranched %d hits %.1f s | longbow %d hits %.1f s%s" % [p, w + 1, hp, uh, uh * u.interval, lh, lh * l.interval, "  TIE" if tie else ""])
+			assert_gte(kl, ku - 1e-9, "longbow >= unbranched vs a brute p%d w%d" % [p, w + 1])
+	gut.p("BRUTE waves that tie: %d of %d" % [ties, waves_checked])
+
+## Information only: against the Boar Longbow's overkill makes it SLOWER than the unbranched tower. By design.
+func test_info_whole_shot_table_against_the_boar() -> void:
+	var t := _towers()
+	for p in ALL_PRESSURES:
+		for w in WAVES:
+			var hp := _hp(bd.monsters.stats(&"boar").hp, p, w)
+			var u: TowerBranchStats = t[&""]
+			var l: TowerBranchStats = t[&"longbow"]
+			gut.p("BOAR p%d w%d hp %.1f: unbranched %d hits %.1f s | longbow %d hits %.1f s" % [p, w + 1, hp, BranchMath.hits_to_kill(hp, u.damage), BranchMath.hits_to_kill(hp, u.damage) * u.interval, BranchMath.hits_to_kill(hp, l.damage), BranchMath.hits_to_kill(hp, l.damage) * l.interval])
+	pass_test("information only")
 
 func test_m5_fence_holds_longest_against_one_brute_stone() -> void:
 	var f := _fences()
@@ -124,7 +180,7 @@ func test_m5_fence_holds_longest_against_one_brute_stone() -> void:
 
 func test_m6_only_spike_damages_a_passing_hare() -> void:
 	var f := _fences()
-	var base := WaveMath.hp_mult(bd.tiers.tier_base[3], 0, bd.wave)
+	var base := BranchMath.spike_base_mult(bd.wave, bd.tiers)
 	for p in PRESSURES:
 		for w in WAVES:
 			var scale := BranchMath.spike_scale(WaveMath.hp_mult(p, w, bd.wave), base)
@@ -142,22 +198,39 @@ func test_m7_unbranched_level_3_is_best_at_none() -> void:
 	var t := _towers()
 	var f := _fences()
 	var brute := bd.monsters.stats(&"brute")
-	var best := {
-		"single dps": _best({&"": BranchMath.single_dps(t[&""]), &"longbow": BranchMath.single_dps(t[&"longbow"]), &"volley": BranchMath.single_dps(t[&"volley"])}),
-		"range": _best({&"": t[&""].attack_range, &"longbow": t[&"longbow"].attack_range, &"volley": t[&"volley"].attack_range}),
-		"dps x3": _best({&"": BranchMath.multi_dps(t[&""], 3), &"longbow": BranchMath.multi_dps(t[&"longbow"], 3), &"volley": BranchMath.multi_dps(t[&"volley"], 3)}),
-		"fence hold": _best({&"": BranchMath.fence_hold_seconds(f[&""].hp, brute, f[&""], &"brute"), &"stone": BranchMath.fence_hold_seconds(f[&"stone"].hp, brute, f[&"stone"], &"brute"), &"spike": BranchMath.fence_hold_seconds(f[&"spike"].hp, brute, f[&"spike"], &"brute")}),
-		"pass damage": _best({&"": 0.0, &"stone": 0.0, &"spike": BranchMath.pass_damage(f[&"spike"], &"hare", 1.0)}),
-	}
-	for p in PRESSURES:
+	var tops := {}  # measure -> the ids at the top value (a shared top counts)
+	var tv := {}
+	tv = {}
+	for id in t: tv[id] = BranchMath.single_dps(t[id])
+	tops["single dps"] = _top_set(tv)
+	tv = {}
+	for id in t: tv[id] = t[id].attack_range
+	tops["range"] = _top_set(tv)
+	tv = {}
+	for id in t: tv[id] = BranchMath.multi_dps(t[id], 3)
+	tops["dps x3"] = _top_set(tv)
+	tv = {}
+	for id in f: tv[id] = BranchMath.fence_hold_seconds(f[id].hp, brute, f[id], &"brute")
+	tops["fence hold"] = _top_set(tv)
+	tv = {}
+	for id in f: tv[id] = BranchMath.pass_damage(f[id], &"hare", 1.0)
+	tops["pass damage"] = _top_set(tv)
+	for p in ALL_PRESSURES:
 		for w in WAVES:
 			var hare := _hp(bd.monsters.stats(&"hare").hp, p, w)
 			for n in [3, 5, 8]:
-				best["hares/s p%d w%d n%d" % [p, w + 1, n]] = _best({&"": BranchMath.kills_per_second(hare, t[&""], n), &"longbow": BranchMath.kills_per_second(hare, t[&"longbow"], n), &"volley": BranchMath.kills_per_second(hare, t[&"volley"], n)})
-	for m in best:
-		assert_ne(best[m], &"", "the unbranched building is best at: %s" % m)
-	assert_eq(best["single dps"], &"longbow")
-	assert_eq(best["fence hold"], &"stone")
+				tv = {}
+				for id in t: tv[id] = BranchMath.kills_per_second(hare, t[id], n)
+				tops["hares/s p%d w%d n%d" % [p, w + 1, n]] = _top_set(tv)
+	for m in tops:
+		assert_false(&"" in tops[m], "the unbranched building is at the top (alone or tied) of: %s" % m)
+	assert_eq(tops["single dps"], [&"longbow"])
+	assert_eq(tops["fence hold"], [&"stone"])
+	assert_eq(tops["pass damage"], [&"spike"])
+
+func test_top_set_counts_a_shared_top() -> void:
+	assert_eq(_top_set({&"": 1.0, &"a": 1.0, &"b": 0.5}), [&"", &"a"])
+	assert_eq(_top_set({&"": 1.0, &"a": 2.0}), [&"a"])
 
 # --- BranchMath arithmetic ---------------------------------------------------------------------------------
 
@@ -170,7 +243,8 @@ func test_branch_math_whole_hits() -> void:
 
 func test_spike_scale_is_now_over_base() -> void:
 	assert_almost_eq(BranchMath.spike_scale(4.0, 2.0), 2.0, 1e-9)
-	var base := WaveMath.hp_mult(12, 0, bd.wave)
+	var base := BranchMath.spike_base_mult(bd.wave, bd.tiers)
+	assert_almost_eq(base, 2.65, 1e-9, "first wave at pressure 12")
 	assert_almost_eq(BranchMath.spike_scale(base, base), 1.0, 1e-9)
 	var s := BranchMath.spike_scale(WaveMath.hp_mult(15, 2, bd.wave), base)
 	assert_almost_eq(s, 4.8567 / 2.65, 1e-3)
@@ -211,9 +285,9 @@ func test_branch_data_survives_a_balance_reset_as_a_deep_copy() -> void:
 
 func test_monster_spec_values_tier_3() -> void:
 	var b := bd.monsters.stats(&"brute")
-	assert_eq([b.hp, b.speed, b.damage, b.attack_interval, b.reach, b.steaks_per_kill, b.fence_damage_mult], [240.0, 1.2, 8.0, 1.0, 1.2, 8, 4.0])
+	assert_eq([b.hp, b.speed, b.damage, b.attack_interval, b.reach, b.steaks_per_kill, b.drop_scatter, b.fence_damage_mult], [240.0, 1.2, 8.0, 1.0, 1.2, 8, 0.8, 4.0])
 	var z := bd.monsters.stats(&"baron")
-	assert_eq([z.hp, z.speed, z.damage, z.reach, z.steaks_per_kill, z.fence_damage_mult], [500.0, 2.4, 12.0, 1.6, 150, 1.0])
+	assert_eq([z.hp, z.speed, z.damage, z.attack_interval, z.reach, z.steaks_per_kill, z.drop_scatter, z.fence_damage_mult], [500.0, 2.4, 12.0, 1.0, 1.6, 150, 2.5, 1.0])
 	assert_eq(Array(z.priority), [&"guard", &"diner"], "walks past fences, the hare's order")
 	assert_eq(Array(bd.monsters.hare.priority), Array(z.priority))
 	assert_eq(bd.monsters.stats(&"boar").fence_damage_mult, 1.0)
@@ -241,5 +315,9 @@ func test_tier_3_arrays_are_data_only_and_the_top_tier_is_still_2() -> void:
 	assert_eq([tb.brute_cap_main[2], tb.brute_cap_side[2]], [0, 0], "tier 2 carries no brutes")
 	assert_eq(tb.boss_kind[1], &"boss")
 	assert_eq(tb.boss_kind[2], &"baron")
-	assert_eq(Array(tb.boss_kind), [&"", &"boss", &"baron"])
+	assert_eq(Array(tb.boss_kind), [&"", &"boss", &"baron", &""])
+	var last := tb.boss_kind.size() - 1
+	for t in range(1, last):
+		assert_ne(tb.boss_kind[t], &"", "boss_kind[%d] must name the boss that leaves tier %d (a new tier must add its boss)" % [t, t])
+	assert_eq(tb.boss_kind[last], &"", "no boss leaves the top tier: the last boss_kind entry is empty")
 	assert_eq(bd.guards.respawn_protect_s, 1.5)
