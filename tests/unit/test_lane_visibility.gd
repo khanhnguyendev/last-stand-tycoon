@@ -29,10 +29,12 @@ func test_boar_visible_two_seconds_before_range() -> void:
 	var dt := 1.0 / 60.0
 	for aspect in [0.30, CameraMath.ASPECT_MIN, CameraMath.ASPECT, 16.0 / 9.0, CameraMath.ASPECT_MAX, 32.0 / 9.0]:
 		var proj := CameraMath.projection(ui, aspect)
-		for lane in LanePlanner.LANES:
+		# tiers 1 and 2 run the three lanes, tier 3 the four (the same three plus sw)
+		assert_eq(MapLayout.lanes_for_tier(2), LanePlanner.LANES as Array)
+		for lane in MapLayout.lanes_for_tier(3):
 			var length := MapLayout.path_length(lane)
 			var worst := INF
-			for hero in [(MapLayout.ZONE_RECTS[lane] as Rect2).get_center(), MapLayout.lane_end(lane)]:
+			for hero in [MapLayout.zone_rect(lane).get_center(), MapLayout.lane_end(lane)]:
 				var xf := CameraMath.camera_transform(CameraMath.focus_for(hero), ui)
 				for offset in [-eb.lateral_spread, 0.0, eb.lateral_spread]:
 					var samples: Array = []

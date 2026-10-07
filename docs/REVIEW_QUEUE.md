@@ -113,6 +113,12 @@ Reversible decisions from the tier-3 build, highest impact first. Media: `docs/r
 5. **The tier sign** has a larger board and a label about 49 px tall (was 30). The label sits 4.3 m up and is drawn over everything, so it covers the ground about 3 to 6 m north of the sign, and its first line sits over a grey rock — `e5t3/growth/sign_before.png`, `sign_after.png`, `sign_after_on.png`, `sign_after_north.png`
 6. **Longbow fires 120 damage every 3.0 s** (first proposed 45 per 1.0 s). The slow, heavy shot is what keeps "Longbow kills the fewest hares" true at the cap, where hares reach 73 HP. Against a lone brute it ties the unbranched tower on 3 of 12 waves — [D-276](DECISIONS.md)
 
+7. **Branch pads sit tight.** With yard props and kerbs counted, the worst pad clearance is 0.15 m, and four towers have both pads on one side. To be judged on the pad screenshots of the world phase — [D-277](DECISIONS.md)
+8. **All side-lane brutes arrive in one night,** the same night pressure reaches the tier-3 cap (main-lane brutes ramp 1, 2, 3 before it) — [D-277](DECISIONS.md)
+9. **Buying a Stone wall fully repairs the fence.** Cheap repair by design, or should it keep its damage? — [D-277](DECISIONS.md)
+10. At tier 2 the hare share still ramps over 3 days while pressure now caps after 2, so the first cap night is slightly lighter on hares — [D-277](DECISIONS.md)
+11. The boot warm-up now builds more (kerb, placeholder monster meshes, every tier's ground after the switch); its cost is unmeasured until the final perf run — [D-277](DECISIONS.md)
+
 ## Final review playtest questions (S5)
 
 1. Did you know what to do in your first minute without reading anything?

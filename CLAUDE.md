@@ -11,7 +11,7 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - `world/` main scene, map, stations, build spots, directors, PhaseController; `world/audio/` AudioDirector (S5); `world/warmup.gd` boot warm-up
 - `ui/` HUD, joystick, world labels, overlays; `ui/guide/` onboarding pointer, `ui/settings/` settings panel (S5); `ui/debug/` is debug-only and excluded from release/profile exports
 - `balance/` typed Resource scripts + `balance.tres`, `ui_tuning.tres`
-- `tests/unit/`, `tests/sim/`, `tests/sim_tier/` (GUT; tier sims, D-247); `tests/sim_ticks.golden.json` is the per-sim tick budget; `tests/sim/out/` is gitignored; `tests/sim/baseline/` is the determinism baseline (S4; re-recorded once for E5, D-237: rows 1 to 7 are the tier-1 identity)
+- `tests/unit/`, `tests/sim/`, `tests/sim_tier/` (GUT; tier sims, D-247); `tests/fixtures/` (pinned plans, old-schema saves for migration tests); `tests/sim_ticks.golden.json` is the per-sim tick budget; `tests/sim/out/` is gitignored; `tests/sim/baseline/` is the determinism baseline (S4; re-recorded once for E5, D-237: rows 1 to 7 are the tier-1 identity)
 - `assets/<pack-id>/` third-party CC0 packs (only used files + `LICENSE.txt`, one row per pack in `docs/ASSET_LICENSES.md`); `assets/_candidates/` is gitignored (D-187)
 - `art/` our art: palette, remapped atlases, shared materials, wrappers, procedural builders, icons (D-187, D-188); `art/audio/` audio manifest, `art/fx/` FX atlas, shader, field, pointer (S5); rules in `docs/ART_BIBLE.md`
 - `tools/` headless and editor-only scripts (validator, palette remap, KayKit post-import, shots); excluded from every web export
@@ -29,6 +29,7 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - Sweep: `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/sweep.gd`
 - Upgrader sweep (E1): the same command with `-- --bot=upgrader`; writes `tests/sim/out/sweep_upgrader.csv`
 - Tier sweep (E5): the same command with `-- --bot=tier --days=20`; writes `tests/sim/out/sweep_tier.csv`; prints a `TIER` line
+- Tier-2 cap margin study (E5, D-276): `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_margin.gd` (ten seeds; `-- --tier-cap=<n>` measures another cap in memory; a report, not a CI test)
 - Tier fixtures (E5): `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/make_save.gd -- --fixture=tier` (deterministic; writes five files under `export/fixtures/`)
 - Web export: see `export/README.md`
 - S4 shots: `tools/shots.sh <out_dir>` (rendered 720x1280 + 40% copies); determinism: `tools/baseline_diff.sh` (must print `baseline identical`) and `tools/baseline_rows.sh 7` (must print `rows 1-7 identical`: the tier-1 identity, D-237)

@@ -107,4 +107,23 @@ static func create_for_tier(tier: int) -> WaypointGraph:
 		g.add_node("tower_e", MapLayout.TOWER_SPOTS.tower_e + Vector2(0.75, 0.75))
 		for e in [["sw", "tier_sign"], ["sw", "tower_w"], ["zone_west", "tower_w"], ["se", "tower_e"], ["zone_east", "tower_e"]]:
 			g.add_edge(e[0], e[1])
+	if tier >= 3:
+		_add_tier3(g)
 	return g
+
+## E5 tier 3 (spec 4.1, 4.3): the south-west tower stand point, the south-west fence spot, the tier-3 sign and every branch pad
+## (`pad_<spot_id>_a` / `_b`, joined to the node of their own spot). Every new edge clears the diner, counter and freezer (test_tier3_layout).
+static func _add_tier3(g: WaypointGraph) -> void:
+	g.add_node("tower_sw", MapLayout.tower_spot("tower_sw") + Vector2(-0.75, 0.75))
+	g.add_node("fence_sw", MapLayout.fence_spot("sw"))
+	g.add_node("tier_sign_3", MapLayout.tier_sign(3))
+	for e in [["sw", "tower_sw"], ["sw", "fence_sw"], ["home", "fence_sw"], ["sw", "tier_sign_3"], ["home", "tier_sign_3"]]:
+		g.add_edge(e[0], e[1])
+	var ids: Array = MapLayout.BRANCH_PADS.keys()
+	ids.sort()
+	for id in ids:
+		var pads: Array = MapLayout.BRANCH_PADS[id]
+		for i in pads.size():
+			var pad_name := "pad_%s_%s" % [id, "ab"[i]]
+			g.add_node(pad_name, pads[i])
+			g.add_edge(pad_name, id)

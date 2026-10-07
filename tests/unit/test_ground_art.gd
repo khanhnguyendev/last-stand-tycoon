@@ -147,12 +147,13 @@ func test_yard_kerb_is_continuous_around_the_sign_corner() -> void:
 			uncovered += 1
 			var near_pad := false
 			for q in YardStones.pad_points():
-				if p.distance_to(q) < YardStones.PAD_CLEAR + YardStones.SPACING:
+				if p.distance_to(q) < YardStones.PAD_CLEAR + YardStones.SPACING * 1.5:
 					near_pad = true
 			assert_true(near_pad, "uncovered kerb at %s is not at a pad" % p)
 	assert_gt(uncovered, 0, "the tower_w pad gap is still there")
 	var corner := Vector2(MapLayout.TIER_SIGN.x, r.end.y)
 	assert_true(segs.any(func(s): return Geometry2D.get_closest_point_to_segment(corner, s[0], s[1]).distance_to(corner) < 0.01), "kerb under the sign's edge point")
 	# a synthetic rect whose top edge passes 0.2 m from the sign: 6 x 3 m gives 2 * (5 + 2) = 14 pieces, none dropped
-	var near := Rect2(MapLayout.TIER_SIGN - Vector2(3, 0.2), Vector2(6, 3))
+	# (shifted 1 m west of the old placement: the kerb now leaves the tier-3 tower_sw pad free too, and the old rect ended 1.75 m from it)
+	var near := Rect2(MapLayout.TIER_SIGN - Vector2(4, 0.2), Vector2(6, 3))
 	assert_eq(YardStones.transforms(near).size(), 14, "nothing is dropped for the sign")

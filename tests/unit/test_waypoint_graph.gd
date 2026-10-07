@@ -46,3 +46,12 @@ func test_route_home_to_zone_east_uses_e_mid() -> void:
 func test_shortest_unknown_node_returns_empty() -> void:
 	assert_eq(g.shortest("home", "nope"), [])
 	assert_eq(g.shortest("nope", "home"), [])
+
+## E5 tier 3: the default graph is frozen; the tier-3 graph reaches the SW tower, fence, sign and every branch pad from home.
+func test_tier_3_graph_extends_without_touching_the_default() -> void:
+	var t3 := WaypointGraph.create_for_tier(3)
+	assert_eq(g.nodes.size(), 19)
+	for n in g.nodes:
+		assert_eq(t3.position_of(n), g.position_of(n), "%s keeps its position" % n)
+	for n in ["tower_sw", "fence_sw", "tier_sign_3", "pad_tower_sw_a", "pad_fence_sw_b", "pad_fence_n_a", "pad_tower_e_b"]:
+		assert_gt(t3.shortest("home", n).size(), 0, "unreachable: " + n)

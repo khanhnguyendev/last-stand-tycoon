@@ -1,5 +1,5 @@
 extends GutTest
-## E5 spec 6.3: schema 5, the 4 -> 5 step, tier validation, the tier clamp.
+## E5 spec 6.3: the 4 -> 5 step (it now ends at schema 6 through the 5 -> 6 step), tier validation, the tier clamp.
 
 func before_each() -> void:
 	Balance.reset()
@@ -20,6 +20,9 @@ func _v4_state(day := 12) -> Dictionary:
 	for w in s.lane_plan:
 		for k in ["fast_main", "fast_side", "boss"]:
 			w.erase(k)
+	for id in s.buildings:
+		s.buildings[id].erase("branch")
+		s.buildings[id].erase("branch_paid")
 	return s
 
 func _decode(s: Dictionary) -> Dictionary:
@@ -28,7 +31,7 @@ func _decode(s: Dictionary) -> Dictionary:
 func test_schema_4_migrates_to_5_at_tier_1() -> void:
 	var r := _decode(_v4_state(12))
 	assert_true(r.ok, r.reason)
-	assert_eq([r.state.v, r.state.tier, r.state.tier_day, r.state.tier_paid, r.state.boss_pending], [5, 1, 1, 0, false])
+	assert_eq([r.state.v, r.state.tier, r.state.tier_day, r.state.tier_paid, r.state.boss_pending], [6, 1, 1, 0, false])
 	var keys: Array = r.state.buildings.keys()
 	keys.sort()  # the codec writes sorted keys
 	var want := MapLayout.spots_for_tier(1)
@@ -36,6 +39,8 @@ func test_schema_4_migrates_to_5_at_tier_1() -> void:
 	assert_eq(keys, want)
 	for w in r.state.lane_plan:
 		assert_eq([w.fast_main, w.fast_side, w.boss], [0, 0, false])
+	for id in r.state.buildings:
+		assert_eq([r.state.buildings[id].branch, r.state.buildings[id].branch_paid], ["", {}], id)
 	assert_eq(int(r.state.day), 12, "a day-12 tier-1 save keeps its day; it meets day-7 pressure from its next dawn")
 
 func test_built_in_step_survives_a_cleared_hook_table() -> void:
@@ -125,7 +130,7 @@ func test_schema_3_fixtures_still_load() -> void:
 		var text := FileAccess.get_file_as_string("res://export/fixtures/%s.save.json" % stem)
 		var r := SaveCodec.decode(text, GameState.SCHEMA_VERSION, Balance.data)
 		assert_true(r.ok, "%s: %s" % [stem, r.reason])
-		assert_eq([r.state.v, r.state.tier], [5, 1])
+		assert_eq([r.state.v, r.state.tier], [6, 1])
 
 func test_schema_4_with_a_bad_lane_plan_is_content() -> void:
 	var variants := {"erased": null, "null": null, "number": 7, "bad wave": 1}

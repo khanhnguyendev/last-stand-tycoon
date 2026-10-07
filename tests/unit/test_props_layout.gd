@@ -43,6 +43,36 @@ func test_off_stations_roads_and_spots() -> void:
 		for s in points:
 			assert_gt(p.distance_to(s), 3.0, "%s clear of %s" % [p, s])
 
+## E5 tier 3 (Task 8): the hand-placed props stay off the south-west lane, the tier-3 service layout and the tier-3 spots, and the
+## open front lot hides the ones it would stand on.
+func test_off_the_tier_3_lane_and_layout() -> void:
+	# the props left once the open yards (including the front lot) have hidden the ones standing on them
+	var yards: Array[Rect2] = []
+	for id in MapLayout.yards_for_tier(3):
+		yards.append(MapLayout.yard_rect(id))
+	var pts: Array = MapLayout.lane_path("sw")
+	var points: Array = [MapLayout.tier_sign(3), MapLayout.fence_spot("sw"), MapLayout.tower_spot("tower_sw")]
+	points.append_array(MapLayout.queue_slots(3))
+	for id in MapLayout.BRANCH_PADS:
+		points.append_array(MapLayout.BRANCH_PADS[id])
+	var items := Props.items_for(yards)
+	assert_gt(items.size(), 40)
+	for it in items:
+		for i in range(1, pts.size()):
+			var q := Geometry2D.get_closest_point_to_segment(it.pos, pts[i - 1], pts[i])
+			assert_gte(q.distance_to(it.pos), 3.0, "%s is off the sw lane" % it.pos)
+		for s in points:
+			assert_gt(it.pos.distance_to(s), 3.0, "%s clear of the tier-3 point %s" % [it.pos, s])
+		assert_gt(absf(it.pos.y - MapLayout.ROAD_Z), 2.5, "%s clear of the road" % it.pos)
+
+func test_the_open_front_lot_hides_the_props_it_would_hold() -> void:
+	var front := MapLayout.yard_rect("front")
+	var before := PropsLayout.ITEMS.filter(func(it): return Geometry.dist_point_rect(it.pos, front) <= 1.0)
+	var items := Props.items_for([front])
+	for it in items:
+		assert_gt(Geometry.dist_point_rect(it.pos, front), 1.0, "%s clear of the front lot" % it.pos)
+	assert_eq(items.size(), PropsLayout.ITEMS.size() - before.size(), "exactly the props within 1 m of the lot go")
+
 func test_every_model_exists_and_is_a_mesh() -> void:
 	for it in PropsLayout.ITEMS:
 		assert_true(ResourceLoader.exists(it.model), "%s exists" % it.model)

@@ -1,7 +1,7 @@
 extends Node
 ## The only mutable game data (spec 4, D-096). Only these methods change it; they emit EventBus signals.
 
-const SCHEMA_VERSION := 5
+const SCHEMA_VERSION := 6
 
 var resume_phase := "NIGHT"
 var run_seed := 0
@@ -45,7 +45,7 @@ func new_game(seed: int = 0) -> void:
 	boss_pending = false
 	buildings = {}
 	for id in MapLayout.spots_for_tier(tier):
-		buildings[id] = {"level": 0, "paid": 0, "hp": 0.0}
+		buildings[id] = _new_building()
 	stations = _fresh_stations()
 	cards = {}
 	card_offer = []
@@ -53,6 +53,11 @@ func new_game(seed: int = 0) -> void:
 	night_fails = 0
 	lane_plan = _plan_today()
 	EventBus.state_restored.emit()
+
+## The one source of a building's shape. E5 tier 3: `branch` ("" = none) and `branch_paid` (branch id -> gold paid
+## towards it, only while no branch is chosen).
+static func _new_building() -> Dictionary:
+	return {"level": 0, "paid": 0, "hp": 0.0, "branch": "", "branch_paid": {}}
 
 # --- snapshot -------------------------------------------------------------
 
@@ -88,7 +93,17 @@ func from_dict(d: Dictionary) -> void:
 	buildings = {}
 	for id in d.buildings:
 		var b: Dictionary = d.buildings[id]
-		buildings[String(id)] = {"level": int(b.level), "paid": int(b.paid), "hp": float(b.hp)}
+		var nb := _new_building()
+		nb.level = int(b.level)
+		nb.paid = int(b.paid)
+		nb.hp = float(b.hp)
+		nb.branch = String(b.branch)
+		# A pad payment at or above its cost would never complete (D-234: a later balance change never loses a save):
+		# clamp to cost - 1, like station payments and tier_paid; the excess is not refunded (the same precedent).
+		var bcost := branch_cost(String(id))
+		for k in b.branch_paid:
+			nb.branch_paid[String(k)] = clampi(int(b.branch_paid[k]), 0, maxi(bcost - 1, 0))
+		buildings[String(id)] = nb
 	stations = _fresh_stations()
 	for id in StationEffects.IDS:
 		var st: Dictionary = d.stations[String(id)]
@@ -98,12 +113,16 @@ func from_dict(d: Dictionary) -> void:
 		stations[id] = {"level": level, "paid": 0 if cost < 0 else clampi(int(st.paid), 0, maxi(cost - 1, 0))}
 	lane_plan = []
 	for w in d.lane_plan:
-		lane_plan.append({
+		var wave := {
 			"main": String(w.main), "side": String(w.side),
 			"main_count": int(w.main_count), "side_count": int(w.side_count), "hp_mult": float(w.hp_mult),
 			# E5: hares and the boss ride in the plan; a wave saved before E5 has none.
 			"fast_main": int(w.get("fast_main", 0)), "fast_side": int(w.get("fast_side", 0)), "boss": bool(w.get("boss", false)),
-		})
+		}
+		if tier >= 3:  # mirrors the planner's gate: a tier-1/2 plan keeps its eight keys
+			wave["brute_main"] = int(w.get("brute_main", 0))
+			wave["brute_side"] = int(w.get("brute_side", 0))
+		lane_plan.append(wave)
 	# A pending boss always rides tonight's plan (a hand-edited save cannot skip it).
 	if boss_pending and not lane_plan.is_empty():
 		lane_plan[lane_plan.size() - 1].boss = true
@@ -189,8 +208,11 @@ func remaining_cost(spot_id: String) -> int:
 	var cost := next_level_cost(spot_id)
 	return -1 if cost < 0 else cost - int(buildings[spot_id].paid)
 
-func fence_max_hp(level: int) -> float:
+## `branch` is the fence's chosen branch (&"" = none): a branched fence's maximum is the branch's hp.
+func fence_max_hp(level: int, branch: StringName = &"") -> float:
 	assert(level >= 1 and level <= Balance.data.build.fence_hp.size(), "fence_max_hp level out of range")
+	if branch != &"":
+		return Balance.data.branches.fence(branch).hp
 	return Balance.data.build.fence_hp[level - 1]
 
 ## Shared by pay_into_spot and pay_into_station. Returns the gold taken (0 = nothing happened).
@@ -222,10 +244,13 @@ func pay_into_spot(spot_id: String, amount: int) -> int:
 		EventBus.building_changed.emit(StringName(spot_id), b.level, b.paid)
 	return pay
 
-func damage_fence(spot_id: String, amount: float) -> void:
+## `attacker_kind` (the monster's kind id, &"" = unknown) selects the branch's damage_taken_mult_by_kind.
+func damage_fence(spot_id: String, amount: float, attacker_kind: StringName = &"") -> void:
 	var b: Dictionary = buildings[spot_id]
 	if int(b.level) < 1 or float(b.hp) <= 0.0:
 		return
+	if String(b.branch) != "" and attacker_kind != &"":
+		amount *= float(Balance.data.branches.fence(StringName(b.branch)).damage_taken_mult_by_kind.get(attacker_kind, 1.0))
 	b.hp = maxf(float(b.hp) - amount, 0.0)
 	EventBus.building_changed.emit(StringName(spot_id), b.level, b.paid)
 
@@ -239,6 +264,74 @@ func damage_diner(amount: float) -> void:
 
 func diner_fraction() -> float:
 	return diner_hp / Balance.data.build.diner_max_hp
+
+# --- branches (E5 tier 3, spec 3.6) -----------------------------------------
+
+func branch_of(spot_id: String) -> StringName:
+	return StringName(String(buildings[spot_id].branch)) if buildings.has(spot_id) else &""
+
+## Gold of one branch pad of this spot (by kind).
+func branch_cost(spot_id: String) -> int:
+	var bb: BranchBalance = Balance.data.branches
+	return bb.tower_branch_cost if MapLayout.spot_kind(spot_id) == "tower" else bb.fence_branch_cost
+
+func branch_options(spot_id: String) -> Array[StringName]:
+	var out: Array[StringName] = []
+	out.append_array(BranchBalance.TOWER_BRANCHES if MapLayout.spot_kind(spot_id) == "tower" else BranchBalance.FENCE_BRANCHES)
+	return out
+
+## Tier 3 or higher, at the top build level, no branch yet; a fence must stand (a rubble fence loses its level at dawn).
+func can_branch(spot_id: String) -> bool:
+	if tier < 3 or not buildings.has(spot_id):
+		return false
+	var b: Dictionary = buildings[spot_id]
+	if int(b.level) != Balance.data.build.max_level or String(b.branch) != "":
+		return false
+	return not (MapLayout.spot_kind(spot_id) == "fence" and float(b.hp) <= 0.0)
+
+## Gold still to pay for `branch_id` on this spot; -1 when the spot cannot branch or the branch is not one of its options.
+func branch_remaining(spot_id: String, branch_id: StringName) -> int:
+	if not can_branch(spot_id) or not branch_id in branch_options(spot_id):
+		return -1
+	return branch_cost(spot_id) - int(buildings[spot_id].branch_paid.get(String(branch_id), 0))
+
+## Same contract as pay_into_spot: returns the gold taken (0 = refused or nothing to pay). Clamped to the player's gold
+## and to the remaining cost. The choice commits only on FULL payment; a partial payment stays in branch_paid. On
+## completion the OTHER pad's partial payment is refunded to gold exactly and branch_paid is cleared.
+func pay_into_branch(spot_id: String, branch_id: StringName, amount: int) -> int:
+	var remaining := branch_remaining(spot_id, branch_id)
+	if remaining <= 0:
+		return 0
+	var pay := mini(amount, mini(gold, remaining))
+	if pay <= 0:
+		return 0
+	var b: Dictionary = buildings[spot_id]
+	gold -= pay
+	b.branch_paid[String(branch_id)] = int(b.branch_paid.get(String(branch_id), 0)) + pay
+	var done: bool = int(b.branch_paid[String(branch_id)]) >= branch_cost(spot_id)
+	var refund := 0
+	if done:
+		# All state of the purchase is committed before the first signal fires (listeners may snapshot the state).
+		for k in b.branch_paid:
+			if k != String(branch_id):
+				refund += int(b.branch_paid[k])
+		b.branch = String(branch_id)
+		b.branch_paid = {}
+		# Stone: the fence is repaired in full on purchase (its current hp becomes the new, higher maximum). Spike keeps the level-3 hp.
+		if MapLayout.spot_kind(spot_id) == "fence":
+			b.hp = fence_max_hp(int(b.level), branch_id) if branch_id == &"stone" else b.hp
+		gold += refund
+	EventBus.gold_changed.emit(gold - refund, -pay)  # the purse right after paying, before any refund
+	if not done:
+		EventBus.building_changed.emit(StringName(spot_id), b.level, b.paid)
+		return pay
+	if refund > 0:
+		EventBus.gold_changed.emit(gold, refund)
+	EventBus.building_changed.emit(StringName(spot_id), b.level, b.paid)
+	EventBus.branch_chosen.emit(StringName(spot_id), branch_id)
+	if refund > 0:
+		EventBus.branch_refunded.emit(StringName(spot_id), refund)
+	return pay
 
 # --- stations (E1) ---------------------------------------------------------
 
@@ -296,18 +389,27 @@ func heal_for_dawn() -> void:
 	for id in buildings:
 		var b: Dictionary = buildings[id]
 		if MapLayout.spot_kind(id) == "fence" and int(b.level) >= 1 and float(b.hp) > 0.0:
-			b.hp = fence_max_hp(b.level)
+			b.hp = fence_max_hp(b.level, StringName(b.branch))
 			EventBus.building_changed.emit(StringName(id), b.level, b.paid)
 	for id in guards:
 		guards[id].hp = guard_max_hp(id)
 		EventBus.guard_healed.emit(id, float(guards[id].hp))
 
+## A destroyed fence loses its level, its branch (D-263: the branch is lost with the fence) and its branch_paid. Gold
+## already put on its pads is refunded at this dawn, so no gold silently disappears (branch_refunded fires for it).
 func reset_destroyed_fences() -> void:
 	for id in buildings:
 		var b: Dictionary = buildings[id]
 		if MapLayout.spot_kind(id) == "fence" and int(b.level) >= 1 and float(b.hp) <= 0.0:
-			buildings[id] = {"level": 0, "paid": 0, "hp": 0.0}
+			var refund := 0
+			for k in b.branch_paid:
+				refund += int(b.branch_paid[k])
+			buildings[id] = _new_building()
+			gold += refund
 			EventBus.building_changed.emit(StringName(id), 0, 0)
+			if refund > 0:
+				EventBus.gold_changed.emit(gold, refund)
+				EventBus.branch_refunded.emit(StringName(id), refund)
 
 func advance_day() -> void:
 	day += 1
@@ -370,7 +472,7 @@ func complete_tier_up() -> void:
 	tier += 1
 	tier_day = day
 	for id in MapLayout.TIER_SPOTS.get(tier, []):
-		buildings[id] = {"level": 0, "paid": 0, "hp": 0.0}
+		buildings[id] = _new_building()
 		EventBus.building_changed.emit(StringName(id), 0, 0)
 	lane_plan = _plan_today()
 	EventBus.tier_changed.emit(tier, 0, false)
@@ -384,7 +486,7 @@ func debug_set_tier(p_tier: int, day_entered: int) -> void:
 	boss_pending = false
 	for id in MapLayout.spots_for_tier(tier):
 		if not buildings.has(id):
-			buildings[id] = {"level": 0, "paid": 0, "hp": 0.0}
+			buildings[id] = _new_building()
 	lane_plan = _plan_today()
 	EventBus.tier_changed.emit(tier, 0, false)
 

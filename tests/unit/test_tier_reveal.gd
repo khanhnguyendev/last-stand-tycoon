@@ -269,7 +269,7 @@ func test_a_tier_with_no_yards_and_no_spots_runs_the_diner_step_only() -> void:
 	sfx.clear()
 	fx.clear()
 	banners.clear()
-	EventBus.tier_reached.emit(3)
+	EventBus.tier_reached.emit(4)  # tier 3 now has spots (E5 tier 3, Task 8): tier 4 is the first with neither yards nor spots
 	assert_true(banners.has(tr("The diner grows!")))
 	assert_true(_reveal().running())
 	assert_eq(_reveal().steps_left(), 1)

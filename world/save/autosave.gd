@@ -18,6 +18,7 @@ func _ready() -> void:
 	EventBus.phase_changed.connect(_on_phase)
 	EventBus.night_failed.connect(_on_night_failed)
 	EventBus.build_completed.connect(_on_build_completed)
+	EventBus.branch_chosen.connect(_on_branch_chosen)  # a chosen branch is a build too (E5 tier 3)
 	EventBus.station_upgraded.connect(_on_build_completed)  # "after each build" covers station levels (E1)
 	EventBus.station_changed.connect(_mark_dirty.unbind(3))
 	EventBus.stocks_changed.connect(_mark_dirty)
@@ -71,6 +72,10 @@ func _on_night_failed(_day: int) -> void:
 	failing = true
 
 func _on_build_completed(_spot: StringName, _level: int) -> void:
+	if phase == Phase.DAY and not failing:
+		_write_live("DAY")
+
+func _on_branch_chosen(_spot: StringName, _branch: StringName) -> void:
 	if phase == Phase.DAY and not failing:
 		_write_live("DAY")
 

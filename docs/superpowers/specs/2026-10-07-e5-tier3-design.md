@@ -58,14 +58,15 @@ site. All tier-3 arrays may be longer than `tier_costs.size() + 1` before the sw
 - `LanePlanner.lanes_for_tier(tier)` returns `LANES` below tier 3 and `["west", "north", "east", "sw"]` from tier 3.
   `plan()` draws from that list. Only the `lane_plan` stream is used; no other stream (spawns, travelers, drops)
   shifts.
-- `MapLayout.LANE_PATHS`, `ZONE_AXIS`, `ZONE_RECTS`, `FENCE_LANE`, `LANE_FENCE` gain the `sw` entries; every consumer
-  that iterates lanes iterates `lanes_for_tier(GameState.tier)` (or `MapLayout.lanes_for_tier`, the same list), never
-  the dictionary keys.
+- The tier-3 map entries live in `*_T3` constants in `core/map_layout.gd` behind accessors (`lane_path`, `zone_rect`,
+  `zone_axis`, `tower_spot`, `tower_lanes`, `fence_spot`, `yard_rect`, `lanes_for_tier`, `spots_for_tier`, ...). The
+  old dictionaries keep only the tier-1/2 entries (art code iterates them by key). A source-scan test bans direct
+  reads of those dictionaries outside `core/map_layout.gd` (D-277).
 
 ### 3.2 Plan fields
 
-Each wave gains `brute_main` and `brute_side` (ints), next to `fast_main` and `fast_side`. Old saves and tier-1/2
-plans carry 0. `LanePlanner.threat_by_lane` adds brute HP. A new `LanePlanner.composition_by_lane(plan)` returns, per
+Each wave of a plan made for tier 3 or above gains `brute_main` and `brute_side` (ints), next to `fast_main` and
+`fast_side`. Tier-1/2 plans do not carry the keys, so their saved shape is unchanged; readers use `.get(key, 0)` (D-277). `LanePlanner.threat_by_lane` adds brute HP. A new `LanePlanner.composition_by_lane(plan)` returns, per
 lane, `{boar, hare, brute, boss}` counts for the telegraph (section 6.5).
 
 ### 3.3 TierBalance (starting values)
@@ -122,10 +123,12 @@ points and test A' stay valid. Boss reward rule (D-274.2): a boss drops one cap 
   on full payment (D-263.1). On completion the other pad's partial payment is refunded to gold and
   `EventBus.branch_refunded(spot_id, amount)` fires for the coin flight. `reset_destroyed_fences` clears `branch` and
   `branch_paid` (D-263.2). Partial payments persist through close-up, night and save/load (D-273.3).
-- `SCHEMA_VERSION` 6 with a built-in step 5 to 6 (adds the two fields, `brute_*` plan fields as 0). The fail/quit
-  snapshot carries branch state and pad payments.
-- Migration fixture: the committed schema-5 fixtures (`export/fixtures/tier2_full.save.json` and the others) are
-  copied to `tests/fixtures/v5/` before any fixture is regenerated; the migration test loads them (D-270.2).
+- `SCHEMA_VERSION` 6 with a built-in step 5 to 6 (adds the two building fields; nothing else). The fail/quit
+  snapshot carries branch state and pad payments. A saved pad payment at or above the branch cost clamps to cost - 1
+  on load (D-234: a balance change never loses a save). Partial pad payments on a fence destroyed at night are
+  refunded to gold at dawn (D-277).
+- Migration fixtures: the eight committed fixtures as they were before the cap change, in `tests/fixtures/v5/` (five
+  are schema 5, one schema 4, two schema 3); the migration test loads every one (D-270.2).
 
 ## 4. The map at tier 3 (D-271)
 
@@ -140,7 +143,7 @@ pins each by a test.
 | `ZONE_RECTS["sw"]` | `Rect2(-4.0, 4.0, 2.5, 1.2)`; stop points x -3.75 to -1.75 at z 5.2 |
 | `ZONE_AXIS["sw"]` | `(1, 0)` |
 | Fence spot `fence_sw` | 4.0 m back from the end: (-3.26, 9.17) |
-| `TOWER_SPOTS["tower_sw"]` | (-6.6, 5.6); `TOWER_LANES` `["sw", "west"]` |
+| `tower_sw` | (-6.6, 5.6); its lanes are `["sw"]` (the west fence, 9.15 m, and the west zone's far corner, 7.56 m, are beyond level-1 range; west is its second lane by distance only) |
 | `TIER_SPOTS[3]` | `["tower_sw", "fence_sw"]` |
 | Plot (`YARDS["front"]`, `YARD_TIER` 3) | `Rect2(-7.6, 5.6, 6.1, 4.3)` |
 | `TIER_SIGNS` | `{2: (-10.0, 7.5), 3: (-5.6, 9.0)}` (the sign of tier N is shown at tier N - 1) |
@@ -176,9 +179,11 @@ Tiers 1 and 2 are unchanged. From tier 3:
 - Clearance rules, each pad: lanes (line distance >= spread + radius), attack zones, fence bars, towers, other pads
   (>= 2 radii), the close-up sign, station zones and pads, the gold pile, HOME, the door, tier-3 queue slots,
   traveler entry and exit lines, hero colliders, map bounds.
-- The probe found valid pairs for every spot (fewest: `fence_sw`, 23 positions; worst chosen clearance 0.46 m). The
-  plan's layout task fixes the 18 coordinates and the geometry test proves each rule; pads also join the waypoint
-  graph (`WaypointGraph.create_for_tier(3)`).
+- Fixed in Task 8 with the probe (`tools/probe_t3_layout.gd`): 18 coordinates in `MapLayout.BRANCH_PADS`. Yard props
+  and kerbs count as obstacles too, so the pads sit tight: the worst clearance is 0.15 m (the test's extra margin is
+  0.1 m). The pads of `tower_nw`, `tower_ne`, `tower_w` and `tower_e` do not sit on both sides of their tower. The
+  pad geometry test proves every rule; pads also join the waypoint graph (`WaypointGraph.create_for_tier(3)`).
+  Task 17 judges them on screenshots.
 
 ## 5. Phase 1: growth readability (D-262, D-268)
 
@@ -203,7 +208,8 @@ Tiers 1 and 2 are unchanged. From tier 3:
 ### 6.1 Pressure and waves
 
 Pressure 12 to 15. One main lane and at most one side lane per wave, drawn from four lanes. Brutes: night 1 of tier 3
-has one, on the last wave's main lane; the count ramps over `brute_ramp_days` to at most 1 main + 1 side per wave.
+has one, on the last wave's main lane; each day one more wave (from the last backwards) carries a main-lane brute,
+and from `brute_ramp_days` on every wave has 1 main + 1 side (1, 2, 3 brutes, then 3 plus the sides).
 Brutes replace no Boar: they are added (their HP is in the threat total and their steaks in the economy).
 
 ### 6.2 The siege brute (D-265)
