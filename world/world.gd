@@ -14,6 +14,8 @@ var lighting: LightingDirector
 var props: Props
 var diner_body: StaticBody3D
 var build_spots := {}
+## E5 tier 3 Task 17: spot id -> its two BranchPads (index 0 = the first branch option). Empty below tier 3.
+var branch_pads := {}
 var upgrade_pads := {}
 var freezer: Freezer
 var counter: Counter
@@ -209,6 +211,7 @@ func rebuild_for_tier() -> void:
 		if not build_spots.has(id):
 			_make_spot(id)
 	_swap_diner_art(tier)
+	_sync_branch_pads()
 
 ## The lane nodes, their edge stones and their telegraph markers follow the tier: the lanes of `lane_ids()` exist, no others.
 ## Tiers 1 and 2 have the same three, so nothing is touched for them.
@@ -311,6 +314,35 @@ func add_static_box(node_name: String, size: Vector3, xz: Vector2, visual_scene:
 func _build_spots() -> void:
 	for id in MapLayout.spots_for_tier(_effective_tier()):
 		_make_spot(id)
+	_sync_branch_pads()
+
+## E5 tier 3 Task 17: two branch pads per spot from tier 3 on, none below (and none for a spot the tier does not have). A pad
+## shows itself only while its building can branch (BranchPad.is_shown). The spots refresh too: at a branchable spot the cost
+## label gives way to the pads (BuildSpot.refresh).
+func _sync_branch_pads() -> void:
+	var want: Array[String] = []
+	if _effective_tier() >= 3:
+		want = MapLayout.spots_for_tier(_effective_tier())
+	for id in branch_pads.keys():
+		if not id in want:
+			for p in branch_pads[id]:
+				remove_child(p)  # at once: queue_free is deferred
+				p.queue_free()
+			branch_pads.erase(id)
+	for id in want:
+		if branch_pads.has(id):
+			continue
+		var pads: Array = []
+		for i in 2:
+			var pad := BranchPad.new()
+			add_child(pad)
+			pad.setup(id, i, self)
+			pad.zone.sync_phase(_phase)  # a pad made mid-game missed phase_changed
+			pad.refresh()
+			pads.append(pad)
+		branch_pads[id] = pads
+	for id in build_spots:
+		(build_spots[id] as BuildSpot).refresh()
 
 func _make_spot(id: String) -> void:
 	var s: BuildSpot = TowerSpot.new() if MapLayout.spot_kind(id) == "tower" else FenceSpot.new()
