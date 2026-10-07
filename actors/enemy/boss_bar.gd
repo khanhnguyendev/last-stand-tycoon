@@ -10,8 +10,23 @@ const Y := 2.6
 static var _back_mat: StandardMaterial3D
 static var _fill_mat: StandardMaterial3D
 
+const NAME_FONT_SIZE := 40
+## The name sits just above the bar, centred on it.
+const NAME_Y := 0.34
+
 var _boar: Boar
 var _fill: MeshInstance3D
+var _name: WorldLabel
+var _name_kind: StringName = &""
+
+## The boss's display name, light and comic (D-274.1). Every string through tr().
+func display_name(kind: StringName) -> String:
+	match kind:
+		&"baron":
+			return tr("Baron von Hop")
+		&"boss":
+			return tr("Boar King")
+	return ""
 
 func setup(boar: Boar) -> void:
 	_boar = boar
@@ -48,6 +63,14 @@ func _box(size: Vector3, mat: StandardMaterial3D) -> MeshInstance3D:
 func _build() -> void:
 	_box(Vector3(WIDTH + 0.1, 0.16, 0.06), back_material())
 	_fill = _box(Vector3(WIDTH, 0.1, 0.08), fill_material())
+	_name = WorldLabel.make("", NAME_FONT_SIZE)
+	_name.name = "BossName"
+	_name.position.y = NAME_Y
+	add_child(_name)
+
+## The name line while the bar shows; "" when it is hidden (a Boar, or a boss that died).
+func name_text() -> String:
+	return _name.text if _name != null and visible else ""
 
 func fraction() -> float:
 	var h := _boar.health
@@ -59,7 +82,7 @@ func fill_color() -> Color:
 	return fill_material().albedo_color
 
 func _is_living_boss() -> bool:
-	return _boar != null and _boar.kind == &"boss" and _boar.alive
+	return _boar != null and _boar.is_boss and _boar.alive
 
 func _refresh() -> void:
 	var show := _is_living_boss()
@@ -68,11 +91,14 @@ func _refresh() -> void:
 	visible = show
 	if not show:
 		return
+	if _name_kind != _boar.kind:  # a pooled node respawned as the other boss
+		_name_kind = _boar.kind
+		_name.text = display_name(_boar.kind)
 	var f := fraction()
 	_fill.scale.x = maxf(f, 0.001)
 	_fill.position.x = -WIDTH * 0.5 * (1.0 - f)
 
 func _process(_delta: float) -> void:
-	if _boar == null or (not visible and _boar.kind != &"boss"):
+	if _boar == null or (not visible and not _boar.is_boss):
 		return  # every active Boar ticks this; a non-boss returns at once
 	_refresh()
