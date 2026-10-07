@@ -10,7 +10,7 @@ extends Node3D
 ## PROGRESSIVE DISCLOSURE (fix round 1): one focus spot at a time, so many level-3 buildings never pile their labels up.
 ##   FAR   (not the focus spot): the ground ring and the branch glyph on the pad, depth-tested (buildings hide it); no text. The glyph
 ##         is hidden (FAR_QUIET) while the hero stands on any pad.
-##   NEAR  (the focus spot, hero not on this pad): ring, glyph and the remaining cost under it, one block at most 1.2 m wide.
+##   NEAR  (the focus spot, hero not on this pad): ring, glyph and the remaining cost under it, one block at most 1.25 m wide.
 ##   QUIET (the other pad of the spot the hero stands on): ring and payment ring only; its glyph and cost come back when he leaves.
 ##   ON    (the hero is inside this pad): glyph and cost row, name, preview line, the fence warning line, and the preview at the
 ##         building (range rings, "x3", shield, spikes). It shows before the stand-still threshold and before any gold moves.
@@ -114,16 +114,15 @@ static func update_focus(tree: SceneTree) -> void:
 		return
 	_cache_frame = frame
 	_on_pad = null
-	for i in range(_shown_pads.size() - 1, -1, -1):  # a pad freed since (a rebuild) leaves the registry
-		if not is_instance_valid(_shown_pads[i]):
-			_shown_pads.remove_at(i)
+	_purge_freed()  # a pad freed since (a rebuild) leaves the registry
 	var hero := tree.get_first_node_in_group(&"hero") as Node3D
 	if hero == null or _shown_pads.is_empty():
 		_focus_spot = ""
 		return
 	var hx := hero.global_position.x
 	var hz := hero.global_position.z
-	_nearest.clear()
+	for k in _nearest:  # overwrite, never clear and re-insert: a spot with no shown pad now keeps INF
+		_nearest[k] = INF
 	var best_on := INF
 	for p: BranchPad in _shown_pads:
 		var d := Vector2(hx - p.global_position.x, hz - p.global_position.z).length()
@@ -147,12 +146,16 @@ static func update_focus(tree: SceneTree) -> void:
 			best = float(_nearest[id])
 			_focus_spot = id
 
-## Takes a pad out of the shown registry; the last one out clears the focus (night, a new game, a load: no stale focus survives).
-static func _forget_shown(pad: BranchPad) -> void:
-	_shown_pads.erase(pad)
+## Drops the freed pads from the shown registry.
+static func _purge_freed() -> void:
 	for i in range(_shown_pads.size() - 1, -1, -1):
 		if not is_instance_valid(_shown_pads[i]):
 			_shown_pads.remove_at(i)
+
+## Takes a pad out of the shown registry; the last one out clears the focus (night, a new game, a load: no stale focus survives).
+static func _forget_shown(pad: BranchPad) -> void:
+	_shown_pads.erase(pad)
+	_purge_freed()
 	if _shown_pads.is_empty():
 		_focus_spot = ""
 		_on_pad = null
@@ -168,9 +171,7 @@ static func pad_hero_stands_on() -> BranchPad:
 
 ## Forgets the shared focus (a new world, tests).
 static func reset_focus() -> void:
-	for i in range(_shown_pads.size() - 1, -1, -1):
-		if not is_instance_valid(_shown_pads[i]):
-			_shown_pads.remove_at(i)
+	_purge_freed()
 	_cache_frame = -1
 	_focus_spot = ""
 	_on_pad = null
@@ -214,10 +215,7 @@ func setup(p_spot_id: String, p_index: int, world: World) -> void:
 	refresh()
 
 func _exit_tree() -> void:
-	_forget_shown(self)
-	if _on_pad == self:
-		_on_pad = null
-	_cache_frame = -1
+	_forget_shown(self)  # also clears _on_pad when it is this pad, and the frame cache
 
 # --- items and their layout --------------------------------------------------------------------------
 
@@ -284,7 +282,7 @@ func _build_items() -> void:
 func _layout_items() -> void:
 	var ibox := glyph_box(icon)
 	var cbox := _cost_box()
-	# NEAR: the glyph with the cost centred under it; the block (at most 1.2 m wide) centred on the pad
+	# NEAR: the glyph with the cost centred under it; the block (at most 1.25 m wide) centred on the pad
 	var block_h := ibox.y + STACK_GAP_M + cbox.y
 	_pos[NEAR] = {
 		icon: _at(block_h * 0.5 - ibox.y * 0.5, true),
@@ -378,13 +376,13 @@ func _ring(radius: float, colour: StringName, node_name: String) -> void:
 	preview.add_child(r)
 	preview_rings.append(r)
 
-## The preview glyph stands on the ground in front of (south of) the building, clear of its pips and of the stacks that rise over the
-## hero's head from the pads north of it.
+## The preview glyph (and its multiplier) hangs HINT_Y above the ground and HINT_Z south of the building's centre (HINT_AT moves it per spot).
 const HINT_Z := 1.7
 const HINT_Y := 0.35
-## Spots whose preview glyph stands elsewhere: spot -> Vector2(x, extra z) added to (0, HINT_Z). Picked with the test, where the
-## default lands on a pad, a pip row or a stack (tests/unit/test_branch_pads.gd).
-const HINT_AT := {"tower_w": Vector2(0.0, -1.5), "tower_sw": Vector2(-1.0, 0.0), "fence_sw": Vector2(0.0, 1.0)}
+## Spots whose preview glyph stands elsewhere: spot -> Vector2(x, extra z) added to (0, HINT_Z). Searched on a 0.25 m grid with the test's
+## whole rule (the preview against every obstacle the stood stack meets, and every stack item against the preview): fewest findings,
+## then fewest px. tower_e and fence_sw moved from the default ((0, 1.0) at fence_sw landed on the SW telegraph's count row).
+const HINT_AT := {"tower_w": Vector2(0.0, -1.5), "tower_sw": Vector2(-1.0, 0.0), "tower_e": Vector2(0.0, 0.25), "fence_sw": Vector2(0.25, 0.0)}
 
 ## A glyph and, if `mult` is not empty, its multiplier beside it, in front of the building.
 func _hint(kind: StringName, mult: String) -> void:

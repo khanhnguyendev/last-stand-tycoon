@@ -272,7 +272,7 @@ func test_the_tier_3_exit_is_the_entry_point_and_today_s_west_exit_would_not_do(
 
 # --- save validation --------------------------------------------------------------------------------------------------------------
 
-func test_a_tier_3_spot_is_rejected_while_the_top_tier_is_2() -> void:
+func test_a_tier_3_spot_is_rejected_in_a_tier_2_save() -> void:
 	GameState.debug_set_tier(2, 1)
 	var s := GameState.to_dict()
 	s.buildings["tower_sw"] = {"level": 0, "paid": 0, "hp": 0.0}

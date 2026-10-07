@@ -142,6 +142,14 @@ func test_warmup_nodes_sit_inside_the_camera_frustum() -> void:
 	assert_eq(warmup.placed.size(), warmup.built_count)
 	for p in warmup.placed:
 		assert_true(cam.is_position_in_frustum(p), "%s is in view" % p)
+	# The real lens at each supported aspect, not the headless viewport's own frustum (mutation: ROW = 8 puts slots 0, 7, 8, 15
+	# at x = +-3.5 m, outside the 2.30 m half-width of 9:16 and 9:21; the old un-centred ROW = 5 with 31 nodes puts the 7th row at y = +6 m).
+	var xf := cam.global_transform
+	for aspect in [9.0 / 21.0, 9.0 / 16.0, 16.0 / 9.0]:
+		var proj := CameraMath.projection(Balance.ui, aspect)
+		for p in warmup.placed:
+			assert_true(CameraMath.on_screen(p, xf, proj), "%s is on screen at aspect %.3f" % [p, aspect])
+	assert_true(warmup.built_count <= Warmup.CAPACITY, "%d nodes fit the %d-slot grid" % [warmup.built_count, Warmup.CAPACITY])
 
 func test_music_track_is_night_without_a_phase() -> void:
 	assert_eq(Warmup.music_for(""), &"night")
