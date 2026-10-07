@@ -100,4 +100,4 @@ Code and test follow-ups:
 - `tests/unit/test_diner_art.gd` takes about 96 s of the unit suite; other unit files share `user://` paths; the
   slice-1 fixtures of `make_save.gd --fixture=tier` are still schema 5.
 - The tier bot buys tier 3 only after every station level, so it reaches tier 3 on day 18 to 22.
-
+- From the last fix-wave review: `test_tier_fixtures.gd:59` uses the literal 6 where the sibling test uses `GameState.SCHEMA_VERSION`; `test_branch_identity.gd:101,106` skips the hare HP pins silently if the cap is raised to 13 or 14; `sweep_runner.gd` validates `--out` only after the sweep has run (`--out=dir/` ends in a script error).
