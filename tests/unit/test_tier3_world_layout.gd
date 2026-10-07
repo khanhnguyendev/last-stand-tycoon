@@ -64,7 +64,7 @@ func test_the_sign_stands_where_the_next_tier_is_sold() -> void:
 	GameState.debug_set_tier(2, 3)
 	assert_eq(sign.state(), &"selling")
 	assert_true(sign.visible)
-	assert_true(sign.position.is_equal_approx(MapLayout.to3(Vector2(-5.0, 8.7))), "tier 2 sells tier 3 on the front lot")
+	assert_true(sign.position.is_equal_approx(MapLayout.to3(Vector2(-4.7, 8.5))), "tier 2 sells tier 3 on the front lot")
 	GameState.debug_set_tier(3, 4)
 	assert_eq(sign.state(), &"hidden", "tier 3 is the top")
 	GameState.new_game(7)
@@ -107,7 +107,7 @@ func test_the_paid_up_sparkle_is_at_the_sign_that_sold() -> void:
 			found = true
 	assert_true(found, "a sparkle at the tier-3 sign")
 
-func _screen_rect(label: Label3D, xf: Transform3D, proj: Projection) -> Rect2:
+func _screen_rect(label: Label3D, xf: Transform3D, proj: Projection, half_h := 640.0) -> Rect2:
 	var box := label.get_aabb()
 	var c := label.global_position
 	var lo := Vector2(INF, INF)
@@ -116,7 +116,7 @@ func _screen_rect(label: Label3D, xf: Transform3D, proj: Projection) -> Rect2:
 		for sy in [-0.5, 0.5]:
 			var w: Vector3 = c + xf.basis.x * box.size.x * sx + xf.basis.y * box.size.y * sy
 			var n := CameraMath.to_ndc(w, xf, proj)
-			var px := Vector2(n.x * 360.0, -n.y * 640.0)
+			var px := Vector2(n.x * 360.0, -n.y * half_h)
 			lo = lo.min(px)
 			hi = hi.max(px)
 	return Rect2(lo, hi - lo)
@@ -145,27 +145,29 @@ func test_the_whole_tier_3_sign_board_is_on_screen_from_home_at_9_16_and_9_21() 
 	var m916 := _board_margin(sign, xf, CameraMath.projection(Balance.ui, 9.0 / 16.0), 360.0, 640.0)
 	var m921 := _board_margin(sign, xf, CameraMath.projection(Balance.ui, 9.0 / 21.0), 360.0, 640.0 * 21.0 / 16.0)
 	gut.p("tier-3 sign board AABB corners, margin to the nearest screen edge: 9:16 %.1f px of 720 wide, 9:21 %.1f px" % [m916, m921])
-	assert_gt(m916, 4.0, "every corner of the board's AABB is on screen at 9:16")
-	assert_gt(m921, 4.0, "and at 9:21")
+	assert_gt(m916, 8.0, "every corner of the board's AABB is on screen at 9:16")
+	assert_gt(m921, 8.0, "and at 9:21")
 
-## Both texts the sign will carry (Task 21 changes the first): the whole label rect is inside the 9:16 screen from HOME and clears the others.
+## Both texts the sign will carry (Task 21 changes the first): the whole label rect is inside the screen from HOME at 9:16 and 9:21 and clears the others.
 func _label_fits_and_clears(text: String) -> void:
 	var xf := CameraMath.camera_transform(CameraMath.focus_for(MapLayout.HOME), Balance.ui)
-	var proj := CameraMath.projection(Balance.ui)  # 9:16
 	var sign := main.world.tier_sign
 	sign.label.text = text
-	assert_true(CameraMath.on_screen(MapLayout.to3(MapLayout.tier_sign(3)), xf, proj), "the sign's base")
-	var mine := _screen_rect(sign.label, xf, proj)
-	assert_gt(mine.size.x, 20.0, "the label has a real extent")
-	assert_true(Rect2(-360, -640, 720, 1280).grow(-8.0).encloses(mine), "'%s': the whole label is on screen from HOME at 9:16, not cut by an edge: %s" % [text.replace("\n", " "), mine])
-	var others := 0
-	for l in get_tree().get_nodes_in_group(&"world_labels"):
-		var other := l as Label3D
-		if other == sign.label or not other.is_visible_in_tree() or other.text == "":
-			continue
-		others += 1
-		assert_false(mine.grow(4.0).intersects(_screen_rect(other, xf, proj)), "'%s' clears '%s' at %s" % [text.replace("\n", " "), other.text.replace("\n", " "), other.global_position])
-	assert_gt(others, 2, "the close-up sign's and the stations' labels were compared")
+	assert_true(CameraMath.on_screen(MapLayout.to3(MapLayout.tier_sign(3)), xf, CameraMath.projection(Balance.ui)), "the sign's base")
+	for aspect in [9.0 / 16.0, 9.0 / 21.0]:
+		var proj := CameraMath.projection(Balance.ui, aspect)
+		var half_h: float = 360.0 / aspect
+		var mine := _screen_rect(sign.label, xf, proj, half_h)
+		assert_gt(mine.size.x, 20.0, "the label has a real extent")
+		assert_true(Rect2(-360, -half_h, 720, half_h * 2.0).grow(-8.0).encloses(mine), "'%s': the whole label is on screen from HOME at %.3f, not cut by an edge: %s" % [text.replace("\n", " "), aspect, mine])
+		var others := 0
+		for l in get_tree().get_nodes_in_group(&"world_labels"):
+			var other := l as Label3D
+			if other == sign.label or not other.is_visible_in_tree() or other.text == "":
+				continue
+			others += 1
+			assert_false(mine.grow(4.0).intersects(_screen_rect(other, xf, proj, half_h)), "'%s' clears '%s' at %s" % [text.replace("\n", " "), other.text.replace("\n", " "), other.global_position])
+		assert_gt(others, 2, "the close-up sign's and the stations' labels were compared")
 
 func test_the_tier_3_sign_label_fits_with_the_text_of_today() -> void:
 	await _tier_3_sign_in_the_day()

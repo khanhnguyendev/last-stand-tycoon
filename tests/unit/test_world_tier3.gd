@@ -7,7 +7,7 @@ const TIER1_CHILDREN := ["EnemyPool", "SteakPool", "ProjectilePool", "FxPool", "
 	"CounterBody", "Pad_counter", "Pad_freezer", "GoldPile", "CloseUpSign", "TierSign", "Telegraph_west", "Telegraph_north",
 	"Telegraph_east", "GuardRoster", "FxField", "Reactions", "TierReveal"]
 const SW_NODES := ["Lane_sw", "Telegraph_sw", "Spot_tower_sw", "Spot_fence_sw"]
-const SW_STONES := 16  # 22 stones along the lane, 6 skipped near pads, the counter and the close-up sign
+const SW_STONES := 17  # 22 stones along the lane, 5 skipped near pads, the counter and the close-up sign (16 before the tier-3 sign moved to (-4.7, 8.5): one stone is no longer within its station radius)
 
 var main: Main
 

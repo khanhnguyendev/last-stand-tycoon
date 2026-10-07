@@ -152,7 +152,7 @@ func test_the_plot_owns_the_tower_the_fence_and_the_tier_3_sign() -> void:
 
 func test_the_tier_3_sign_is_off_the_exit_line_the_zone_and_the_fence_spot() -> void:
 	var s := MapLayout.tier_sign(3)
-	assert_eq(s, Vector2(-5.0, 8.7))
+	assert_eq(s, Vector2(-4.7, 8.5))
 	# today's west exit line: the traveler walks from the service point to TRAVELER_EXIT (a tier 1 and 2 walk, and a tier-2 sign position)
 	var exit_line := _seg_to_seg(s, s, MapLayout.SERVICE_POINT, MapLayout.TRAVELER_EXIT)
 	gut.p("tier-3 sign to today's west exit line: %.2f m" % exit_line)
@@ -172,7 +172,7 @@ func test_signs_exist_only_for_tiers_2_and_3() -> void:
 	# tier_sign(1) and tier_sign(4) assert with "no sign sells tier N" (an assert cannot run inside a test); has_tier_sign guards callers
 	assert_eq([1, 2, 3, 4].map(func(t): return MapLayout.has_tier_sign(t)), [false, true, true, false])
 	assert_eq(MapLayout.tier_sign(2), MapLayout.TIER_SIGN)
-	assert_eq(MapLayout.tier_sign(3), Vector2(-5.0, 8.7))
+	assert_eq(MapLayout.tier_sign(3), Vector2(-4.7, 8.5))
 	assert_ne(MapLayout.tier_sign(2), MapLayout.tier_sign(3))
 
 # --- the tier-dependent service layout --------------------------------------------------------------------------------------------
