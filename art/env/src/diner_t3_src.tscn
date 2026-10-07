@@ -182,15 +182,6 @@ transform = Transform3D(0, 0, -7.7, 0, 0.4, 0, 1.2, 0, 0, 0, 3, 3.4)
 [node name="chimney" parent="." instance=ExtResource("6")]
 transform = Transform3D(2.6, 0, 0, 0, 1.8, 0, 0, 0, 2.6, 2.368, 3, -3.3)
 
-[node name="post_l" parent="." instance=ExtResource("1")]
-transform = Transform3D(0, 0, -0.3, 0, 0.8, 0, 3, 0, 0, -1.3, 3, 2.2)
-
-[node name="post_r" parent="." instance=ExtResource("1")]
-transform = Transform3D(0, 0, -0.3, 0, 0.8, 0, 3, 0, 0, 1.3, 3, 2.2)
-
-[node name="sign_plank" parent="." instance=ExtResource("1")]
-transform = Transform3D(0, 0, -4.4, 0, 1.7, 0, 2, 0, 0, 0, 3.4, 2.65)
-
 [node name="awning" parent="." instance=ExtResource("7")]
 transform = Transform3D(3, 0, 0, 0, 1, 0, 0, 0, 2, -2.4, 1.5, 3.8)
 

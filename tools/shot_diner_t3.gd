@@ -1,14 +1,19 @@
 extends SceneTree
 ## The tier-3 diner shots (E5 tier-3 Task 19). Run WITH rendering:
-##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_diner_t3.gd -- [--out=docs/review/media/e5t3/growth] [--only=main|west]
+##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_diner_t3.gd -- [--out=docs/review/media/e5t3/growth] [--only=main|west|archer]
 ## --only=main (default) writes diner_t3.png (the hero at HOME, nobody behind the diner: opaque), diner_t3_north.png (the hero
-## on the north lane behind the diner: the fade is active) and the strip diner_t1_t2_t3.png (the three diners from HOME side by
-## side). --only=west writes diner_t3_west.png (the hero in the west yard); run it with --resolution 1280x720 for a 16:9 shot.
+## in the north zone behind the diner: the fade is active) and the strip diner_t1_t2_t3.png (the three diners from HOME side by
+## side). --only=west writes diner_t3_west.png (the hero in the west yard, opaque); --only=archer writes diner_t3_archer.png (the
+## Archer granted and standing on the roof, the camera framing (-15, 0) where the storey hides him: the fade is active and he
+## shows through the faded building). Run west and archer with --resolution 1280x720 (16:9, the aspect that hides him).
 ## Each shot is written at the window size plus a _40 copy (40% of it). The world is not wired to the tier-3 scene yet (the
-## tier table of world/world.gd ends at tier 2), so the tool sets tier 3 through GameState.debug_set_tier and then replaces the
-## diner's DinerArt child with art/env/diner_t3.tscn the way World._swap_diner_art does (child 0, OccluderFade.refresh_bounds()).
+## tier table of world/world.gd ends at tier 2), so the tool first appends the tier-3 cost entry to the tier balance IN MEMORY (the
+## shipped tier_costs has two entries until the switch task, so debug_set_tier(3, ...) would clamp to 2), sets tier 3 through
+## GameState.debug_set_tier, and then replaces the diner's DinerArt child with art/env/diner_t3.tscn the way World._swap_diner_art
+## does (child 0, OccluderFade.refresh_bounds()).
 ## Before each shot it waits until the diner's OccluderFade has settled and prints "FADE name alpha=... faded=...";
-## a shot whose fade state is not the expected one (opaque, except _north) fails the run. Exits non-zero when a PNG cannot be saved.
+## a shot whose fade state is not the expected one (opaque, except _north and _archer) fails the run. Exits non-zero when a PNG
+## cannot be saved.
 const T1 := "res://art/env/diner.tscn"
 const T2 := "res://art/env/diner_t2.tscn"
 const T3 := "res://art/env/diner_t3.tscn"
@@ -30,6 +35,7 @@ func _run() -> void:
 	var bal = root.get_node("Balance")
 	bal.reset()
 	bal.ui.shake_enabled = false
+	bal.data.tiers.tier_costs.append(1500)  # in memory: the cost entry of tier 3 (see the header)
 	var camera_math = load("res://core/camera_math.gd")
 	var map_layout = load("res://core/map_layout.gd")
 	var main = load("res://world/main.gd").create()
@@ -60,6 +66,10 @@ func _run() -> void:
 	for i in 20:
 		await physics_frame
 	var strip := []
+	if only == "archer":
+		gs.debug_grant_card(&"archer")
+		for i in 60:
+			await physics_frame
 	if only == "main":
 		strip.append(await _grab(cam, camera_math, bal, out, "strip_t1"))
 		gs.debug_set_tier(2, 3)
@@ -72,6 +82,14 @@ func _run() -> void:
 	_swap(T3)
 	for i in 20:
 		await physics_frame
+	if only == "archer":
+		_focus = Vector2(-15.0, 0.0)
+		main.hero.teleport(_focus)
+		for i in 60:
+			await physics_frame
+		await _grab(cam, camera_math, bal, out, "diner_t3_archer", true)
+		quit(_failed)
+		return
 	if only == "west":
 		_focus = Vector2(-7.0, 3.0)
 		main.hero.teleport(_focus)

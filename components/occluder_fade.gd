@@ -4,7 +4,7 @@ extends Node
 ## hides an actor from the camera. The boxes come from a node under the parent that exposes `occluder_boxes` (local-space
 ## AABBs, e.g. the diner's walls, chimney and board: any grown box hit fades); with none, the box is the merged AABB of
 ## every VisualInstance3D under the parent (S4, D-194). Aim points on the diner's own roof (the Archer) never fade it through the
-## base boxes (D-164: he stands on them), but ARE tested against `roof_part_boxes` (D-276), the boxes of the parts that rise
+## base boxes (D-164: he stands on them), but ARE tested against `roof_part_boxes` (the tier-3 camera ruling, D-279), the boxes of the parts that rise
 ## above the roof (the tier-3 storey and lanterns): when one stands between the camera and him the building fades.
 ## Visual only: runs in _process and never touches GameState.
 ## A mesh with a material_override gets a transparent duplicate of it as its override; a mesh without one gets
@@ -20,6 +20,7 @@ var _extra := AABB()
 var _camera_source: Callable
 var _targets: Callable
 ## Offsets from a roof target's aim point (Guard.AIM_HEIGHT 1.0) to his feet + 0.3, the aim point and his head (Guard.BAR_Y 2.0).
+## Literals on purpose (a component must not depend on actors); tests/unit/test_diner_art.gd checks them against the guard's constants.
 const ROOF_BODY_OFFSETS := [-0.7, 0.0, 1.0]
 var _alpha := 1.0
 var _warned := false
