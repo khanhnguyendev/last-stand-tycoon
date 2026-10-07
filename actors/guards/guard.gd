@@ -109,10 +109,11 @@ func _physics_process(delta: float) -> void:
 		State.DOWN:
 			_respawn_left -= delta
 			if _respawn_left <= 1e-6:
+				# Respawn only (a hire also uses arrive_from_door, but no monster exists in the day): D-271.
+				# Set before the revive so a guard_revived listener already sees the protected state.
+				_protect_left = float(Balance.data.guards.respawn_protect_s)
 				GameState.revive_guard(id)
 				arrive_from_door()
-				# Respawn only (a hire also uses arrive_from_door, but no monster exists in the day): D-271.
-				_protect_left = float(Balance.data.guards.respawn_protect_s)
 		State.RETURNING:
 			_walk(delta)
 	_feed_visual(delta)
@@ -140,11 +141,13 @@ func _walk(delta: float) -> void:
 			step = 0.0
 	if _path.is_empty():
 		state = State.POSTED
+		_protect_left = 0.0  # protection ends at the post, whatever the tuning
 
 func _on_knocked_out(g: StringName) -> void:
 	if g != id:
 		return
 	state = State.DOWN
+	_protect_left = 0.0
 	_respawn_left = float(stats.respawn_s)
 	attacker.enabled = false
 	_set_bar_visible(false)
