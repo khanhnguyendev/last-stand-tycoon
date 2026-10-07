@@ -2343,3 +2343,282 @@ phases: one measurement after every task, milestone and phase is done. A run sta
 author before it completed; no number from it is recorded. The real-device check of the tier sign, the boss bar and
 the boss moon is on the FINAL REVIEW phone checklist and blocks no merge. What is owed is listed in
 `docs/E5_FOLLOWUPS.md`.
+
+## 2026-10-07: E5 slice 2 (tier 3) brainstorm
+
+**D-261 The fourth lane is a south-west lane to the front (south) wall (author).** Chosen over a second northern lane
+sharing a wall and a straight south lane. Reasons (the author's): the diner is attacked from all four sides, the
+clearest "bigger tier" beat; the south wall is the most readable one (the camera looks north from the south, so
+south-wall fights are in front of the diner and need no fade); the service-side conflicts are night-only (travelers
+are gone, the gold pile is emptied at close-up). Constraints, each pinned by a test like S1's:
+1. **Visibility (D-076):** with the hero at the SW attack zone, an incoming monster is on screen for at least 2.0 s
+   before it enters hero range. West-to-east travel along the road crosses the narrow portrait axis, so the last
+   segment may curve to come up from the bottom-left of the screen if the test needs it. A per-lane screenshot.
+2. **Coverage (test A' extended to 4 lanes):** no reachable position reaches 3 or more lanes; the 2-lane positions are
+   reported as information. The SW corner covering west + SW is expected.
+3. **Day traffic:** travelers never visibly walk through a fence. Either traveler exits are rerouted east, or the SW
+   fence spot is placed off the traveler path; the simpler one is chosen and logged.
+4. **Service layout:** whatever must move moves (the tier sign, HOME, queue slots) so that no station, sign or HOME
+   lies inside the SW attack zone or on its fence spot. Station arming (D-121) still applies.
+5. **Tower coverage:** the tier-3 tower spot(s) reach the SW attack zone and its fence (tests B/C).
+6. **Tier-1 identity:** days 1 to 7 stay byte-identical; the SW lane exists only after the tier-3 unlock and
+   `lane_plan` picks it only from then on.
+
+**D-262 Tier 3 is one slice; its first phase is "growth readability" (author).** Tiers 4 and 5 stay roadmap. The
+tier-2 visual complaints are fixed in this slice, first, because the SW lane touches the same ground (west yard edge,
+sign). Targets: the diner visibly grows per tier; yards read as owned land, not lane stubs (ground tint, low border
+or decor); the tier sign is readable at phone size (checked on a 40% screenshot). Before/after screenshots under
+`docs/review/media/`, and REVIEW_QUEUE entries.
+
+**D-263 Branching at level 3 is chosen on two branch pads beside the building; the choice lasts the building's
+lifetime (author).** Chosen over a two-card pick at dawn and over fixed branches per spot. Rules:
+1. **Commitment only on full payment.** A partial payment belongs to the pad it was paid on. When one branch
+   completes, any partial payment on the other pad is refunded to gold, with the coins flying back to the hero.
+   Arming (D-121) and the stand-still threshold apply. Test: a hero walking across both pads commits nothing.
+2. **"Permanent" means the building's lifetime.** A fence destroyed at night resets to level 0 at dawn as today
+   (`GameState.reset_destroyed_fences`), so its branch is lost and is chosen again when it is rebuilt to level 3. The
+   spec and the pad's label say so.
+3. **Informed choice (pillar 3).** While the hero stands on a branch pad, before the payment completes, a preview
+   shows: a 2 to 3 word label plus the effect (e.g. the new range ring, a target-count hint). Icons are
+   distinguishable at phone size (checked on a 40% screenshot).
+4. **Geometry.** Both pads of every spot clear all lanes, attack zones, fence spots, other pads, stations, signs and
+   HOME; they join the geometry and waypoint tests, the SW lane included.
+5. **Sims.** PlannerBot gets a deterministic branch policy. `sim-tiers` runs three full tier-3 builds (all branch A,
+   all branch B, mixed); each holds the tier-3 cap with no retries. If one policy beats another by more than 15 points
+   of diner HP, a REVIEW_QUEUE entry ("possible dominant branch") is added instead of a blind retune.
+6. **Out of scope:** respec or refunds after commitment. "Paid respec as a gold sink" goes to Post-tier-3 ideas.
+
+**D-264 Branches are threat-answer pairs (author).** Slow/control branches go to Post-tier-3 ideas. Economy branches
+(a weaker branch that pays gold) are rejected: income stays "kills only", and the gold pile-up is handled by tier-3
+costs. Every number is in `balance/`; sims tune them.
+- **Longbow (tower A):** longer range, heavier single shots, slower rate. Geometry rule: no tower spot with Longbow
+  range reaches the attack zones of 3 or more lanes (tower coverage tests, SW lane included).
+- **Volley (tower B):** each attack fires up to 3 projectiles at the first 3 targets in range, in the tower's existing
+  target-selection order (stable spawn-index tie-break, deterministic). Per-projectile damage is reduced so
+  single-target DPS is below Longbow's. No splash, no chaining.
+- **Stone wall (fence A):** much more HP, plus reduced damage taken from the fence-breaker specifically (a damage
+  multiplier by attacker kind).
+- **Spike fence (fence B):** normal HP. Damages monsters attacking it, and deals a fixed amount once to each hare that
+  passes its spot (a per-hare flag, deterministic, no repeat hits). Test: hares still walk past; only the pass damage
+  is new.
+- **Informed choice:** the day telegraph shows tonight's threat composition per lane (regular / hare / fence-breaker
+  icons or counts), not only total HP. Branch pad previews: range ring, "x3", shield, spike, plus the 2 to 3 word label.
+- **Visuals:** each branch is a distinct model variant readable at phone size (Longbow taller and slimmer, Volley
+  multi-barreled; stone versus spiked fence), through the art pipeline and ART_BIBLE, checked at 40% scale.
+- **Economy:** branch costs are set so tier 3 absorbs the tier-2 pile-up. Sweep target: `unspent_gold_at_closeup`
+  stays under a threshold defined from the tier-2 data through the tier-3 cap. REVIEW_QUEUE entry with the costs.
+- **Sims:** the three full-build policies of D-263 plus a threat-matched policy (the bot picks the branch matching
+  its lane's dominant threat). Threat-matched should do best; if not, REVIEW_QUEUE gets "branches don't reward
+  reading the telegraph".
+
+**D-265 The tier-3 monster is a siege brute (author).** The roadmap's "reach beyond fences" wording is replaced by
+"wrecks fences": the brute keeps the Boar's attack reach, so the attack-zone stop points and test A' stay valid. The
+thrower (ranged, stops outside the fence) goes to Post-tier-3 ideas as a possible tier-4/5 enemy; it needs ranged
+monster attacks and its own coverage rules. The charger is rejected: burst damage makes Stone wall the only answer.
+1. **Behavior:** the Boar's target order (lane fence, guard in reach, diner). A fence damage multiplier in `balance/`
+   (several times normal); normal damage against guards and the diner. Stone wall applies its brute-specific
+   reduction (D-264).
+2. **Numbers, all in `balance/`:** HP, speed (clearly slower than the Boar), count per wave as a curve over day and
+   tier with a cap. Only from the tier-3 unlock. Never a swarm: a small cap per wave, and at most 1 per lane per wave
+   unless the sims prove more is needed.
+3. **Telegraph and readability:** shown per lane in the day telegraph (D-264); at night a distinct big silhouette, a
+   heavy slow walk and a ground-thump hit on the fence; the edge arrow marks a brute lane distinctly; readable at
+   phone size (40% screenshot).
+4. **Reward:** more steaks than a Boar, in `balance/`; included in the economy math and the tier-3 sink sizing.
+5. **Sims and tests:** targeting order and the fence multiplier; the Stone wall reduction applies only to brute hits;
+   a brute lane with no fence behaves as a tanky Boar; determinism with brutes; `sim-tiers` branch policies face
+   brute lanes and the threat-matched policy (Stone wall or Longbow on brute lanes) should do best; pools sized from
+   the new caps.
+6. **Art (amended by the author the same day):** the procedural builder in the Boar family is the preferred path, not
+   a fallback: consistency with the Boar, the hare and the Boar King (D-192, D-246) beats CC0 sourcing. Big,
+   cute-dangerous; walk, attack, hit and death (or tween fakes). A REVIEW_QUEUE entry only if the result does not read
+   as "big, cute-dangerous" at phone size.
+
+**D-266 Tier 3 adds a front lot with one tower and one fence (author).** A second tower on the south-east is rejected
+(crowded; risks the 3-lane rule at Longbow range). A movable guard post is rejected: "moving guard heroes" is on
+IDEA.md's Later list.
+1. The SW plot holds the SW lane's fence spot and one tower spot. The tower reaches the SW attack zone and the SW
+   fence at base range (D-261 constraint 5). With every branch, Longbow included, it reaches at most 2 lanes' attack
+   zones (SW + west expected). Coverage tests.
+2. Branch pads for both new spots follow D-263's geometry rules: clear of the SW lane, attack zones, fence spots,
+   stations, signs, HOME, queue slots and traveler paths. A dedicated geometry test plus a 720x1280 screenshot of the
+   SW corner with every pad visible.
+3. Before purchase the tier-3 sign stands on the plot, outside the SW attack zone and its fence spot. After purchase
+   the plot reads as owned land, by phase 1's growth-readability rules.
+4. Economy: the plot price, the two new spots and all tier-3 branch purchases form the tier-3 sink, sized against the
+   tier-2 pile-up data (D-264). The full tier-3 purchase ladder with costs is listed in the spec and in REVIEW_QUEUE.
+5. Buying the plot IS the tier-3 tier-up: pay on the tier sign standing on the plot, that night is the boss night, and
+   everything new arrives the next dawn. The plot price is the tier-3 cost. The tier bot pays it as it paid tier 2,
+   then follows its branch policy; the sweep covers it. The branch policies belong to the tier bot: PlannerBot stays
+   at tier 1 and byte-identical for days 1 to 7.
+
+**D-267 The tier-3 boss is a giant hare; rule: each boss examines the tier you are finishing (author).** The Boar King
+again is rejected as a repeat. Several bosses at once go to Post-tier-3 ideas (the bar, the moon and the hold check
+assume one boss).
+1. **Behavior:** the hare's rules at boss scale. It walks past fences (Spike fence pass damage applies once, D-264).
+   HP, speed and diner damage in `balance/`. Fast for a boss, but catchable: a test proves a hero starting at that
+   lane's attack zone reaches melee range of it before it reaches the zone.
+2. **Fairness (pillar 3):** the boss lane is fixed by the seeded lane plan and shown in the day telegraph before
+   close-up with a distinct boss icon. Mercy applies as for any night.
+3. **A meaningful test of tier 2, as `sim-tiers` runs:** the tier bot with the full tier-2 build holds the boss night
+   with no retries; the tier bot WITHOUT the yard towers fails it or needs mercy retries; determinism for the night.
+4. **Readability:** built with the hare builder, clearly bigger, with a boss marker consistent with the Boar King's
+   (crown or equivalent); its own bar name, light and comedic; readable at phone size (40% scale).
+5. **Reward:** the boss steak drop in `balance/`, included in the tier-3 economy math.
+
+**D-268 The diner grows upward inside its footprint, and the land grows on the ground (author).** Low annexes on the
+walls are rejected: every wall is now a lane wall or the service side, the trap the awnings fell into (D-253).
+1. **Silhouette per tier, nothing overhanging:** tier 2 = roof color, chimney, rooftop sign board; tier 3 = a set-back
+   second storey with lanterns. Before/after screenshots at 40% phone scale in `docs/review/media/`.
+2. **Land:** a paved tint plus a low border for the yards and the SW plot. Small props (crates, barrels, a bench) are
+   allowed on owned land only, outside every lane, attack zone, fence spot, pad, station, sign, HOME, queue slot and
+   traveler path; they join the geometry tests and never collide with the hero.
+3. **Occlusion:** the occluder fade (D-151) covers the whole building at every tier (roof, chimney, sign board,
+   second storey); its trigger includes guards as well as the hero and monsters. Camera tests at tier 3: the hero, a
+   monster and a guard at the north zone are visible (the fade triggers and no opaque face covers them); the tower
+   bases at the NW and NE spots are never covered by the taller diner at any focus inside the clamp.
+4. **Perf:** the new meshes stay inside the perf budget, measured on the profile build at the end (D-260).
+
+**D-269 The tier-2 cap margin is decided with data before the tier-3 boss is tuned (author).** Slice 1 measured the
+diner at 4% on one seed at the tier-2 cap (D-258). Order: (1) run the tier-2 cap night with the full tier-2 build on
+at least 10 seeds; (2) if the median diner margin is under 15%, the cap is too tight: lower `tier_cap[2]` from 11 to
+10, which also gives the boss room; (3) otherwise keep 11 and lighten the boss. Either way the boss must still fail
+the no-yard-towers run (D-267). Within the three-round tuning rule (D-103); the result goes to REVIEW_QUEUE.
+
+**D-270 Tier-3 design section 1 approved with additions (author).** Phases merge one by one; the tier-3 cost entry is
+the switch and arrives in the last task of phase 4.
+1. **Switch test:** with the tier-3 cost absent, no sign offers tier 3 and a full sweep shows no tier-3 content (no
+   brutes, no SW lane, no branch pads). Debug hotkeys may force tier 3 in the debug build only; a release-export
+   check proves the forcing code is absent.
+2. **Save schema 6:** a migration test from a real committed v5 fixture save (not a hand-built dictionary) that loads
+   with no branches and identical gameplay state; a v6 round trip with branches and partial pad payments; the
+   fail/quit snapshot (S3) includes branch state and pad payments.
+3. **RNG identity:** tier-3 lane draws use the `lane_plan` stream only and shift no other stream (spawns, travelers,
+   drops). The byte-identity test covers tier 1 and 2 plans, sweep rows 1 to 7, and a tier-2 fixture night that is
+   identical before and after the slice.
+4. **Margin study ordering (amends D-269):** the cap decision (steps 1 and 2) is in phase 2; "lighten the boss"
+   (step 3) is in phase 3, once the boss exists; the no-yard-towers fail check (D-267) is in phase 5.
+5. **Checkpoint pack** in `docs/review/E5_T3.md` plus media: a 60 to 90 s iOS Simulator video (tier-2 boss night,
+   dawn reveal, a tier-3 night with a brute lane and a branch purchase); before/after growth screenshots; the SW
+   corner shot with all pads; `sim-tiers` results with the policy comparison and the margin study; the profile-build
+   perf reading at a tier-3 night; this slice's REVIEW_QUEUE entries, top first.
+   Main-session reading against D-260: the perf reading is taken once, at the end of phase 5, when every task and
+   phase of this slice is done; never between phases.
+6. **Pools:** the brute and boss pools are sized from the new caps (the S1 rule); the runtime-growth warning applies.
+
+**D-271 Tier-3 map approved from probe results (author).** A headless probe using the game's own camera, path and
+geometry code produced the numbers; the plan pins them by tests.
+- **Lane:** `[(-24, 11), (-3.5, 11.0), (-2.75, 5.2)]`, 26.35 m; zone `Rect2(-4.0, 4.0, 2.5, 1.2)`; fence spot
+  (-3.26, 9.17). Visibility before hero range: 2.45 s at aspect 0.30, 3.25 s at 9:21 and 9:16, 8.9 s or more wider. A
+  flat road approach gives 1.60 s on a phone and 0.55 s at 0.30; only bends at x = -4.5 or further east pass every
+  aspect, so the last 6 m come up from the bottom of the screen. (The author's approval text says "x <= -4.5"; the
+  measured rule and the chosen bend are x >= -4.5.)
+- **Coverage:** no reachable position hits 3 lanes; 2-lane positions west+sw 142, west+north 16, north+east 16.
+- **Tower `tower_sw` at (-6.6, 5.6):** SW zone farthest corner 5.35 m, SW fence 4.88 m, lane (with offsets) 2.77 m,
+  guard return path 1.89 m.
+- **Tier-dependent layout:** tiers 1 and 2 are unchanged (byte-identity). At tier 3 the queue mirrors to the east
+  side and travelers exit east (the constraint-3 choice: today's west exit clears the fence by 1.94 m but passes 0.5 m
+  from the new tower; east reuses the entry line and clears the fence by 3.80 m). HOME and the close-up sign stay.
+  The tier-3 sign, shown at tier 2, stands at (-5.6, 9.0) on the plot. The switch happens only at the tier-3 dawn,
+  when no travelers exist; a mid-day save/load test at tier 3 restores the tier-3 layout.
+- **Branch pads:** radius 0.9 m; every one of the nine spots has valid pairs (fewest at the SW fence, 23 positions;
+  worst chosen clearance 0.46 m). The SW corner screenshot must show the SW-fence pads as separate targets at phone
+  size.
+- **Longbow range (updates D-264):** at any range a tower may reach the monster stop points OR the fence spot of at
+  most 2 lanes. The probe's maximum is 10.28 m (bound by `tower_nw` reaching a SW stop point), so Longbow starts at
+  9.98 m (maximum minus 0.3 m, capped near 10). A test iterates all tower spots x all lanes. If a later layout change
+  pushes the result well under 10 m it is reported; the rule does not change.
+- **Gold pile:** stays (0.29 m from the lane line, empty at night). A test proves the pile is empty from close-up
+  until dawn at every tier.
+- **Diner door:** stays the guard respawn point although it is inside the SW zone. Respawn protection:
+  `respawn_protect_s` (start 1.5 s) during which a respawned guard is untargetable and walks toward its post. Tests
+  and sims: with monsters in the SW zone a respawning guard is not knocked out again within 5 s; across `sim-tiers`
+  runs no actor is knocked out more than twice in any 15 s window. REVIEW_QUEUE: "Respawned guards pull SW-zone aggro
+  off the diner: intended?" with the measured effect on diner HP. Main-session note: the hero has no HP and is never
+  knocked out, so the protection applies to guards.
+
+**D-272 Tier-3 night rules approved with notes (author).** Starting numbers, all in `balance/`, tuned by sims inside
+D-103: pressure 12 to 15 at tier 3; a four-lane draw at tier 3 (tiers 1 and 2 unchanged); brute HP 240, speed 1.2,
+damage 8, fence damage x4, 8 steaks, one on the first tier-3 night's last wave, ramping over three days to at most
+1 main + 1 side per wave; giant hare boss HP 500, speed 2.4, damage 12, leading the last wave by 3 s; Longbow range
+9.98, 45 per shot, 1.0 s; Volley range 8.0, 3 x 10, 0.5 s; Stone wall 640 HP and brute damage halved; Spike fence
+320 HP, 6 back per hit taken and 10 once per passing hare; per-kind counts in the telegraph and a brute mark on the
+edge arrow; 1.5 s respawn protection for guards on every lane; unbranched buildings stay valid; pads appear at every
+level-3 building on the tier-3 dawn.
+1. **Spike damage scales with the night's HP multiplier** (pass damage and thorns), so Spike does not fade at the
+   cap. The start values are the ones at the tier-3 base: 10 and 6.
+2. **Boss reward:** checked against the Boar King's reward with the same reward-to-HP logic and included in the
+   tier-3 sink sizing. The steak pool is sized for the boss drop plus a full cap wave. If 100 steak objects popping at
+   once cost frames on the profile build, the drop is bundled visually (fewer pieces, each worth k steaks); freezer
+   and economy counts must not change; tested.
+3. **Branch identity test on Balance** (so tuning cannot silently break it): Longbow has the highest single-target
+   DPS and the longest range; Volley the highest DPS against 3 or more targets; against hares Volley kills the most
+   per second and Longbow the fewest; Stone wall holds longest against a brute; Spike is the only fence that damages
+   passing hares; unbranched level 3 stays between the branches.
+   Main-session notes for the spec: (a) at tier 3 a hare has about 40 HP at the base and 46 at the cap (HP multiplier
+   2.65 to 3.1), so "one shot overkills" does not hold for Volley's 10 or the level-3 tower's 18; the hare test is
+   computed in whole shots against the real hare HP at the tier-3 base and cap, and the starting damages are adjusted
+   until the ordering holds at both. (b) "Between the branches" is checked per measure: with the starting numbers the
+   unbranched tower is between on single-target DPS (20 < 36 < 45) but lowest against three targets (36 < 45 < 60);
+   the spec states which measures the rule covers.
+
+**D-273 Tier-3 world and interface approved with changes (author).** As proposed: phase 1 growth readability (roof
+color, chimney, sign board; paved yards with a low border; a larger tier sign); the tier-3 dawn reuses the reveal
+system with a new step list and switches the queue and the traveler exit while no traveler exists; two branch pads
+with icon, cost, label and a preview; four branch models; a fourth edge arrow; per-kind telegraph counts; the
+cost-entry switch and the debug-only tier forcing.
+0. **On D-272:** "unbranched is never the best at any named measure" is the rule (it need not sit in the middle); the
+   spec names the measures. The hare test is computed in whole shots against real hare HP at pressure 12 and 15, and
+   the starting damages are adjusted until the ordering holds at both ends.
+1. **Boss name: "Baron von Hop".** "Big Thumper" is rejected: Thumper is a well-known studio rabbit character. Check
+   (web search, 2026-10-07): no well-known game or film character and no trademark found under "Baron von Hop"; the
+   only near match is "Baron Von Hops", a character on a hobby worldbuilding page (World Anvil). "Duke Longears" was
+   dropped for its closeness to Uncle Wiggily Longears. The other new display names in this slice (Longbow, Volley,
+   Stone wall, Spike fence, Siege brute) are generic terms. Any further display name gets the same check.
+2. **Reveal:** a tap anywhere fast-forwards it; the joystick stays disabled until the reveal ends or is skipped.
+   Tests: both paths, plus a resume mid-reveal.
+3. **Pad payments persist** through close-up, night and save/load, like build-spot partial payments today. The
+   D-263 refund applies only when the other pad completes. Covered by the schema-6 round-trip test.
+4. **Label legibility:** the fence pads' second line is a small broken-fence icon plus "lost if broken" (3 words at
+   most), verified at 40% screenshot scale together with the per-kind telegraph counts.
+5. **Sounds and hint:** the brute and the boss reuse existing monster sounds plus one CC0 thump from a pack already
+   in the repo (logged in `docs/ASSET_LICENSES.md`); a one-time onboarding pointer at one branch pad.
+
+**D-274 Tier-3 economy, proof and CI time approved (author).**
+1. **Boss name** "Baron von Hop" accepted (a hobby worldbuilding page is not a meaningful conflict).
+2. **Boss reward rule, general for future tiers:** a boss drops one cap night of the tier being finished. The Baron
+   drops 150 steaks (450 gold, the tier-2 cap night). The D-272 bundling rule applies if the profile build shows a
+   frame cost; economy counts stay exact.
+3. **Ladder costs (starting values):** the plot 1,500 (= the tier-3 cost); the new tower 280 and fence 140 to level
+   3; a tower branch 500 (x5), a fence branch 300 (x4); 5,620 in all. Sweep target: from the tier-3 dawn until the
+   ladder completes, unspent gold at close-up stays at or under one cap night (650). The sweep also reports
+   `fence_rebuild_gold` per night (levels plus branch repurchases after destruction; REVIEW_QUEUE "brutes make fences
+   a tax" if its median at the tier-3 cap exceeds 30% of nightly income), the plot purchase day and the day the
+   ladder completes. It uses the same card policy as the previous tier sweeps so pacing is comparable. Post-ladder
+   pile-up at tier 3 is the accepted known gap (REVIEW_QUEUE: "tier 3 has no sink after the ladder; tier 4 must
+   provide one").
+4. **CI time:** studies are not regression tests. The 10-seed margin study and the multi-seed policy ranking run as
+   report scripts, like the sweep; their results go into the spec results and the checkpoint pack. CI keeps
+   single-seed (or at most 3-seed) assertions: each policy holds the cap; threat-matched >= the others on the CI
+   seed; plus the boss-night, no-yard-towers, Baron-catch, first-night, respawn and identity sims. If `sim-tiers`
+   still nears 150 s it is split into parallel jobs (`sim-tiers-a` / `sim-tiers-b`) before any test is touched, and
+   the main session updates the required checks (authorized). Timings go to the author only if splitting does not fit.
+5. **Next steps without further approval:** write and self-review the spec, write the plan (task graph, waves, D-136
+   parallel rules, hot files wired by the main session), execute phases 1 to 4 with self-merges, stop at the end of
+   phase 5 with the checkpoint pack `docs/review/E5_T3.md`. Stop earlier only for the standing stop conditions.
+
+**D-275 Rulings while writing the tier-3 spec (main session).**
+- **Longbow starts at 80 per shot every 1.8 s, not 45 per 1.0 s (changes a D-272 starting number).** With real hare HP
+  (about 40 at pressure 12, 46 at 15) the D-272.3 ordering "Longbow kills the fewest hares per second" fails at
+  pressure 12 with 45 per 1.0 s (it one-shots a hare, 1.0 per second, above the unbranched tower's 0.67). 80 per 1.8 s
+  gives 0.56 hares per second at both ends and single-target 44.4 per second (unbranched 36, Volley 20). Cost if
+  wrong: one balance value; the identity test pins the ordering either way.
+- **Brutes are added to a wave; they replace no Boar.** Their HP is in the lane threat and their steaks in the
+  economy. Cost if wrong: tier-3 nights are harder than the pressure alone says; the sims measure it.
+- **Debug forcing (reading of D-270.1).** `GameState.debug_set_tier` stays (tests, sims and tools use it) and clamps
+  to the top tier, so it cannot pass the switch. Forcing tier 3 before the switch exists only in the debug overlay
+  under `ui/debug/`, which the `deploy` job already proves absent from release and profile packs; a source-grep unit
+  test proves no other caller. Cost if wrong: the author wanted the function itself gone from release; that would
+  need the tier tests to stop using it.
+- **Spec path:** `docs/superpowers/specs/2026-10-07-e5-tier3-design.md`. Phase branches `e5/p6-growth`,
+  `e5/p7-t3-data`, `e5/p8-t3-night`, `e5/p9-t3-world`, `e5/p10-t3-proof`.
