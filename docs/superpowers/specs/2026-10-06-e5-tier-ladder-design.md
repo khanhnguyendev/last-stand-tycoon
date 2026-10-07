@@ -655,6 +655,9 @@ Each line names the section it supersedes.
   tasks (each named in the task's dispatch) instead of applying uncommitted wiring patches; phases were stacked and
   not merged one by one (D-259).
 
+> **Later change (2026-10-07, D-276):** the tier-2 pressure cap in this document (11; 75 kills and 450 gold on a cap
+> night) became 10 (72 kills, 432 gold) after a ten-seed margin study. The numbers below are the slice-1 measurements.
+
 ## 16. Results (2026-10-06, starting values, no tuning round)
 
 | Criterion (section 1) | Result |

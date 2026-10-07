@@ -2622,3 +2622,67 @@ cost-entry switch and the debug-only tier forcing.
   need the tier tests to stop using it.
 - **Spec path:** `docs/superpowers/specs/2026-10-07-e5-tier3-design.md`. Phase branches `e5/p6-growth`,
   `e5/p7-t3-data`, `e5/p8-t3-night`, `e5/p9-t3-world`, `e5/p10-t3-proof`.
+
+## 2026-10-07: E5 slice 2 (tier 3) build
+
+**D-276 Author decisions and main-session rulings during phases 1 and 2.**
+- **Lighter build process (author, "B"):** implementers run their touched tests plus the unit suite; the main session
+  runs `sim`, `sim-tiers` and both baseline scripts once per wave on the merged phase branch; reviews block only on
+  Critical and Important findings, minors are fixed in one cleanup per phase; at most one fix round per task unless an
+  Important finding stays open. Phases still merge one by one; perf once at the end (D-260).
+- **Tier-2 cap 11 -> 10 (author; supersedes the "keep 11" outcome of D-269).** Margin study, tier-2 cap night, full
+  tier-2 build, ten seeds: at cap 11 the night is held on 8 of 10 seeds (seeds 4 and 9 are real falls), median diner
+  HP left 0.393, lowest quarter 0.014; at cap 10 it is held on 10 of 10, median 0.688, minimum 0.177. D-269's median
+  rule said "keep 11", but the carried rule "a full build always holds its tier's cap with no retry" failed on 2 of
+  10 seeds; the author chose 10. Players at tier 2 meet a lighter cap night after the update (REVIEW_QUEUE).
+  Report script: `tests/sim/report_margin.gd` (`--tier-cap=<n>` measures another cap in memory).
+- **Longbow starts at 120 per shot every 3.0 s (replaces D-275's 80 per 1.8 s).** At pressure 15 the last waves' hares
+  have 54.25 and 72.85 HP (the wave-size factor), so the unbranched tower drops to 0.5 and 0.4 hares per second;
+  120 per 3.0 s gives 0.333 at every wave and 40 per second on one target (unbranched 36, Volley 20).
+- **Branch identity measures:** measures 1 and 3 (single-target DPS, DPS against three targets) are raw damage over
+  interval by definition; a whole-shot check against a lone brute is added (Longbow is never slower than the
+  unbranched tower; 3 of 12 waves tie). Against Boars the Longbow's overkill makes it slower in whole shots: by
+  design. "Unbranched is never the best" includes a shared top.
+- **`boss_kind` has an entry per tier including the top, whose entry is empty:** `[&"", &"boss", &"baron", &""]`.
+- **Tier-2 diner silhouette (changes the plan's Task 1 and spec section 5).** Anything tall on the roof hides the
+  Archer on his perch or a tower pad from some camera positions with no fade. Rule for tier 2: added roof parts hide
+  nothing outside the footprint that tier 1 does not already hide, and never the Archer; pinned by camera sweep tests.
+  Result: the tier-2 diner is NOT taller than tier 1 (top 4.6 m against tier 1's 5.1 m sign plank); it reads through
+  a wood roof, a second chimney and a cream board. The reviewer also found that tier 1 already hides the pad centres
+  of `tower_nw` and `tower_ne` from some north-lane positions, so the spec's "tower bases are never covered by the
+  taller diner" is restated: the taller diner adds no occlusion of static things (the Archer, tower pads, fence
+  spots, world labels) compared with tier 1; ground it newly hides must lie inside a fade box so an actor there
+  triggers the fade (the rule for the tier-3 second storey, Task 19).
+- **Art roles:** no `gold` or `steak_brown` on the building; the chimney band is `wood_dark`.
+- **A pre-existing fade defect fixed in Task 1:** a fade that ended a hair under full alpha left the diner on its
+  transparent material duplicates (`components/occluder_fade.gd`); exact compare plus a regression test.
+- **Yards:** the kerb is closed at the west yard's south-east corner (the tier sign and an open west yard never
+  coexist); pad gaps stay. The kerb is pre-drawn in the boot warm-up.
+- **Tier sign:** `tier_sign_min_px` is 36 base pixels (the plan's 28 was already met by the old label in portrait);
+  label font 56, label height 4.27 m.
+- **Traveler exit (corrects D-271's reason):** with `tower_sw` at (-6.6, 5.6) today's west exit passes 1.74 m from
+  the tower, not 0.5 m. The east exit at tier 3 stays as approved (it reuses the entry line and clears the fence by
+  3.80 m).
+- **Implementers sign commits with their own model's trailer** (the model that wrote the commit).
+
+**D-277 Rulings during phase 2 (data and rules) and the start of phase 3.**
+- **Map storage (changes spec 3.1):** the tier-3 map entries are `*_T3` constants behind accessors in
+  `core/map_layout.gd`; the shared dictionaries keep only tier-1/2 entries, because art code iterates them by key and
+  would have drawn the south-west strip at tier 1. A source-scan test bans direct reads outside `core/map_layout.gd`.
+- **`tower_sw` covers the south-west lane only** (`["sw"]`): the west fence (9.15 m) and the west zone's far corner
+  (7.56 m) are beyond level-1 range, so listing west would mislead the bots.
+- **Branch pads:** yard props and kerbs count as obstacles; 14 of 18 pads moved; the worst clearance is 0.15 m.
+- **Plan shape:** waves carry `brute_main` / `brute_side` only from tier 3, so tier-1/2 plans and saves keep their
+  exact shape. `GameState.from_dict` copies the keys only at tier 3 or above.
+- **Brute ramp:** the last d + 1 waves carry a main-lane brute on day d of tier 3; all side brutes arrive on the
+  `brute_ramp_days` night (the same night pressure reaches the cap at the starting values).
+- **Save schema 6:** only the two building fields are added. A pad payment at or above cost clamps on load (D-234);
+  `validate` requires the new fields. Partial pad payments on a fence destroyed at night are refunded to gold at dawn
+  (D-263 only said the branch is lost; no gold may disappear).
+- **Stone wall:** buying it fully repairs the fence (its HP becomes the new maximum).
+- **Wave 3b split:** the Spike fence's monster side (thorns on the attacker, pass damage to hares) moves from Task 12
+  to Task 11, which changes hare-kind behaviour anyway; Task 12 does the towers and two state queries.
+- **Boot warm-up:** it now builds the two placeholder monster meshes and the yard kerb; from the switch on it
+  pre-builds the ground of every tier from 2 to the top. Cost unmeasured until the final perf run.
+- **Hare ramp at tier 2 after the cap change:** `fast_ramp_days[2]` stays 3 while pressure now reaches the cap after 2
+  days, so the first cap night has a slightly lower hare share. Left as is (REVIEW_QUEUE).

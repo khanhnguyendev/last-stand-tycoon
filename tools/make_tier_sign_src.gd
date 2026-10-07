@@ -1,6 +1,7 @@
 extends SceneTree
 ## Writes art/env/src/tier_sign_src.tscn (E5 Task 9): the tier sign as four hand-built meshes (two posts, a board, a star)
 ## whose UVs sit on palette swatches of the shared fantasy-town atlas, so the bake is one surface on the shared material.
+## E5 tier 3 Task 3: taller posts, a 1.9 x 1.1 board and a bigger star (the width stays inside STATION_RADIUS).
 ## Regenerate (headless; deterministic, no randomness), then rebake:
 ##   "$GODOT" --headless --path . -s res://tools/make_tier_sign_src.gd
 ##   "$GODOT" --headless --path . -s res://tools/bake_static.gd -- --all
@@ -65,10 +66,10 @@ func _initialize() -> void:
 	var gold := cell(GOLD_TEXEL, GOLD_HEX)
 	var root := Node3D.new(); root.name = "TierSignSrc"
 	var parts := [
-		["PostL", box(Vector3(-0.7, 0.7, 0), Vector3(0.14, 1.4, 0.14), wood)],
-		["PostR", box(Vector3(0.7, 0.7, 0), Vector3(0.14, 1.4, 0.14), wood)],
-		["Board", box(Vector3(0, 1.3, 0.09), Vector3(1.9, 0.7, 0.08), cream)],
-		["Star", star(Vector3(0, 1.95, 0.09), 0.26, 0.08, gold)],
+		["PostL", box(Vector3(-0.7, 0.9, 0), Vector3(0.16, 1.8, 0.16), wood)],
+		["PostR", box(Vector3(0.7, 0.9, 0), Vector3(0.16, 1.8, 0.16), wood)],
+		["Board", box(Vector3(0, 1.6, 0.09), Vector3(1.9, 1.1, 0.08), cream)],
+		["Star", star(Vector3(0, 2.4, 0.09), 0.34, 0.08, gold)],
 	]
 	for pr in parts:
 		var m: ArrayMesh = pr[1]
