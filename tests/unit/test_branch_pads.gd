@@ -13,6 +13,7 @@ var main: Main
 var pc: PhaseController
 var pile_sparkles := 0
 var _fx_log: Array = []
+var _boxes: Array = []
 
 func before_each() -> void:
 	BranchPad.reset_focus()
@@ -21,6 +22,7 @@ func before_each() -> void:
 		Balance.data.tiers.tier_costs.append(1500)  # test-only: the build knows tier 3
 	pile_sparkles = 0
 	_fx_log = []
+	_boxes = []
 
 func after_each() -> void:
 	if EventBus.fx_requested.is_connected(_on_fx):
@@ -941,47 +943,58 @@ func _attach_m(r: Rect2, centre: Vector2, ppm: float) -> float:
 ## above it (1.9) and the warning under the glyph row below the pad (2.0). The sibling's NEAR block must stay within 1.5.
 const ATTACH_ON_M := 3.2
 const ATTACH_NEAR_M := 1.5
+## The margin the worst-point scan keeps between the spot's nearest pad and the next spot's (m). Mutation: 0.5 (the old one) moves fence_e's point.
+const WORST_MARGIN_M := 0.02
 const HULL_MARGIN_PX := 6.5
 ## The findings that remain, pinned EXACTLY per aspect: "spot:pad|item|obstacle" -> max overlap (w, h) in px rounded up, or (distance, 0) for
 ## attachment. The three aspects agree today (the views are in base px); they are listed separately so one that moves is re-pinned alone.
 const OPEN_VIEWS := {
 	"9:21": {
-		"fence_w:1|icon|the building's pips": Vector2(38, 23),
-		"fence_e:0|cost|the building's pips": Vector2(36, 24),
-		"fence_sw:1|icon|the hero": Vector2(13, 5),
-		"fence_sw:1|cost|the hero": Vector2(30, 6),
-		"fence_sw:1|name|the close-up sign's label": Vector2(90, 27),
-		"fence_sw:1|warn_icon|the building's pips": Vector2(25, 2),
-		"fence_sw:1|effect|attachment": Vector2(4.6, 0),
-		"fence_sw:1|effect|the Counter label #0": Vector2(20, 26),  # new (round 2): the counter's "0" under "hurts attackers"
-		"tower_e:0|effect|the Pad_freezer label #0": Vector2(38, 24),  # new (round 2): "Freezer" / its cost under "far, heavy, slow"
-		"tower_e:0|effect|the Pad_freezer label #1": Vector2(70, 36),  # new (round 2)
+		"fence_e:0|cost|the building's pips": Vector2(37, 25),
+		"fence_n:0|warn|the north telegraph row": Vector2(160, 2),  # new (round 3, cost text 0.0132)
+		"fence_n:0|warn|the west telegraph row": Vector2(5, 2),  # new (round 3, cost text 0.0132)
+		"fence_sw:1|cost|the hero": Vector2(31, 6),
+		"fence_sw:1|effect|attachment": Vector2(4.63, 0),
+		"fence_sw:1|effect|the Counter label #0": Vector2(20, 28),
+		"fence_sw:1|icon|the hero": Vector2(12, 5),
+		"fence_sw:1|name|the close-up sign's label": Vector2(90, 26),
+		"fence_sw:1|warn_icon|the building's pips": Vector2(26, 1),
+		"fence_w:1|icon|the building's pips": Vector2(39, 24),
+		"tower_e:0|effect|the Pad_freezer label #0": Vector2(38, 25),
+		"tower_e:0|effect|the Pad_freezer label #1": Vector2(70, 37),
 	},
 	"9:16": {
-		"fence_w:1|icon|the building's pips": Vector2(38, 23),
-		"fence_e:0|cost|the building's pips": Vector2(36, 24),
-		"fence_sw:1|icon|the hero": Vector2(13, 5),
-		"fence_sw:1|cost|the hero": Vector2(30, 6),
-		"fence_sw:1|name|the close-up sign's label": Vector2(90, 27),
-		"fence_sw:1|warn_icon|the building's pips": Vector2(25, 2),
-		"fence_sw:1|effect|attachment": Vector2(4.6, 0),
-		"fence_sw:1|effect|the Counter label #0": Vector2(20, 26),  # new (round 2): the counter's "0" under "hurts attackers"
-		"tower_e:0|effect|the Pad_freezer label #0": Vector2(38, 24),  # new (round 2): "Freezer" / its cost under "far, heavy, slow"
-		"tower_e:0|effect|the Pad_freezer label #1": Vector2(70, 36),  # new (round 2)
+		"fence_e:0|cost|the building's pips": Vector2(37, 25),
+		"fence_n:0|warn|the north telegraph row": Vector2(160, 2),  # new (round 3, cost text 0.0132)
+		"fence_n:0|warn|the west telegraph row": Vector2(5, 2),  # new (round 3, cost text 0.0132)
+		"fence_sw:1|cost|the hero": Vector2(31, 6),
+		"fence_sw:1|effect|attachment": Vector2(4.63, 0),
+		"fence_sw:1|effect|the Counter label #0": Vector2(20, 28),
+		"fence_sw:1|icon|the hero": Vector2(12, 5),
+		"fence_sw:1|name|the close-up sign's label": Vector2(90, 26),
+		"fence_sw:1|warn_icon|the building's pips": Vector2(26, 1),
+		"fence_w:1|icon|the building's pips": Vector2(39, 24),
+		"tower_e:0|effect|the Pad_freezer label #0": Vector2(38, 25),
+		"tower_e:0|effect|the Pad_freezer label #1": Vector2(70, 37),
 	},
 	"16:9": {
-		"fence_w:1|icon|the building's pips": Vector2(38, 23),
-		"fence_e:0|cost|the building's pips": Vector2(36, 24),
-		"fence_sw:1|icon|the hero": Vector2(13, 5),
-		"fence_sw:1|cost|the hero": Vector2(30, 6),
-		"fence_sw:1|name|the close-up sign's label": Vector2(90, 27),
-		"fence_sw:1|warn_icon|the building's pips": Vector2(25, 2),
-		"fence_sw:1|effect|attachment": Vector2(4.6, 0),
-		"fence_sw:1|effect|the Counter label #0": Vector2(20, 26),  # new (round 2): the counter's "0" under "hurts attackers"
-		"tower_e:0|effect|the Pad_freezer label #0": Vector2(38, 24),  # new (round 2): "Freezer" / its cost under "far, heavy, slow"
-		"tower_e:0|effect|the Pad_freezer label #1": Vector2(70, 36),  # new (round 2)
+		"fence_e:0|cost|the building's pips": Vector2(37, 25),
+		"fence_n:0|warn|the north telegraph row": Vector2(160, 2),  # new (round 3, cost text 0.0132)
+		"fence_n:0|warn|the west telegraph row": Vector2(5, 2),  # new (round 3, cost text 0.0132)
+		"fence_sw:1|cost|the hero": Vector2(31, 6),
+		"fence_sw:1|effect|attachment": Vector2(4.63, 0),
+		"fence_sw:1|effect|the Counter label #0": Vector2(20, 28),
+		"fence_sw:1|icon|the hero": Vector2(12, 5),
+		"fence_sw:1|name|the close-up sign's label": Vector2(90, 26),
+		"fence_sw:1|warn_icon|the building's pips": Vector2(26, 1),
+		"fence_w:1|icon|the building's pips": Vector2(39, 24),
+		"tower_e:0|effect|the Pad_freezer label #0": Vector2(38, 25),
+		"tower_e:0|effect|the Pad_freezer label #1": Vector2(70, 37),
 	},
 }
+## The NEAR findings that remain, pinned exactly per aspect: "spot|what|obstacle" -> max (w, h) in px rounded up (the overflow past the screen
+## edge for a block). The tower pads stand 2 m apart on the map, so their two NEAR blocks overlap a little on screen; fence_sw's far pad (the
+## hero 3 m from the other) clips the left edge of the two portrait views. Both need a map or layout change: open, reported.
 ## The NEAR findings that remain, pinned exactly per aspect: "spot|what|obstacle" -> max (w, h) in px rounded up (the overflow past the screen
 ## edge for a block). The tower pads stand 2 m apart on the map, so their two NEAR blocks overlap a little on screen; fence_sw's far pad (the
 ## hero 3 m from the other) clips the left edge of the two portrait views. Both need a map or layout change: open, reported.
@@ -991,22 +1004,47 @@ const SOUTH_UNREACHABLE := ["tower_nw", "tower_ne"]
 ## The NEAR findings that remain, pinned exactly per aspect, per approach and distance: "approach dist|spot|what|obstacle" -> (w, h) in px rounded up
 ## (the overflow past the screen edge for a block). The tower pads stand 2 m apart on the map, so their two NEAR blocks overlap a little on
 ## screen; fence_sw's far pad (the hero 3 m from the other) clips the left edge of the two portrait views. Both need a map or layout change:
-## open, reported. All measured from points a hero can stand on (round 2).
+## open, reported. All measured from points a hero can stand on; the key is "approach real-distance-to-the-nearest-pad (0.05 m)" (round 3).
 const NEAR_OPEN_VIEWS := {
-	"9:21": {"home 3.00|tower_e|blocks|each other": Vector2(16, 23), "home 3.00|tower_ne|blocks|each other": Vector2(24, 11),
-		"home 3.00|tower_nw|blocks|each other": Vector2(24, 11), "home 3.45|tower_e|blocks|each other": Vector2(16, 24),
-		"home 3.45|tower_ne|blocks|each other": Vector2(6, 5), "home 3.45|tower_nw|blocks|each other": Vector2(6, 5),
-		"south 3.45|tower_e|blocks|each other": Vector2(14, 24),
-		"home 3.00|fence_sw:0|block|the screen edge": Vector2(17, 0), "home 3.45|fence_sw:0|block|the screen edge": Vector2(32, 0)},
-	"9:16": {"home 3.00|tower_e|blocks|each other": Vector2(16, 23), "home 3.00|tower_ne|blocks|each other": Vector2(24, 11),
-		"home 3.00|tower_nw|blocks|each other": Vector2(24, 11), "home 3.45|tower_e|blocks|each other": Vector2(16, 24),
-		"home 3.45|tower_ne|blocks|each other": Vector2(6, 5), "home 3.45|tower_nw|blocks|each other": Vector2(6, 5),
-		"south 3.45|tower_e|blocks|each other": Vector2(14, 24),
-		"home 3.00|fence_sw:0|block|the screen edge": Vector2(17, 0), "home 3.45|fence_sw:0|block|the screen edge": Vector2(32, 0)},
-	"16:9": {"home 3.00|tower_e|blocks|each other": Vector2(16, 23), "home 3.00|tower_ne|blocks|each other": Vector2(24, 11),
-		"home 3.00|tower_nw|blocks|each other": Vector2(24, 11), "home 3.45|tower_e|blocks|each other": Vector2(16, 24),
-		"home 3.45|tower_ne|blocks|each other": Vector2(6, 5), "home 3.45|tower_nw|blocks|each other": Vector2(6, 5),
-		"south 3.45|tower_e|blocks|each other": Vector2(14, 24)},
+	"9:21": {
+		"home 1.35|tower_ne|blocks|each other": Vector2(7, 6),
+		"home 1.35|tower_nw|blocks|each other": Vector2(7, 6),
+		"home 3.00|fence_sw:0|block|the screen edge": Vector2(18, 0),
+		"home 3.00|tower_e|blocks|each other": Vector2(17, 24),
+		"home 3.00|tower_ne|blocks|each other": Vector2(25, 11),
+		"home 3.00|tower_nw|blocks|each other": Vector2(25, 12),
+		"home 3.45|fence_sw:0|block|the screen edge": Vector2(33, 0),
+		"home 3.45|tower_e|blocks|each other": Vector2(17, 25),
+		"worst 3.40|fence_sw:1|block|the screen edge": Vector2(147, 0),
+		"worst 3.40|tower_e|blocks|each other": Vector2(17, 25),
+		"worst 3.45|tower_ne|blocks|each other": Vector2(9, 24),
+		"worst 3.45|tower_nw|blocks|each other": Vector2(9, 24),
+	},
+	"9:16": {
+		"home 1.35|tower_ne|blocks|each other": Vector2(7, 6),
+		"home 1.35|tower_nw|blocks|each other": Vector2(7, 6),
+		"home 3.00|fence_sw:0|block|the screen edge": Vector2(18, 0),
+		"home 3.00|tower_e|blocks|each other": Vector2(17, 24),
+		"home 3.00|tower_ne|blocks|each other": Vector2(25, 11),
+		"home 3.00|tower_nw|blocks|each other": Vector2(25, 12),
+		"home 3.45|fence_sw:0|block|the screen edge": Vector2(33, 0),
+		"home 3.45|tower_e|blocks|each other": Vector2(17, 25),
+		"worst 3.40|fence_sw:1|block|the screen edge": Vector2(147, 0),
+		"worst 3.40|tower_e|blocks|each other": Vector2(17, 25),
+		"worst 3.45|tower_ne|blocks|each other": Vector2(9, 24),
+		"worst 3.45|tower_nw|blocks|each other": Vector2(9, 24),
+	},
+	"16:9": {
+		"home 1.35|tower_ne|blocks|each other": Vector2(7, 6),
+		"home 1.35|tower_nw|blocks|each other": Vector2(7, 6),
+		"home 3.00|tower_e|blocks|each other": Vector2(17, 24),
+		"home 3.00|tower_ne|blocks|each other": Vector2(25, 11),
+		"home 3.00|tower_nw|blocks|each other": Vector2(25, 12),
+		"home 3.45|tower_e|blocks|each other": Vector2(17, 25),
+		"worst 3.40|tower_e|blocks|each other": Vector2(17, 25),
+		"worst 3.45|tower_ne|blocks|each other": Vector2(9, 24),
+		"worst 3.45|tower_nw|blocks|each other": Vector2(9, 24),
+	},
 }
 
 func test_the_ui_floors_are_the_plans() -> void:
@@ -1056,18 +1094,21 @@ func _pad_dist(at: Vector2, id: String, others := false) -> float:
 	return best
 
 ## The distance (m, on the ground) from `at` to the nearest solid the hero collides with: every BoxShape3D of a layer-1 StaticBody3D in the
-## world (the diner, the counter, the freezer, the fences and towers), read from the real colliders. Negative inside one.
+## world, read from the real colliders (the diner, the counter and the freezer: three boxes; the fences and towers have no collider). Negative
+## inside one. The boxes are read once per game (`_boxes`).
 func _solid_dist(at: Vector2) -> float:
+	if _boxes.is_empty():
+		for body in _static_bodies(main.world):
+			for c in body.get_children():
+				if c is CollisionShape3D and (c as CollisionShape3D).shape is BoxShape3D:
+					_boxes.append([(c as CollisionShape3D).global_transform.affine_inverse(), ((c as CollisionShape3D).shape as BoxShape3D).size * 0.5, (c as CollisionShape3D).global_position.y])
+		assert_eq(_boxes.size(), 3, "the world has three solids: the diner, the counter and the freezer")
 	var best := INF
-	var q := Vector3(at.x, 0.0, at.y)
-	for body in _static_bodies(main.world):
-		for c in body.get_children():
-			if c is CollisionShape3D and (c as CollisionShape3D).shape is BoxShape3D:
-				var half := ((c as CollisionShape3D).shape as BoxShape3D).size * 0.5
-				var l: Vector3 = (c as CollisionShape3D).global_transform.affine_inverse() * Vector3(q.x, (c as CollisionShape3D).global_position.y, q.z)
-				var out := Vector2(maxf(absf(l.x) - half.x, 0.0), maxf(absf(l.z) - half.z, 0.0))
-				var inside := maxf(absf(l.x) - half.x, absf(l.z) - half.z)
-				best = minf(best, out.length() if out.length() > 0.0 else inside)
+	for b in _boxes:
+		var l: Vector3 = (b[0] as Transform3D) * Vector3(at.x, b[2], at.y)
+		var half: Vector3 = b[1]
+		var out := Vector2(maxf(absf(l.x) - half.x, 0.0), maxf(absf(l.z) - half.z, 0.0))
+		best = minf(best, out.length() if out.length() > 0.0 else maxf(absf(l.x) - half.x, absf(l.z) - half.z))
 	return best
 
 func _static_bodies(n: Node) -> Array:
@@ -1085,20 +1126,33 @@ func _near_ok(id: String, at: Vector2, limit: float) -> bool:
 			and at.x > -16.0 and at.x < 16.0 and at.y > -19.0 and at.y < 14.0
 
 ## "home": `dist` metres from the pad nearest HOME, on the line towards HOME, turned (15 degree steps, smallest turn first) until the point is a
-## fair NEAR view. "south": the worst direction for size, the pad NORTH of the hero (the camera pitch makes a pad smaller the further north
-## of the hero it is): the spot's southern pad + (0, dist), turned off due south in 15 degree steps (up to 90) until it is off solids and pads. Returns the point, or
-## Vector2(INF, INF) when none is reachable.
+## fair NEAR view. "worst": the worst ground for size, found by a scan: the camera pitch makes a pad smaller the further NORTH of the hero it is, so
+## the point maximises min(z, the camera's focus clamp) - z of the spot's northern pad, over every 0.05 m grid point a hero can stand on (off
+## every solid by his radius + 0.05, off every pad, the spot's nearest pad within (0.9, near_m - 0.05] m, every other spot's nearest pad further
+## than the own one by 0.02 m: the game has no larger margin, it focuses the strictly nearest spot). Vector2(INF, INF) when none exists.
 func _near_hero_at(id: String, dist: float, approach: String) -> Vector2:
 	var pads: Array = MapLayout.BRANCH_PADS[id]
-	var limit := Balance.ui.branch_pad_near_m - 0.01
-	if approach == "south":
-		var south: Vector2 = pads[0] if (pads[0] as Vector2).y >= (pads[1] as Vector2).y else pads[1]
-		for k in range(0, 7):  # turned off due south in 15 degree steps (up to 90), smallest turn first, until the point is reachable
-			for sgn in ([1.0] if k == 0 else [1.0, -1.0]):
-				var at := south + Vector2(0.0, dist).rotated(deg_to_rad(15.0 * k) * sgn)
-				if _near_ok(id, at, limit):
-					return at
-		return Vector2(INF, INF)
+	if approach == "worst":
+		var limit: float = Balance.ui.branch_pad_near_m - 0.05
+		var north_z := minf((pads[0] as Vector2).y, (pads[1] as Vector2).y)
+		var lo := Vector2(minf((pads[0] as Vector2).x, (pads[1] as Vector2).x), north_z) - Vector2.ONE * limit
+		var hi := Vector2(maxf((pads[0] as Vector2).x, (pads[1] as Vector2).x), maxf((pads[0] as Vector2).y, (pads[1] as Vector2).y)) + Vector2.ONE * limit
+		var best := Vector2(INF, INF)
+		var best_score := -INF
+		for xi in range(int(lo.x / 0.05), int(hi.x / 0.05) + 1):
+			for zi in range(int(lo.y / 0.05), int(hi.y / 0.05) + 1):
+				var at := Vector2(xi * 0.05, zi * 0.05)
+				var own := _pad_dist(at, id)
+				if own <= 0.9 or own > limit:
+					continue
+				var score := minf(at.y, CameraMath.FOCUS_MAX.y) - north_z
+				if score <= best_score or _pad_dist(at, id, true) <= own + WORST_MARGIN_M or _solid_dist(at) <= MapLayout.HERO_RADIUS + 0.05:
+					continue
+				if at.x < -16.0 or at.x > 16.0 or at.y < -19.0 or at.y > 14.0:
+					continue
+				best = at
+				best_score = score
+		return best
 	var nearest: Vector2 = pads[0] if (pads[0] as Vector2).distance_to(MapLayout.HOME) <= (pads[1] as Vector2).distance_to(MapLayout.HOME) else pads[1]
 	var toward := (MapLayout.HOME - nearest).normalized()
 	for k in range(0, 13):
@@ -1123,22 +1177,25 @@ func test_near_stage_meets_the_floors_on_screen_and_beside_its_pad_at_every_spot
 	await _start()
 	_all_max()
 	var ui := Balance.ui
-	var worst := {"icon": INF, "cost": INF, "icon_at": "", "cost_at": "", "attach": 0.0}
+	var worst := {"icon": INF, "cost": INF, "icon_at": "", "cost_at": "", "attach": 0.0, "width": 0.0}
 	var found := {}
 	for an in ASPECT_NAMES:
 		found[an] = {}
 	var cases_run := 0
 	var near_m: float = ui.branch_pad_near_m - 0.05
-	for case in [["home", 3.0], ["home", near_m], ["south", near_m]]:
+	var case_lines: Array = []
+	for case in [["home", 3.0], ["home", near_m], ["worst", 0.0]]:
 		var approach: String = case[0]
 		var dist: float = case[1]
-		var tag := "%s %.2f" % [approach, dist]
 		for id in MapLayout.spots_for_tier(3):
 			var at := _near_hero_at(id, dist, approach)
-			var unreachable := approach == "south" and id in SOUTH_UNREACHABLE
-			assert_eq(at.is_finite(), not unreachable, "%s %s: a reachable approach %s" % [tag, id, "does not exist (the diner stands south of it)" if unreachable else "exists"])
+			assert_true(at.is_finite(), "%s %s: a reachable point exists" % [approach, id])
 			if not at.is_finite():
 				continue
+			var own := _pad_dist(at, id)
+			var tag := "%s %.2f" % [approach, snappedf(own, 0.05)]  # the real distance to the nearest pad, to 0.05 m
+			var case_cost := INF
+			var case_icon := INF
 			cases_run += 1
 			main.hero.teleport(Vector2(15.0, 8.0))  # far from every pad: no focus kept from the last spot (hysteresis)
 			await _settle()
@@ -1164,6 +1221,7 @@ func test_near_stage_meets_the_floors_on_screen_and_beside_its_pad_at_every_spot
 						var what := "icon"
 						if n == p.icon:
 							var h := r.size.y / 1.14
+							case_icon = minf(case_icon, h)
 							if h < worst.icon:
 								worst.icon = h
 								worst.icon_at = "%s %s pad %d at %s" % [tag, id, i, ASPECT_NAMES[a]]
@@ -1171,6 +1229,8 @@ func test_near_stage_meets_the_floors_on_screen_and_beside_its_pad_at_every_spot
 						else:
 							what = "cost"
 							var em := _px_h(n.global_position, float(p.cost_label.font_size) * p.cost_label.pixel_size, v)
+							case_cost = minf(case_cost, em)
+							worst.width = maxf(worst.width, maxf(BranchPad.glyph_box(p.icon).x, BranchPad.text_box(p.cost_label).x))
 							if em < worst.cost:
 								worst.cost = em
 								worst.cost_at = "%s %s pad %d at %s" % [tag, id, i, ASPECT_NAMES[a]]
@@ -1188,7 +1248,9 @@ func test_near_stage_meets_the_floors_on_screen_and_beside_its_pad_at_every_spot
 				if (blocks[0] as Rect2).intersects(blocks[1]):
 					var ov := (blocks[0] as Rect2).intersection(blocks[1])
 					_fold([{"key": "%s|%s|blocks|each other" % [tag, id], "val": Vector2(ceilf(ov.size.x), ceilf(ov.size.y))}], found[ASPECT_NAMES[a]])
-	assert_eq(cases_run, 3 * 9 - SOUTH_UNREACHABLE.size())
+			case_lines.append("CASE %s %s at (%.3f, %.3f) own %.3f m: cost %.2f px, glyph %.2f px" % [id, approach, at.x, at.y, own, case_cost, case_icon])
+	assert_eq(cases_run, 3 * 9)
+	assert_lte(worst.width, 1.25, "the NEAR block is at most 1.25 m wide at every measured point")
 	var lines: Array = []
 	for an in ASPECT_NAMES:
 		var got: Dictionary = found[an]
@@ -1203,7 +1265,7 @@ func test_near_stage_meets_the_floors_on_screen_and_beside_its_pad_at_every_spot
 			assert_true(got.has(key), "%s: NEAR %s no longer happens: delete it from NEAR_OPEN_VIEWS" % [an, key])
 		assert_eq(got.size(), pins.size(), "%s: the NEAR finding count" % an)
 	lines.sort()
-	gut.p("NEAR worst (base px): glyph %.2f at %s (floor %.0f), cost %.2f at %s (floor %.0f), item %.2f screen-m from its pad (limit %.1f)\n  %s" % [worst.icon, worst.icon_at, ui.branch_pad_icon_min_px, worst.cost, worst.cost_at, ui.branch_pad_label_min_px, worst.attach, ATTACH_NEAR_M, "\n  ".join(lines)])
+	gut.p("NEAR worst (base px): glyph %.2f at %s (floor %.0f), cost %.2f at %s (floor %.0f), item %.2f screen-m from its pad (limit %.1f), widest block %.3f m\n  %s\n  %s" % [worst.icon, worst.icon_at, ui.branch_pad_icon_min_px, worst.cost, worst.cost_at, ui.branch_pad_label_min_px, worst.attach, ATTACH_NEAR_M, worst.width, "\n  ".join(case_lines), "\n  ".join(lines)])
 
 func test_the_clutter_cap_at_twenty_positions_over_the_map() -> void:
 	await _start()
