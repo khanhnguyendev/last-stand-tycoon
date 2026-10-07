@@ -489,6 +489,11 @@ func test_baked_roof_parts_match_the_tool_box_list() -> void:
 		var want_lo := Vector3(b[1] - b[4] / 2.0, b[2], b[3] - b[6] / 2.0)
 		var want_hi := Vector3(b[1] + b[4] / 2.0, b[2] + b[5], b[3] + b[6] / 2.0)
 		assert_true(lo.distance_to(want_lo) < 1e-4 and hi.distance_to(want_hi) < 1e-4, "part %d (%s) %s..%s, tool says %s..%s: rerun the tool and the bake" % [i, b[0], lo, hi, want_lo, want_hi])
+		var want_c := Palette.color(b[0])
+		var uvs := m.surface_get_arrays(0)[Mesh.ARRAY_TEX_UV] as PackedVector2Array
+		for k in 24:
+			var c := _color_at(m, 0, uvs[i * 24 + k])
+			assert_lt(absf(c.r - want_c.r) + absf(c.g - want_c.g) + absf(c.b - want_c.b), 0.03, "part %d vertex %d samples %s, not %s" % [i, k, c, b[0]])
 
 # ---- camera sweeps (ruling A, fix round 1): nothing tier 2 adds hides what tier 1 does not already hide ----
 

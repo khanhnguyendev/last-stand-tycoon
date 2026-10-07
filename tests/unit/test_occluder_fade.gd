@@ -121,6 +121,31 @@ func test_fades_back_and_restores_opaque_material() -> void:
 		assert_same(mat, originals[m], "the original opaque material is back")
 		assert_eq(mat.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)
 
+## Regression (E5 slice 2 Task 1): a rise that lands a hair under 1.0 (within is_equal_approx of the target) used to
+## return early, so the restore branch never ran and the diner kept its transparent material duplicates.
+func test_a_fade_that_ends_a_hair_under_full_alpha_still_restores_the_materials() -> void:
+	var originals := {}
+	for m in _meshes():
+		originals[m] = (m as MeshInstance3D).material_override
+	var hero := _hero_at_north_center()
+	_aim_camera_at(Vector2(hero.x, hero.z))
+	_targets = [_hero_aim(hero)]
+	_run(1.0)
+	assert_true(_fade.is_faded())
+	assert_almost_eq(_fade.current_alpha(), Balance.ui.occluder_alpha, 1e-4)
+	_targets = []
+	var rate := (1.0 - Balance.ui.occluder_alpha) / Balance.ui.occluder_fade_s
+	_fade._process((1.0 - Balance.ui.occluder_alpha - 5e-6) / rate)  # leaves alpha 5e-6 under 1.0
+	assert_lt(_fade.current_alpha(), 1.0, "precondition: not yet 1.0")
+	assert_gt(_fade.current_alpha(), 1.0 - 1e-5, "precondition: within is_equal_approx of 1.0")
+	_fade._process(0.016)
+	assert_false(_fade.is_faded(), "the fade has ended")
+	assert_eq(_fade.current_alpha(), 1.0)
+	for m in _meshes():
+		assert_same((m as MeshInstance3D).material_override, originals[m], "the original opaque material is back")
+		for i in (m as MeshInstance3D).mesh.get_surface_count():
+			assert_null((m as MeshInstance3D).get_surface_override_material(i), "surface %d override is null" % i)
+
 func test_faded_material_does_not_leak_into_shared_cache() -> void:
 	var shared := FixtureBox.material(FixtureBox.COLORS.diner)
 	var hero := _hero_at_north_center()
@@ -418,7 +443,7 @@ func test_tier2_fade_boxes_include_the_added_parts() -> void:
 			if fb.position.is_equal_approx(b.position) and fb.size.is_equal_approx(b.size):
 				found = true
 		assert_true(found, "the fade tests the added box %s" % b)
-	var tier1: Array = load("res://art/env/diner_art.gd").new().occluder_boxes
+	var tier1: Array = autofree(load("res://art/env/diner_art.gd").new()).occluder_boxes
 	assert_eq(fade.boxes().size(), tier1.size() + added.size(), "exactly the tier-1 boxes plus the added ones")
 
 ## Fix round 1 item 4, real fixture, real camera geometry: something directly behind the building fades the tier-2 diner,
