@@ -2429,7 +2429,22 @@ monster attacks and its own coverage rules. The charger is rejected: burst damag
    a brute lane with no fence behaves as a tanky Boar; determinism with brutes; `sim-tiers` branch policies face
    brute lanes and the threat-matched policy (Stone wall or Longbow on brute lanes) should do best; pools sized from
    the new caps.
-6. **Art:** a CC0 model per ART_BIBLE: big, cute-dangerous, in the Boar's style family; walk, attack, hit and death
-   (or tween fakes). Main-session note: the Boar, the hare and the Boar King are procedural meshes (D-192, D-246); if
-   no CC0 pack model sits in that family, the fallback is the same procedural builder, logged with a REVIEW_QUEUE
-   entry.
+6. **Art (amended by the author the same day):** the procedural builder in the Boar family is the preferred path, not
+   a fallback: consistency with the Boar, the hare and the Boar King (D-192, D-246) beats CC0 sourcing. Big,
+   cute-dangerous; walk, attack, hit and death (or tween fakes). A REVIEW_QUEUE entry only if the result does not read
+   as "big, cute-dangerous" at phone size.
+
+**D-266 Tier 3 adds a front lot with one tower and one fence (author).** A second tower on the south-east is rejected
+(crowded; risks the 3-lane rule at Longbow range). A movable guard post is rejected: "moving guard heroes" is on
+IDEA.md's Later list.
+1. The SW plot holds the SW lane's fence spot and one tower spot. The tower reaches the SW attack zone and the SW
+   fence at base range (D-261 constraint 5). With every branch, Longbow included, it reaches at most 2 lanes' attack
+   zones (SW + west expected). Coverage tests.
+2. Branch pads for both new spots follow D-263's geometry rules: clear of the SW lane, attack zones, fence spots,
+   stations, signs, HOME, queue slots and traveler paths. A dedicated geometry test plus a 720x1280 screenshot of the
+   SW corner with every pad visible.
+3. Before purchase the tier-3 sign stands on the plot, outside the SW attack zone and its fence spot. After purchase
+   the plot reads as owned land, by phase 1's growth-readability rules.
+4. Economy: the plot price, the two new spots and all tier-3 branch purchases form the tier-3 sink, sized against the
+   tier-2 pile-up data (D-264). The full tier-3 purchase ladder with costs is listed in the spec and in REVIEW_QUEUE.
+5. The bot buys the plot when affordable, then follows its branch policy; the sweep covers it.
