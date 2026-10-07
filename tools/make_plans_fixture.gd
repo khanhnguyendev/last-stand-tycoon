@@ -2,7 +2,9 @@ extends SceneTree
 ## Writes tests/fixtures/plans_tier12.json (E5 tier-3 Task 6): the lane plans of tiers 1 and 2 and two wave schedules,
 ## captured BEFORE the planner learned its fourth lane and the brutes. The identity test compares today's code with it.
 ## Seeds 20260930, 11, 777; tier 1 (tier_day 1) days 1 to 14; tier 2 (tier_day 8) days 8 to 21.
-## Do NOT regenerate after Task 6: the file is the oracle. Run (headless, deterministic):
+## The file is the oracle: regenerate ONLY for a deliberate tier-1/2 balance change, and then the diff must change no
+## lane ("main" / "side" names) in any plan: only counts, hp_mult and the schedules. Regenerated once for the tier-2 cap
+## 11 -> 10 (D-276): 33 plans changed (tier 2, days 11 to 21, three seeds), no lane. Run (headless, deterministic):
 ##   "$GODOT" --headless --path . -s res://tools/make_plans_fixture.gd
 ## Editor/test only (tools/ is excluded from every web export).
 const SEEDS := [20260930, 11, 777]
