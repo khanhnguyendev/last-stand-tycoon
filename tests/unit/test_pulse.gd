@@ -110,3 +110,29 @@ func test_affordable_tier_up_stops_the_pulse() -> void:
 		no_tier.erase(k)
 	GameState.boss_pending = false  # test-only setup
 	assert_true(Pulse.should_pulse(no_tier, Balance.data), "a state without tier keys ignores the tier (the guide's view)")
+
+## Task 21: the close-up sign's pulse waits while the tier sign is affordable. At tier 2 that is now the tier-3 sign (1500).
+## Mutation: a tier cost read from the wrong index / a build with no third entry pulses at 1500 gold.
+func test_an_affordable_tier_3_sign_blocks_the_pulse_at_tier_2_and_nothing_else_does() -> void:
+	var s := _state()
+	for id in MapLayout.SPOT_IDS:
+		s.buildings[id].level = Balance.data.build.max_level  # nothing else to buy
+	s.tier = 2
+	s.tier_paid = 0
+	s.boss_pending = false
+	s.gold = 1499
+	assert_true(Pulse.should_pulse(s, Balance.data), "one gold short of the front lot")
+	s.gold = 1500
+	assert_false(Pulse.should_pulse(s, Balance.data), "affordable: something is left to do")
+	s.gold = 1000
+	s.tier_paid = 500
+	assert_false(Pulse.should_pulse(s, Balance.data), "a partial payment counts")
+	s.tier_paid = 499
+	assert_true(Pulse.should_pulse(s, Balance.data))
+	s.gold = 5000
+	s.tier_paid = 0
+	s.boss_pending = true
+	assert_true(Pulse.should_pulse(s, Balance.data), "paid in full: nothing to buy")
+	s.boss_pending = false
+	s.tier = 3
+	assert_true(Pulse.should_pulse(s, Balance.data), "tier 3 has no sign")

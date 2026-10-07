@@ -10,7 +10,7 @@ signal finished
 const DISTANCE := 6.0
 const SPREAD := 1.0
 const FRAMES := 3
-const ROW := 5
+const ROW := 8  # Task 21: 31 nodes once the build has tier 3 (the branch-pad visuals): five per row put the top rows out of the frustum
 const BOAR := preload("res://actors/enemy/boar.gd")
 const SCENES: Array[String] = [
 	"res://art/pickups/knife_projectile.tscn",

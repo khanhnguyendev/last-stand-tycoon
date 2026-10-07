@@ -35,7 +35,8 @@ func _run() -> void:
 	var bal = root.get_node("Balance")
 	bal.reset()
 	bal.ui.shake_enabled = false
-	bal.data.tiers.tier_costs.append(1500)  # in memory: the cost entry of tier 3 (see the header)
+	if bal.data.tiers.tier_costs.size() < 3:
+		bal.data.tiers.tier_costs.append(1500)  # in memory: the cost entry of tier 3 (see the header)
 	var camera_math = load("res://core/camera_math.gd")
 	var map_layout = load("res://core/map_layout.gd")
 	var main = load("res://world/main.gd").create()

@@ -1,5 +1,5 @@
 extends SceneTree
-## E5 tier 3 Task 21 (the switch): the tier-2 day from HOME, the front-lot sign "Buy the front lot 1500" at its place. Run WITH rendering:
+## E5 tier 3 Task 21 (the switch): the tier-2 day from HOME, the front-lot sign "Buy the lot 1500" at its place. Run WITH rendering:
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_switch.gd -- --out=docs/review/media/e5t3/switch
 ## Writes sign_t2.png and sign_t2_40.png (288x512). The shipped build is used as it is: NO cost entry is appended, tier 2 is reached
 ## through the real path (the tier-1 sign paid, the King's night won by the controller's skips).
