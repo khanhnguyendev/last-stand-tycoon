@@ -23,6 +23,10 @@ func _zone_points() -> Array:
 		pts.append_array(Geometry.rect_corners(MapLayout.ZONE_RECTS[lane]))
 	return pts
 
+## The tower spots standing at `tier`.
+func _towers_at(tier: int) -> Array:
+	return MapLayout.spots_for_tier(tier).filter(func(id): return MapLayout.spot_kind(id) == "tower")
+
 ## Colliders the hero cannot enter (D-094, D-125): diner, counter, freezer. Towers and fences are walk-through.
 func _hero_colliders() -> Array:
 	return [
@@ -37,14 +41,13 @@ func _reachable(p: Vector2, colliders: Array) -> bool:
 			return false
 	return true
 
-func test_A_prime_no_reachable_position_hits_all_three_lanes() -> void:
-	# D-123 (supersedes the D-054 enclosing-circle assertion): sample every hero-reachable point on a
-	# 0.25 m grid; count lanes with at least one possible enemy stop point (D-111 model, full lateral
-	# spread) within hero range. No point may reach all 3 lanes.
+## Every hero-reachable point on a 0.25 m grid against the possible enemy stop points of `lanes` (D-111 model, full lateral spread):
+## {"max": most lanes one position reaches, "pairs": {"a+b": positions reaching exactly those two}, "positions": n}.
+func _lane_coverage(lanes: Array) -> Dictionary:
 	var eb := Balance.data.enemy
 	var hero_range := Balance.data.hero.attack_range
 	var stops := {}
-	for lane in LanePlanner.LANES:
+	for lane in lanes:
 		var pts: Array = []
 		var length := MapLayout.path_length(lane)
 		for i in 41:
@@ -63,7 +66,7 @@ func test_A_prime_no_reachable_position_hits_all_three_lanes() -> void:
 			if _reachable(p, colliders):
 				positions += 1
 				var reached: Array = []
-				for lane in LanePlanner.LANES:
+				for lane in lanes:
 					if p.distance_to(MapLayout.lane_end(lane)) > hero_range + eb.lateral_spread + 0.01:
 						continue
 					for q in stops[lane]:
@@ -76,61 +79,103 @@ func test_A_prime_no_reachable_position_hits_all_three_lanes() -> void:
 					pairs[key] = int(pairs.get(key, 0)) + 1
 			z += 0.25
 		x += 0.25
-	gut.p("A': %d reachable positions, max lanes reached = %d" % [positions, max_lanes])
-	gut.p("A' info: 2-lane positions per pair = %s" % [pairs])
+	return {"max": max_lanes, "pairs": pairs, "positions": positions}
+
+func test_A_prime_no_reachable_position_hits_all_three_lanes() -> void:
+	# D-123 (supersedes the D-054 enclosing-circle assertion): sample every hero-reachable point on a
+	# 0.25 m grid; count lanes with at least one possible enemy stop point (D-111 model, full lateral
+	# spread) within hero range. No point may reach all 3 lanes. Tiers 1 and 2 keep today's three lanes and numbers.
+	assert_eq(MapLayout.lanes_for_tier(1), MapLayout.lanes_for_tier(2), "tiers 1 and 2 share the three lanes")
+	var r := _lane_coverage(LanePlanner.LANES)
+	gut.p("A': %d reachable positions, max lanes reached = %d" % [r.positions, r.max])
+	gut.p("A' info: 2-lane positions per pair = %s" % [r.pairs])
 	gut.p("info only: enclosing radius of zone corners = %.3f" % Geometry.enclosing_radius(_zone_points()))
-	assert_lt(max_lanes, 3, "a reachable position covers all three lanes")
+	assert_lt(r.max, 3, "a reachable position covers all three lanes")
+	assert_eq(r.max, 2, "today's three-lane map reaches at most two (and does reach two)")
+	assert_eq(r.pairs, {"west+north": 16, "north+east": 16}, "today's three-lane pairs (numbers captured before tier 3)")
+
+func test_A_prime_tier3_no_reachable_position_hits_three_of_four_lanes() -> void:
+	# E5 D-261.2: with the south-west lane no hero-reachable position reaches three lanes; the sw lane pairs only with west.
+	var lanes := MapLayout.lanes_for_tier(3)
+	assert_eq(lanes, ["west", "north", "east", "sw"])
+	var r := _lane_coverage(lanes)
+	gut.p("A' tier 3: %d reachable positions, max lanes reached = %d, pairs %s" % [r.positions, r.max, r.pairs])
+	assert_eq(r.max, 2, "no position reaches three lanes")
+	assert_gt(int(r.pairs.get("west+sw", 0)), 0, "west and sw can be covered together")
+	for key in r.pairs:
+		if "sw" in key.split("+"):
+			assert_eq(key, "west+sw", "sw pairs only with west")
+	assert_eq(int(r.pairs.get("west+north", 0)), 16, "the old pairs are unchanged")
+	assert_eq(int(r.pairs.get("north+east", 0)), 16, "the old pairs are unchanged")
+
+## tower_sw lists "west" second in TOWER_LANES (spec 4.1) but only reaches the west zone's corners at the top level (7.24 m against 7.5 and 8.0),
+## and never its fence: the level-1 reach of B and C is claimed for the first lane only; the second lane has its own check (B).
+const SECONDARY_LANES := {"tower_sw": ["west"]}
+
+func _primary_lanes(spot_id: String) -> Array:
+	return MapLayout.tower_lanes(spot_id).filter(func(l): return not (SECONDARY_LANES.get(spot_id, []) as Array).has(l))
 
 func test_B_towers_reach_adjacent_zones() -> void:
 	var tower_range: float = Balance.data.build.tower_range[0]
-	for spot_id in MapLayout.TOWER_SPOTS:
-		var t: Vector2 = MapLayout.TOWER_SPOTS[spot_id]
-		for lane in MapLayout.TOWER_LANES[spot_id]:
-			for c in Geometry.rect_corners(MapLayout.ZONE_RECTS[lane]):
-				assert_true(t.distance_to(c) <= tower_range, "%s -> %s corner %s" % [spot_id, lane, c])
+	for tier in [2, 3]:
+		for spot_id in _towers_at(tier):
+			var t: Vector2 = MapLayout.tower_spot(spot_id)
+			for lane in _primary_lanes(spot_id):
+				for c in Geometry.rect_corners(MapLayout.zone_rect(lane)):
+					assert_true(t.distance_to(c) <= tower_range, "tier %d: %s -> %s corner %s" % [tier, spot_id, lane, c])
+	var top: float = Balance.data.build.tower_range[Balance.data.build.tower_range.size() - 1]
+	for c in Geometry.rect_corners(MapLayout.zone_rect("west")):
+		assert_lte(MapLayout.tower_spot("tower_sw").distance_to(c), top, "tower_sw reaches the west zone corner %s at the top level" % c)
+	var worst := 0.0
+	for c in Geometry.rect_corners(MapLayout.zone_rect("sw")):
+		worst = maxf(worst, MapLayout.tower_spot("tower_sw").distance_to(c))
+	gut.p("B: tower_sw -> farthest SW zone corner %.2f (range %.1f)" % [worst, tower_range])
 
 func test_C_towers_reach_adjacent_fences() -> void:
 	var tower_range: float = Balance.data.build.tower_range[0]
-	for spot_id in MapLayout.TOWER_SPOTS:
-		var t: Vector2 = MapLayout.TOWER_SPOTS[spot_id]
-		for lane in MapLayout.TOWER_LANES[spot_id]:
-			assert_true(t.distance_to(MapLayout.fence_spot(lane)) <= tower_range, "%s -> fence %s" % [spot_id, lane])
+	for tier in [2, 3]:
+		for spot_id in _towers_at(tier):
+			var t: Vector2 = MapLayout.tower_spot(spot_id)
+			for lane in _primary_lanes(spot_id):
+				assert_true(t.distance_to(MapLayout.fence_spot(lane)) <= tower_range, "tier %d: %s -> fence %s" % [tier, spot_id, lane])
 
 func test_D_stop_points_inside_zone() -> void:
 	var eb := Balance.data.enemy
-	for lane in LanePlanner.LANES:
-		var length := MapLayout.path_length(lane)
-		for i in 1001:
-			var offset := lerpf(-1.0, 1.0, i / 1000.0) * eb.lateral_spread
-			var p := EnemyPath.position_at(lane, length, offset, eb.offset_fade_distance)
-			assert_true(Geometry.rect_contains(MapLayout.ZONE_RECTS[lane], p), "%s offset %.3f -> %s" % [lane, offset, p])
+	for tier in [1, 3]:
+		for lane in MapLayout.lanes_for_tier(tier):
+			var length := MapLayout.path_length(lane)
+			for i in 1001:
+				var offset := lerpf(-1.0, 1.0, i / 1000.0) * eb.lateral_spread
+				var p := EnemyPath.position_at(lane, length, offset, eb.offset_fade_distance)
+				assert_true(Geometry.rect_contains(MapLayout.zone_rect(lane), p), "tier %d: %s offset %.3f -> %s" % [tier, lane, offset, p])
 
 func test_E_paths_clear_towers_and_diner() -> void:
 	var eb := Balance.data.enemy
 	var diner := Rect2(-MapLayout.DINER_HALF, -MapLayout.DINER_HALF, MapLayout.DINER_HALF * 2, MapLayout.DINER_HALF * 2)
-	for lane in LanePlanner.LANES:
-		var length := MapLayout.path_length(lane)
-		var d := 0.0
-		while d <= length + 0.0001:
-			for offset in [-eb.lateral_spread, 0.0, eb.lateral_spread]:
-				var p := EnemyPath.position_at(lane, d, offset, eb.offset_fade_distance)
-				for spot_id in MapLayout.TOWER_SPOTS:
-					assert_true(p.distance_to(MapLayout.TOWER_SPOTS[spot_id]) >= 1.5 - 1e-4, "%s near %s at %.1f" % [lane, spot_id, d])
-				assert_true(Geometry.dist_point_rect(p, diner) >= eb.reach - 0.001, "%s inside diner reach at %.1f" % [lane, d])
-			d += 0.1
+	for tier in [2, 3]:
+		for lane in MapLayout.lanes_for_tier(tier):
+			var length := MapLayout.path_length(lane)
+			var d := 0.0
+			while d <= length + 0.0001:
+				for offset in [-eb.lateral_spread, 0.0, eb.lateral_spread]:
+					var p := EnemyPath.position_at(lane, d, offset, eb.offset_fade_distance)
+					for spot_id in _towers_at(tier):
+						assert_true(p.distance_to(MapLayout.tower_spot(spot_id)) >= 1.5 - 1e-4, "tier %d: %s near %s at %.1f" % [tier, lane, spot_id, d])
+					assert_true(Geometry.dist_point_rect(p, diner) >= eb.reach - 0.001, "tier %d: %s inside diner reach at %.1f" % [tier, lane, d])
+				d += 0.1
 
 func test_home_and_night1_start_are_clear() -> void:
 	# D-122, D-126: both spawn points are outside every station/build zone, off every lane, reachable.
 	var zones := [[MapLayout.SIGN, MapLayout.STATION_RADIUS], [MapLayout.FREEZER_ZONE, MapLayout.STATION_RADIUS],
 		[MapLayout.COUNTER_DROP, MapLayout.STATION_RADIUS], [MapLayout.GOLD_PILE, Balance.data.hero.magnet_radius]]
-	for id in MapLayout.SPOT_IDS:
+	for id in MapLayout.spots_for_tier(3):
 		zones.append([MapLayout.spot_position(id), MapLayout.BUILD_RADIUS])
 	for p in [MapLayout.HOME, MapLayout.NIGHT1_START]:
 		assert_true(_reachable(p, _hero_colliders()), "%s not reachable" % [p])
 		for z in zones:
 			assert_gt(p.distance_to(z[0]), float(z[1]), "%s inside zone at %s" % [p, z[0]])
-		for lane in LanePlanner.LANES:
-			var path: Array = MapLayout.LANE_PATHS[lane]
+		for lane in MapLayout.lanes_for_tier(3):
+			var path: Array = MapLayout.lane_path(lane)
 			for i in range(1, path.size()):
 				assert_gt(Geometry.dist_point_segment(p, path[i - 1], path[i]),
 					Balance.data.enemy.lateral_spread + MapLayout.HERO_RADIUS, "%s on lane %s" % [p, lane])
@@ -145,23 +190,23 @@ func test_fence_spots_match_spec() -> void:
 	assert_almost_eq(MapLayout.fence_spot("east").x, 7.07, 0.02)
 	assert_almost_eq(MapLayout.fence_spot("east").y, -3.54, 0.02)
 	# spec 6.1: telegraph markers sit 1.5 m up-path from each fence spot
-	for lane in LanePlanner.LANES:
+	for lane in MapLayout.lanes_for_tier(3):
 		assert_almost_eq(MapLayout.telegraph_spot(lane).distance_to(MapLayout.fence_spot(lane)), 1.5, 0.001, lane)
 
 ## Perpendicular of the path's last segment, same convention as EnemyPath (D-111).
 func _end_perp(lane: String) -> Vector2:
-	var path: Array = MapLayout.LANE_PATHS[lane]
+	var path: Array = MapLayout.lane_path(lane)
 	var t := (path[path.size() - 1] as Vector2 - path[path.size() - 2] as Vector2).normalized()
 	return Vector2(-t.y, t.x)
 
 func test_zone_axis_matches_end_perp() -> void:
-	for lane in LanePlanner.LANES:
-		assert_gt((MapLayout.ZONE_AXIS[lane] as Vector2).dot(_end_perp(lane)), 0.0, "%s axis opposes end perpendicular" % lane)
+	for lane in MapLayout.lanes_for_tier(3):
+		assert_gt(MapLayout.zone_axis(lane).dot(_end_perp(lane)), 0.0, "%s axis opposes end perpendicular" % lane)
 
 func test_offset_blend_never_crosses_centerline() -> void:
 	# D-111: an enemy's lateral offset must stay on one side of the lane centerline while it blends onto the zone axis.
 	var eb := Balance.data.enemy
-	for lane in LanePlanner.LANES:
+	for lane in MapLayout.lanes_for_tier(3):
 		var length := MapLayout.path_length(lane)
 		var end_perp := _end_perp(lane)
 		for o in [-1.0, -0.5, 0.5, 1.0]:
@@ -240,5 +285,5 @@ func test_tank_return_path_is_clear() -> void:
 		for k in n + 1:
 			var p := a.lerp(b, float(k) / float(n))
 			assert_gte(Geometry.dist_point_rect(p, box), r + 0.025, "segment %d clears the diner" % i)
-		for t in MapLayout.TOWER_SPOTS.values():
-			assert_gte(Geometry.dist_point_segment(t, a, b), MapLayout.TOWER_VISUAL_RADIUS + r, "segment %d clears a tower" % i)
+		for id in _towers_at(3):
+			assert_gte(Geometry.dist_point_segment(MapLayout.tower_spot(id), a, b), MapLayout.TOWER_VISUAL_RADIUS + r, "segment %d clears %s" % [i, id])

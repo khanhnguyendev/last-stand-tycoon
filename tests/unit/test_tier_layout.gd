@@ -39,7 +39,7 @@ func test_spot_lists() -> void:
 	assert_eq(MapLayout.SPOT_IDS, ["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e"], "SPOT_IDS is frozen")
 	assert_eq(MapLayout.spots_for_tier(1), MapLayout.SPOT_IDS)
 	assert_eq(MapLayout.spots_for_tier(2), ["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e", "tower_w", "tower_e"])
-	assert_eq(MapLayout.ALL_SPOT_IDS, MapLayout.spots_for_tier(2))
+	assert_eq(MapLayout.ALL_SPOT_IDS, MapLayout.spots_for_tier(3), "ALL_SPOT_IDS gained the two tier-3 spots (E5 tier 3, Task 8)")
 	assert_eq([MapLayout.spot_tier("fence_n"), MapLayout.spot_tier("tower_w")], [1, 2])
 	assert_eq(MapLayout.spot_kind("tower_w"), "tower")
 	assert_eq(MapLayout.TOWER_LANES["tower_w"], ["west"])

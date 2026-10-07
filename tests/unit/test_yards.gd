@@ -190,11 +190,14 @@ func _distance_to_kerb(p: Vector2) -> float:
 			best = minf(best, Geometry2D.get_closest_point_to_segment(p, seg[0], seg[1]).distance_to(p))
 	return best
 
-## The "things to stay clear of" for a tier, from MapLayout. Task 8 extends this for tier 3 (the plot, SW lane, the
-## new spots): add them HERE and add 3 to _owned_tiers(). Each entry is {pos: Vector2, r: float} (a point and its radius),
-## {rect: Rect2, r: float = 0}, or {seg: [a, b], lateral: float} (a lane or path line and its half spread). A prop of
+## The "things to stay clear of" for a tier, from MapLayout. Each entry is {pos: Vector2, r: float} (a point and its radius),
+## {rect: Rect2, r: float = 0}, or {seg: [a, b], lateral: float} (a lane or path line and its half width). A prop of
 ## radius R and height H keeps r + R + H / tan(camera pitch) from points and rects (the top leans over its base) and
-## lateral + R from lines.
+## lateral + R from lines. The lean term is the screen-centre value (the camera tilts a little off-centre, so it is a close estimate, not a bound).
+## An entry with "yard" is skipped for the props of that yard (a plot does not keep its own props out).
+## The tier-3 entries (SW lane, zone, fence bar, tower, pads, tier-3 queue slots and exit, the front lot) are here ready for the front lot's props.
+const FENCE_BAR_HALF_WIDTH := 0.5  ## the fence bar is 3 m across (1.5 either side of its spot); its mesh is thinner than this
+
 func _keep_clear(tier: int) -> Array:
 	var out := []
 	for id in MapLayout.spots_for_tier(tier):
@@ -209,18 +212,31 @@ func _keep_clear(tier: int) -> Array:
 		out.append({"pos": stations[name], "r": MapLayout.STATION_RADIUS, "what": name})
 	out.append({"pos": MapLayout.HOME, "r": MapLayout.HERO_RADIUS, "what": "HOME"})
 	out.append({"pos": MapLayout.DINER_DOOR, "r": MapLayout.STATION_RADIUS, "what": "DINER_DOOR"})
-	out.append({"pos": MapLayout.TIER_SIGN, "r": MapLayout.STATION_RADIUS, "what": "tier sign"})
-	for q in MapLayout.QUEUE_SLOTS:
+	for t in MapLayout.TIER_SIGNS:  # every sign that stands while this tier's land is owned: the tier's own and the next tier's
+		if t <= tier + 1:
+			out.append({"pos": MapLayout.tier_sign(t), "r": MapLayout.STATION_RADIUS, "what": "tier %d sign" % t})
+	for q in MapLayout.queue_slots(tier):
 		out.append({"pos": q, "r": MapLayout.HERO_RADIUS, "what": "queue slot"})
-	for id in MapLayout.LANE_PATHS:
-		var pts: Array = MapLayout.LANE_PATHS[id]
+	var lane_half := maxf(LaneStrip.WIDTH * 0.5, Balance.data.enemy.lateral_spread)
+	for id in MapLayout.lanes_for_tier(tier):
+		var pts: Array = MapLayout.lane_path(id)
 		for i in range(1, pts.size()):
-			out.append({"seg": [pts[i - 1], pts[i]], "lateral": LaneStrip.WIDTH * 0.5, "what": "lane %s" % id})
-	for id in MapLayout.ZONE_RECTS:
-		out.append({"rect": MapLayout.ZONE_RECTS[id], "r": 0.0, "what": "zone %s" % id})
-	out.append({"seg": [MapLayout.TRAVELER_ENTER, MapLayout.TRAVELER_EXIT], "lateral": MapLayout.HERO_RADIUS, "what": "traveler path"})
+			out.append({"seg": [pts[i - 1], pts[i]], "lateral": lane_half, "what": "lane %s" % id})
+		out.append({"rect": MapLayout.zone_rect(id), "r": 0.0, "what": "zone %s" % id})
+		var t := Geometry.tangent_at(pts, Geometry.path_length(pts) - MapLayout.FENCE_OFFSET_FROM_END)
+		var n := Vector2(-t.y, t.x)
+		var f := MapLayout.fence_spot(id)
+		out.append({"seg": [f - n * 1.5, f + n * 1.5], "lateral": FENCE_BAR_HALF_WIDTH, "what": "fence bar %s" % id})
+	out.append({"seg": [MapLayout.TRAVELER_ENTER, MapLayout.traveler_exit(tier)], "lateral": 1.0, "what": "traveler path"})  # the road's half width
+	if tier >= 3:  # pads only exist from tier 3
+		for id in MapLayout.BRANCH_PADS:
+			for p in MapLayout.BRANCH_PADS[id]:
+				out.append({"pos": p, "r": MapLayout.BRANCH_PAD_RADIUS, "what": "pad of %s" % id})
+	for id in MapLayout.yards_for_tier(tier):
+		out.append({"rect": MapLayout.yard_rect(id), "r": 0.0, "what": "%s lot" % id, "yard": id})
 	return out
 
+## Tiers whose owned land carries props. The front lot (tier 3) has none yet: a later task adds its props and 3 here.
 func _owned_tiers() -> Array:
 	return [2]
 
@@ -249,9 +265,11 @@ func test_owned_props_keep_clear() -> void:
 				var p: Vector2 = it.pos
 				var radius := Props.owned_radius(it.kind, float(it.scale))
 				var height := Props.owned_height(it.kind, float(it.scale))
-				var inner := (MapLayout.YARDS[id] as Rect2).grow(-(YardStones.WIDTH * 0.5 + radius))
+				var inner := MapLayout.yard_rect(id).grow(-(YardStones.WIDTH * 0.5 + radius))
 				assert_true(inner.has_point(p), "%s %s inside the %s yard inset by the kerb and its own radius %.2f" % [it.kind, p, id, radius])
 				for rule in rules:
+					if rule.get("yard", "") == id:
+						continue
 					assert_gte(_distance_to(p, rule), _least_distance(rule, radius, height), "tier %d: %s at %s clear of %s" % [tier, it.kind, p, rule.what])
 	assert_gt(seen, 6, "props were checked")
 
@@ -298,3 +316,22 @@ func _props_height_vertices(mesh: ArrayMesh, rect: Rect2) -> int:
 		if v.y > 0.1 and rect.has_point(Vector2(v.x, v.z)):
 			n += 1
 	return n
+
+func test_keep_clear_rules_are_ready_for_tier_3() -> void:
+	var t2 := _keep_clear(2)
+	var t3 := _keep_clear(3)
+	var what2 := t2.map(func(r): return r.what)
+	var what3 := t3.map(func(r): return r.what)
+	for w in ["lane sw", "zone sw", "fence bar sw", "tower_sw", "fence_sw", "front lot", "pad of tower_sw", "pad of fence_sw", "tier 3 sign"]:
+		assert_true(what3.has(w), "tier 3 keeps clear of %s" % w)
+	for w in ["lane sw", "zone sw", "fence bar sw", "tower_sw", "front lot", "pad of tower_sw"]:
+		assert_false(what2.has(w), "tier 2 does not know %s" % w)
+	var slots := t3.filter(func(r): return r.what == "queue slot").map(func(r): return r.pos)
+	assert_eq(slots, MapLayout.queue_slots(3), "tier 3 uses its own queue slots")
+	var road: Dictionary = t3.filter(func(r): return r.what == "traveler path")[0]
+	assert_eq(road.seg[1], MapLayout.traveler_exit(3))
+	assert_eq(road.lateral, 1.0, "the road's half width")
+	var lane: Dictionary = t3.filter(func(r): return r.what == "lane sw")[0]
+	assert_eq(lane.lateral, maxf(LaneStrip.WIDTH * 0.5, Balance.data.enemy.lateral_spread))
+	var pads := t3.filter(func(r): return str(r.what).begins_with("pad of")).size()
+	assert_eq(pads, 18)
