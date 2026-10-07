@@ -1,17 +1,20 @@
 extends SceneTree
-## The tier sign by day, from the hero at HOME and with the hero on the sign (E5 Task 9). Run WITH rendering:
-##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_tier_sign.gd -- --out=docs/review/media/e5/task09
-## Writes tier_sign_home.png, tier_sign_on.png and tier_sign_clear.png (hero beside the sign) (720x1280) and a _40 copy of each (288x512), and prints whether the
-## sign is inside the screen from HOME.
+## The tier sign at phone size (E5 tier 3 Task 3; first written for E5 Task 9). Run WITH rendering (not --headless):
+##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_tier_sign.gd -- --out=docs/review/media/e5t3/growth --name=sign_after
+## Tier 1 on day 2 (the sign sells the yards), the hero standing beside the sign, the camera on the sign. Writes
+## <name>.png (720x1280) and <name>_40.png (288x512), and prints whether the sign is on screen from HOME.
 
 func _initialize() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	var out := "docs/review/media/e5/task09"
+	var out := "docs/review/media/e5t3/growth"
+	var shot := "sign_after"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			out = a.trim_prefix("--out=")
+		elif a.begins_with("--name="):
+			shot = a.trim_prefix("--name=")
 	var bal = root.get_node("Balance")
 	bal.reset()
 	bal.ui.shake_enabled = false
@@ -40,18 +43,13 @@ func _run() -> void:
 	main.hero.teleport(layout.HOME)
 	for i in 30:
 		await physics_frame
-	await _grab(main, cam, camera_math, bal, layout.HOME, out, "tier_sign_home")
 	var sp: Vector3 = main.world.tier_sign.global_position
 	var scr := cam.unproject_position(sp + Vector3(0, 1.4, 0))
 	print("sign from HOME: screen ", scr, " on screen ", Rect2(Vector2.ZERO, vp).has_point(scr) and not cam.is_position_behind(sp))
-	main.hero.teleport(layout.TIER_SIGN)
-	for i in 30:
-		await physics_frame
-	await _grab(main, cam, camera_math, bal, layout.TIER_SIGN, out, "tier_sign_on")
 	main.hero.teleport(layout.TIER_SIGN + Vector2(3.5, 0.0))  # beside it: the sign unobstructed
 	for i in 30:
 		await physics_frame
-	await _grab(main, cam, camera_math, bal, layout.TIER_SIGN, out, "tier_sign_clear")
+	await _grab(main, cam, camera_math, bal, layout.TIER_SIGN, out, shot)
 	quit(0)
 
 func _grab(main, cam: Camera3D, camera_math, bal, focus: Vector2, out: String, name: String) -> void:

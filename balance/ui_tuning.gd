@@ -162,3 +162,9 @@ extends Resource
 @export var guide_stick_y := 0.78
 @export var guide_swipe_frac := 0.7
 @export var guide_arrow_px := 64.0
+
+## E5 tier 3 Task 3: the tier sign reads at phone size. Label font size and Label3D pixel size (m per pixel), and the
+## smallest projected height (px) of one label line at 720 px width (tests/unit/test_tier_sign.gd).
+@export var tier_sign_label_font := 56
+@export var tier_sign_label_pixel_size := 0.01
+@export var tier_sign_min_px := 28.0
