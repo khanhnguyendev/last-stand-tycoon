@@ -1,4 +1,5 @@
 extends Node
+## Historical: superseded by study 2 (the sweep overrides); kept because its output is cited.
 ## The body of tests/sim/report_t3_balance.gd. Output lines start with P1 / P2 / SUMMARY / TABLE / WALL.
 ## "min" = the lowest diner HP fraction the night reached (0 for a fallen diner).
 

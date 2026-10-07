@@ -288,6 +288,13 @@ func test_spike_scale_reads_the_first_wave_of_a_real_plan() -> void:
 	assert_almost_eq(float(GameState.lane_plan[2].hp_mult), 3.445, 0.001)
 	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 2.65, 0.001)
 	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0, 0.001, "first wave, not the last (would be 6 x 3.445 / 2.65 = 7.80)")
+	# With cap = base a real plan scales by 1.0, which cannot tell "first wave" from "last wave" or "plan ignored". Re-run the old case with
+	# the cap raised in memory (15, the value before the ruling): the plan's waves differ again and the scale reads the first one.
+	Balance.data.tiers.tier_cap[3] = 15
+	GameState.debug_set_tier(3, 17)
+	assert_almost_eq(float(GameState.lane_plan[2].hp_mult), 4.857, 0.001, "cap 15: the last wave")
+	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 3.1, 0.001, "cap 15: the first wave")
+	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 7.019, 0.001, "cap 15: first wave, not the last (would be 10.99)")
 
 func test_spike_scale_is_one_without_a_plan() -> void:
 	_branch(FENCE, &"spike")
