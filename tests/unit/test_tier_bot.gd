@@ -251,6 +251,8 @@ func test_each_policy_picks_the_documented_branch_for_a_literal_plan() -> void:
 		["all_b", sw, "tower_sw", &"volley"], ["all_b", sw, "fence_sw", &"spike"], ["all_b", none, "fence_n", &"spike"],
 		["mixed", none, "tower_nw", &"longbow"], ["mixed", sw, "fence_w", &"spike"], ["mixed", north, "tower_ne", &"longbow"],
 		["mixed", north, "fence_n", &"spike"],
+		["volley_stone", none, "tower_sw", &"volley"], ["volley_stone", none, "fence_sw", &"stone"], ["volley_stone", sw, "tower_e", &"volley"],
+		["volley_stone", north, "fence_n", &"stone"],
 		["threat", none, "tower_sw", &"volley"], ["threat", none, "fence_sw", &"spike"], ["threat", none, "fence_n", &"spike"],
 		["threat", sw, "tower_sw", &"longbow"], ["threat", sw, "fence_sw", &"stone"], ["threat", sw, "fence_w", &"spike"],
 		["threat", sw, "tower_nw", &"volley"], ["threat", sw, "tower_w", &"volley"], ["threat", sw, "fence_n", &"spike"],
