@@ -1,7 +1,7 @@
 extends GutTest
 ## E5 tier 3, Task 10 (spec 3.4, 6.2, D-265): the siege brute. Fence damage x fence_damage_mult, normal damage to guards and
 ## the diner, the Boar's target order, a heavy slow walk, a ground thump on fence hits only. Literal numbers: the brute does
-## 8 damage per hit (x4 = 32 on a fence), the Boar 5; night_fails 0 so mercy_factor() is 1.0; a level-1 fence holds 120 hp.
+## 8 damage per hit (x4 = 32 on a fence), the Boar 5; mercy_factor() is asserted 1.0 in before_each; a level-1 fence holds 120 hp.
 
 class FakeDirector:
 	extends RefCounted
@@ -22,6 +22,7 @@ var _fx: Array = []
 func before_each() -> void:
 	Balance.reset()
 	GameState.new_game(7)
+	assert_eq(GameState.mercy_factor(), 1.0, "no failed nights: hits are the raw damage")
 	dir = FakeDirector.new()
 	_sfx = []
 	_fx = []
@@ -133,22 +134,26 @@ func test_with_no_fence_it_walks_into_the_zone_like_a_boar() -> void:
 	assert_true(Geometry.rect_contains(MapLayout.ZONE_RECTS.north, Vector2(b.position.x, b.position.z)))
 	assert_eq(_count_sfx(&"thump"), 0, "no fence, no thump")
 
-# Fails if the thump fires per attack of any target, per frame, or not at all.
-func test_thump_fires_once_per_fence_hit() -> void:
+# Fails if the thump fires per attack of any target, per frame, or not at all, or if the dust is not two bursts either side.
+func test_thump_fires_once_per_fence_hit_with_two_dust_bursts_beside_the_body() -> void:
 	_build_fence()
 	var b := _mon(&"brute")
 	b.dist = TargetProviders.fence_stop_dist(b)
 	_step(b, 60)
 	assert_eq(_count_sfx(&"thump"), 1)
-	assert_eq(_count_fx(&"dust"), 1)
+	assert_eq(_count_fx(&"dust"), 2, "two bursts per hit")
+	# the north fence spot centre; the zone axis is (-1, 0): the bursts sit at x = c.x + 1.3 and c.x - 1.3, 0.3 m up, on the fence line
+	var c := MapLayout.spot_position("fence_n")
+	assert_eq(_fx.size(), 2)
+	if _fx.size() == 2:
+		assert_eq(_fx[0].pos, Vector3(c.x + 1.3, 0.3, c.y))
+		assert_eq(_fx[1].pos, Vector3(c.x - 1.3, 0.3, c.y))
+		assert_almost_eq(absf(_fx[0].pos.x - _fx[1].pos.x), 2.6, 1e-4, "the bursts are 2.6 m apart across the lane")
+		assert_almost_eq(_fx[0].pos.z, _fx[1].pos.z, 1e-4, "on the fence line")
+		assert_gt(absf(_fx[0].pos.x - b.global_position.x), 1.0, "outside the body half-width")
 	_step(b, 60)
 	assert_eq(_count_sfx(&"thump"), 2)
-	assert_eq(_count_fx(&"dust"), 2)
-	assert_gte(_fx.size(), 1)
-	if _fx.is_empty():
-		return
-	var fence_pos := MapLayout.to3(MapLayout.spot_position("fence_n"))
-	assert_lt(Vector2(_fx[0].pos.x, _fx[0].pos.z).distance_to(Vector2(fence_pos.x, fence_pos.z)), 3.0, "dust at the fence")
+	assert_eq(_count_fx(&"dust"), 4)
 
 func test_no_thump_for_a_guard_or_diner_hit_or_a_boar() -> void:
 	GameState.guards[&"g1"] = {"hp": 50.0}
@@ -201,3 +206,22 @@ func test_the_brute_walks_heavy_like_the_boss_not_like_the_boar() -> void:
 	assert_eq(v._hop(), Vector2(ui.boss_hop_height, ui.boss_hop_hz))
 	assert_eq(v._lunge_dist(), ui.boss_lunge)
 	assert_lt(v._hop().y, ui.boar_hop_hz, "slower bob than the Boar")
+
+# Fails if the target order puts the guard before the lane fence (the guard would lose 8 and the fence nothing).
+func test_fence_before_guard_when_both_are_in_reach() -> void:
+	_build_fence()
+	GameState.guards[&"g1"] = {"hp": 50.0}
+	dir.guard_target = {"kind": &"guard", "guard_id": &"g1"}
+	var b := _mon(&"brute")
+	b.dist = TargetProviders.fence_stop_dist(b)
+	_step(b, 60)
+	assert_eq(float(GameState.buildings.fence_n.hp), 88.0, "the fence took the hit")
+	assert_eq(float(GameState.guards[&"g1"].hp), 50.0, "the guard keeps all its hp")
+
+# Fails if brutes are not counted in the enemy pool (a pool of max_wave_size + 1 + 0 would miss the cap night).
+func test_enemy_pool_covers_a_tier_3_cap_wave_with_brutes_and_a_boss() -> void:
+	var bd := Balance.data
+	var pool: int = World.pool_sizes(bd).enemy
+	assert_gte(pool, bd.wave.max_wave_size + bd.tiers.brute_cap_main[3] + bd.tiers.brute_cap_side[3] + 1)
+	assert_lte(30 + 2 + 1, pool, "30 + 2 brutes + 1 boss = 33")
+	assert_eq(pool, 41, "today: max_wave_size 30 + 1 + 10")

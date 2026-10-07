@@ -63,18 +63,35 @@ func _run() -> void:
 		b.visible = false
 	var br = wd.debug_spawn("north", 0.0, 1.0, &"brute")
 	br.set_physics_process(false)
-	br.dist = br.path_length() - 3.2 - 1.2
+	br.dist = br._director.providers.fence_stop_dist(br)  # the game's own stop point (a static, reached through the instance: a -s script cannot name the class)
 	br._update_position()
-	br.visual.attack()
 	_focus = Vector2(br.position.x, br.position.z - 0.6)
 	main.hero.teleport(Vector2(br.position.x + 3.2, br.position.z + 1.0))
+	# one real attack: 60 steps of 1/60 s reach the 1.0 s interval, so the fence is hit and the thump fires on the last one
+	for i in 60:
+		br._physics_process(1.0 / 60.0)
 	mons = [br]
-	await _grab(main, cam, camera_math, bal, mons, out, "brute_fence")
+	await _grab(main, cam, camera_math, bal, mons, out, "brute_fence", 4)  # a few frames after the thump so the dust is up
+	# the brute beside the Boar King and a Boar (spec: distinct from the King)
+	br.visible = false
+	br.alive = false
+	var king = wd.debug_spawn("north", 0.0, 1.0, &"boss")
+	var boar = wd.debug_spawn("north", 0.0, 1.0, &"boar")
+	var bru = wd.debug_spawn("north", 0.0, 1.0, &"brute")
+	var cmp := [boar, bru, king]
+	var cx: Vector3 = base
+	var xs2 := [-2.6, 0.0, 3.4]
+	for k in 3:
+		cmp[k].set_physics_process(false)
+		cmp[k].position = cx + Vector3(xs2[k], 0.0, 0.0)
+		cmp[k].visual.face(Vector3(0.0, 0.0, 1.0))
+	_focus = Vector2(cx.x + 0.4, cx.z)
+	await _grab(main, cam, camera_math, bal, cmp, out, "brute_vs_king")
 	quit(0)
 
-func _grab(main, cam: Camera3D, camera_math, bal, mons: Array, out: String, name: String) -> void:
+func _grab(main, cam: Camera3D, camera_math, bal, mons: Array, out: String, name: String, frames := 20) -> void:
 	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(_focus), bal.ui)
-	for i in 20:
+	for i in frames:
 		await process_frame
 	var img := root.get_texture().get_image()
 	var dir := ProjectSettings.globalize_path("res://").path_join(out)

@@ -84,7 +84,8 @@ func register_streams() -> void:
 		return
 	for id in AudioManifest.SFX:
 		var s := _stream(AudioManifest.SFX[id].path)
-		if OS.has_feature("web"):
+		# two ids may share one file (thump and diner_hit): register the shared stream once
+		if OS.has_feature("web") and not AudioServer.is_stream_registered_as_sample(s):
 			AudioServer.register_stream_as_sample(s)
 	for id in AudioManifest.MUSIC:
 		var s := _stream(AudioManifest.MUSIC[id].path)
@@ -116,7 +117,7 @@ func play(id: StringName) -> void:
 	_last_ms[id] = now
 	var p := _sfx[_next_voice]
 	_next_voice = (_next_voice + 1) % VOICES
-	last_pitch = 1.0 + float(info.pitch_spread) * PITCH_TABLE[_seq % PITCH_TABLE.size()]
+	last_pitch = (1.0 + float(info.pitch_spread) * PITCH_TABLE[_seq % PITCH_TABLE.size()]) * float(info.get("pitch", 1.0))
 	_seq += 1
 	p.stream = _stream(info.path)
 	p.volume_db = float(info.volume_db)

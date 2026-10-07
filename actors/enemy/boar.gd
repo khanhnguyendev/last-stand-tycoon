@@ -116,10 +116,18 @@ func _physics_process(delta: float) -> void:
 			&"diner":
 				GameState.damage_diner(dmg)
 
-## The siege brute's ground thump (spec 6.2): a dust burst at the fence and a heavy sound, only for a hit on a fence.
+## Dust bursts sit this far to each side of the lane centre on the fence line: outside the brute's half-width, never in its head.
+const THUMP_SIDE := 1.3
+const THUMP_HEIGHT := 0.3
+
+## The siege brute's ground thump (spec 6.2): two dust bursts on the fence line, one each side of the body, and a heavy sound;
+## only for a hit on a fence.
 func _thump(spot_id: String) -> void:
 	EventBus.sfx_requested.emit(&"thump")
-	EventBus.fx_requested.emit(&"dust", MapLayout.to3(MapLayout.spot_position(spot_id)) + Vector3(0, 0.3, 0))
+	var centre := MapLayout.spot_position(spot_id)
+	var axis := MapLayout.zone_axis(lane)  # the fence bar runs along the zone's width axis
+	for side in [-1.0, 1.0]:
+		EventBus.fx_requested.emit(&"dust", MapLayout.to3(centre + axis * THUMP_SIDE * side) + Vector3(0, THUMP_HEIGHT, 0))
 
 func take_hit(amount: float) -> void:
 	if alive:
