@@ -2343,3 +2343,29 @@ phases: one measurement after every task, milestone and phase is done. A run sta
 author before it completed; no number from it is recorded. The real-device check of the tier sign, the boss bar and
 the boss moon is on the FINAL REVIEW phone checklist and blocks no merge. What is owed is listed in
 `docs/E5_FOLLOWUPS.md`.
+
+## 2026-10-07: E5 slice 2 (tier 3) brainstorm
+
+**D-261 The fourth lane is a south-west lane to the front (south) wall (author).** Chosen over a second northern lane
+sharing a wall and a straight south lane. Reasons (the author's): the diner is attacked from all four sides, the
+clearest "bigger tier" beat; the south wall is the most readable one (the camera looks north from the south, so
+south-wall fights are in front of the diner and need no fade); the service-side conflicts are night-only (travelers
+are gone, the gold pile is emptied at close-up). Constraints, each pinned by a test like S1's:
+1. **Visibility (D-076):** with the hero at the SW attack zone, an incoming monster is on screen for at least 2.0 s
+   before it enters hero range. West-to-east travel along the road crosses the narrow portrait axis, so the last
+   segment may curve to come up from the bottom-left of the screen if the test needs it. A per-lane screenshot.
+2. **Coverage (test A' extended to 4 lanes):** no reachable position reaches 3 or more lanes; the 2-lane positions are
+   reported as information. The SW corner covering west + SW is expected.
+3. **Day traffic:** travelers never visibly walk through a fence. Either traveler exits are rerouted east, or the SW
+   fence spot is placed off the traveler path; the simpler one is chosen and logged.
+4. **Service layout:** whatever must move moves (the tier sign, HOME, queue slots) so that no station, sign or HOME
+   lies inside the SW attack zone or on its fence spot. Station arming (D-121) still applies.
+5. **Tower coverage:** the tier-3 tower spot(s) reach the SW attack zone and its fence (tests B/C).
+6. **Tier-1 identity:** days 1 to 7 stay byte-identical; the SW lane exists only after the tier-3 unlock and
+   `lane_plan` picks it only from then on.
+
+**D-262 Tier 3 is one slice; its first phase is "growth readability" (author).** Tiers 4 and 5 stay roadmap. The
+tier-2 visual complaints are fixed in this slice, first, because the SW lane touches the same ground (west yard edge,
+sign). Targets: the diner visibly grows per tier; yards read as owned land, not lane stubs (ground tint, low border
+or decor); the tier sign is readable at phone size (checked on a 40% screenshot). Before/after screenshots under
+`docs/review/media/`, and REVIEW_QUEUE entries.
