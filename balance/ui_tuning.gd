@@ -168,5 +168,5 @@ extends Resource
 ## stretches a 720x1280 base: view heights 1680, 1280 and 1280 at 9:21, 9:16 and 16:9; tests/unit/test_tier_sign.gd).
 @export var tier_sign_label_font := 56
 @export var tier_sign_label_pixel_size := 0.01
-@export var tier_sign_label_y := 4.3
+@export var tier_sign_label_y := 4.27
 @export var tier_sign_min_px := 36.0

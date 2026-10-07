@@ -227,27 +227,48 @@ func test_label_is_clear_of_the_star() -> void:
 	gut.p("label block bottom above the star tip along camera up: %.2f m" % gap)
 	assert_gte(gap, 0.1, "a visible gap between the label and the star")
 
-## NDC rect of the sign (model box plus label block) and of the tower_w pad (marker square plus its cost label).
+## The real tower_w pad geometry from a tier-2 game: the marker's transformed AABB and the cost label's centre, font size,
+## pixel size and a text ("500") at that size. Read after the sign geometry (the sign is hidden at tier 2).
+func _pad_geometry() -> Dictionary:
+	var spot = main.world.build_spots["tower_w"]
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for n in spot.marker.find_children("*", "MeshInstance3D", true, false):
+		var b: AABB = (n as MeshInstance3D).global_transform * (n as MeshInstance3D).get_aabb()
+		lo = lo.min(b.position)
+		hi = hi.max(b.end)
+	return {"marker": AABB(lo, hi - lo), "label_pos": spot.label.global_position, "font": spot.label.font_size, "pixel": spot.label.pixel_size}
+
+## NDC rect of the sign (model box plus label block) and of the tower_w pad (real marker plus its real cost label).
 func _sign_and_pad_rects(aspect: float, label_scale: float) -> Array:
 	var xf := _xf(MapLayout.TIER_SIGN)
 	var proj := CameraMath.projection(Balance.ui, aspect)
 	var blk := _label_block_m(label_scale)
 	var sign_rect := _box_rect(_model_box(), xf, proj).merge(_block_rect(sign.label.global_position, blk.x, blk.y, xf, proj))
-	var pad := MapLayout.to3(MapLayout.spot_position("tower_w"))
+	var pg: Dictionary = _pad
 	var font := load(WorldLabel.BOLD_PATH) as Font
-	var pw := font.get_string_size("500", HORIZONTAL_ALIGNMENT_LEFT, -1, 40).x * 0.01
-	var ph := _line_h(40, 0.01)
-	var pad_rect := _block_rect(pad + Vector3(0, 2.6, 0), pw, ph, xf, proj)
-	pad_rect = pad_rect.merge(_box_rect(AABB(pad - Vector3(0.6, 0, 0.6), Vector3(1.2, 0.05, 1.2)), xf, proj))
+	var pw: float = font.get_string_size("500", HORIZONTAL_ALIGNMENT_LEFT, -1, pg["font"]).x * float(pg["pixel"])
+	var ph: float = _line_h(pg["font"], pg["pixel"])
+	var pad_rect := _block_rect(pg["label_pos"], pw, ph, xf, proj).merge(_box_rect(pg["marker"], xf, proj))
 	return [sign_rect, pad_rect]
+
+var _pad := {}
 
 func test_the_sign_stays_clear_of_the_west_tower_pad_and_its_label() -> void:
 	await get_tree().physics_frame
+	var blk_scale_sign := _label_block_m(1.0)  # text-dependent: measure before the tier-2 switch hides the sign
+	var text := sign.label.text
+	GameState.debug_set_tier(2, GameState.day)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_pad = _pad_geometry()
+	sign.label.text = text  # restore for the metrics (the sign is hidden at tier 2)
+	assert_true(blk_scale_sign.y > 0.0)
 	for aspect in ASPECTS:
 		var r := _sign_and_pad_rects(aspect, 1.0)
-		var gap: float = r[1].position.y - r[0].end.y if r[1].position.y >= r[0].end.y else r[0].position.y - r[1].end.y
-		gut.p("aspect %.3f: sign rect %s, pad rect %s, vertical NDC gap %.3f" % [aspect, r[0], r[1], gap])
-		assert_false((r[0] as Rect2).grow(0.01).intersects(r[1]), "aspect %.3f: sign (with 0.01 NDC margin) overlaps the tower_w pad or its label" % aspect)
-		# Sensitivity: with a label twice as tall (measured gaps are 0.017 to 0.022 NDC, about 11 to 14 base px) the rects meet.
+		var gap: float = r[1].position.y - r[0].end.y
+		gut.p("aspect %.3f: sign rect %s, pad rect %s, vertical NDC gap %.4f (pad marker %s)" % [aspect, r[0], r[1], gap, _pad["marker"]])
+		assert_false((r[0] as Rect2).grow(0.01).intersects(r[1]), "aspect %.3f: sign (with 0.01 NDC margin) overlaps the tower_w marker or its label" % aspect)
+		# Sensitivity: with a label twice as tall the sign reaches the pad marker at every aspect.
 		var twice := _sign_and_pad_rects(aspect, 2.0)
-		assert_true((twice[0] as Rect2).grow(0.01).intersects(twice[1]), "a label twice as tall must overlap the pad's label at aspect %.3f" % aspect)
+		assert_true((twice[0] as Rect2).grow(0.01).intersects(twice[1]), "a label twice as tall must reach the pad MARKER at aspect %.3f" % aspect)

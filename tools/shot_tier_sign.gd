@@ -2,7 +2,7 @@ extends SceneTree
 ## The tier sign at phone size (E5 tier 3 Task 3; first written for E5 Task 9). Run WITH rendering (not --headless):
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_tier_sign.gd -- --out=docs/review/media/e5t3/growth --name=sign_after
 ## Tier 1 on day 2 (the sign sells the yards), the hero standing beside the sign, the camera on the sign. Writes
-## <name>.png (hero beside the sign) and <name>_on.png (hero standing on its pad), each 720x1280 plus a _40 copy (288x512), and prints whether the sign is on screen from HOME.
+## <name>.png (hero beside the sign) and <name>_on.png (hero standing on its pad), <name>_north.png (hero 4 m north), each 720x1280 plus a _40 copy (288x512), and prints whether the sign is on screen from HOME.
 
 func _initialize() -> void:
 	_run.call_deferred()
@@ -50,14 +50,21 @@ func _run() -> void:
 	main.hero.teleport(layout.TIER_SIGN + Vector2(3.5, 0.0))  # beside it: the sign unobstructed
 	for i in 30:
 		await physics_frame
-	await _grab(main, cam, camera_math, bal, layout.TIER_SIGN, out, shot)
+	if not await _grab(main, cam, camera_math, bal, layout.TIER_SIGN, out, shot):
+		return
 	main.hero.teleport(layout.TIER_SIGN)
 	for i in 30:
 		await physics_frame
-	await _grab(main, cam, camera_math, bal, layout.TIER_SIGN, out, shot + "_on")
+	if not await _grab(main, cam, camera_math, bal, layout.TIER_SIGN, out, shot + "_on"):
+		return
+	main.hero.teleport(layout.TIER_SIGN + Vector2(0.0, -4.0))  # walking north toward the tower_w pad: the label over the ground
+	for i in 30:
+		await physics_frame
+	if not await _grab(main, cam, camera_math, bal, layout.TIER_SIGN + Vector2(0.0, -4.0), out, shot + "_north"):
+		return
 	quit(0)
 
-func _grab(main, cam: Camera3D, camera_math, bal, focus: Vector2, out: String, name: String) -> void:
+func _grab(main, cam: Camera3D, camera_math, bal, focus: Vector2, out: String, name: String) -> bool:
 	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(focus), bal.ui)
 	var settled := false
 	for i in 600:  # the diner's occluder fade must be fully opaque before the shot
@@ -68,7 +75,7 @@ func _grab(main, cam: Camera3D, camera_math, bal, focus: Vector2, out: String, n
 	if not settled:
 		push_error("occluder fade never settled")
 		quit(1)
-		return
+		return false
 	for i in 5:
 		await process_frame
 	var img := root.get_texture().get_image()
@@ -79,3 +86,4 @@ func _grab(main, cam: Camera3D, camera_math, bal, focus: Vector2, out: String, n
 	small.resize(288, 512, Image.INTERPOLATE_LANCZOS)
 	small.save_png(dir.path_join(name + "_40.png"))
 	print("saved ", name)
+	return true
