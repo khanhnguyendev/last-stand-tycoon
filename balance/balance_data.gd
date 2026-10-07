@@ -13,3 +13,4 @@ extends Resource
 @export var stations: StationBalance = StationBalance.new()
 @export var tiers: TierBalance = TierBalance.new()
 @export var monsters: MonsterBalance = MonsterBalance.new()
+@export var branches: BranchBalance = BranchBalance.new()

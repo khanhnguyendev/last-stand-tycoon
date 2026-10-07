@@ -5,7 +5,7 @@ func before_each() -> void:
 	Balance.reset()
 
 func test_kinds() -> void:
-	assert_eq(Array(MonsterBalance.KINDS), [&"boar", &"hare", &"boss"])
+	assert_eq(Array(MonsterBalance.KINDS), [&"boar", &"hare", &"boss", &"brute", &"baron"])
 
 func test_boar_view_equals_enemy_balance() -> void:
 	var eb := Balance.data.enemy

@@ -10,7 +10,7 @@ func before_each() -> void:
 func test_arrays_cover_every_tier_including_the_top() -> void:
 	var n := tb.tier_costs.size() + 1  # index 0 unused, tiers 1..top where top = tier_costs.size()
 	for arr in [tb.tier_base, tb.tier_cap, tb.fast_share_start, tb.fast_share, tb.fast_ramp_days]:
-		assert_eq((arr as Array).size(), n)
+		assert_gte((arr as Array).size(), n)  # tier 3 (E5 tier-3 spec 3.3) adds an index-3 entry before tier_costs gains its third
 
 func test_tiers_are_ordered() -> void:
 	for t in range(1, tb.tier_costs.size()):
@@ -21,10 +21,10 @@ func test_tiers_are_ordered() -> void:
 
 func test_spec_values() -> void:
 	assert_eq(Array(tb.tier_costs), [0, 500])
-	assert_eq(Array(tb.tier_base), [0, 1, 8])
+	assert_eq(Array(tb.tier_base), [0, 1, 8, 12])
 	assert_eq(tb.tier_base[1], 1, "tier 1 starts at pressure 1: the lane RNG draw order depends on it (D-095)")
 	assert_gt(tb.boss_lead, 0.0, "the boss must spawn strictly before the wave's first monster (WaveSchedule sorts by time)")
-	assert_eq(Array(tb.tier_cap), [0, 7, 11])
+	assert_eq(Array(tb.tier_cap), [0, 7, 11, 15])
 	assert_eq(TierEffects.top_tier(tb), 2)
 	assert_eq(TierEffects.tier_cost(1, tb), 500)
 	assert_eq(TierEffects.tier_cost(2, tb), -1)
