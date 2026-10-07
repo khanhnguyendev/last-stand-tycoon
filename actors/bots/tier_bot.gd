@@ -13,6 +13,12 @@ const POLICIES: Array[String] = ["all_a", "all_b", "mixed", "threat"]
 var tier_ups := 0
 var boss_nights_won := 0
 var policy := "threat"
+## Physics ticks the bot waits on an arrived branch pad for the payment to start (the stand-still is 1.5 s; this is 5 s). Past it the pad
+## counts as one skipped goal and is not picked again today (a pad that never arms must not stall the run).
+const PAD_WAIT_CAP_TICKS := 300
+var _pad_wait := 0
+var _blocked_pads := {}
+var _blocked_day := -1
 var _graph_tier := 1
 
 func _init() -> void:
@@ -43,7 +49,7 @@ func think(delta: float) -> void:
 
 ## Pure: {spot_id: branch id} for `spot_ids` under `policy`, from tonight's `plan` (a lane has a brute when composition_by_lane says so).
 static func branch_choices(p_policy: String, spot_ids: Array, plan: Array, tier := 3) -> Dictionary:
-	assert(p_policy in POLICIES, "unknown policy " + p_policy)
+	assert(p_policy in POLICIES, "unknown policy " + p_policy)  # the sweep runner validates --policy and exits 1 before any bot exists
 	var comp := LanePlanner.composition_by_lane(plan, tier)
 	var out := {}
 	for id in spot_ids:
@@ -105,9 +111,18 @@ func day_think(delta: float) -> void:
 	var target := _pad_target(goal)
 	if not target.is_empty() and arrived():
 		var spot: String = target[0]
-		if GameState.can_branch(spot) and (next_purchase() == goal or (GameState.gold > 0 \
-				and int(GameState.buildings[spot].branch_paid.get(String(target[1]), 0)) > 0 and GameState.branch_remaining(spot, target[1]) > 0)):
+		var paying: bool = GameState.can_branch(spot) and GameState.gold > 0 \
+				and int(GameState.buildings[spot].branch_paid.get(String(target[1]), 0)) > 0 and GameState.branch_remaining(spot, target[1]) > 0
+		if paying:
+			_pad_wait = 0
 			return
+		if GameState.can_branch(spot) and next_purchase() == goal:
+			_pad_wait += 1
+			if _pad_wait <= PAD_WAIT_CAP_TICKS:
+				return
+			skipped_goals += 1
+			_blocked_pads[goal] = true
+		_pad_wait = 0
 		goal = ""
 	super.day_think(delta)
 
@@ -167,6 +182,9 @@ func _next_branch_pad() -> String:
 	if GameState.tier < 3:
 		return ""
 	var spots := MapLayout.spots_for_tier(GameState.tier)
+	if _blocked_day != GameState.day:
+		_blocked_day = GameState.day
+		_blocked_pads.clear()
 	var choices := branch_choices(policy, spots, GameState.lane_plan, GameState.tier)
 	for id in spots:
 		if not GameState.can_branch(id):
@@ -174,6 +192,8 @@ func _next_branch_pad() -> String:
 		var pad := pad_goal(id, choices[id])
 		if not graph.nodes.has(pad):
 			skipped_goals += 1
+			continue
+		if _blocked_pads.has(pad):
 			continue
 		if GameState.branch_remaining(id, choices[id]) <= GameState.gold:
 			return pad
