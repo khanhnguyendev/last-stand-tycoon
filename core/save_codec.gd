@@ -38,6 +38,15 @@ static func _built_in(from_v: int, state: Dictionary) -> Variant:
 						w.boss = false
 			state.v = 5
 			return state
+		5:  # E5 tier 3: branches. Every building gets the two new fields; nothing else changes (no brute keys in old plans).
+			var bs = state.get("buildings")
+			if typeof(bs) == TYPE_DICTIONARY:
+				for id in bs:
+					if typeof(bs[id]) == TYPE_DICTIONARY:
+						bs[id].branch = ""
+						bs[id].branch_paid = {}
+			state.v = 6
+			return state
 	return null
 
 static func encode(state: Dictionary, build: String, now_unix: int) -> String:
@@ -114,7 +123,6 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 	if int(s.tier_paid) < 0:
 		return "range tier_paid"
 	var known_tier := mini(tier, TierEffects.top_tier(bd.tiers))  # GameState clamps the tier on load (spec 6.3)
-	var lane_ids := MapLayout.lanes_for_tier(known_tier)
 	if typeof(s.resume_phase) != TYPE_STRING:
 		return "type resume_phase"
 	if not String(s.resume_phase) in RESUME_PHASES:
@@ -135,7 +143,7 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 			return "building " + str(id)
 		if MapLayout.spot_tier(String(id)) > known_tier:
 			return "building tier " + str(id)
-		if typeof(s.buildings[id]) != TYPE_DICTIONARY or not s.buildings[id].has_all(["level", "paid", "hp"]):
+		if typeof(s.buildings[id]) != TYPE_DICTIONARY or not s.buildings[id].has_all(["level", "paid", "hp", "branch", "branch_paid"]):
 			return "building fields " + str(id)
 		for f in ["level", "paid", "hp"]:
 			if not typeof(s.buildings[id][f]) in [TYPE_INT, TYPE_FLOAT]:
@@ -145,6 +153,9 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 		var bl := int(s.buildings[id].level)
 		if bl < 0 or bl > bd.build.max_level:
 			return "building level " + str(id)
+		var why := _validate_branch(String(id), s.buildings[id], bl, known_tier, bd)
+		if why != "":
+			return why
 	for id in MapLayout.spots_for_tier(known_tier):
 		if not s.buildings.has(id):
 			return "missing building " + str(id)
@@ -167,9 +178,16 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 	for w in s.lane_plan:
 		if typeof(w) != TYPE_DICTIONARY or not w.has_all(["main", "side", "main_count", "side_count", "hp_mult", "fast_main", "fast_side", "boss"]):
 			return "lane_plan fields"
-		if typeof(w.main) != TYPE_STRING or not String(w.main) in lane_ids \
-				or typeof(w.side) != TYPE_STRING or not (String(w.side) == "" or String(w.side) in lane_ids):
-			return "lane"
+		var lanes := LanePlanner.lanes_for_tier(known_tier)
+		if typeof(w.main) != TYPE_STRING or not String(w.main) in lanes \
+				or typeof(w.side) != TYPE_STRING or not (String(w.side) == "" or String(w.side) in lanes):
+			return "lane " + str(w.main) + " " + str(w.side)
+		for f in ["brute_main", "brute_side"]:
+			if w.has(f) != (known_tier >= 3):  # tier 3+: both keys on every wave; below: neither
+				return "lane " + f
+			if w.has(f) and (not typeof(w[f]) in [TYPE_INT, TYPE_FLOAT] or float(w[f]) < 0.0
+					or float(w[f]) != floorf(float(w[f]))):
+				return "lane " + f
 		for f in ["main_count", "side_count", "hp_mult"]:
 			if not typeof(w[f]) in [TYPE_INT, TYPE_FLOAT]:
 				return "lane fields"
@@ -211,4 +229,30 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 		for id in s.card_offer:
 			if int(s.cards.get(String(id), 0)) >= max_level:
 				return "maxed offer"
+	return ""
+
+
+## The branch fields of one saved building (E5 tier 3). The caller has checked both keys exist.
+static func _validate_branch(id: String, b: Dictionary, level: int, known_tier: int, bd: BalanceData) -> String:
+	var branch = b.branch
+	var paid = b.branch_paid
+	if typeof(branch) != TYPE_STRING or typeof(paid) != TYPE_DICTIONARY:
+		return "branch type " + id
+	var tower := MapLayout.spot_kind(id) == "tower"
+	var ids: Array[StringName] = BranchBalance.TOWER_BRANCHES if tower else BranchBalance.FENCE_BRANCHES
+	if branch != "":
+		if not StringName(branch) in ids:
+			return "branch " + id + " " + branch
+		if known_tier < 3 or level != bd.build.max_level:
+			return "branch level " + id + " " + branch
+		if not paid.is_empty():
+			return "branch_paid with a branch " + id
+	for k in paid:
+		if typeof(k) != TYPE_STRING or not StringName(k) in ids:
+			return "branch_paid " + id + " " + str(k)
+		# No upper bound: GameState.from_dict clamps a payment at or above the cost (D-234, a balance change never loses a save).
+		if not typeof(paid[k]) in [TYPE_INT, TYPE_FLOAT] or float(paid[k]) < 0.0:
+			return "branch_paid range " + id + " " + str(k)
+		if known_tier < 3 or level != bd.build.max_level:
+			return "branch_paid level " + id + " " + str(k)
 	return ""

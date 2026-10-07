@@ -141,7 +141,7 @@ func _write_tier_fixtures(base: Dictionary) -> bool:
 
 	var only := boss.duplicate(true)
 	for id in only.buildings:
-		only.buildings[id] = {"level": 0, "paid": 0, "hp": 0.0}
+		only.buildings[id] = {"level": 0, "paid": 0, "hp": 0.0, "branch": "", "branch_paid": {}}
 	only.cards = {}
 	only.guards = {}
 	only.card_offer = []
@@ -166,7 +166,7 @@ func _write_tier_fixtures(base: Dictionary) -> bool:
 	t2.night_fails = 0
 	t2.resume_phase = "NIGHT"
 	for id in load("res://core/map_layout.gd").TIER_SPOTS[2]:
-		t2.buildings[id] = {"level": 0, "paid": 0, "hp": 0.0}
+		t2.buildings[id] = {"level": 0, "paid": 0, "hp": 0.0, "branch": "", "branch_paid": {}}
 	t2.lane_plan = _plan(t2)
 	gs.from_dict(t2)
 	gs.heal_for_dawn()
@@ -182,7 +182,7 @@ func _write_tier_fixtures(base: Dictionary) -> bool:
 		return false
 	var ml: int = bd.build.max_level
 	for id in full.buildings:
-		full.buildings[id] = {"level": ml, "paid": 0, "hp": gs.fence_max_hp(ml) if load("res://core/map_layout.gd").spot_kind(id) == "fence" else 0.0}
+		full.buildings[id] = {"level": ml, "paid": 0, "hp": gs.fence_max_hp(ml) if load("res://core/map_layout.gd").spot_kind(id) == "fence" else 0.0, "branch": "", "branch_paid": {}}
 	full.lane_plan = _plan(full)
 	out.append(["tier2_full", full])
 	out.append(["tier2_night", full])

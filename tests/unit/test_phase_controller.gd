@@ -108,7 +108,7 @@ func test_dawn_steps_in_order() -> void:
 	assert_eq(GameState.freezer_steaks, 3)
 	assert_eq(GameState.carried_steaks, 2)
 	assert_eq(GameState.diner_hp, Balance.data.build.diner_max_hp)
-	assert_eq(GameState.buildings.fence_w, {"level": 0, "paid": 0, "hp": 0.0})
+	assert_eq(GameState.buildings.fence_w, {"level": 0, "paid": 0, "hp": 0.0, "branch": "", "branch_paid": {}})
 	assert_eq(GameState.buildings.fence_n.hp, GameState.fence_max_hp(1))
 	assert_eq(GameState.day, 2)
 	assert_ne(GameState.lane_plan[0].side, "")

@@ -27,6 +27,11 @@ signal gold_changed(gold: int, delta: int)
 signal building_changed(spot_id: StringName, level: int, paid: int)
 ## GameState -> fx. A level was completed.
 signal build_completed(spot_id: StringName, level: int)
+## E5 tier 3: GameState -> Autosave (write). Listeners to come: world fx, HUD. A branch was paid in full and chosen at level 3.
+signal branch_chosen(spot_id: StringName, branch_id: StringName)
+## E5 tier 3: GameState -> none yet (the pad coin flight comes later). `amount` gold went back to the player: the other pad's
+## partial payment when a branch was chosen, or the pads' payments of a fence destroyed at dawn.
+signal branch_refunded(spot_id: StringName, amount: int)
 ## E1: a station's level or paid amount changed.
 signal station_changed(id: StringName, level: int, paid: int)
 ## E1: a station finished a level (emitted after station_changed).

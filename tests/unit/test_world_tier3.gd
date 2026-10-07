@@ -223,7 +223,7 @@ func test_a_save_with_a_south_west_lane_validates_at_tier_3_only() -> void:
 	GameState.debug_set_tier(2, 5)
 	var s2 := GameState.to_dict()
 	s2.lane_plan[0].main = "sw"
-	assert_eq(SaveCodec.validate(s2, Balance.data), "lane", "tier 2: it is not")
+	assert_eq(SaveCodec.validate(s2, Balance.data), "lane sw " + String(s2.lane_plan[0].side), "tier 2: it is not (the reason names the lanes)")
 
 func test_a_boar_walks_the_south_west_lane_into_its_zone_and_hits_the_diner() -> void:
 	GameState.debug_set_tier(3, 5)
