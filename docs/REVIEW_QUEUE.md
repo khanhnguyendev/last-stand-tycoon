@@ -102,6 +102,31 @@ Reversible decisions from the E5 build, highest impact first. Media: `docs/revie
 
 Not measured in this slice: perf on the iOS Simulator for the `tier2_night` and `boss_night_tier1` fixtures (spec 8.4), and the device check of the sign, the boss bar and the boss moon (one attempt timed out on a loaded Mac). Both wait for the end of the build (D-260); the phone checklist and the open items are in `docs/E5_FOLLOWUPS.md`.
 
+## E5 slice 2: diner tier 3 (2026-10-07, in progress)
+
+Reversible decisions from the tier-3 build, highest impact first. Media: `docs/review/media/e5t3/`. Decisions: D-261 to D-276. This list grows until the phase-5 checkpoint (`docs/review/E5_T3.md`).
+
+1. **The tier-2 cap is 10, not 11.** A full tier-2 build lost the cap night on 2 of 10 seeds at 11; at 10 it holds on 10 of 10 (median diner HP left 69%, lowest 18%). Players already at tier 2 get a lighter cap night — [D-276](DECISIONS.md)
+2. **The tier-2 diner is not taller than tier 1.** Anything tall on the roof hid the Archer or a tower pad from some camera positions, so tier 2 reads through a wood roof, a second chimney and a cream board; the height change comes with tier 3's second storey. Is the tier-2 change strong enough? — [D-276](DECISIONS.md), `e5t3/growth/diner_t1.png`, `diner_t2_before.png`, `diner_t2_after.png`
+3. From the home view the tier-1 "DINER" plank hides most of the new sign board (about 0.3 m shows); it reads fully only from the north — `e5t3/growth/diner_t2_after_north.png`
+4. **Yards** are paved cream with a low dark kerb and crates, barrels and a bench (procedural shapes, not pack models). The east yard keeps 8 of 12 kerb pieces (its west edge is open by the tower pad); the west yard has a 3.9 m kerb gap at its tower pad. The hero's white hat has less contrast on cream than on dirt — `e5t3/growth/yards_after_west.png`, `yards_after_east.png`
+5. **The tier sign** has a larger board and a label about 49 px tall (was 30). The label sits 4.3 m up and is drawn over everything, so it covers the ground about 3 to 6 m north of the sign, and its first line sits over a grey rock — `e5t3/growth/sign_before.png`, `sign_after.png`, `sign_after_on.png`, `sign_after_north.png`
+6. **Longbow fires 120 damage every 3.0 s** (first proposed 45 per 1.0 s). The slow, heavy shot is what keeps "Longbow kills the fewest hares" true at the cap, where hares reach 73 HP. Against a lone brute it ties the unbranched tower on 3 of 12 waves — [D-276](DECISIONS.md)
+
+7. **Branch pads sit tight.** With yard props and kerbs counted, the worst pad clearance is 0.15 m, and four towers have both pads on one side. To be judged on the pad screenshots of the world phase — [D-277](DECISIONS.md)
+8. **All side-lane brutes arrive in one night,** the same night pressure reaches the tier-3 cap (main-lane brutes ramp 1, 2, 3 before it) — [D-277](DECISIONS.md)
+9. **Buying a Stone wall fully repairs the fence.** Cheap repair by design, or should it keep its damage? — [D-277](DECISIONS.md)
+10. At tier 2 the hare share still ramps over 3 days while pressure now caps after 2, so the first cap night is slightly lighter on hares — [D-277](DECISIONS.md)
+11. The boot warm-up now builds more (kerb, placeholder monster meshes, every tier's ground after the switch); its cost is unmeasured until the final perf run — [D-277](DECISIONS.md)
+
+12. **Tonight's count rows hide under the HUD from the home spot.** They read well near a lane. Options: move the day HUD, lift the tower labels, or a HUD summary of tonight's lanes — [D-278](DECISIONS.md), `e5t3/telegraph/day_tier3_home.png`, `day_tier3.png`
+13. **The siege brute** is a stocky, redder boar at 80% of the Boar King's size; its fence thump is the diner-hit sound pitched down and its dust is hard to see (grey on grey) — [D-278](DECISIONS.md), `e5t3/monsters/brute.png`, `brute_vs_king.png`, `brute_fence.png`
+14. **Baron von Hop** is a saturated red giant hare; its crown reads as a grey comb and its ears as antennae from the front; it hops and lunges with the Boar's values — `e5t3/monsters/baron.png`
+15. **The Boar King's bar now shows its name** (tier 1 too), and tier 2's boss banner says "Baron von Hop comes" — [D-278](DECISIONS.md)
+16. **Spike fence scaling** follows the night's first wave, so it is weaker against the last wave (64% at the cap) and ignores mercy — [D-278](DECISIONS.md)
+17. **Respawned guards:** protected for 1.5 s (respawns only), still attacking (at most 2 swings). Without protection a respawning guard absorbed up to 15 of the diner's 300 HP in the SW zone. Disable the attacker while protected? — [D-278](DECISIONS.md)
+18. A Longbow shot whose target dies in flight is wasted with its 3 s cooldown; the brute mark on an edge arrow shows for the whole remaining night's brutes on that lane — [D-278](DECISIONS.md)
+
 ## Final review playtest questions (S5)
 
 1. Did you know what to do in your first minute without reading anything?

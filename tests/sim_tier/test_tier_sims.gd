@@ -27,7 +27,7 @@ func after_each() -> void:
 func _count_kill(_i: int, _lane: StringName, _p: Vector3, kind: StringName) -> void:
 	if kind == &"hare":
 		hares += 1
-	elif kind == &"boss":
+	elif TierEffects.is_boss_kind(kind, Balance.data.tiers):
 		bosses_killed += 1
 
 func _on_wave_started(wave_index: int, _main: StringName, _side: StringName) -> void:
@@ -77,7 +77,7 @@ func test_2_the_boss_alone_needs_at_least_boss_min_hold_s_to_fell_the_diner() ->
 	EventBus.wave_started.connect(_on_wave_started)
 	EventBus.enemy_killed.connect(_count_kill)
 	assert_true(GameState.is_boss_night(), "the fixture is a boss night")
-	var boss_hp: float = Balance.data.monsters.stats(&"boss").hp * float(GameState.lane_plan[-1].hp_mult)
+	var boss_hp: float = Balance.data.monsters.stats(TierEffects.boss_kind_for(GameState.tier, Balance.data.tiers)).hp * float(GameState.lane_plan[-1].hp_mult)
 	var n := await h.run_night(400.0)
 	assert_true(n.failed, "with no defense the boss fells the diner")
 	assert_gte(h.first_boss_hit_s, 0.0, "the boss hit the diner")

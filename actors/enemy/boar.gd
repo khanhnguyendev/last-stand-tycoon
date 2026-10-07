@@ -15,6 +15,8 @@ var is_boss := false
 var _stats: MonsterStats
 ## Spike fence pass damage is taken once per life: set when this monster crosses its lane's fence line, cleared at spawn.
 var _passed_fence := false
+## Cached at spawn: this kind has no fence entry in its priority list, so it walks past the fence (hares, the Baron).
+var _walks_past_fence := false
 var lane := ""
 var spawn_index := -1
 ## Increments on every spawn; projectiles/attackers compare it to detect pool reuse across nights (Review Focus 2).
@@ -52,6 +54,7 @@ func _init() -> void:
 func stats() -> MonsterStats:
 	if _stats == null:
 		_stats = Balance.data.monsters.stats(kind)
+	_walks_past_fence = not (_stats.priority as Array).has(&"fence_on_lane")
 	return _stats
 
 func spawn(p_lane: String, p_index: int, p_offset: float, hp_mult: float, director: Object, p_kind: StringName = &"boar") -> void:
@@ -105,7 +108,7 @@ func _physics_process(delta: float) -> void:
 		visual.set_motion(1.0 if next > dist else 0.0)
 		dist = next
 		_update_position()
-		_check_fence_crossing(eb)
+		_check_fence_crossing()
 		return
 	visual.set_motion(0.0)
 	_attack_timer += delta
@@ -130,8 +133,8 @@ func _physics_process(delta: float) -> void:
 ## A monster with no fence entry in its priority list (the hares, the Baron) walks past the fence; the tick it crosses the
 ## fence's line it takes the Spike fence's pass damage once (0.0 unless that fence stands with branch spike and lists this kind).
 ## Only damage: its path, speed and timing are untouched.
-func _check_fence_crossing(eb: MonsterStats) -> void:
-	if _passed_fence or (eb.priority as Array).has(&"fence_on_lane") or dist < _length - MapLayout.FENCE_OFFSET_FROM_END:
+func _check_fence_crossing() -> void:
+	if _passed_fence or dist < _length - MapLayout.FENCE_OFFSET_FROM_END or not _walks_past_fence:
 		return
 	_passed_fence = true
 	var pass_damage := GameState.fence_pass_damage(MapLayout.lane_fence(lane), kind)

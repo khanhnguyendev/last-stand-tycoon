@@ -222,13 +222,15 @@ func test_tier3_plan_uses_four_lanes_and_no_other_stream() -> void:
 func test_tier3_lanes_follow_the_four_lane_oracle() -> void:
 	var lanes := ["west", "north", "east", "sw"]
 	var tb := Balance.data.tiers
-	var p := LanePlanner.plan(555, 24, wb, 3, 22, tb)
-	var rng := Rng.stream(555, 24, &"lane_plan")
-	for w in p.size():
-		var main: String = lanes[rng.randi_range(0, 3)]
-		var others: Array = lanes.filter(func(l): return l != main)
-		var side: String = others[rng.randi_range(0, others.size() - 1)]
-		assert_eq([p[w].main, p[w].side], [main, side], "wave %d" % w)
+	for seed in range(1, 21):
+		for day in range(22, 27):
+			var p := LanePlanner.plan(seed, day, wb, 3, 22, tb)
+			var rng := Rng.stream(seed, day, &"lane_plan")
+			for w in p.size():
+				var main: String = lanes[rng.randi_range(0, 3)]
+				var others: Array = lanes.filter(func(l): return l != main)
+				var side: String = others[rng.randi_range(0, others.size() - 1)]
+				assert_eq([p[w].main, p[w].side], [main, side], "seed %d day %d wave %d" % [seed, day, w])
 
 ## Brute rule (doc comment of TierEffects.brute_counts): d = day - tier_day; the last d + 1 waves carry the cap on their
 ## main lane until d reaches brute_ramp_days; from then on every wave does, and side lanes get brute_cap_side.
@@ -247,11 +249,16 @@ func test_brute_counts_every_day_of_the_ramp() -> void:
 			assert_eq([no_side.main, no_side.side], [main_by_day[day][w], 0], "day %d wave %d without a side lane" % [day, w])
 
 func test_brute_counts_are_zero_below_tier_3() -> void:
-	var tb := Balance.data.tiers
+	# Non-zero caps at tiers 1 and 2: only the `tier < 3` gate keeps them at zero (mutation: dropping the gate fails this).
+	var tb: TierBalance = Balance.data.tiers.duplicate()
+	tb.brute_cap_main.assign([0, 4, 4, 1])
+	tb.brute_cap_side.assign([0, 3, 3, 1])
+	tb.brute_ramp_days.assign([0, 1, 1, 3])
 	for tier in [1, 2]:
 		for day in range(1, 25):
 			for w in 3:
 				assert_eq(TierEffects.brute_counts(day, tier, 1, w, 3, true, tb), {"main": 0, "side": 0})
+	assert_eq(TierEffects.brute_counts(30, 3, 22, 0, 3, true, tb), {"main": 1, "side": 1}, "the gate opens at tier 3")
 
 func test_tier3_plan_first_night_has_one_brute_on_the_last_main_lane() -> void:
 	var tb := Balance.data.tiers
@@ -314,3 +321,23 @@ func test_composition_by_lane_sums_equal_the_counts() -> void:
 		expected += int(w.main_count) + int(w.side_count) + int(w.brute_main) + int(w.brute_side)
 	assert_eq(grand, expected)
 	assert_eq(LanePlanner.composition_by_lane(LanePlanner.plan(555, 7, wb, 1, 1, tb)).keys(), ["west", "north", "east"], "default tier 1: three lanes")
+
+## A hand-written two-wave tier-3 plan: wave 0 is west 5 (2 hares, 1 brute) + north 3 (1 hare, 1 brute); wave 1 is sw 4 with the boss.
+func test_composition_by_lane_of_a_hand_written_plan() -> void:
+	var plan := [
+		{"main": "west", "side": "north", "main_count": 5, "side_count": 3, "hp_mult": 1.0, "fast_main": 2, "fast_side": 1, "brute_main": 1, "brute_side": 1, "boss": false},
+		{"main": "sw", "side": "", "main_count": 4, "side_count": 0, "hp_mult": 1.0, "fast_main": 0, "fast_side": 0, "brute_main": 0, "brute_side": 0, "boss": true},
+	]
+	assert_eq(LanePlanner.composition_by_lane(plan, 3), {
+		"west": {"boar": 3, "hare": 2, "brute": 1, "boss": 0},
+		"north": {"boar": 2, "hare": 1, "brute": 1, "boss": 0},
+		"east": {"boar": 0, "hare": 0, "brute": 0, "boss": 0},
+		"sw": {"boar": 4, "hare": 0, "brute": 0, "boss": 1},
+	})
+
+## One lane_plan stream draw site in the planner, none in TierEffects (brutes are deterministic: no extra RNG consumption).
+func test_only_the_planner_draws_from_the_lane_plan_stream() -> void:
+	var planner := FileAccess.get_file_as_string("res://core/lane_planner.gd")
+	var effects := FileAccess.get_file_as_string("res://core/tier_effects.gd")
+	assert_eq(planner.count("Rng.stream("), 1)
+	assert_eq(effects.count("Rng.stream("), 0)

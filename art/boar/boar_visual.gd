@@ -99,7 +99,7 @@ func _hop() -> Vector2:
 	return Vector2(ui.boar_hop_height, ui.boar_hop_hz)
 
 func _lunge_dist() -> float:
-	return Balance.ui.boss_lunge if kind == &"boss" or kind == &"brute" else Balance.ui.boar_lunge
+	return Balance.ui.boss_lunge if TierEffects.is_boss_kind(kind, Balance.data.tiers) or kind == &"brute" else Balance.ui.boar_lunge
 
 func set_flash(on: bool) -> void:
 	flash_active = on
