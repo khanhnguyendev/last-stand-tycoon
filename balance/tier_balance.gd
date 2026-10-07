@@ -8,7 +8,9 @@ extends Resource
 @export var tier_costs: Array[int] = [0, 500, 1500]
 ## Pressure (the "day" every wave formula sees) at the tier's first night, and where it stops growing.
 @export var tier_base: Array[int] = [0, 1, 8, 12]
-@export var tier_cap: Array[int] = [0, 7, 10, 15]
+## Tier 3 starts at its cap (base 12 = cap 12): its escalation is the brute ramp and the fourth lane, not rising pressure
+## (real-play tuning: 15 needed retries on about half of all cap nights; 12 with no side-lane brutes had 0 in 40).
+@export var tier_cap: Array[int] = [0, 7, 10, 12]
 ## Share of each wave group that spawns as hares: on the tier's first night, at the cap, and the days between.
 @export var fast_share_start: Array[float] = [0.0, 0.0, 0.15, 0.35]
 @export var fast_share: Array[float] = [0.0, 0.0, 0.35, 0.35]
@@ -16,7 +18,7 @@ extends Resource
 ## E5 tier 3 (spec 3.3): siege brutes per wave (main lane, side lane) at the cap, and the days the count takes to ramp.
 ## The first tier-3 night has one brute on the last wave's main lane. Tiers 1 and 2 carry 0.
 @export var brute_cap_main: Array[int] = [0, 0, 0, 1]
-@export var brute_cap_side: Array[int] = [0, 0, 0, 1]
+@export var brute_cap_side: Array[int] = [0, 0, 0, 0]
 @export var brute_ramp_days: Array[int] = [0, 1, 1, 3]
 ## The boss fought to LEAVE the tier at that index (index 0 unused): tier 1 -> the Boar King, tier 2 -> Baron von Hop.
 ## One entry per tier including the top; the top tier's entry is empty (no boss leaves the top).

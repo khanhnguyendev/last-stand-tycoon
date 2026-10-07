@@ -1,0 +1,222 @@
+# tests/sim/report_t3_balance.gd, part 1 then part 2, raw output (Godot warnings included). Wall: part 1 82 s, part 2 100 s, total 182 s (machine idle).
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+P1 cfg=hp500 seed=20260930 day=16 lane=east held=false min=0.000 baron_in_zone=76.9s baron=died at 90.5s night_end=91.2s kills=53/73 stuck=0
+DAMAGE_TO_BARON (cfg hp500, seed 20260930 day 16; Baron HP 500 x wave multiplier; landing-hit damage counted 1283, includes overkill): Guard_archer @5.2=99 (19 hits), Hero @16.0=464 (29 hits), Spot_tower_e @18.0=504 (28 hits), Spot_tower_ne @18.0=216 (12 hits)
+P1 cfg=hp500 seed=20260930 day=17 lane=north held=false min=0.000 baron_in_zone=74.9s baron=hp 256 left night_end=87.3s kills=49/73 stuck=0
+P1 cfg=hp500 seed=20260930 day=18 lane=east held=true min=0.287 baron_in_zone=79.0s baron=died at 93.0s night_end=100.9s kills=73/73 stuck=0
+P1 cfg=hp500 seed=20260930 day=19 lane=west held=true min=0.687 baron_in_zone=94.2s baron=died at 100.3s night_end=103.4s kills=73/73 stuck=0
+P1 cfg=hp500 seed=20260930 day=20 lane=north held=false min=0.000 baron_in_zone=74.6s baron=hp 100 left night_end=87.2s kills=49/73 stuck=0
+P1 cfg=hp500 seed=1 day=16 lane=east held=false min=0.000 baron_in_zone=76.8s baron=died at 92.8s night_end=94.2s kills=61/73 stuck=0
+P1 cfg=hp500 seed=2 day=16 lane=east held=true min=0.240 baron_in_zone=78.5s baron=died at 93.7s night_end=101.5s kills=73/73 stuck=0
+P1 cfg=hp500 seed=3 day=16 lane=west held=false min=0.000 baron_in_zone=96.4s baron=hp 246 left night_end=99.0s kills=65/73 stuck=0
+P1 cfg=hp500 seed=4 day=16 lane=west held=false min=0.000 baron_in_zone=never baron=hp 258 left night_end=95.1s kills=59/73 stuck=0
+P1 cfg=hp500 seed=5 day=16 lane=east held=false min=0.000 baron_in_zone=75.6s baron=died at 89.2s night_end=92.4s kills=62/73 stuck=0
+SUMMARY P1 hp500: holds 3/10 median_min=0.000 min_min=0.000 (lowest min among the held nights 0.240)
+P1 cfg=hp450 seed=20260930 day=16 lane=east held=false min=0.000 baron_in_zone=76.9s baron=died at 87.5s night_end=93.0s kills=61/73 stuck=0
+P1 cfg=hp450 seed=20260930 day=17 lane=north held=false min=0.000 baron_in_zone=74.9s baron=hp 126 left night_end=87.3s kills=49/73 stuck=0
+WARNING: BotBase stuck at (5.888487, -2.712732) -> zone_east
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+WARNING: BotBase stuck at (5.888487, -2.712732) -> zone_east
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+P1 cfg=hp450 seed=20260930 day=18 lane=east held=true min=0.427 baron_in_zone=79.0s baron=died at 91.5s night_end=100.5s kills=73/73 stuck=2
+P1 cfg=hp450 seed=20260930 day=19 lane=west held=true min=0.727 baron_in_zone=94.2s baron=died at 99.3s night_end=102.4s kills=73/73 stuck=0
+P1 cfg=hp450 seed=20260930 day=20 lane=north held=false min=0.000 baron_in_zone=74.6s baron=died at 86.5s night_end=87.2s kills=50/73 stuck=0
+P1 cfg=hp450 seed=1 day=16 lane=east held=false min=0.000 baron_in_zone=76.8s baron=died at 90.8s night_end=95.0s kills=65/73 stuck=0
+P1 cfg=hp450 seed=2 day=16 lane=east held=true min=0.387 baron_in_zone=78.5s baron=died at 91.2s night_end=100.7s kills=73/73 stuck=0
+P1 cfg=hp450 seed=3 day=16 lane=west held=false min=0.000 baron_in_zone=96.4s baron=hp 117 left night_end=99.0s kills=65/73 stuck=0
+P1 cfg=hp450 seed=4 day=16 lane=west held=false min=0.000 baron_in_zone=never baron=hp 129 left night_end=95.1s kills=59/73 stuck=0
+P1 cfg=hp450 seed=5 day=16 lane=east held=false min=0.000 baron_in_zone=75.6s baron=died at 87.2s night_end=93.6s kills=66/73 stuck=0
+SUMMARY P1 hp450: holds 3/10 median_min=0.000 min_min=0.000 (lowest min among the held nights 0.387)
+P1 cfg=hp400 seed=20260930 day=16 lane=east held=false min=0.000 baron_in_zone=76.9s baron=died at 85.8s night_end=94.8s kills=66/73 stuck=0
+P1 cfg=hp400 seed=20260930 day=17 lane=north held=false min=0.000 baron_in_zone=74.9s baron=died at 87.2s night_end=87.3s kills=50/73 stuck=0
+WARNING: BotBase stuck at (5.826987, -2.470415) -> zone_east
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+WARNING: BotBase stuck at (5.826987, -2.470415) -> zone_east
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+P1 cfg=hp400 seed=20260930 day=18 lane=east held=true min=0.627 baron_in_zone=79.0s baron=died at 88.5s night_end=99.6s kills=73/73 stuck=2
+P1 cfg=hp400 seed=20260930 day=19 lane=west held=true min=0.783 baron_in_zone=94.2s baron=died at 97.3s night_end=101.4s kills=73/73 stuck=0
+P1 cfg=hp400 seed=20260930 day=20 lane=north held=false min=0.000 baron_in_zone=74.6s baron=died at 82.0s night_end=88.8s kills=55/73 stuck=0
+P1 cfg=hp400 seed=1 day=16 lane=east held=false min=0.000 baron_in_zone=76.8s baron=died at 88.4s night_end=96.2s kills=71/73 stuck=0
+WARNING: BotBase stuck at (-6.456331, -4.899809) -> zone_west
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+WARNING: BotBase stuck at (-6.456331, -4.899809) -> zone_west
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+P1 cfg=hp400 seed=2 day=16 lane=east held=true min=0.600 baron_in_zone=78.5s baron=died at 87.7s night_end=98.8s kills=73/73 stuck=2
+P1 cfg=hp400 seed=3 day=16 lane=west held=false min=0.000 baron_in_zone=96.4s baron=died at 98.8s night_end=99.0s kills=66/73 stuck=0
+P1 cfg=hp400 seed=4 day=16 lane=west held=false min=0.000 baron_in_zone=never baron=died at 93.1s night_end=95.1s kills=60/73 stuck=0
+P1 cfg=hp400 seed=5 day=16 lane=east held=true min=0.140 baron_in_zone=75.6s baron=died at 84.2s night_end=98.9s kills=73/73 stuck=0
+SUMMARY P1 hp400: holds 4/10 median_min=0.000 min_min=0.000 (lowest min among the held nights 0.140)
+P1 cfg=hp350 seed=20260930 day=16 lane=east held=true min=0.047 baron_in_zone=76.9s baron=died at 83.3s night_end=100.3s kills=73/73 stuck=0
+P1 cfg=hp350 seed=20260930 day=17 lane=north held=false min=0.000 baron_in_zone=74.9s baron=died at 83.5s night_end=89.3s kills=56/73 stuck=0
+WARNING: BotBase stuck at (-5.760341, -2.17911) -> zone_east
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+WARNING: BotBase stuck at (-5.760341, -2.17911) -> zone_east
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+P1 cfg=hp350 seed=20260930 day=18 lane=east held=true min=0.760 baron_in_zone=79.0s baron=died at 85.5s night_end=99.5s kills=73/73 stuck=2
+P1 cfg=hp350 seed=20260930 day=19 lane=west held=true min=0.940 baron_in_zone=never baron=died at 89.2s night_end=100.4s kills=73/73 stuck=0
+P1 cfg=hp350 seed=20260930 day=20 lane=north held=false min=0.000 baron_in_zone=74.6s baron=died at 80.5s night_end=91.2s kills=62/73 stuck=0
+P1 cfg=hp350 seed=1 day=16 lane=east held=true min=0.383 baron_in_zone=76.8s baron=died at 83.4s night_end=99.5s kills=73/73 stuck=0
+WARNING: BotBase stuck at (-5.545639, -1.348035) -> zone_west
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+WARNING: BotBase stuck at (-5.545639, -1.348035) -> zone_west
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+P1 cfg=hp350 seed=2 day=16 lane=east held=true min=0.760 baron_in_zone=78.5s baron=died at 85.2s night_end=98.5s kills=73/73 stuck=2
+WARNING: BotBase stuck at (-6.030135, -3.228311) -> zone_north
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+WARNING: BotBase stuck at (-6.030135, -3.228311) -> zone_north
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+P1 cfg=hp350 seed=3 day=16 lane=west held=true min=0.020 baron_in_zone=never baron=died at 91.2s night_end=104.7s kills=73/73 stuck=2
+P1 cfg=hp350 seed=4 day=16 lane=west held=false min=0.000 baron_in_zone=never baron=died at 90.6s night_end=95.1s kills=60/73 stuck=0
+P1 cfg=hp350 seed=5 day=16 lane=east held=true min=0.387 baron_in_zone=75.6s baron=died at 82.2s night_end=98.4s kills=73/73 stuck=0
+SUMMARY P1 hp350: holds 7/10 median_min=0.215 min_min=0.000 (lowest min among the held nights 0.020)
+P1 cfg=hp500_speed2.0 seed=20260930 day=16 lane=east held=false min=0.000 baron_in_zone=79.1s baron=hp 72 left night_end=92.0s kills=54/73 stuck=0
+P1 cfg=hp500_speed2.0 seed=20260930 day=17 lane=north held=false min=0.000 baron_in_zone=76.5s baron=hp 370 left night_end=87.5s kills=49/73 stuck=0
+P1 cfg=hp500_speed2.0 seed=20260930 day=18 lane=east held=true min=0.073 baron_in_zone=81.2s baron=died at 98.7s night_end=101.8s kills=73/73 stuck=0
+P1 cfg=hp500_speed2.0 seed=20260930 day=19 lane=west held=true min=0.733 baron_in_zone=94.6s baron=died at 100.6s night_end=103.7s kills=73/73 stuck=0
+P1 cfg=hp500_speed2.0 seed=20260930 day=20 lane=north held=false min=0.000 baron_in_zone=76.2s baron=hp 243 left night_end=87.2s kills=49/73 stuck=0
+P1 cfg=hp500_speed2.0 seed=1 day=16 lane=east held=false min=0.000 baron_in_zone=79.0s baron=hp 173 left night_end=93.8s kills=59/73 stuck=0
+P1 cfg=hp500_speed2.0 seed=2 day=16 lane=east held=true min=0.290 baron_in_zone=80.7s baron=died at 95.3s night_end=101.7s kills=73/73 stuck=0
+P1 cfg=hp500_speed2.0 seed=3 day=16 lane=west held=false min=0.000 baron_in_zone=97.4s baron=hp 338 left night_end=99.3s kills=65/73 stuck=0
+P1 cfg=hp500_speed2.0 seed=4 day=16 lane=west held=false min=0.000 baron_in_zone=never baron=hp 386 left night_end=95.1s kills=59/73 stuck=0
+P1 cfg=hp500_speed2.0 seed=5 day=16 lane=east held=false min=0.000 baron_in_zone=77.7s baron=hp 65 left night_end=91.8s kills=57/73 stuck=0
+SUMMARY P1 hp500_speed2.0: holds 3/10 median_min=0.000 min_min=0.000 (lowest min among the held nights 0.073)
+TABLE P1 (config: holds of 10, median and min diner fraction)
+  hp500             3/10  median 0.000  min 0.000  (held nights' lowest 0.240)
+  hp450             3/10  median 0.000  min 0.000  (held nights' lowest 0.387)
+  hp400             4/10  median 0.000  min 0.000  (held nights' lowest 0.140)
+  hp350             7/10  median 0.215  min 0.000  (held nights' lowest 0.020)
+  hp500_speed2.0    3/10  median 0.000  min 0.000  (held nights' lowest 0.073)
+PART3 Baron: first tested configuration holding 10 of 10 (order hp500, hp450, hp400, hp350, hp500_speed2.0): NONE of the five configurations
+WALL part=1 82 s
+WARNING: 36 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 11 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+P2 cap=15 pressure=15 seed=20260930 policy=all_a held=false min=0.000 kills=67/90 stuck=0 fell_at=133.0s fences=fence_w:515 fence_n:0 fence_e:640 fence_sw:0
+P2 cap=15 pressure=15 seed=20260930 policy=all_b held=false min=0.000 kills=56/90 stuck=0 fell_at=96.4s fences=fence_w:320 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=15 pressure=15 seed=20260930 policy=mixed held=false min=0.000 kills=50/90 stuck=0 fell_at=77.1s fences=fence_w:320 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=15 pressure=15 seed=20260930 policy=threat held=false min=0.000 kills=67/90 stuck=0 fell_at=133.0s fences=fence_w:515 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=15 pressure=15 seed=1 policy=all_a held=false min=0.000 kills=40/90 stuck=0 fell_at=78.1s fences=fence_w:615 fence_n:0 fence_e:415 fence_sw:640
+P2 cap=15 pressure=15 seed=1 policy=all_b held=false min=0.000 kills=66/90 stuck=0 fell_at=127.0s fences=fence_w:0 fence_n:0 fence_e:0 fence_sw:320
+P2 cap=15 pressure=15 seed=1 policy=mixed held=false min=0.000 kills=43/90 stuck=0 fell_at=69.9s fences=fence_w:290 fence_n:0 fence_e:30 fence_sw:320
+P2 cap=15 pressure=15 seed=1 policy=threat held=false min=0.000 kills=39/90 stuck=0 fell_at=78.1s fences=fence_w:615 fence_n:0 fence_e:415 fence_sw:320
+P2 cap=15 pressure=15 seed=2 policy=all_a held=false min=0.000 kills=70/90 stuck=0 fell_at=142.2s fences=fence_w:0 fence_n:70 fence_e:640 fence_sw:0
+P2 cap=15 pressure=15 seed=2 policy=all_b held=false min=0.000 kills=83/90 stuck=0 fell_at=142.5s fences=fence_w:0 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=15 pressure=15 seed=2 policy=mixed held=false min=0.000 kills=66/90 stuck=0 fell_at=126.3s fences=fence_w:0 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=15 pressure=15 seed=2 policy=threat held=false min=0.000 kills=70/90 stuck=0 fell_at=142.2s fences=fence_w:0 fence_n:70 fence_e:320 fence_sw:0
+SUMMARY P2 cap=15: all_a 0/3 (min 0.000); all_b 0/3 (min 0.000); mixed 0/3 (min 0.000); threat 0/3 (min 0.000); best-worst gap in mean diner HP 0.0 points of 300
+P2 cap=14 pressure=14 seed=20260930 policy=all_a held=false min=0.000 kills=54/88 stuck=0 fell_at=100.3s fences=fence_w:640 fence_n:0 fence_e:640 fence_sw:0
+P2 cap=14 pressure=14 seed=20260930 policy=all_b held=false min=0.000 kills=65/88 stuck=0 fell_at=136.7s fences=fence_w:285 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=14 pressure=14 seed=20260930 policy=mixed held=false min=0.000 kills=54/88 stuck=0 fell_at=81.1s fences=fence_w:320 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=14 pressure=14 seed=20260930 policy=threat held=false min=0.000 kills=54/88 stuck=0 fell_at=100.3s fences=fence_w:640 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=14 pressure=14 seed=1 policy=all_a held=false min=0.000 kills=40/88 stuck=0 fell_at=76.6s fences=fence_w:595 fence_n:0 fence_e:414 fence_sw:640
+P2 cap=14 pressure=14 seed=1 policy=all_b held=false min=0.000 kills=66/88 stuck=0 fell_at=125.2s fences=fence_w:0 fence_n:0 fence_e:0 fence_sw:320
+P2 cap=14 pressure=14 seed=1 policy=mixed held=false min=0.000 kills=39/88 stuck=0 fell_at=70.4s fences=fence_w:275 fence_n:0 fence_e:114 fence_sw:320
+P2 cap=14 pressure=14 seed=1 policy=threat held=false min=0.000 kills=40/88 stuck=0 fell_at=76.6s fences=fence_w:595 fence_n:0 fence_e:414 fence_sw:320
+P2 cap=14 pressure=14 seed=2 policy=all_a held=false min=0.000 kills=70/88 stuck=0 fell_at=140.5s fences=fence_w:0 fence_n:147 fence_e:640 fence_sw:0
+P2 cap=14 pressure=14 seed=2 policy=all_b held=false min=0.000 kills=86/88 stuck=0 fell_at=158.3s fences=fence_w:0 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=14 pressure=14 seed=2 policy=mixed held=false min=0.000 kills=65/88 stuck=0 fell_at=125.6s fences=fence_w:0 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=14 pressure=14 seed=2 policy=threat held=false min=0.000 kills=70/88 stuck=0 fell_at=140.5s fences=fence_w:0 fence_n:147 fence_e:320 fence_sw:0
+SUMMARY P2 cap=14: all_a 0/3 (min 0.000); all_b 0/3 (min 0.000); mixed 0/3 (min 0.000); threat 0/3 (min 0.000); best-worst gap in mean diner HP 0.0 points of 300
+P2 cap=13 pressure=13 seed=20260930 policy=all_a held=false min=0.000 kills=70/87 stuck=0 fell_at=131.3s fences=fence_w:580 fence_n:0 fence_e:640 fence_sw:0
+P2 cap=13 pressure=13 seed=20260930 policy=all_b held=false min=0.000 kills=71/87 stuck=0 fell_at=135.2s fences=fence_w:240 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=13 pressure=13 seed=20260930 policy=mixed held=false min=0.000 kills=43/87 stuck=0 fell_at=80.4s fences=fence_w:320 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=13 pressure=13 seed=20260930 policy=threat held=false min=0.000 kills=70/87 stuck=0 fell_at=131.3s fences=fence_w:580 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=13 pressure=13 seed=1 policy=all_a held=false min=0.000 kills=64/87 stuck=0 fell_at=122.6s fences=fence_w:284 fence_n:0 fence_e:407 fence_sw:640
+P2 cap=13 pressure=13 seed=1 policy=all_b held=false min=0.000 kills=71/87 stuck=0 fell_at=124.7s fences=fence_w:12 fence_n:0 fence_e:0 fence_sw:320
+P2 cap=13 pressure=13 seed=1 policy=mixed held=false min=0.000 kills=53/87 stuck=0 fell_at=82.9s fences=fence_w:110 fence_n:0 fence_e:124 fence_sw:320
+P2 cap=13 pressure=13 seed=1 policy=threat held=false min=0.000 kills=64/87 stuck=0 fell_at=122.6s fences=fence_w:284 fence_n:0 fence_e:407 fence_sw:320
+P2 cap=13 pressure=13 seed=2 policy=all_a held=false min=0.000 kills=74/87 stuck=0 fell_at=136.3s fences=fence_w:0 fence_n:221 fence_e:640 fence_sw:0
+P2 cap=13 pressure=13 seed=2 policy=all_b held=false min=0.000 kills=86/87 stuck=0 fell_at=160.9s fences=fence_w:0 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=13 pressure=13 seed=2 policy=mixed held=false min=0.000 kills=80/87 stuck=0 fell_at=126.9s fences=fence_w:0 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=13 pressure=13 seed=2 policy=threat held=false min=0.000 kills=74/87 stuck=0 fell_at=136.3s fences=fence_w:0 fence_n:221 fence_e:320 fence_sw:0
+SUMMARY P2 cap=13: all_a 0/3 (min 0.000); all_b 0/3 (min 0.000); mixed 0/3 (min 0.000); threat 0/3 (min 0.000); best-worst gap in mean diner HP 0.0 points of 300
+P2 cap=12 pressure=12 seed=20260930 policy=all_a held=false min=0.000 kills=77/84 stuck=0 fell_at=137.5s fences=fence_w:540 fence_n:0 fence_e:640 fence_sw:0
+P2 cap=12 pressure=12 seed=20260930 policy=all_b held=false min=0.000 kills=74/84 stuck=0 fell_at=133.5s fences=fence_w:265 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=12 pressure=12 seed=20260930 policy=mixed held=false min=0.000 kills=68/84 stuck=0 fell_at=118.5s fences=fence_w:285 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=12 pressure=12 seed=20260930 policy=threat held=false min=0.000 kills=77/84 stuck=0 fell_at=137.5s fences=fence_w:540 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=12 pressure=12 seed=1 policy=all_a held=false min=0.000 kills=65/84 stuck=0 fell_at=117.6s fences=fence_w:442 fence_n:0 fence_e:488 fence_sw:640
+P2 cap=12 pressure=12 seed=1 policy=all_b held=false min=0.000 kills=73/84 stuck=0 fell_at=121.9s fences=fence_w:54 fence_n:0 fence_e:0 fence_sw:320
+P2 cap=12 pressure=12 seed=1 policy=mixed held=false min=0.000 kills=67/84 stuck=0 fell_at=112.5s fences=fence_w:143 fence_n:0 fence_e:101 fence_sw:320
+P2 cap=12 pressure=12 seed=1 policy=threat held=false min=0.000 kills=62/84 stuck=0 fell_at=117.1s fences=fence_w:426 fence_n:0 fence_e:508 fence_sw:320
+P2 cap=12 pressure=12 seed=2 policy=all_a held=true min=0.227 kills=84/84 stuck=0 fell_at=- fences=fence_w:110 fence_n:329 fence_e:640 fence_sw:0
+P2 cap=12 pressure=12 seed=2 policy=all_b held=true min=0.420 kills=84/84 stuck=0 fell_at=- fences=fence_w:0 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=12 pressure=12 seed=2 policy=mixed held=true min=0.077 kills=84/84 stuck=0 fell_at=- fences=fence_w:0 fence_n:0 fence_e:320 fence_sw:0
+P2 cap=12 pressure=12 seed=2 policy=threat held=true min=0.227 kills=84/84 stuck=0 fell_at=- fences=fence_w:110 fence_n:329 fence_e:320 fence_sw:0
+SUMMARY P2 cap=12: all_a 1/3 (min 0.000); all_b 1/3 (min 0.000); mixed 1/3 (min 0.000); threat 1/3 (min 0.000); best-worst gap in mean diner HP 34.3 points of 300
+PART3 tier-3 cap: highest tested cap where all four policies hold on all three seeds (tested 15, 14, 13, 12): NONE
+PART3 threat vs the others at every (cap, seed) where all four policies hold: 
+PART3   cap 12 seed 2: all four hold; threat 0.227; policies above threat: all_b 0.420
+TABLE P2 (cap x policy: holds of 3, min diner fraction)
+  15/all_a   0/3  min 0.000
+  15/all_b   0/3  min 0.000
+  15/mixed   0/3  min 0.000
+  15/threat  0/3  min 0.000
+  14/all_a   0/3  min 0.000
+  14/all_b   0/3  min 0.000
+  14/mixed   0/3  min 0.000
+  14/threat  0/3  min 0.000
+  13/all_a   0/3  min 0.000
+  13/all_b   0/3  min 0.000
+  13/mixed   0/3  min 0.000
+  13/threat  0/3  min 0.000
+  12/all_a   1/3  min 0.000
+  12/all_b   1/3  min 0.000
+  12/mixed   1/3  min 0.000
+  12/threat  1/3  min 0.000
+WALL part=2 100 s
+WARNING: 56 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 16 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)

@@ -284,9 +284,10 @@ func test_spike_scale_reads_the_first_wave_of_a_real_plan() -> void:
 	GameState.debug_set_tier(3, 17)
 	_branch(FENCE, &"spike")
 	assert_eq(GameState.lane_plan.size(), 3)
-	assert_almost_eq(float(GameState.lane_plan[2].hp_mult), 4.857, 0.001)
-	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 3.1, 0.001)
-	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 7.019, 0.001, "first wave, not the last (would be 10.99)")
+	# Pressure is capped at 12 (the ruling; it was 15), so the plan's first wave is the base plan's: thorns 6.0.
+	assert_almost_eq(float(GameState.lane_plan[2].hp_mult), 3.445, 0.001)
+	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 2.65, 0.001)
+	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0, 0.001, "first wave, not the last (would be 6 x 3.445 / 2.65 = 7.80)")
 
 func test_spike_scale_is_one_without_a_plan() -> void:
 	_branch(FENCE, &"spike")

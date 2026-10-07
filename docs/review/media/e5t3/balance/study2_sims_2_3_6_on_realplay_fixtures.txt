@@ -1,0 +1,140 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+---  GUT  ---
+[INFO]:  using [/Users/ryan/Library/Application Support/Godot/app_userdata/Last Stand Tycoon] for temporary output.
+Godot version:  4.7.2
+GUT version:  9.7.1
+
+
+res://tests/sim_tier/test_tier3_sims.gd
+* test_2_the_baron_night_with_the_full_tier2_build_is_held_with_0_retries
+    Baron night, full build: { "day": 18, "failed": false, "cleared": true, "diner_frac": 0.52, "kills": 73 }; diner HP left 300.0
+      wall time 1.8 s
+1/1 passed.
+
+
+
+
+==============================================
+= Run Summary
+==============================================
+
+Totals
+------
+Scripts               1
+Tests                 1
+Passing Tests         1
+Asserts              10
+Time              1.848s
+
+
+Ran Tests matching "test_2"
+---- All tests passed! ----
+
+WARNING: 44 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 18 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+---  GUT  ---
+[INFO]:  using [/Users/ryan/Library/Application Support/Godot/app_userdata/Last Stand Tycoon] for temporary output.
+Godot version:  4.7.2
+GUT version:  9.7.1
+
+
+res://tests/sim_tier/test_tier3_sims.gd
+* test_3_the_baron_night_without_the_yard_towers_is_lost
+    Baron night, no yard towers: { "day": 18, "failed": true, "cleared": false, "diner_frac": 0.0, "kills": 60 }; diner HP left 0.0; boss kills 0
+      wall time 1.8 s
+1/1 passed.
+
+
+
+
+==============================================
+= Run Summary
+==============================================
+
+Totals
+------
+Scripts               1
+Tests                 1
+Passing Tests         1
+Asserts               5
+Time              1.822s
+
+
+Ran Tests matching "test_3"
+---- All tests passed! ----
+
+WARNING: 32 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 11 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+---  GUT  ---
+[INFO]:  using [/Users/ryan/Library/Application Support/Godot/app_userdata/Last Stand Tycoon] for temporary output.
+Godot version:  4.7.2
+GUT version:  9.7.1
+
+
+res://tests/sim_tier/test_tier3_sims.gd
+* test_6_every_branch_policy_holds_the_tier3_cap_and_threat_ends_with_the_most_diner_hp
+    [Failed]:  all_a: no loss
+      at line 206
+    [Failed]:  all_a holds the cap with 0 retries
+      at line 207
+    [Failed]:  threat: no loss
+      at line 206
+    [Failed]:  threat holds the cap with 0 retries
+      at line 207
+    tier-3 cap, dawn diner HP: all_a: { "day": 27, "failed": true, "cleared": false, "diner_frac": 0.0, "kills": 88 } dawn HP 0.0 of 300 | all_b: { "day": 27, "failed": false, "cleared": true, "diner_frac": 0.21666666666667, "kills": 90 } dawn HP 65.0 of 300 | mixed: { "day": 27, "failed": false, "cleared": true, "diner_frac": 0.06666666666667, "kills": 90 } dawn HP 20.0 of 300 | threat: { "day": 27, "failed": true, "cleared": false, "diner_frac": 0.0, "kills": 88 } dawn HP 0.0 of 300
+    plan composition (lane -> kinds): { "west": { "boar": 18, "hare": 10, "brute": 2, "boss": 0 }, "north": { "boar": 18, "hare": 11, "brute": 2, "boss": 0 }, "east": { "boar": 10, "hare": 6, "brute": 1, "boss": 0 }, "sw": { "boar": 7, "hare": 4, "brute": 1, "boss": 0 } }
+    [Failed]:  [0.0] expected to be >= than [65.0]:  threat's dawn HP 0.0 >= all_b's 65.0
+      at line 216
+    [Failed]:  [0.0] expected to be >= than [20.0]:  threat's dawn HP 0.0 >= mixed's 20.0
+      at line 216
+      wall time 10.4 s
+0/1 passed.
+
+
+
+
+==============================================
+= Run Summary
+==============================================
+
+res://tests/sim_tier/test_tier3_sims.gd
+- test_6_every_branch_policy_holds_the_tier3_cap_and_threat_ends_with_the_most_diner_hp
+    [Failed]:  all_a: no loss
+          at line 206
+    [Failed]:  all_a holds the cap with 0 retries
+          at line 207
+    [Failed]:  threat: no loss
+          at line 206
+    [Failed]:  threat holds the cap with 0 retries
+          at line 207
+    [Failed]:  [0.0] expected to be >= than [65.0]:  threat's dawn HP 0.0 >= all_b's 65.0
+          at line 216
+    [Failed]:  [0.0] expected to be >= than [20.0]:  threat's dawn HP 0.0 >= mixed's 20.0
+          at line 216
+
+Totals
+------
+Scripts               1
+Tests                 1
+Passing Tests      none
+Failing Tests         1
+Asserts           69/75
+Time              10.428s
+
+
+Ran Tests matching "test_6"
+---- 1 failing tests ----
+
+WARNING: 38 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 11 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)

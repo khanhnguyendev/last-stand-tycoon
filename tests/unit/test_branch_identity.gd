@@ -310,9 +310,9 @@ func test_tier_3_arrays_are_live_and_the_top_tier_is_3() -> void:
 	var n := tb.tier_costs.size() + 1
 	for arr in [tb.tier_base, tb.tier_cap, tb.fast_share_start, tb.fast_share, tb.fast_ramp_days, tb.brute_cap_main, tb.brute_cap_side, tb.brute_ramp_days, tb.boss_kind]:
 		assert_gte((arr as Array).size(), n)
-	assert_eq([tb.tier_base[3], tb.tier_cap[3]], [12, 15])
+	assert_eq([tb.tier_base[3], tb.tier_cap[3]], [12, 12], "tier 3 starts at its cap (the ruling)")
 	assert_eq([tb.fast_share_start[3], tb.fast_share[3], tb.fast_ramp_days[3]], [0.35, 0.35, 1])
-	assert_eq([tb.brute_cap_main[3], tb.brute_cap_side[3], tb.brute_ramp_days[3]], [1, 1, 3])
+	assert_eq([tb.brute_cap_main[3], tb.brute_cap_side[3], tb.brute_ramp_days[3]], [1, 0, 3], "main-lane brutes only (the ruling)")
 	assert_eq([tb.brute_cap_main[2], tb.brute_cap_side[2]], [0, 0], "tier 2 carries no brutes")
 	assert_eq(tb.boss_kind[1], &"boss")
 	assert_eq(tb.boss_kind[2], &"baron")
