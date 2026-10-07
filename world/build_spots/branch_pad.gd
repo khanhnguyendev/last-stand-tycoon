@@ -5,63 +5,47 @@ extends Node3D
 ## of GameState.branch_options, index 1 the second) and each shows only while GameState.can_branch(spot_id) and it is DAY.
 ## All state comes from GameState (partial payments live in buildings[id].branch_paid); the pad only draws it and pays into IT
 ## (never into the other pad): GameState.pay_into_branch commits only on full payment and refunds the other pad's partial
-## payment, which this node shows as coins flying back to the hero. Standing INSIDE the pad (before the stand-still threshold,
-## before any gold moves) shows the preview of the effect; leaving hides it.
+## payment, which this node shows as coins flying back to the hero.
+##
+## PROGRESSIVE DISCLOSURE (fix round 1): one focus spot at a time, so many level-3 buildings never pile their labels up.
+##   FAR   (not the focus spot): the ground ring and the branch glyph on the pad, depth-tested (buildings hide it); no text. The glyph
+##         is hidden (FAR_QUIET) while the hero stands on any pad.
+##   NEAR  (the focus spot, hero not on this pad): ring, glyph and the remaining cost under it, one block at most 1.2 m wide.
+##   QUIET (the other pad of the spot the hero stands on): ring and payment ring only; its glyph and cost come back when he leaves.
+##   ON    (the hero is inside this pad): glyph and cost row, name, preview line, the fence warning line, and the preview at the
+##         building (range rings, "x3", shield, spikes). It shows before the stand-still threshold and before any gold moves.
+## The stage is VISUAL ONLY: _on_tick (the payment) never reads it.
 
-const LABEL_PIXEL := 0.01
-## The label stack (see _build_stack): one row holds the glyph with the remaining cost beside it; the whole stack shifts by LABEL_SHIFT.
+const FAR := 0
+const FAR_QUIET := 1
+const NEAR := 2
+const ON := 3
+## The sibling of the pad the hero stands on: its ground ring and payment ring only (on a pad only the stood option speaks).
+const SIBLING_QUIET := 4
+## Metres ON THE SCREEN: the gap between the glyph and its cost, and between two stacked items.
 const ROW_GAP := 0.12
-## The stack's bottom edge above the pad's ground point, and the air between two items, both in metres ON THE SCREEN (the hero
-## stands on the pad and is about 1.0 m tall on screen: the stack starts over his head).
-const STACK_BASE_M := 1.05
-const STACK_GAP_M := 0.12
-## The south cluster starts this far below the pad's ground point (just under the marker ring, which is about 0.75 m deep on screen).
+const STACK_GAP_M := 0.08
+## The ON stack starts this far above / below the pad's ground point on the screen: above clears the hero (about 1.0 m tall on
+## screen), below clears the marker ring (about 0.75 m deep on screen).
+const NORTH_BASE_M := 1.05
 const SOUTH_BASE_M := 0.8
 const WARN_GAP := 0.1
-## The width (font px) the warning wraps at.
-const WARN_WRAP_PX := 150.0
-## The width a branch name wraps at (font px) on the pads listed in WRAP_NAME: a two-word name then stands on two lines, so the pair
-## of pads fits a phone screen where the ground between them is tight. The preview line never wraps.
-const NAME_WRAP_PX := 150.0
 ## The coins of a refund flight (the exact amount is on the "+N" label) and the pause between two of them (s).
 const REFUND_COINS := 5
 const REFUND_GAP := 0.07
 const REFUND_LABEL_RISE := 1.2
 const REFUND_LABEL_TIME := 1.4
 
-## Pads whose branch name wraps onto two lines (NAME_WRAP_PX): [spot, index].
-const WRAP_NAME := [["fence_e", 1]]
-
-## Pads whose glyph row and warning line stand above the hero (under the name) instead of below the pad: [spot, index]. Used where
-## the ground south of the pad is taken (a telegraph row, another building's labels).
-const ROW_NORTH := [["fence_w", 1], ["fence_e", 0], ["fence_sw", 1]]
-## Fence pads whose "lost if broken" line wraps onto two lines (WARN_WRAP_PX): [spot, index]; the others show it on one line.
-const WRAP_WARN := [["fence_w", 0], ["fence_w", 1], ["fence_e", 0]]
-
-## Pads whose name label alone also moves sideways (m), keyed "spot:index": the whole stack cannot, the pad's other labels leave no room.
-const NAME_DX := {"fence_sw:1": -0.5}
-
-## Per spot and pad: where the pad's label stack sits relative to the pad (x right in m, y up in m). The pads stay where
-## MapLayout puts them; only the labels move, where two label stacks would collide on screen (test_branch_pads.gd).
-## Found by a search over every spot and both pads at 9:21, 9:16 and 16:9 with the hero on the pad (1 base px of air kept), then
-## pinned by test_branch_pads.gd: no stack leaves the screen or touches the other pad's stack, a neighbouring spot's cost label or
-## pips, the close-up sign's label or a telegraph row. Each entry is [pad 0, pad 1], as (x right, y up) in metres.
-const LABEL_SHIFT := {
-	"tower_nw": [Vector2(-1.5, -0.5), Vector2(0.0, 0.0)],
-	"tower_ne": [Vector2(-1.0, -0.5), Vector2(1.0, -0.5)],
-	"fence_w": [Vector2(0.5, 0.0), Vector2(-0.5, 2.0)],
-	"fence_n": [Vector2(0.5, 0.0), Vector2(-0.5, 0.0)],
-	"fence_e": [Vector2(0.5, 2.0), Vector2(0.0, 4.0)],
-	"tower_w": [Vector2(-2.5, 0.0), Vector2(0.5, 0.0)],
-	"tower_e": [Vector2(-0.5, 0.0), Vector2(1.5, 1.0)],
-	"tower_sw": [Vector2(0.0, -0.5), Vector2(0.5, 0.0)],
-	"fence_sw": [Vector2(-2.0, -0.5), Vector2(0.0, 0.5)],
+## ON pads that do not use the default (name and preview line above the hero's head, glyph row and warning line below the pad):
+## "spot:index" -> [row_north, name_south]. Chosen only where the default collides on screen (tests/unit/test_branch_pads.gd).
+const ON_MODES := {
+	"fence_n:0": [true, true], "tower_w:1": [false, true], "tower_e:0": [false, true], "tower_sw:1": [false, true], "fence_sw:1": [true, false],
 }
 
-## The texts, through tr() when shown: [name, preview line].
+## The texts, through tr() when shown: [name, preview line]. The Volley's line is built from the balance count.
 const TEXTS := {
 	&"longbow": ["Longbow", "far, heavy, slow"],
-	&"volley": ["Volley", "3 targets"],
+	&"volley": ["Volley", "%d targets"],
 	&"stone": ["Stone wall", "holds brutes"],
 	&"spike": ["Spike fence", "hurts attackers"],
 }
@@ -73,7 +57,6 @@ var index := 0
 var zone: StationZone
 ## Hidden as a whole when the pad is not shown (the root stays: the refund effect outlives the pad).
 var body: Node3D
-var stack: Node3D
 var marker: MeshInstance3D
 var icon: MeshInstance3D
 var name_label: WorldLabel
@@ -87,9 +70,16 @@ var preview: Node3D
 var preview_rings: Array[MeshInstance3D] = []
 var hint_icons: Array[MeshInstance3D] = []
 var hint_label: WorldLabel
+## Where the preview glyph stands relative to its default (HINT_AT); call place_hint() after changing it.
+var hint_at := Vector2.ZERO
 ## What the last refund showed: the exact gold (the "+N" label) and how many coins flew for it.
 var last_refund := 0
 var refund_coins := 0
+## The stage shown now (FAR, FAR_QUIET, NEAR, ON, SIBLING_QUIET).
+var stage := FAR
+## Where the ON clusters stand (ON_MODES); call _layout_items() and re-apply the stage after changing them.
+var row_north := false
+var name_south := false
 var _fx: FlyFx
 var _paid_ticks := 0
 var _was_shown := false
@@ -98,17 +88,92 @@ var _was_shown := false
 var _paid_seen := 0
 var _refund_tween: Tween
 var _coin_tween: Tween
-var _warn_row_w := 0.0
-## True when the name wraps (WRAP_NAME); rebuild with _build_stack() after changing it.
-var wrap_name := false
-## True when the fence pads' warning wraps onto two lines (WRAP_WARN); rebuild with _build_stack() after changing it.
-var wrap_warn := false
-## True when the glyph row stands above the hero (ROW_NORTH); rebuild with _build_stack() after changing it.
-var row_north := false
-## Extra x offset (m) of the name label (NAME_DX); rebuild with _build_stack() after changing it.
-var name_dx := 0.0
-var _cost_w := 0.0
-var _sizes := {}  ## item id -> its rect size (camera metres): icon, cost, warn, name, effect
+## Local positions of the items per stage (built once, in screen metres): {NEAR: {node: Vector3}, ON: {node: Vector3}}.
+var _pos := {}
+
+# --- the focus spot (one per physics frame, shared by every pad) -------------------------------------------
+
+## The pads on the map now (shown ones only: a hidden pad is not in it and does not process).
+static var _shown_pads: Array = []
+static var _cache_frame := -1
+static var _focus_spot := ""
+static var _on_pad: BranchPad = null
+## Reused every frame (no allocation in update_focus): spot -> smallest distance to one of its pads; the spots of the tier, refreshed
+## when the tier changes.
+static var _nearest := {}
+static var _spots: Array[String] = []
+static var _spots_tier := -1
+
+## Computes the focus spot and the pad the hero stands on, once per physics frame: one hero lookup and one distance per shown pad.
+## The pad the hero stands on gives its spot; else the spot kept from before while the hero is within `branch_pad_leave_m` of its
+## nearest pad (hysteresis); else the spot whose nearest pad is closest within `branch_pad_near_m` (ties: spots_for_tier order).
+## With no pad shown (night, a new game, a load) nothing is focused.
+static func update_focus(tree: SceneTree) -> void:
+	var frame := Engine.get_physics_frames()
+	if frame == _cache_frame:
+		return
+	_cache_frame = frame
+	_on_pad = null
+	for i in range(_shown_pads.size() - 1, -1, -1):  # a pad freed since (a rebuild) leaves the registry
+		if not is_instance_valid(_shown_pads[i]):
+			_shown_pads.remove_at(i)
+	var hero := tree.get_first_node_in_group(&"hero") as Node3D
+	if hero == null or _shown_pads.is_empty():
+		_focus_spot = ""
+		return
+	var hx := hero.global_position.x
+	var hz := hero.global_position.z
+	_nearest.clear()
+	var best_on := INF
+	for p: BranchPad in _shown_pads:
+		var d := Vector2(hx - p.global_position.x, hz - p.global_position.z).length()
+		if d < float(_nearest.get(p.spot_id, INF)):
+			_nearest[p.spot_id] = d
+		if d <= MapLayout.BRANCH_PAD_RADIUS and d < best_on:
+			best_on = d
+			_on_pad = p
+	if _on_pad != null:
+		_focus_spot = _on_pad.spot_id
+		return
+	if _focus_spot != "" and _nearest.has(_focus_spot) and float(_nearest[_focus_spot]) <= Balance.ui.branch_pad_leave_m:
+		return
+	_focus_spot = ""
+	if _spots_tier != GameState.tier:
+		_spots_tier = GameState.tier
+		_spots = MapLayout.spots_for_tier(GameState.tier)
+	var best := INF
+	for id in _spots:
+		if _nearest.has(id) and float(_nearest[id]) <= Balance.ui.branch_pad_near_m and float(_nearest[id]) < best:
+			best = float(_nearest[id])
+			_focus_spot = id
+
+## Takes a pad out of the shown registry; the last one out clears the focus (night, a new game, a load: no stale focus survives).
+static func _forget_shown(pad: BranchPad) -> void:
+	_shown_pads.erase(pad)
+	for i in range(_shown_pads.size() - 1, -1, -1):
+		if not is_instance_valid(_shown_pads[i]):
+			_shown_pads.remove_at(i)
+	if _shown_pads.is_empty():
+		_focus_spot = ""
+		_on_pad = null
+	elif _on_pad == pad:
+		_on_pad = null
+	_cache_frame = -1
+
+static func focus_spot() -> String:
+	return _focus_spot
+
+static func pad_hero_stands_on() -> BranchPad:
+	return _on_pad
+
+## Forgets the shared focus (a new world, tests).
+static func reset_focus() -> void:
+	for i in range(_shown_pads.size() - 1, -1, -1):
+		if not is_instance_valid(_shown_pads[i]):
+			_shown_pads.remove_at(i)
+	_cache_frame = -1
+	_focus_spot = ""
+	_on_pad = null
 
 func setup(p_spot_id: String, p_index: int, world: World) -> void:
 	spot_id = p_spot_id
@@ -127,19 +192,11 @@ func setup(p_spot_id: String, p_index: int, world: World) -> void:
 	marker.scale = Vector3(MapLayout.BRANCH_PAD_RADIUS, 1.0, MapLayout.BRANCH_PAD_RADIUS)
 	marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(marker)
-	stack = Node3D.new()
-	stack.name = "Stack"
-	body.add_child(stack)
-	var shift := label_shift()
-	stack.position = Vector3(shift.x, shift.y, 0.0)
-	wrap_name = [spot_id, index] in WRAP_NAME
-	wrap_warn = [spot_id, index] in WRAP_WARN
-	row_north = [spot_id, index] in ROW_NORTH
-	name_dx = float(NAME_DX.get("%s:%d" % [spot_id, index], 0.0))
-	_build_stack()
+	_build_items()
 	_build_preview()
 	refund_label = WorldLabel.make("", Balance.ui.branch_pad_cost_font)
 	refund_label.name = "Refund"
+	refund_label.pixel_size = Balance.ui.branch_pad_cost_pixel_size
 	refund_label.modulate = Palette.color(&"gold")
 	refund_label.visible = false
 	add_child(refund_label)
@@ -153,16 +210,23 @@ func setup(p_spot_id: String, p_index: int, world: World) -> void:
 	EventBus.phase_changed.connect(_on_phase_changed)  # after the zone's own connection (it syncs its phase first)
 	EventBus.state_restored.connect(refresh)
 	EventBus.tier_changed.connect(_on_tier_changed)
+	set_physics_process(false)
 	refresh()
 
-func label_shift() -> Vector2:
-	var t: Array = LABEL_SHIFT.get(spot_id, [])
-	return t[index] if t.size() == 2 else Vector2.ZERO
+func _exit_tree() -> void:
+	_forget_shown(self)
+	if _on_pad == self:
+		_on_pad = null
+	_cache_frame = -1
 
-func _label(font_size: int, node_name: String) -> WorldLabel:
-	var l := WorldLabel.make("", font_size)
+# --- items and their layout --------------------------------------------------------------------------
+
+func _label(font_size: int, pixel: float, node_name: String, text := "") -> WorldLabel:
+	var l := WorldLabel.make(text, font_size)
 	l.name = node_name
-	stack.add_child(l)
+	l.pixel_size = pixel
+	l.visible = false
+	body.add_child(l)
 	return l
 
 func _glyph(kind: StringName, size_m: float, node_name: String, parent: Node3D = null) -> MeshInstance3D:
@@ -172,95 +236,115 @@ func _glyph(kind: StringName, size_m: float, node_name: String, parent: Node3D =
 	m.material_override = BranchIcons.material()
 	m.scale = Vector3.ONE * size_m
 	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	(parent if parent != null else stack).add_child(m)
+	(parent if parent != null else body).add_child(m)
 	return m
 
-func _font() -> Font:
+static func _font() -> Font:
 	return load(WorldLabel.BOLD_PATH)
 
-func _text_w(text: String, font_size: int) -> float:
-	return _font().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x * LABEL_PIXEL
+## The box (m, camera-facing) a label draws, outline included, from its own font, size, text and wrap.
+static func text_box(l: Label3D) -> Vector2:
+	var wrap := float(l.width) if l.autowrap_mode != TextServer.AUTOWRAP_OFF else -1.0
+	var sz := _font().get_multiline_string_size(l.text, HORIZONTAL_ALIGNMENT_CENTER, wrap, l.font_size)
+	return (sz + Vector2.ONE * float(l.outline_size)) * l.pixel_size
 
-## Wraps `l` at `wrap_px` font px (a word never splits) and returns its box in metres, outline included.
-func _wrap(l: WorldLabel, wrap_px: float) -> Vector2:
-	l.width = wrap_px
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	return _font().get_multiline_string_size(l.text, HORIZONTAL_ALIGNMENT_CENTER, wrap_px, l.font_size) * LABEL_PIXEL + Vector2.ONE * float(8) * LABEL_PIXEL
+## The box (m) a glyph node draws, its ink outline included.
+static func glyph_box(g: MeshInstance3D) -> Vector2:
+	var sz := g.mesh.get_aabb().size
+	return Vector2(sz.x, sz.y) * g.scale.x
 
-## World y (m) of a billboard that must stand `m` metres above its anchor on the SCREEN: the camera looks down at 55 degrees, so a
-## height h shows as h * cos(pitch).
+## World y (m) of a billboard that must stand `m` metres above (below, when negative) its anchor ON THE SCREEN: the camera looks
+## down at 55 degrees, so a height h shows as h * cos(pitch).
 static func screen_to_y(m: float) -> float:
 	return m / cos(deg_to_rad(absf(Balance.ui.camera_pitch)))
 
-## The height (camera metres) one line of `font_size` takes, outline included.
-func _line_h(font_size: int) -> float:
-	return (_font().get_height(font_size) + float(8)) * LABEL_PIXEL
-
-## The stack, in two clusters so nothing stands on the hero (he is about 1.0 m tall on screen): ABOVE his head the branch name and,
-## only while he stands inside, the preview line; BELOW the pad the glyph with the cost beside it and, on a fence pad, the
-## "lost if broken" line (broken-fence glyph and text). Each item has its own height on the screen (none touches another).
-func _build_stack() -> void:
-	for c in stack.get_children():
-		stack.remove_child(c)
-		c.free()
-	_sizes = {}
+## Creates the items and lays out the NEAR block and the ON stack once, in screen metres.
+func _build_items() -> void:
 	var ui := Balance.ui
-	var icon_m: float = ui.branch_pad_icon_m
-	_cost_w = _text_w("000", ui.branch_pad_cost_font)
-	var icon_box := BranchIcons.mesh(branch_id).get_aabb().size * icon_m  # the glyph with its ink outline
-	var row_h := maxf(icon_box.y, _line_h(ui.branch_pad_cost_font))
-	var row_w := icon_box.x + ROW_GAP + _cost_w
-	cost_label = _label(ui.branch_pad_cost_font, "Cost")
-	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	icon = _glyph(branch_id, icon_m, "Icon")
-	name_label = _label(ui.branch_pad_label_font, "Name")
-	name_label.text = tr(TEXTS[branch_id][0])
-	effect_label = _label(ui.branch_pad_label_font, "Effect")
-	effect_label.text = tr(TEXTS[branch_id][1])
-	effect_label.visible = false
-	warn_label = null
-	warn_icon = null
-	_sizes["icon"] = Vector2(icon_box.x, icon_box.y)
-	_sizes["cost"] = Vector2(_cost_w + float(8) * LABEL_PIXEL, _line_h(ui.branch_pad_cost_font))
-	_sizes["name"] = _wrap(name_label, NAME_WRAP_PX if wrap_name else 9999.0)
-	_sizes["effect"] = _wrap(effect_label, 9999.0)
-	# the glyph row and, on a fence pad, the warning line: below the pad (or above the hero on a ROW_NORTH pad)
-	var m := STACK_BASE_M if row_north else SOUTH_BASE_M
-	icon.position = _row_at(m, row_h, -row_w * 0.5 + icon_box.x * 0.5)
-	cost_label.position = _row_at(m, row_h, -row_w * 0.5 + icon_box.x + ROW_GAP)
-	m += row_h + STACK_GAP_M
-	if MapLayout.spot_kind(spot_id) == "fence":
-		var fs: int = ui.branch_pad_warn_font
-		var wi := float(fs) * LABEL_PIXEL * 1.3
-		var wbox := BranchIcons.mesh(&"broken").get_aabb().size * wi
-		warn_label = _label(fs, "Warn")
-		warn_label.text = tr(WARN_TEXT)
-		var wrap_px := WARN_WRAP_PX if wrap_warn else 9999.0
-		warn_label.width = wrap_px
-		warn_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		warn_icon = _glyph(&"broken", wi, "WarnIcon")
-		var box := _font().get_multiline_string_size(warn_label.text, HORIZONTAL_ALIGNMENT_CENTER, wrap_px, fs) * LABEL_PIXEL
-		var wh := maxf(wbox.y, box.y + float(8) * LABEL_PIXEL)
-		_warn_row_w = wbox.x + WARN_GAP + box.x + float(8) * LABEL_PIXEL
-		_sizes["warn"] = Vector2(_warn_row_w, wh)
-		warn_icon.position = _row_at(m, wh, -_warn_row_w * 0.5 + wbox.x * 0.5)
-		warn_label.position = _row_at(m, wh, _warn_row_w * 0.5 - box.x * 0.5)
-		m += wh + STACK_GAP_M
-	# above the hero: the name, then the preview line (over the row on a ROW_NORTH pad)
-	var top := m if row_north else STACK_BASE_M
-	name_label.position = Vector3(name_dx, screen_to_y(top + _sizes.name.y * 0.5), 0.0)
-	effect_label.position.y = screen_to_y(top + _sizes.name.y + STACK_GAP_M + _sizes.effect.y * 0.5)
+	var pix: float = ui.branch_pad_label_pixel_size
+	icon = _glyph(branch_id, ui.branch_pad_icon_m, "Icon")
+	cost_label = _label(ui.branch_pad_cost_font, ui.branch_pad_cost_pixel_size, "Cost", "000")  # "000": the widest cost fixes the block widths
+	name_label = _label(ui.branch_pad_label_font, pix, "Name", tr(TEXTS[branch_id][0]))
+	var effect := tr(TEXTS[branch_id][1])
+	if branch_id == &"volley":
+		effect = effect % int(Balance.data.branches.tower(&"volley").count)
+	effect_label = _label(ui.branch_pad_label_font, pix, "Effect", effect)
+	var fence := MapLayout.spot_kind(spot_id) == "fence"
+	if fence:
+		warn_label = _label(ui.branch_pad_warn_font, ui.branch_pad_warn_pixel_size, "Warn", tr(WARN_TEXT))
+		warn_icon = _glyph(&"broken", float(ui.branch_pad_warn_font) * ui.branch_pad_warn_pixel_size * 1.3, "WarnIcon")
+		warn_icon.visible = false
+	var mode: Array = ON_MODES.get("%s:%d" % [spot_id, index], [false, false])
+	row_north = mode[0]
+	name_south = mode[1]
+	_layout_items()
+	cost_label.text = ""
 
-## The position (relative to the stack) of an item `h` metres tall whose lower edge is `m` metres from the pad on the screen: above
-## the hero's head on a ROW_NORTH pad, else below the pad on the ground (south).
-func _row_at(m: float, h: float, x: float) -> Vector3:
-	if row_north:
-		return Vector3(x, screen_to_y(m + h * 0.5), 0.0)
-	return Vector3(x, 0.0, south_z(m + h * 0.5))
+## Lays out the NEAR block and the ON stack (positions only), in screen metres.
+func _layout_items() -> void:
+	var ibox := glyph_box(icon)
+	var cbox := _cost_box()
+	# NEAR: the glyph with the cost centred under it; the block (at most 1.2 m wide) centred on the pad
+	var block_h := ibox.y + STACK_GAP_M + cbox.y
+	_pos[NEAR] = {
+		icon: _at(block_h * 0.5 - ibox.y * 0.5, true),
+		cost_label: _at(block_h * 0.5 - cbox.y * 0.5, false),
+	}
+	# ON: the glyph row (and the fence warning) on one side of the pad, the name and the preview line on one side; each cluster
+	# stands above the hero's head (north) or below the pad (south). Where both share a side the row is nearest the pad.
+	var on := {}
+	var m := {true: NORTH_BASE_M, false: SOUTH_BASE_M}  # north? -> the next free edge on that side
+	m[row_north] = _place_row(on, m[row_north], row_north)
+	m[row_north] = _place_warn(on, m[row_north], row_north)
+	var name_north := not name_south
+	m[name_north] = _place_text(on, name_label, m[name_north], name_north)
+	m[name_north] = _place_text(on, effect_label, m[name_north], name_north)
+	_pos[ON] = on
 
-## Metres south of the anchor on the ground that show `m` metres BELOW it on the screen (the pitch looks down at 55 degrees).
-static func south_z(m: float) -> float:
-	return m / sin(deg_to_rad(absf(Balance.ui.camera_pitch)))
+## The local position of an item whose centre stands `c` metres ON THE SCREEN above (north) or below (south) the pad: above it is a
+## height (a billboard over the hero), below it is a point on the ground south of the pad (the camera looks down at 55 degrees).
+static func _at(c: float, north: bool) -> Vector3:
+	if north:
+		return Vector3(0, screen_to_y(c), 0)
+	return Vector3(0, 0, c / sin(deg_to_rad(absf(Balance.ui.camera_pitch))))
+
+## `m`: the edge of the item nearest the pad, in metres on the screen; north: the item stands above (its lower edge at m), else
+## below (its upper edge at m below the pad). Returns the next edge.
+func _place_text(on: Dictionary, l: Label3D, m: float, north: bool) -> float:
+	var h := text_box(l).y
+	on[l] = _at(m + h * 0.5, north)
+	return m + h + STACK_GAP_M
+
+## The glyph with its cost beside it (left aligned, widest cost "000"), centred on the pad's x.
+func _place_row(on: Dictionary, m: float, north: bool) -> float:
+	var ibox := glyph_box(icon)
+	var cbox := _cost_box()
+	var w := ibox.x + ROW_GAP + cbox.x
+	var h := maxf(ibox.y, cbox.y)
+	var at := _at(m + h * 0.5, north)
+	on[icon] = at + Vector3(-w * 0.5 + ibox.x * 0.5, 0, 0)
+	on[cost_label] = at + Vector3(-w * 0.5 + ibox.x + ROW_GAP, 0, 0)
+	return m + h + STACK_GAP_M
+
+func _place_warn(on: Dictionary, m: float, north: bool) -> float:
+	if warn_label == null:
+		return m
+	var ibox := glyph_box(warn_icon)
+	var tbox := text_box(warn_label)
+	var w := ibox.x + WARN_GAP + tbox.x
+	var h := maxf(ibox.y, tbox.y)
+	var at := _at(m + h * 0.5, north)
+	on[warn_icon] = at + Vector3(-w * 0.5 + ibox.x * 0.5, 0, 0)
+	on[warn_label] = at + Vector3(w * 0.5 - tbox.x * 0.5, 0, 0)
+	return m + h + STACK_GAP_M
+
+## The box of the widest cost ("000"): it fixes the widths of the NEAR block and the ON row, whatever the cost reads now.
+func _cost_box() -> Vector2:
+	var t := cost_label.text
+	cost_label.text = "000"
+	var b := text_box(cost_label)
+	cost_label.text = t
+	return b
 
 # --- the preview (D-263.3) ---------------------------------------------------------------------------
 
@@ -272,18 +356,17 @@ func _build_preview() -> void:
 	add_child(preview)
 	preview.global_position = MapLayout.to3(MapLayout.spot_position(spot_id))
 	var bb: BranchBalance = Balance.data.branches
-	var top := (TowerSpot.MODEL_HEIGHTS[TowerSpot.MODEL_HEIGHTS.size() - 1] if MapLayout.spot_kind(spot_id) == "tower" else FenceSpot.PIP_Y) + 1.0
 	match branch_id:
 		&"longbow":
 			# the ring at today's level-3 range, and the Longbow's: the gain is the gap between them
 			_ring(bb.tower(&"").attack_range, &"steel", "RangeNow")
 			_ring(bb.tower(&"longbow").attack_range, &"ice_blue", "RangeLongbow")
 		&"volley":
-			_hint(&"volley", _mult_text(float(bb.tower(&"volley").count)), top)
+			_hint(&"volley", _mult_text(float(bb.tower(&"volley").count)))
 		&"stone":
-			_hint(&"stone", _mult_text(bb.fence(&"stone").hp / bb.fence(&"").hp), top)
+			_hint(&"stone", _mult_text(bb.fence(&"stone").hp / bb.fence(&"").hp))
 		_:
-			_hint(&"spike", "", top)
+			_hint(&"spike", "")
 
 func _ring(radius: float, colour: StringName, node_name: String) -> void:
 	var r := MeshInstance3D.new()
@@ -295,20 +378,40 @@ func _ring(radius: float, colour: StringName, node_name: String) -> void:
 	preview.add_child(r)
 	preview_rings.append(r)
 
-## A glyph and, if `mult` is not empty, its multiplier beside it, centred at height `y` above the building.
-func _hint(kind: StringName, mult: String, y: float) -> void:
-	var size_m: float = Balance.ui.branch_pad_icon_m
-	var fs: int = Balance.ui.branch_pad_cost_font
-	var tw := _text_w(mult, fs) if mult != "" else 0.0
-	var total := size_m + (WARN_GAP + tw if mult != "" else 0.0)
-	var g := _glyph(kind, size_m, "HintIcon", preview)
-	g.position = Vector3(-total * 0.5 + size_m * 0.5, y, 0.0)
+## The preview glyph stands on the ground in front of (south of) the building, clear of its pips and of the stacks that rise over the
+## hero's head from the pads north of it.
+const HINT_Z := 1.7
+const HINT_Y := 0.35
+## Spots whose preview glyph stands elsewhere: spot -> Vector2(x, extra z) added to (0, HINT_Z). Picked with the test, where the
+## default lands on a pad, a pip row or a stack (tests/unit/test_branch_pads.gd).
+const HINT_AT := {"tower_w": Vector2(0.0, -1.5), "tower_sw": Vector2(-1.0, 0.0), "fence_sw": Vector2(0.0, 1.0)}
+
+## A glyph and, if `mult` is not empty, its multiplier beside it, in front of the building.
+func _hint(kind: StringName, mult: String) -> void:
+	var g := _glyph(kind, Balance.ui.branch_pad_icon_m, "HintIcon", preview)
 	hint_icons.append(g)
 	if mult != "":
-		hint_label = WorldLabel.make(mult, fs)
+		hint_label = WorldLabel.make(mult, Balance.ui.branch_pad_cost_font)
 		hint_label.name = "HintMult"
-		hint_label.position = Vector3(total * 0.5 - tw * 0.5, y, 0.0)
+		hint_label.pixel_size = Balance.ui.branch_pad_label_pixel_size
 		preview.add_child(hint_label)
+	hint_at = HINT_AT.get(spot_id, Vector2.ZERO)
+	place_hint()
+
+## Puts the preview glyph (and its multiplier) at (hint_at.x, HINT_Y, HINT_Z + hint_at.y) from the building.
+func place_hint() -> void:
+	if hint_icons.is_empty():  # the Longbow previews with rings only
+		return
+	var g := hint_icons[0]
+	var z := HINT_Z + hint_at.y
+	var gw := glyph_box(g).x
+	if hint_label == null:
+		g.position = Vector3(hint_at.x, HINT_Y, z)
+		return
+	var tw := text_box(hint_label).x
+	var total := gw + WARN_GAP + tw
+	g.position = Vector3(hint_at.x - total * 0.5 + gw * 0.5, HINT_Y, z)
+	hint_label.position = Vector3(hint_at.x + total * 0.5 - tw * 0.5, HINT_Y, z)
 
 ## "x3", "x2", "x1.5": a whole number without a decimal.
 static func _mult_text(m: float) -> String:
@@ -341,14 +444,44 @@ func preview_shown() -> bool:
 	return preview.visible
 
 func _physics_process(_delta: float) -> void:
-	_sync_preview()
+	update_focus(get_tree())
+	var want := _stage_now()
+	if want != stage:
+		_apply_stage(want)
 
-func _sync_preview() -> void:
-	preview.visible = hero_inside()
-	effect_label.visible = preview.visible
-	if warn_label != null:  # the fence pads' "lost if broken" is part of the preview (D-273.4): it shows while the hero stands inside
-		warn_label.visible = preview.visible
-		warn_icon.visible = preview.visible
+func _stage_now() -> int:
+	if _on_pad == self:
+		return ON
+	if _on_pad != null and _on_pad.spot_id == spot_id:
+		return SIBLING_QUIET
+	if _focus_spot == spot_id:
+		return NEAR
+	return FAR if _on_pad == null else FAR_QUIET
+
+## Writes the items of `st`: only when the stage changes (visibility, positions, glyph size and material).
+func _apply_stage(st: int) -> void:
+	stage = st
+	var ui := Balance.ui
+	icon.visible = st != FAR_QUIET and st != SIBLING_QUIET
+	if st <= FAR_QUIET or st == SIBLING_QUIET:
+		icon.material_override = BranchIcons.far_material()
+		icon.scale = Vector3.ONE * ui.branch_pad_far_icon_m
+		icon.position = Vector3(0, 0.45, 0)
+	else:
+		icon.material_override = BranchIcons.material()
+		icon.scale = Vector3.ONE * ui.branch_pad_icon_m
+	cost_label.visible = st == NEAR or st == ON
+	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if st == NEAR else HORIZONTAL_ALIGNMENT_LEFT
+	var on := st == ON
+	name_label.visible = on
+	effect_label.visible = on
+	preview.visible = on
+	if warn_label != null:  # the fence pads' "lost if broken" is part of the preview (D-273.4)
+		warn_label.visible = on
+		warn_icon.visible = on
+	if st == NEAR or st == ON:
+		for n in _pos[st]:
+			(n as Node3D).position = _pos[st][n]
 
 func _on_tick() -> void:
 	if not is_shown():
@@ -369,13 +502,19 @@ func _on_phase_changed(_phase: int, _day: int) -> void:
 func _on_tier_changed(_tier: int, _paid: int, _boss_pending: bool) -> void:
 	refresh()
 
-## Rebuilds everything from GameState. Safe before the first new_game (buildings is empty then).
+## Rebuilds everything from GameState. Safe before the first new_game (buildings is empty then). A hidden pad does not process.
 func refresh() -> void:
-	var shown := is_shown()
+	var shown := is_shown() and is_inside_tree()  # a pad a rebuild took out of the tree is never shown
 	if shown and not _was_shown:
 		zone.disarm()  # D-121: a hero already standing here when the pad appears must leave and come back
+		_shown_pads.append(self)
+	elif _was_shown and not shown:
+		_forget_shown(self)
+	if shown != _was_shown:
+		_cache_frame = -1
 	_was_shown = shown
 	body.visible = shown
+	set_physics_process(shown)
 	if GameState.can_branch(spot_id):
 		_paid_seen = paid()
 	elif GameState.branch_of(spot_id) == branch_id:
@@ -385,9 +524,14 @@ func refresh() -> void:
 	var cost := GameState.branch_cost(spot_id)
 	if shown:
 		cost_label.text = str(GameState.branch_remaining(spot_id, branch_id))
+		if is_inside_tree():
+			update_focus(get_tree())
+		_apply_stage(_stage_now())
+	else:
+		preview.visible = false
+		stage = FAR
 	zone.ring.visible = shown and _paid_seen > 0
 	zone.ring.set_progress(float(_paid_seen) / float(cost) if shown and cost > 0 else 0.0)
-	_sync_preview()
 
 # --- the refund (D-263.1) ----------------------------------------------------------------------------
 
@@ -431,19 +575,3 @@ func _show_refund_label(amount: int) -> void:
 	_refund_tween.tween_property(refund_label, "position:y", 1.0 + REFUND_LABEL_RISE, REFUND_LABEL_TIME)
 	_refund_tween.tween_property(refund_label, "modulate:a", 0.0, REFUND_LABEL_TIME)
 	_refund_tween.chain().tween_callback(func(): refund_label.visible = false)
-
-# --- screen layout (tests) ---------------------------------------------------------------------------
-
-## What the pad shows now, as world rectangles for the readability tests: [{id, center: Vector3, size: Vector2 (m, camera-facing)}].
-## `with_effect` adds the preview lines (the pad the hero stands on): the effect line and, on a fence pad, "lost if broken". Label boxes carry their outline.
-func layout(with_effect: bool) -> Array:
-	var out: Array = []
-	var sp := stack.global_position
-	out.append({"id": "icon", "center": sp + icon.position, "size": _sizes.icon})
-	out.append({"id": "name", "center": sp + name_label.position, "size": _sizes.name})
-	out.append({"id": "cost", "center": sp + cost_label.position + Vector3(_cost_w * 0.5, 0, 0), "size": _sizes.cost})
-	if with_effect:
-		out.append({"id": "effect", "center": sp + effect_label.position, "size": _sizes.effect})
-	if warn_label != null and with_effect:
-		out.append({"id": "warn", "center": sp + Vector3(0, 0, warn_label.position.z), "size": _sizes.warn})
-	return out

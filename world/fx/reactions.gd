@@ -10,7 +10,9 @@ extends Node
 ## same physics frame, so such a gain waits one idle for branch_refunded (fired just after) and is dropped when it names the amount.
 var _phase := -1
 var _spend_frame := -1
-var _held_gain := 0
+## Gains that followed a payment in the same physics frame and wait one idle for branch_refunded to claim them (a queue: two
+## gains in one frame both wait). A freed node never flushes (the deferred call is dropped with it).
+var _held_gains: Array[int] = []
 
 func _ready() -> void:
 	# Named methods, not lambdas: a freed Reactions must disconnect itself (a capture-free lambda would outlive it).
@@ -34,22 +36,25 @@ func _on_gold_changed(_gold: int, delta: int) -> void:
 		_spend_frame = Engine.get_physics_frames()
 	elif delta > 0 and _phase != Phase.DAWN:
 		if _spend_frame == Engine.get_physics_frames():
-			_held_gain = delta
-			_flush_gain.call_deferred()
+			_held_gains.append(delta)
+			if _held_gains.size() == 1:
+				_flush_gain.call_deferred()
 		else:
 			_pile_sparkle()
 
 func _flush_gain() -> void:
-	if _held_gain > 0:
-		_held_gain = 0
+	var n := _held_gains.size()
+	_held_gains.clear()
+	for i in n:
 		_pile_sparkle()
 
 func _pile_sparkle() -> void:
 	EventBus.fx_requested.emit(&"sparkle", MapLayout.to3(MapLayout.GOLD_PILE, 0.6))
 
 func _on_branch_refunded(_spot_id: StringName, amount: int) -> void:
-	if _held_gain == amount:
-		_held_gain = 0
+	var i := _held_gains.find(amount)
+	if i >= 0:
+		_held_gains.remove_at(i)
 
 func _on_build_completed(spot_id: StringName, _level: int) -> void:
 	EventBus.fx_requested.emit(&"sparkle", MapLayout.to3(MapLayout.spot_position(String(spot_id)), 1.0))

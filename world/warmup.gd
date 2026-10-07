@@ -64,6 +64,8 @@ func run(main: Main, resume_phase := "") -> void:
 	cube.material_override = main.world.occluder_fade.fade_material_for_warmup()
 	_place(cube)
 	_prebuild_tier_caches()
+	for n in branch_pad_visuals():
+		_place(n)
 	if not MapLayout.yards_for_tier(TierEffects.top_tier(Balance.data.tiers)).is_empty():
 		_place(YardStones.build_sample())  # the kerb's mesh and material are first drawn at the tier-2 reveal
 	for _i in FRAMES:
@@ -77,6 +79,26 @@ func run(main: Main, resume_phase := "") -> void:
 	if OS.is_debug_build() or OS.has_feature("profile_overlay"):
 		print("WARMUP built=%d track=%s" % [built_count, track])
 	finished.emit()
+
+## E5 tier 3 Task 17: the first-use visuals of the branch pads (drawn at the tier-3 dawn): the ground ring and its alpha material, the
+## preview ring, and every glyph with both its materials (depth-tested for a far pad, not for the near and stood stages). Nothing
+## when the build has no tier 3.
+static func branch_pad_visuals() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	if TierEffects.top_tier(Balance.data.tiers) < 3:
+		return out
+	for ring in [BranchIcons.ring_mesh(&"ice_blue", 0.82, 0.22), BranchIcons.ring_mesh(&"steel", 0.985, 0.0)]:
+		var r := MeshInstance3D.new()
+		r.mesh = ring
+		r.material_override = BranchIcons.ground_material()
+		out.append(r)
+	for kind in BranchIcons.KINDS:
+		for mat in [BranchIcons.material(), BranchIcons.far_material()]:
+			var g := MeshInstance3D.new()
+			g.mesh = BranchIcons.mesh(kind)
+			g.material_override = mat
+			out.append(g)
+	return out
 
 ## E5 Task 12: each tier-up would build that tier's terrain mesh (10.5k vertices, in GDScript) and re-merge the props
 ## inside the tier-up frame. Fill both caches now; no node is added, nothing in the world changes.
