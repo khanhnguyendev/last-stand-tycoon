@@ -2387,3 +2387,26 @@ lifetime (author).** Chosen over a two-card pick at dawn and over fixed branches
    all branch B, mixed); each holds the tier-3 cap with no retries. If one policy beats another by more than 15 points
    of diner HP, a REVIEW_QUEUE entry ("possible dominant branch") is added instead of a blind retune.
 6. **Out of scope:** respec or refunds after commitment. "Paid respec as a gold sink" goes to Post-tier-3 ideas.
+
+**D-264 Branches are threat-answer pairs (author).** Slow/control branches go to Post-tier-3 ideas. Economy branches
+(a weaker branch that pays gold) are rejected: income stays "kills only", and the gold pile-up is handled by tier-3
+costs. Every number is in `balance/`; sims tune them.
+- **Longbow (tower A):** longer range, heavier single shots, slower rate. Geometry rule: no tower spot with Longbow
+  range reaches the attack zones of 3 or more lanes (tower coverage tests, SW lane included).
+- **Volley (tower B):** each attack fires up to 3 projectiles at the first 3 targets in range, in the tower's existing
+  target-selection order (stable spawn-index tie-break, deterministic). Per-projectile damage is reduced so
+  single-target DPS is below Longbow's. No splash, no chaining.
+- **Stone wall (fence A):** much more HP, plus reduced damage taken from the fence-breaker specifically (a damage
+  multiplier by attacker kind).
+- **Spike fence (fence B):** normal HP. Damages monsters attacking it, and deals a fixed amount once to each hare that
+  passes its spot (a per-hare flag, deterministic, no repeat hits). Test: hares still walk past; only the pass damage
+  is new.
+- **Informed choice:** the day telegraph shows tonight's threat composition per lane (regular / hare / fence-breaker
+  icons or counts), not only total HP. Branch pad previews: range ring, "x3", shield, spike, plus the 2 to 3 word label.
+- **Visuals:** each branch is a distinct model variant readable at phone size (Longbow taller and slimmer, Volley
+  multi-barreled; stone versus spiked fence), through the art pipeline and ART_BIBLE, checked at 40% scale.
+- **Economy:** branch costs are set so tier 3 absorbs the tier-2 pile-up. Sweep target: `unspent_gold_at_closeup`
+  stays under a threshold defined from the tier-2 data through the tier-3 cap. REVIEW_QUEUE entry with the costs.
+- **Sims:** the three full-build policies of D-263 plus a threat-matched policy (the bot picks the branch matching
+  its lane's dominant threat). Threat-matched should do best; if not, REVIEW_QUEUE gets "branches don't reward
+  reading the telegraph".
