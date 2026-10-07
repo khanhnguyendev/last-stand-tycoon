@@ -11,6 +11,7 @@ const Bake := preload("res://tools/bake_static.gd")
 const SCENES := {
 	"res://art/env/diner.tscn": ["res://art/env/src/diner_src.tscn", "res://art/env/baked/diner.res", 3],
 	"res://art/env/diner_t2.tscn": ["res://art/env/src/diner_t2_src.tscn", "res://art/env/baked/diner_t2.res", 3],
+	"res://art/env/diner_t3.tscn": ["res://art/env/src/diner_t3_src.tscn", "res://art/env/baked/diner_t3.res", 3],
 	"res://art/env/counter_visual.tscn": ["res://art/env/src/counter_src.tscn", "res://art/env/baked/counter.res", 1],
 	"res://art/env/freezer_visual.tscn": ["res://art/env/src/freezer_src.tscn", "res://art/env/baked/freezer.res", 1],
 }
@@ -525,10 +526,15 @@ func _tier1_boxes() -> Array:
 
 ## Camera-to-point segments of `points` that an `added` box blocks, the point is on screen, and the tier-1 building
 ## does not block: returns the first few as strings (an empty array passes).
-func _new_occlusions(added: Array, points: Array, step: float, tier1: Array) -> Array:
+## E5 tier 3 (the tier-3 camera ruling, D-279): `foci_override` replaces the step grid; `aspects` picks the windows; with `exempt_far` below INF a LANDSCAPE (aspect > 1) pair whose point lies
+## farther than `exempt_far` (ground distance to the clamped focus) from the focus is not a violation but is counted in
+## `stats` {"exempt": count, "nearest": the smallest exempted distance}. The defaults are the tier-2 behaviour.
+func _new_occlusions(added: Array, points: Array, step: float, tier1: Array, aspects: Array = ASPECTS, exempt_far := INF, stats := {}, foci_override: Array = []) -> Array:
 	var bad := []
-	var foci := _foci(step)
-	for aspect in ASPECTS:
+	var foci := foci_override if not foci_override.is_empty() else _foci(step)
+	stats["exempt"] = 0
+	stats["nearest"] = INF
+	for aspect in aspects:
 		var proj := CameraMath.projection(Balance.ui, aspect)
 		for f in foci:
 			var xf := CameraMath.camera_transform(CameraMath.focus_for(f), Balance.ui)
@@ -540,6 +546,12 @@ func _new_occlusions(added: Array, points: Array, step: float, tier1: Array) -> 
 					continue
 				if _blocked(tier1, from, p):
 					continue
+				if aspect > 1.0 and exempt_far < INF:
+					var d := Vector2(p.x, p.z).distance_to(CameraMath.focus_for(f))
+					if d > exempt_far:
+						stats["exempt"] += 1
+						stats["nearest"] = minf(stats["nearest"], d)
+						continue
 				bad.append("aspect %.2f focus %s point %s" % [aspect, f, p])
 				if bad.size() >= 5:
 					return bad
@@ -594,3 +606,487 @@ func test_added_roof_parts_never_hide_the_tower_pads() -> void:
 	assert_eq(bad.size(), 0, "the added parts hide a tower pad that tier 1 leaves visible: %s" % [bad])
 	assert_gt(_new_occlusions([AABB(Vector3(-3.475, 3, -3.475), Vector3(0.95, 3.1, 0.95))], pts, 1.0, _tier1_boxes()).size(), 0, "the sweep detects a bad chimney")
 
+
+
+# ---- E5 tier-3 Task 19: the diner's second storey (D-268, the tier-3 camera ruling D-279) ----
+# The storey is the tier-3 silhouette change. Camera rule (D-279): (a1) at the portrait aspects the added parts never newly hide a
+# static point; (a2) at the landscape aspects only a point more than 10 m from the focus may be newly hidden; (a3) the Archer may be
+# hidden by an added part only where the building then fades (OccluderFade tests roof actors against the parts above the roof);
+# (b) ground the parts newly hide fades the building for an actor standing there; (c) nothing overhangs, the storey is set back
+# (|x|, |z| <= 3.0); (d) the top is at least 6.0 m (lantern posts included).
+
+const T3 := "res://art/env/baked/diner_t3.res"
+const T3Tool := preload("res://tools/make_diner_t3_src.gd")
+const DinerArtT3 := preload("res://art/env/diner_art_t3.gd")
+const PORTRAIT := [9.0 / 21.0, 9.0 / 16.0]
+const LANDSCAPE := [16.0 / 9.0, 21.0 / 9.0]
+const EXEMPT_DIST := 10.0
+
+func _top_y(mesh: ArrayMesh, only_new_vs: ArrayMesh = null) -> float:
+	var known := {}
+	if only_new_vs != null:
+		for v in _vertices(only_new_vs):
+			known[_key(v)] = true
+	var top := 0.0
+	for v in _vertices(mesh):
+		if not known.has(_key(v)):
+			top = maxf(top, v.y)
+	return top
+
+## Added vertices (not in the tier-1 mesh) above the terrace: inside the footprint; those above the roof cap inside the storey's
+## |x|, |z| <= 3.0 (set back from the 4.0 footprint); the measured count is the tool boxes' 24 vertices each minus the 12 that coincide with tier 1.
+func test_tier3_adds_nothing_outside_the_footprint_and_the_storey_is_set_back() -> void:
+	var t1 := {}
+	for v in _vertices(load(T1) as ArrayMesh):
+		t1[_key(v)] = true
+	var added := 0
+	var above_cap := 0
+	for v in _vertices(load(T3) as ArrayMesh):
+		if v.y <= 0.02 or t1.has(_key(v)):
+			continue
+		added += 1
+		assert_lte(absf(v.x), 4.0 + 1e-3, "added vertex %s overhangs in x" % v)
+		assert_lte(absf(v.z), 4.0 + 1e-3, "added vertex %s overhangs in z" % v)
+		if v.y > ROOF_CAP_TOP + 1e-3:
+			above_cap += 1
+			# set back to |x|, |z| <= 3.0; the windows are 1 cm plates on the walls (3.01)
+			assert_lte(absf(v.x), 3.0 + 0.011, "storey vertex %s is not set back (x)" % v)
+			assert_lte(absf(v.z), 3.0 + 0.011, "storey vertex %s is not set back (z)" % v)
+	assert_eq(added, T3Tool.BOXES.size() * 24 - 12, "every tool box adds new vertices except 12 that coincide with tier 1")
+	assert_eq(above_cap, (T3Tool.BOXES.size() - 1) * 24 - 12, "every box but the roof cap stands above it, except the 12 bottom-ring vertices of the walls that sit at cap height")
+
+## (d): the top is the lamp cap at 6.08, clearly above tier 1's 5.1 m sign plank and tier 2's 4.6; the storey (walls and rim) ends at 5.10 and the short lantern at 5.38.
+func test_tier3_diner_is_within_the_triangle_budget() -> void:
+	var tris := _triangles(load(T3) as ArrayMesh)
+	gut.p("tier-3 diner triangles: %d (budget 12000)" % tris)
+	assert_lte(tris, ArtBudgets.budget_for("res://art/env/diner.tscn"))
+	assert_lte(tris, 12000)
+
+## The fade's roof-body offsets (literals: components must not depend on actors) are the guard's own heights relative to the aim point.
+func test_the_fade_roof_body_offsets_match_the_guard_constants() -> void:
+	assert_eq(OccluderFade.ROOF_BODY_OFFSETS, [0.3 - Guard.AIM_HEIGHT, 0.0, Guard.BAR_Y - Guard.AIM_HEIGHT], "feet + 0.3, the aim point, the head bar")
+
+func test_tier3_diner_is_clearly_taller_than_tiers_1_and_2() -> void:
+	var t1: ArrayMesh = load(T1)
+	var t2: ArrayMesh = load(T2)
+	var t3: ArrayMesh = load(T3)
+	assert_almost_eq(t1.get_aabb().end.y, 5.1, 0.01, "tier 1's sign plank is the tier-1 top")
+	assert_between(t3.get_aabb().end.y, 6.0, 6.2, "tier 3's top, lantern posts included (rule d)")
+	assert_gte(t3.get_aabb().end.y, t1.get_aabb().end.y + 0.9)
+	assert_gte(_top_y(t3, t1), _top_y(t2, t1) + 1.4, "the new top is well above what tier 2 added (4.6)")
+	var storey := DinerArtT3.ADDED_BOXES[0]
+	assert_almost_eq(storey.end.y, 5.10, 1e-3, "storey top (the first limit was about 5.178; with a 5 cm margin it is 5.10)")
+	assert_lte(storey.end.y, 5.10 + 1e-4)
+	assert_gte(storey.end.y - MapLayout.DINER_HEIGHT, 2.0, "still a storey of at least 2.0 m")
+	assert_almost_eq(DinerArtT3.ADDED_BOXES[2].end.y, 5.38, 1e-3, "the south-west lantern top (first limit about 5.544)")
+	assert_gte(DinerArtT3.ADDED_BOXES[1].end.y, 6.0, "the lamp tops the diner (rule d)")
+	for i in [0, 2, 3, 4]:
+		assert_lt(DinerArtT3.ADDED_BOXES[i].end.y, DinerArtT3.ADDED_BOXES[1].end.y, "the lamp is the highest part")
+	assert_gte(storey.end.y - MapLayout.DINER_HEIGHT, 2.0 - 1e-3, "a storey at least 2.0 m above the roof")
+	assert_gte(storey.size.x * storey.size.z, 12.0, "a footprint of at least 12 m2")
+	for b in DinerArtT3.ADDED_BOXES:
+		assert_lte(b.end.y, 6.1)
+
+## The committed diner_t3_top.res is the tool's box list; every part samples its palette colour; gold and warm_white (the hero's) are absent.
+func test_tier3_baked_parts_match_the_tool_box_list_and_palette() -> void:
+	var m := load("res://art/env/src/diner_t3_top.res") as ArrayMesh
+	assert_eq(m.get_surface_count(), 1)
+	var arrays := m.surface_get_arrays(0)
+	var v := arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
+	var uvs := arrays[Mesh.ARRAY_TEX_UV] as PackedVector2Array
+	assert_eq(v.size(), T3Tool.BOXES.size() * 24)
+	var banned := [Palette.color(&"gold"), Palette.color(&"warm_white"), Palette.color(&"gold_dark"), Palette.color(&"steak_brown")]
+	var lantern_glass := 0
+	for i in T3Tool.BOXES.size():
+		var b: Array = T3Tool.BOXES[i]
+		var lo := Vector3(INF, INF, INF)
+		var hi := Vector3(-INF, -INF, -INF)
+		for k in 24:
+			lo = lo.min(v[i * 24 + k])
+			hi = hi.max(v[i * 24 + k])
+		var want_lo := Vector3(b[1] - b[4] / 2.0, b[2], b[3] - b[6] / 2.0)
+		var want_hi := Vector3(b[1] + b[4] / 2.0, b[2] + b[5], b[3] + b[6] / 2.0)
+		assert_true(lo.distance_to(want_lo) < 1e-4 and hi.distance_to(want_hi) < 1e-4, "part %d (%s) %s..%s, tool says %s..%s: rerun the tool and the bake" % [i, b[0], lo, hi, want_lo, want_hi])
+		var want_c := Palette.color(b[0])
+		for k in 24:
+			var c := _color_at(m, 0, uvs[i * 24 + k])
+			assert_lt(absf(c.r - want_c.r) + absf(c.g - want_c.g) + absf(c.b - want_c.b), 0.03, "part %d vertex %d samples %s, not %s" % [i, k, c, b[0]])
+			for bc in banned:
+				assert_gt(absf(c.r - bc.r) + absf(c.g - bc.g) + absf(c.b - bc.b), 0.03, "part %d wears a hero or reward colour" % i)
+		if b[0] == &"diner_cream" and b[2] >= 4.5 and b[4] < 0.3:
+			lantern_glass += 1
+	assert_eq(lantern_glass, 4, "four lantern glasses in the diner's trim colour (the atlas has no warm `dirt` texel)")
+
+## Tier 3 omits tier 1's sign plank and its two posts (the "DINER" label moves onto the storey's south wall) and adds nothing but
+## the terraces and the top mesh: allow-lists both ways.
+func test_tier3_source_copies_the_tier1_source_and_keeps_the_terraces() -> void:
+	var s1 := (load("res://art/env/src/diner_src.tscn") as PackedScene).instantiate() as Node3D
+	var s3 := (load("res://art/env/src/diner_t3_src.tscn") as PackedScene).instantiate() as Node3D
+	add_child_autofree(s1)
+	add_child_autofree(s3)
+	var omitted := ["sign_plank", "post_l", "post_r"]
+	var seen_omitted := 0
+	for c in s1.get_children():
+		var d := s3.get_node_or_null(NodePath(c.name)) as Node3D
+		if str(c.name) in omitted:
+			seen_omitted += 1
+			assert_null(d, "tier-3 source omits %s (it would hide the storey's south wall)" % c.name)
+			continue
+		assert_not_null(d, "tier-3 source has %s" % c.name)
+		if d != null:
+			assert_eq(d.transform, (c as Node3D).transform, "%s transform" % c.name)
+			assert_eq(d.scene_file_path, c.scene_file_path, "%s scene" % c.name)
+	assert_eq(seen_omitted, 3, "all three omitted names exist in the tier-1 source")
+	var extra := []
+	for c in s3.get_children():
+		if s1.get_node_or_null(NodePath(c.name)) == null:
+			extra.append(str(c.name))
+	extra.sort()
+	assert_eq(extra, ["terrace_e", "terrace_w", "top"], "tier 3 adds only the terraces and the top mesh")
+	assert_eq((s3.get_node("top") as MeshInstance3D).mesh.resource_path, "res://art/env/src/diner_t3_top.res")
+
+## The plank is gone from the bake and the "DINER" label sits on the storey's south wall, inside it and fitting its width.
+func test_tier3_sign_is_on_the_storey_wall_and_the_plank_is_gone() -> void:
+	var d := _inst("res://art/env/diner_t3.tscn")
+	for v in _vertices(_body(d).mesh as ArrayMesh):
+		if v.y > 3.45:
+			assert_lte(v.z, 3.05 + 1e-3, "vertex %s: nothing tall in front of the storey's south wall (the tier-1 plank stood at z 3.4 to 3.8)" % v)
+	var board := d.get_node("Board") as WorldLabel
+	assert_eq(board.text, tr("DINER"))
+	var storey := DinerArtT3.ADDED_BOXES[0]
+	assert_between(board.position.x, storey.position.x + 0.5, storey.end.x - 0.5, "centred on the wall")
+	assert_between(board.position.y, 3.5, 4.95, "on the wall, below the rim")
+	assert_between(board.position.z, 3.0, 3.2, "just in front of the south wall (z 3.0)")
+	assert_lte(board.get_aabb().size.x, 3.3, "the text fits the 3.5 m wall with a margin (font 90 unchanged)")
+	for b in d.occluder_boxes:
+		assert_ne(b, DinerArtT3.TIER1_PLANK_BOX, "the plank's occluder box is not part of tier 3")
+
+## The storey's roof is a lighter panel inside a wood_dark rim (a second roof at 40% scale), lower than the rim.
+func test_tier3_storey_roof_is_a_light_panel_inside_a_dark_rim() -> void:
+	var panel: Array = []
+	var rims: Array = []
+	for b in T3Tool.BOXES:
+		if b[2] == 4.95 and b[0] == &"diner_cream":
+			panel = b
+		elif b[2] == 4.95 and b[0] == &"wood_dark":
+			rims.append(b)
+	assert_eq(panel.size(), 7, "one cream roof panel")
+	assert_eq(rims.size(), 4, "four rim strips")
+	assert_almost_eq(panel[2] + panel[5], 5.05, 1e-4, "panel top")
+	for r in rims:
+		assert_almost_eq(r[2] + r[5], 5.10, 1e-4, "rim top is 5 cm above the panel")
+		assert_lte(absf(r[1] - panel[1]) - r[4] / 2.0, panel[4] / 2.0 + 1e-4)
+	assert_lt(Palette.color(&"wood_dark").v, Palette.color(&"diner_cream").v - 0.3, "light inside dark")
+
+## The surface under the Archer is the roof plus the cap, as at tier 2 (the storey and the lanterns stay away from the perch).
+func test_tier3_surface_under_the_archer_is_the_roof_plus_the_cap() -> void:
+	var p := MapLayout.guard_post(&"archer")
+	var top := -1.0
+	var m := load(T3) as ArrayMesh
+	for s in m.get_surface_count():
+		var arr := m.surface_get_arrays(s)
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		for t in idx.size() / 3:
+			var a := v[idx[t * 3]]
+			var b := v[idx[t * 3 + 1]]
+			var c := v[idx[t * 3 + 2]]
+			if (b - a).cross(c - a).y >= 0.0 or maxf(a.y, maxf(b.y, c.y)) >= 4.0:
+				continue
+			if _in_triangle_xz(p, a, b, c):
+				top = maxf(top, (a.y + b.y + c.y) / 3.0)
+	assert_between(top, MapLayout.DINER_HEIGHT - 0.01, MapLayout.DINER_HEIGHT + CAP_THICKNESS + 0.01, "the Archer stands on the roof (3.0) plus at most the cap")
+	for b in DinerArtT3.ADDED_BOXES:
+		var near := Rect2(Vector2(b.position.x, b.position.z), Vector2(b.size.x, b.size.z)).grow(0.5)
+		assert_false(near.has_point(p), "no raised part within 0.5 m of the perch")
+
+func test_tier3_tall_vertices_lie_inside_its_occluder_boxes_and_the_fade_covers_every_mesh() -> void:
+	var d := _inst("res://art/env/diner_t3.tscn")
+	var boxes: Array[AABB] = d.occluder_boxes
+	assert_eq(boxes.size(), 2 + DinerArtT3.ADDED_BOXES.size(), "the tier-1 walls and chimney boxes (the plank's is dropped) plus the storey and four lanterns")
+	var tall := 0
+	for v in _vertices(_body(d).mesh as ArrayMesh):
+		if v.y <= 3.45:
+			continue
+		tall += 1
+		var inside := false
+		for b in boxes:
+			if b.grow(0.05).has_point(v):
+				inside = true
+				break
+		assert_true(inside, "vertex %s above 3.45 is outside every tier-3 DinerArt box" % v)
+	assert_gt(tall, 0)
+	for b in DinerArtT3.ADDED_BOXES:
+		assert_lte(b.end.y, 6.1)
+		assert_lte(maxf(absf(b.position.x), maxf(absf(b.end.x), maxf(absf(b.position.z), absf(b.end.z)))), 4.0 + 1e-3)
+	# the fade's set: its boxes are the art's, and fading touches every MeshInstance3D of the building
+	var rig := _fade_rig("res://art/env/diner_t3.tscn")
+	var fade: OccluderFade = rig.fade
+	assert_eq(fade.boxes().size(), 7, "the fade's box count at tier 3: 2 tier-1 boxes, the storey and 4 lanterns")
+	rig.cam.global_transform = CameraMath.camera_transform(CameraMath.focus_for(Vector2(0, -4.6)), Balance.ui)
+	rig.targets.append(Vector3(0, 0.5, -4.6))
+	for i in 20:
+		fade._process(1.0 / 60.0)
+	assert_true(fade.is_faded())
+	var meshes: Array = rig.visual.find_children("*", "MeshInstance3D", true, false)
+	assert_gt(meshes.size(), 0)
+	for m in meshes:
+		for i in (m as MeshInstance3D).mesh.get_surface_count():
+			var mat := (m as MeshInstance3D).get_surface_override_material(i) as BaseMaterial3D
+			assert_not_null(mat, "%s surface %d is faded" % [m.name, i])
+			if mat != null:
+				assert_almost_eq(mat.albedo_color.a, Balance.ui.occluder_alpha, 1e-3)
+
+## A fade over a diner art scene with a real camera, as the world wires it (art child of the Visual, OccluderFade beside it).
+func _fade_rig(scene_path: String) -> Dictionary:
+	var vis := Visuals.visual_root()
+	add_child_autofree(vis)
+	vis.add_child((load(scene_path) as PackedScene).instantiate() as Node3D)
+	var cam := Camera3D.new()
+	add_child_autofree(cam)
+	var targets := []
+	var fade := OccluderFade.new()
+	vis.add_child(fade)
+	fade.setup(AABB(), func(): return cam, func(): return targets)
+	return {"fade": fade, "cam": cam, "targets": targets, "visual": vis}
+
+func _faded_at(rig: Dictionary, focus: Vector2, aim: Vector3) -> bool:
+	rig.cam.global_transform = CameraMath.camera_transform(CameraMath.focus_for(focus), Balance.ui)
+	rig.targets.clear()
+	rig.targets.append(aim)
+	return rig.fade._any_occluded(Balance.ui.occluder_grow)
+
+## Pad-like points (spots, branch pads, telegraph marker feet) at y 0.0 to 0.5 in 0.05 steps: the reviewer's slivers lay between the
+## old samples 0 and 0.5. `north_only` keeps the ones north of z = -3 (where the storey's shadow edge passes at the HOME framings).
+func _pad_points(north_only := false) -> Array:
+	var xzs := []
+	for id in MapLayout.spots_for_tier(3):
+		xzs.append(MapLayout.spot_position(id))  # tower pads and the fence spots' marker centres
+	for id in MapLayout.BRANCH_PADS:
+		xzs.append_array(MapLayout.BRANCH_PADS[id])
+	for lane in MapLayout.lanes_for_tier(3):
+		xzs.append(MapLayout.telegraph_spot(lane))  # north, west, east and sw telegraph marker feet
+	var pts := []
+	for xz in xzs:
+		if north_only and xz.y >= -3.0:
+			continue
+		for k in 11:
+			pts.append(MapLayout.to3(xz, k * 0.05))
+	return pts
+
+func _static_points_t3() -> Array:
+	var pts := _pad_points()
+	var spots := [MapLayout.SIGN, MapLayout.HOME, MapLayout.TIER_SIGNS[2], MapLayout.TIER_SIGNS[3], MapLayout.COUNTER, MapLayout.COUNTER_DROP,
+		MapLayout.FREEZER, MapLayout.FREEZER_ZONE, MapLayout.SERVICE_POINT, MapLayout.DINER_DOOR]
+	for xz in spots:
+		for y in [0.0, 0.5, 1.0, 1.95]:
+			pts.append(MapLayout.to3(xz, y))
+	for k in MapLayout.STATION_PADS:
+		for y in [0.0, 0.5]:
+			pts.append(MapLayout.to3(MapLayout.STATION_PADS[k], y))
+	return pts
+
+## The tier-3 building's own base boxes (the tier-1 walls and chimney, no plank): what is hidden by them anyway is not "new".
+func _t3_base_boxes() -> Array:
+	var out := (_inst("res://art/env/diner_t3.tscn").occluder_boxes as Array).duplicate()
+	for b in DinerArtT3.ADDED_BOXES:
+		out.erase(b)
+	return out
+
+## The foci where the storey's shadow edge passes a pad at the portrait framings (focus z 6.5 to 8.0, every 0.05; x every 0.1).
+func _fine_foci() -> Array:
+	var out := []
+	var x := CameraMath.FOCUS_MIN.x
+	while x <= CameraMath.FOCUS_MAX.x + 1e-6:
+		var z := 6.5
+		while z <= 8.0 + 1e-6:
+			out.append(Vector2(x, z))
+			z += 0.05
+		x += 0.1
+	return out
+
+func _grown(boxes: Array, by: float) -> Array:
+	var out := []
+	for b in boxes:
+		out.append((b as AABB).grow(by))
+	return out
+
+## (a1) portrait: strict, every focus on a 1 m grid; the Archer included (feet + 0.3, aim, head). Static points are sampled every
+## 5 cm of height (0 to 0.5) and a fine second pass walks the focus band where the shadow edge passes.
+func test_tier3_parts_hide_no_static_point_at_portrait_aspects() -> void:
+	var t0 := Time.get_unix_time_from_system()
+	var pts := _static_points_t3()
+	pts.append_array(_archer_points())
+	var base := _t3_base_boxes()
+	var bad := _new_occlusions(DinerArtT3.ADDED_BOXES, pts, 1.0, base, PORTRAIT)
+	assert_eq(bad.size(), 0, "the tier-3 parts newly hide a static point at a portrait aspect: %s" % [bad])
+	# the Archer is strict even against the base building (the filter above would excuse his feet point)
+	assert_eq(_new_occlusions(DinerArtT3.ADDED_BOXES, _archer_points(), 1.0, [], PORTRAIT).size(), 0, "the Archer is never hidden at a portrait aspect")
+	var t1 := Time.get_unix_time_from_system()
+	var fine := _new_occlusions(DinerArtT3.ADDED_BOXES, _pad_points(true), 1.0, base, PORTRAIT, INF, {}, _fine_foci())
+	assert_eq(fine.size(), 0, "fine pass: a part hides a pad sliver at a portrait aspect: %s" % [fine])
+	var t2 := Time.get_unix_time_from_system()
+	# a margin: every added box grown by 5 cm still hides nothing (coarse and fine)
+	var grown_bad := _new_occlusions(_grown(DinerArtT3.ADDED_BOXES, 0.05), pts, 1.0, base, PORTRAIT)
+	assert_eq(grown_bad.size(), 0, "with every added box grown by 5 cm a static point is hidden (no margin): %s" % [grown_bad])
+	var grown_fine := _new_occlusions(_grown(DinerArtT3.ADDED_BOXES, 0.05), _pad_points(true), 1.0, base, PORTRAIT, INF, {}, _fine_foci())
+	assert_eq(grown_fine.size(), 0, "fine pass with 5 cm grown boxes: %s" % [grown_fine])
+	gut.p("portrait sweep: coarse %.1f s, fine %.1f s, grown %.1f s" % [t1 - t0, t2 - t1, Time.get_unix_time_from_system() - t2])
+	# positive control: a part the scan rejected: a roof lantern on the north-east corner hides the fence_n and branch pads
+	var ne_roof_lantern := AABB(Vector3(0.66, 5.2, -0.5), Vector3(0.34, 0.5, 0.34))
+	assert_gt(_new_occlusions([ne_roof_lantern], pts, 1.0, base, PORTRAIT).size(), 0, "the sweep detects a rejected lantern")
+
+## The reviewer's three slivers, which the old heights (rim 5.2, south-west lantern top 5.67) hid between the sampled pad heights 0
+## and 0.5 at the 9:16 framing. Each is hidden by the OLD box and by none of the current ones. Mutation: put the old heights back.
+func test_tier3_regression_slivers_the_old_heights_hid() -> void:
+	var old_rim := AABB(Vector3(-2.5, 3.03, -0.5), Vector3(3.5, 2.17, 3.5))              # top 5.2
+	var old_lantern := AABB(Vector3(-2.5, 5.2, 2.66), Vector3(0.34, 0.47, 0.34))        # top 5.67
+	var cases := [
+		["above the fence_w pad", Vector2(3.70, 7.78), Vector3(-6.1, 0.35, -6.1), old_lantern],
+		["above a fence_n pad", Vector2(-5.0, 8.0), Vector3(2.5, 0.16, -10.4), old_rim],
+		["the north telegraph marker's foot", Vector2(0.0, 8.0), Vector3(0.0, 0.0, -10.7), old_rim],
+	]
+	assert_lt(MapLayout.to3(MapLayout.telegraph_spot("north")).distance_to(Vector3(0, 0, -10.7)), 1e-3, "the third point is the north telegraph marker")
+	for c in cases:
+		var xf := CameraMath.camera_transform(CameraMath.focus_for(c[1]), Balance.ui)
+		assert_true((c[3] as AABB).intersects_segment(xf.origin, c[2]) != null, "%s: the old box hides it" % c[0])
+		assert_false(_blocked(DinerArtT3.ADDED_BOXES, xf.origin, c[2]), "%s: no current part hides it" % c[0])
+		assert_false(_blocked(_grown(DinerArtT3.ADDED_BOXES, 0.05), xf.origin, c[2]), "%s: nor with a 5 cm margin" % c[0])
+
+## (a2) landscape: a static point may be newly hidden only farther than 10 m from the focus; the exempted pairs are counted.
+func test_tier3_parts_hide_no_static_point_within_10_m_at_landscape_aspects() -> void:
+	var pts := _static_points_t3()
+	var stats := {}
+	var bad := _new_occlusions(DinerArtT3.ADDED_BOXES, pts, 1.0, _t3_base_boxes(), LANDSCAPE, EXEMPT_DIST, stats)
+	gut.p("landscape exemption: %d pairs hidden beyond %.0f m, nearest %.2f m" % [stats["exempt"], EXEMPT_DIST, stats["nearest"]])
+	assert_eq(bad.size(), 0, "the tier-3 parts hide a static point within 10 m of the focus at a landscape aspect: %s" % [bad])
+	assert_gt(float(stats["nearest"]), 13.0, "no exempted pair is within 13 m (measured nearest 13.07 m; none is within the 10 m rule)")
+	assert_gt(int(stats["exempt"]), 0, "the exemption is live: some far pads are hidden at landscape")
+	# positive control: a 3 m storey (top 6.03) hides pads within 10 m of the focus at a landscape aspect
+	var too_tall := AABB(Vector3(-2.5, 3.03, -0.5), Vector3(3.5, 3.0, 3.5))
+	assert_gt(_new_occlusions([too_tall], pts, 1.0, _t3_base_boxes(), LANDSCAPE, EXEMPT_DIST).size(), 0, "the sweep detects a storey that is too tall")
+
+## The Archer's feet + 0.3, aim and head, at every aspect and focus: the pairs an added part hides him in.
+func _archer_hidden_pairs(added: Array, aspects: Array, step: float) -> Array:
+	var out := []
+	var pts := _archer_points()
+	for aspect in aspects:
+		var proj := CameraMath.projection(Balance.ui, aspect)
+		for f in _foci(step):
+			var xf := CameraMath.camera_transform(CameraMath.focus_for(f), Balance.ui)
+			for p in pts:
+				if _blocked(added, xf.origin, p) and CameraMath.on_screen(p, xf, proj):
+					out.append([aspect, f, p])
+					break
+	return out
+
+## (a3) wherever an added part hides the Archer (any of his three points) the building fades for him, through the fade component
+## (an actor standing on the roof is tested against the parts above it); portrait never hides him.
+func test_tier3_where_the_storey_hides_the_archer_the_building_fades() -> void:
+	var rig := _fade_rig("res://art/env/diner_t3.tscn")
+	var feet := MapLayout.to3(MapLayout.guard_post(&"archer"), MapLayout.DINER_HEIGHT)
+	var aim := feet + Vector3(0, Guard.AIM_HEIGHT, 0)
+	assert_eq(_archer_hidden_pairs(DinerArtT3.ADDED_BOXES, PORTRAIT, 1.0).size(), 0, "portrait: he is never hidden")
+	var pairs := _archer_hidden_pairs(DinerArtT3.ADDED_BOXES, LANDSCAPE, 1.0)
+	gut.p("Archer hidden by an added part at landscape: %d (aspect, focus) pairs" % pairs.size())
+	assert_gt(pairs.size(), 0, "the test is live: at landscape the storey does hide him from far-west / south foci")
+	var unfaded := []
+	var per_aspect := {}
+	for pr in pairs:
+		if not _faded_at(rig, pr[1], aim):
+			unfaded.append("aspect %.2f focus %s point %s" % [pr[0], pr[1], pr[2]])
+		per_aspect[pr[0]] = int(per_aspect.get(pr[0], 0)) + 1
+	assert_eq(unfaded.size(), 0, "the Archer is hidden with no fade: %d pairs, first %s" % [unfaded.size(), unfaded.slice(0, 5)])
+	# the real path: _process fades the building (not just the predicate) for a sample of such foci at each aspect
+	for aspect in per_aspect:
+		var n := 0
+		for pr in pairs:
+			if pr[0] != aspect or n >= 3:
+				continue
+			n += 1
+			rig.fade._alpha = 1.0
+			rig.fade._apply()
+			assert_true(_faded_at(rig, pr[1], aim))
+			for i in 20:
+				rig.fade._process(1.0 / 60.0)
+			assert_true(rig.fade.is_faded(), "aspect %.2f focus %s: the building fades and the Archer is visible through it" % [aspect, pr[1]])
+	# positive control: with the roof-part check disabled he is hidden and nothing fades
+	rig.fade._roof_boxes.clear()
+	var silent := 0
+	for pr in pairs:
+		if not _faded_at(rig, pr[1], aim):
+			silent += 1
+	assert_eq(silent, pairs.size(), "without the roof-part boxes the Archer is hidden with no fade in every one of the %d pairs" % pairs.size())
+
+## Wherever the Archer is on screen at a portrait aspect, he alone never fades the building (the sweep says no part hides him there).
+func test_tier3_the_archer_alone_does_not_fade_the_building_at_portrait_aspects() -> void:
+	var rig := _fade_rig("res://art/env/diner_t3.tscn")
+	var feet := MapLayout.to3(MapLayout.guard_post(&"archer"), MapLayout.DINER_HEIGHT)
+	var checked := 0
+	for aspect in PORTRAIT:
+		var proj := CameraMath.projection(Balance.ui, aspect)
+		for f in _foci(1.0):
+			var xf := CameraMath.camera_transform(CameraMath.focus_for(f), Balance.ui)
+			if not CameraMath.on_screen(feet + Vector3(0, 1.0, 0), xf, proj):
+				continue
+			checked += 1
+			assert_false(_faded_at(rig, f, feet + Vector3(0, Guard.AIM_HEIGHT, 0)), "the Archer alone fades the diner at aspect %.2f focus %s" % [aspect, f])
+	assert_gt(checked, 100)
+
+## Tiers 1 and 2: the fade never triggers on the Archer alone, at any focus and aspect (they have no parts the Archer can hide behind).
+func test_tier2_and_tier1_fade_never_triggers_on_the_archer_alone() -> void:
+	var feet := MapLayout.to3(MapLayout.guard_post(&"archer"), MapLayout.DINER_HEIGHT)
+	for path in ["res://art/env/diner.tscn", "res://art/env/diner_t2.tscn"]:
+		var rig := _fade_rig(path)
+		var checked := 0
+		for aspect in ASPECTS:
+			var proj := CameraMath.projection(Balance.ui, aspect)
+			for f in _foci(1.0):
+				for dy in [0.3, Guard.AIM_HEIGHT, Guard.BAR_Y]:
+					assert_false(_faded_at(rig, f, feet + Vector3(0, dy, 0)), "%s: the Archer alone fades the diner (aspect %.2f focus %s)" % [path, aspect, f])
+					checked += 1
+		assert_gt(checked, 1000)
+
+## (b) ground the added parts newly hide (0.5 m grid, y 0 / 0.5 / 1.0, out to 14 m, foci every 2 m, all four aspects) is not empty
+## and an actor standing on EVERY such point fades the building (seen from the focus that newly hides it). The set lies off to the
+## sides (x -14 to 13.5, z -10.5 to 2.5): none of it is in the north zone, on the north lane or on the west zone, where tier 1's walls
+## already hide everything the storey could; the test prints the nearest hidden point to each of those three places.
+func test_tier3_ground_the_storey_newly_hides_fades_the_building() -> void:
+	var added := DinerArtT3.ADDED_BOXES
+	var tier1 := _t3_base_boxes()
+	var rig := _fade_rig("res://art/env/diner_t3.tscn")
+	var hidden := {}  # Vector3 -> first focus that newly hides it
+	var pairs := 0
+	var t0 := Time.get_unix_time_from_system()
+	var ring := _ground_ring([0.0, 0.5, 1.0])
+	for aspect in ASPECTS:
+		var proj := CameraMath.projection(Balance.ui, aspect)
+		for f in _foci(2.0):
+			var xf := CameraMath.camera_transform(CameraMath.focus_for(f), Balance.ui)
+			for p in ring:
+				if _blocked(added, xf.origin, p) and CameraMath.on_screen(p, xf, proj) and not _blocked(tier1, xf.origin, p):
+					pairs += 1
+					if not hidden.has(p):
+						hidden[p] = f
+	gut.p("ground newly hidden by the tier-3 parts: %d points, %d (point, focus, aspect) pairs, %.1f s" % [hidden.size(), pairs, Time.get_unix_time_from_system() - t0])
+	assert_gt(hidden.size(), 0, "the storey is tall: it newly hides some ground (not empty)")
+	# every such ground point fades the building for an actor standing on it, seen from the focus that newly hides it
+	var silent := []
+	for p in hidden:
+		if not _faded_at(rig, hidden[p], p):
+			silent.append("%s from focus %s" % [p, hidden[p]])
+	assert_eq(silent.size(), 0, "ground the parts hide that does not fade the building: %s" % [silent.slice(0, 5)])
+	# the samples the author asked about: the hidden point nearest to the north zone's centre, the north lane and the west wall
+	var north_reach := 0.0
+	for p in hidden:
+		north_reach = minf(north_reach, p.z)
+	var names := {"north zone": Vector2(0, -4.6), "north lane": Vector2(0, -9.0), "west wall": Vector2(-4.6, 0.0)}
+	for n in names:
+		var best = null
+		for p in hidden:
+			if best == null or Vector2(p.x, p.z).distance_to(names[n]) < Vector2(best.x, best.z).distance_to(names[n]):
+				best = p
+		var d := Vector2(best.x, best.z).distance_to(names[n])
+		gut.p("nearest newly hidden ground to the %s: %s (%.1f m away), from focus %s" % [n, best, d, hidden[best]])
+		assert_true(_faded_at(rig, hidden[best], best), "an actor at %s fades the diner" % best)
+	gut.p("northmost newly hidden ground: z %.1f" % north_reach)

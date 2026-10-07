@@ -1,0 +1,17 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="ArrayMesh" path="res://art/env/baked/diner_t3.res" id="1_mesh"]
+[ext_resource type="Script" path="res://ui/world_label/world_label.gd" id="2_label"]
+[ext_resource type="Script" path="res://art/env/diner_art_t3.gd" id="3_art"]
+
+[node name="DinerArt" type="Node3D"]
+script = ExtResource("3_art")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_mesh")
+
+[node name="Board" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, 4.2, 3.05)
+script = ExtResource("2_label")
+text = "DINER"
+font_size = 90
