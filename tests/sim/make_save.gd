@@ -3,8 +3,10 @@ extends SceneTree
 ## night3_closeup.save.json (resume_phase DAY, day-peak reading) from a PlannerBot run (seed 20260930), using the
 ## close-up snapshot that precedes night 3. Run: "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/make_save.gd -- --fixture=day3_counter5|night3|tier|tier3
 ## `tier` (E5 spec 8.1) runs a TierBot from seed 20260930 to the first boss-night close-up and writes boss_night_tier1,
-## boss_only, tier2_night1, tier2_full and tier2_night. `tier3` (E5 tier 3, Task 23, schema 6) CONSTRUCTS its eight states from the committed
-## tier2_full fixture (no bot run; deterministic, byte-identical on every run: the script builds twice and compares) and writes
+## boss_only, tier2_night1, tier2_full and tier2_night. `tier3` (E5 tier 3, Task 23, schema 6) builds its eight states from the committed
+## tier2_full fixture and real play: fixtures 1, 2 and 5 (the Baron close-up, the same without yard towers, the cap night) come from a TierBot
+## run of about 155 s on seed 20260930; the others are constructed. The in-script "built twice" check proves the construction is pure; two runs
+## giving identical md5 prove the whole thing deterministic. It writes
 ## tier3_baron_full, tier3_baron_no_yard, tier3_baron_alone, tier3_night1 and tier3_cap_<all_a|all_b|mixed|threat>. `day3_counter5` writes only that fixture. `night3` rewrites the two night3 fixtures at the current schema and must
 ## not be used while they serve as schema-3 migration tests. No argument (or an unknown one) is a usage error.
 

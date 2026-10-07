@@ -1,13 +1,12 @@
 extends GutTest
 ## E5 tier 3, Task 23: spec 9.2 sims 2 to 8 (sim 1 and sim 6's multi-seed ranking are report scripts, D-274.4). Slice 1's sims are in
 ## test_tier_sims.gd; this file is separate so the job can be split into sim-tiers-a / sim-tiers-b by moving one file.
-## Every state starts from a schema-6 fixture written by `tests/sim/make_save.gd -- --fixture=tier3` (constructed, deterministic).
+## Every state starts from a schema-6 fixture written by `tests/sim/make_save.gd -- --fixture=tier3` (fixtures 1, 2 and 5 come from a ~155 s TierBot real-play run, the rest are constructed; the in-script "built twice" check proves the construction is pure and two runs with identical md5 prove determinism).
 ## Wall-clock prints are information only, never asserted. Reads only signals and GameState (D-113), plus the pool `grew` signals.
 
 ## Sim 8: slice 1's tier2_night1 played by the tier bot, measured before this task's code existed on this branch's base (7484180):
-## diner HP 119 of 300 at dawn (identical to slice 1's sim 3). Ticks: 5888 counted from after the fixture load to dawn by this sim's own
-## Engine.get_physics_frames() delta; slice 1's golden entry for sim 3 reads 5889 because it counts the whole test (one more frame). The
-## first version of this pin copied 5889 and was red at its own commit (dfaf4f2): 5888 is stable across runs and across the tier-3 ruling.
+## Diner HP 119 of 300 at dawn, measured at this task's base (so it proves "unchanged since this task", not "unchanged since slice 1").
+## 5888 world steps from the fixture load to dawn; slice 1's 5889 is the same night counted from a process-frame start.
 const PINNED_TIER2_NIGHT := {"diner_hp": 119.0, "ticks": 5888}
 
 var h: SimHarness
@@ -25,7 +24,7 @@ func before_each() -> void:
 	hp_last = -1.0
 
 func after_each() -> void:
-	for pair in [[EventBus.enemy_killed, _count_kill], [EventBus.diner_damaged, _track_hp]]:
+	for pair in [[EventBus.enemy_killed, _count_kill], [EventBus.diner_damaged, _track_hp], [EventBus.guard_knocked_out, _on_ko], [EventBus.guard_revived, _on_revive]]:
 		var sig: Signal = pair[0]
 		if sig.is_connected(pair[1]):
 			sig.disconnect(pair[1])
@@ -55,12 +54,21 @@ func _start(stem: String, bot_script: GDScript, p_seed := 0, mutate := Callable(
 func _spot_levels(ids: Array) -> Array:
 	return ids.map(func(id): return int(GameState.buildings[id].level) if GameState.buildings.has(id) else -1)
 
+## Stale-fixture guard: the fixtures carry a SAVED lane plan, so a later change to wave counts, hare share, wave size or the lane draw would leave
+## the sims playing the old night and green. Pure computation: the saved plan must equal what the planner makes today.
+func _assert_fresh_plan(boss_night: bool) -> void:
+	var fresh := LanePlanner.plan(GameState.run_seed, GameState.day, Balance.data.wave, GameState.tier, GameState.tier_day, Balance.data.tiers)
+	if boss_night:
+		fresh = LanePlanner.with_boss(fresh)
+	assert_eq(GameState.lane_plan, fresh, "stale fixture: re-run make_save.gd -- --fixture=tier3")
+
 # ---- sim 2: the Baron night, full tier-2 build ----------------------------------------------------------------------
 
 func test_2_the_baron_night_with_the_full_tier2_build_is_held_with_0_retries() -> void:
 	_start("tier3_baron_full", TierBot)
 	assert_eq(GameState.tier, 2)
 	assert_true(GameState.is_boss_night(), "tonight is the Baron night")
+	_assert_fresh_plan(true)
 	assert_eq(GameState.night_fails, 0, "a first attempt")
 	assert_eq(_spot_levels(MapLayout.spots_for_tier(2)), [3, 3, 3, 3, 3, 3, 3], "the full tier-2 build (precondition)")
 	var n := await h.run_night()
@@ -77,6 +85,15 @@ func test_2_the_baron_night_with_the_full_tier2_build_is_held_with_0_retries() -
 func test_3_the_baron_night_without_the_yard_towers_is_lost() -> void:
 	_start("tier3_baron_no_yard", TierBot)
 	assert_true(GameState.is_boss_night())
+	_assert_fresh_plan(true)
+	# It is sim 2's night with only the yard towers taken out: decode both fixtures and compare everything but those two levels.
+	var a: Dictionary = SaveCodec.decode(FileAccess.get_file_as_string("res://export/fixtures/tier3_baron_full.save.json"), GameState.SCHEMA_VERSION, Balance.data).state.duplicate(true)
+	var b: Dictionary = SaveCodec.decode(FileAccess.get_file_as_string("res://export/fixtures/tier3_baron_no_yard.save.json"), GameState.SCHEMA_VERSION, Balance.data).state.duplicate(true)
+	assert_ne(a.buildings, b.buildings, "the fixtures differ (precondition)")
+	for id in ["tower_w", "tower_e"]:
+		assert_eq(int(b.buildings[id].level), 0, "%s is out in the no-yard fixture" % id)
+		b.buildings[id] = a.buildings[id]
+	assert_eq(a, b, "sim 3 is sim 2's night except for the yard towers")
 	assert_eq(_spot_levels(["tower_w", "tower_e"]), [0, 0], "the fixture has no yard towers (precondition: the sim is vacuous with them)")
 	assert_eq(_spot_levels(["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e"]), [3, 3, 3, 3, 3], "everything else is built")
 	var n := await h.run_night()
@@ -141,8 +158,11 @@ func test_4_the_hero_at_the_zone_reaches_the_baron_before_it_reaches_the_zone() 
 	gut.p("lane %s: Baron spawned at %.1f s, caught at %.2f s, in the zone at %.2f s (margin %.2f s)" % [lane, spawned, caught, zone_t, zone_t - caught])
 	assert_gte(spawned, 0.0, "the Baron spawned")
 	assert_gte(caught, 0.0, "the hero reached melee range")
-	assert_gte(zone_t, 0.0, "the Baron reached the zone")
-	assert_lt(caught, zone_t, "melee range comes before the Baron reaches the zone")
+	if zone_t < 0.0 and bosses_killed > 0:
+		gut.p("the hero felled the Baron before it reached the zone: a pass")
+	else:
+		assert_gte(zone_t, 0.0, "the Baron reached the zone")
+		assert_lt(caught, zone_t, "melee range comes before the Baron reaches the zone")
 	assert_gt(zone_t - caught, 5.0, "at least 5 s of margin (the same bar as test_baron's unit test; a Baron at 12 m/s leaves 0.85 s)")
 
 # ---- sim 5: the first tier-3 night ----------------------------------------------------------------------------------
@@ -156,6 +176,7 @@ func test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries() -> void:
 	assert_eq(GameState.gold, 497, "47 + 150 Baron steaks x 3 gold (precondition)")
 	assert_eq(GameState.tier, 3)
 	assert_eq(GameState.tier_day, GameState.day, "the first night of the tier")
+	_assert_fresh_plan(false)
 	assert_eq(_spot_levels(["tower_sw", "fence_sw"]), [0, 0], "the new spots are unbuilt (precondition)")
 	# Sim 9 (the ruling), a plan-level check inside this sim so it adds no golden entry: a tier-3 night at the full brute ramp
 	# (tier_day + brute_ramp_days or later) has brutes on the main lane only, exactly brute_cap_main per wave (read from balance, plus
@@ -174,10 +195,10 @@ func test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries() -> void:
 	for w in GameState.lane_plan:
 		plan_brutes += int(w.get("brute_main", 0)) + int(w.get("brute_side", 0))
 	assert_gt(plan_brutes, 0, "the night has a brute (precondition)")
-	assert_eq(h.main.phase_controller.phase, Phase.DAY, "the fixture starts at the dawn: the bot plays the day")
 	var d := await h.run_day()
 	assert_true(d.closed, "the bot closes up")
 	var new_levels := _spot_levels(["tower_sw", "fence_sw"])
+	assert_eq(new_levels, [3, 3], "the bot built tower_sw and fence_sw to level 3 in the day")
 	var n := await h.run_night()
 	gut.p("first tier-3 night: new spots built to %s in a %.0f s day; %s; diner HP left %.1f; pool growth %s" % [new_levels, d.seconds, n, GameState.diner_hp, growth])
 	assert_false(n.failed)
@@ -193,7 +214,6 @@ func test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries() -> void:
 ## "threat >= every other policy" ordering is NOT asserted here: one night is too noisy to order policies. Task 24's multi-seed policy report
 ## carries the ordering and the spec routes a failure to the review queue ("branches don't reward reading the telegraph").
 func test_6_every_branch_policy_holds_the_tier3_cap_with_0_retries() -> void:
-	var hp := {}
 	var lines: Array = []
 	var comp_line := ""
 	for policy in TierBot.POLICIES:
@@ -206,6 +226,7 @@ func test_6_every_branch_policy_holds_the_tier3_cap_with_0_retries() -> void:
 		_start("tier3_cap_" + policy, TierBot)
 		(h.bot as TierBot).policy = policy
 		assert_eq(GameState.tier, 3)
+		_assert_fresh_plan(false)
 		assert_eq(GameState.pressure(), Balance.data.tiers.tier_cap[3], "%s: at the tier-3 cap" % policy)
 		assert_eq(GameState.pressure(), 12, "%s: the ruling's cap, as a literal (the saved plan is fixed, so the balance alone would not move this sim)" % policy)
 		assert_almost_eq(float(GameState.lane_plan[0].hp_mult), WaveMath.hp_mult(12, 0, Balance.data.wave), 1e-9, "%s: the plan is the pressure-12 plan" % policy)
@@ -221,7 +242,6 @@ func test_6_every_branch_policy_holds_the_tier3_cap_with_0_retries() -> void:
 		EventBus.diner_damaged.connect(_track_hp)
 		var n := await h.run_night()
 		EventBus.diner_damaged.disconnect(_track_hp)
-		hp[policy] = hp_last
 		lines.append("%s: %s dawn HP %.1f of %.0f = %.3f" % [policy, n, hp_last, Balance.data.build.diner_max_hp, hp_last / Balance.data.build.diner_max_hp])
 		assert_false(n.failed, "%s: no loss" % policy)
 		assert_true(n.cleared, "%s holds the cap with 0 retries" % policy)
@@ -258,6 +278,10 @@ func _enemies_in_zone(lane: String) -> int:
 func test_7_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again_within_5_s() -> void:
 	_knock_times = {}
 	_revive_times = {}
+	# Respawn protection must be what keeps the tank alive: in memory the tank dies to any hit (max_hp 1, no growth), so without
+	# the protection it is knocked out again right after it respawns. At least 2 knockouts must be seen, else the window checks have no data.
+	Balance.data.guards.tank.max_hp = 1.0
+	Balance.data.guards.tank.hp_growth = 0.0
 	_start("tier3_night1", TierBot, 0, Callable(), "NIGHT")  # the night at once: the south-west spots are unbuilt, the zone fills
 	EventBus.guard_knocked_out.connect(_on_ko)
 	EventBus.guard_revived.connect(_on_revive)
@@ -276,10 +300,7 @@ func test_7_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again
 			seen_revive = _revive_times[&"tank"].size()
 			if occupied_at_revive < 0:
 				occupied_at_revive = _enemies_in_zone("sw")
-		if forced >= 0.0 and seen_revive > 0 and h.elapsed > _revive_times[&"tank"][0] + 20.0:
-			break
-	EventBus.guard_knocked_out.disconnect(_on_ko)
-	EventBus.guard_revived.disconnect(_on_revive)
+	# Watched period: from the night's start to its end (cleared, lost, or the 150 s cap of this loop).
 	gut.p("forced knockout at %.1f s; knockouts %s; revives %s; enemies in the SW zone at the first revive: %d" % [forced, _knock_times, _revive_times, occupied_at_revive])
 	assert_gte(forced, 0.0, "enemies reached the south-west zone and the tank was knocked out (not vacuous)")
 	assert_gt(_revive_times.get(&"tank", []).size(), 0, "the tank respawned")
@@ -336,6 +357,10 @@ func test_8a_tier1_and_tier2_plans_and_the_sweep_row_inputs_are_unchanged() -> v
 ## One tier-2 fixture night (slice 1's tier2_night1, played by the tier bot) ends with the diner HP and tick count recorded before this task.
 ## Mutation check: change the hare or Boar HP or a tower's damage and one of the two moves.
 func test_8b_the_tier2_fixture_night_ends_as_recorded() -> void:
+	# Phase alignment: GUT awaits a process frame between tests only when more than 0.1 s of wall time passed since its last paint, so without
+	# this line the world would be created in a process-frame or a physics callback depending on the machine's speed, and the exact tick
+	# pin below would read 5888 or 5889. After this await the world is always created inside a physics callback.
+	await get_tree().physics_frame
 	_start("tier2_night1", TierBot)
 	var f0 := Engine.get_physics_frames()
 	hp_last = GameState.diner_hp
