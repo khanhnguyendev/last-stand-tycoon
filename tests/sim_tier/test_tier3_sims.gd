@@ -145,8 +145,13 @@ func test_4_the_hero_at_the_zone_reaches_the_baron_before_it_reaches_the_zone() 
 
 # ---- sim 5: the first tier-3 night ----------------------------------------------------------------------------------
 
+## The real flow is dawn reveal, card pick, a day, then the night, so the fixture starts at the DAY of the first tier-3 night. Its gold,
+## 497, is the 47 the tier-2 run left plus the Baron's 150 steaks sold at 3 gold each (make_save.gd); it pays tower_sw (40+80+160) and
+## fence_sw (20+40+80) to level 3, which the bot buys in the day.
 func test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries() -> void:
 	_start("tier3_night1", TierBot)
+	assert_eq(h.main.phase_controller.phase, Phase.DAY, "the fixture loads in the DAY (precondition)")
+	assert_eq(GameState.gold, 497, "47 + 150 Baron steaks x 3 gold (precondition)")
 	assert_eq(GameState.tier, 3)
 	assert_eq(GameState.tier_day, GameState.day, "the first night of the tier")
 	assert_eq(_spot_levels(["tower_sw", "fence_sw"]), [0, 0], "the new spots are unbuilt (precondition)")
