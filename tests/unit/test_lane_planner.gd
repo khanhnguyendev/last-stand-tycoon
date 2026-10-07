@@ -150,3 +150,167 @@ func test_threat_counts_hares_and_the_boss() -> void:
 	var boss := LanePlanner.threat_by_lane(LanePlanner.with_boss(LanePlanner.plan(555, 7, wb, 1, 1, tb)), Balance.data.enemy.hp)
 	var lane: String = LanePlanner.plan(555, 7, wb, 1, 1, tb)[2].main
 	assert_gt(boss[lane], plain[lane], "the boss raises its lane's threat")
+
+# ---- E5 tier 3, Task 6: four lanes, brutes, compositions ----
+
+const FIXTURE := "res://tests/fixtures/plans_tier12.json"
+const OLD_KEYS := ["main", "side", "main_count", "side_count", "hp_mult", "fast_main", "fast_side", "boss"]
+
+func _fixture() -> Dictionary:
+	var f := FileAccess.open(FIXTURE, FileAccess.READ)
+	assert_not_null(f, "fixture exists")
+	return JSON.parse_string(f.get_as_text())
+
+## The oracle is the committed JSON, captured from the code BEFORE this task (tools/make_plans_fixture.gd).
+func test_tier1_and_2_plans_equal_the_pre_task_fixture() -> void:
+	var fx: Dictionary = _fixture()["plans"]
+	assert_eq(fx.size(), 84)
+	var tb := Balance.data.tiers
+	for key in fx:
+		var parts: PackedStringArray = String(key).split(":")
+		var tier := int(parts[1])
+		var p := LanePlanner.plan(int(parts[0]), int(parts[2]), wb, tier, 1 if tier == 1 else 8, tb)
+		var want: Array = fx[key]
+		assert_eq(p.size(), want.size(), key)
+		for w in want.size():
+			for k in OLD_KEYS:
+				if k == "hp_mult":
+					assert_almost_eq(float(p[w][k]), float(want[w][k]), 1e-9, "%s wave %d hp_mult" % [key, w])
+				elif k in ["main", "side"]:
+					assert_eq(p[w][k], want[w][k], "%s wave %d %s" % [key, w, k])
+				elif k == "boss":
+					assert_eq(p[w][k], want[w][k], "%s wave %d boss" % [key, w])
+				else:
+					assert_eq(int(p[w][k]), int(want[w][k]), "%s wave %d %s" % [key, w, k])
+			assert_eq([p[w].get("brute_main", 0), p[w].get("brute_side", 0)], [0, 0], "%s wave %d no brutes below tier 3" % [key, w])
+			assert_eq(p[w].keys().size(), OLD_KEYS.size(), "%s wave %d: the same keys as before" % [key, w])
+
+func test_lanes_for_tier() -> void:
+	assert_eq(LanePlanner.LANES, ["west", "north", "east"] as Array[String])
+	for t in [1, 2]:
+		assert_eq(LanePlanner.lanes_for_tier(t), LanePlanner.LANES)
+	assert_eq(LanePlanner.lanes_for_tier(3), ["west", "north", "east", "sw"] as Array[String])
+	assert_eq(LanePlanner.lanes_for_tier(4), ["west", "north", "east", "sw"] as Array[String])
+
+func test_tier3_plan_uses_four_lanes_and_no_other_stream() -> void:
+	var tb := Balance.data.tiers
+	var names: Array[StringName] = [&"spawns", &"travelers", &"drops", &"cards"]
+	var seen := {}
+	var main_seen := {}
+	for seed in range(1, 60):
+		for day in [22, 23, 26]:
+			var before := {}
+			for n in names:
+				var r := Rng.stream(seed, day, n)
+				before[n] = [r.randi(), r.randi(), r.randi()]
+			var p := LanePlanner.plan(seed, day, wb, 3, 22, tb)
+			for n in names:
+				var r := Rng.stream(seed, day, n)
+				assert_eq([r.randi(), r.randi(), r.randi()], before[n], "stream %s unchanged (seed %d day %d)" % [n, seed, day])
+			for w in p:
+				assert_true(w.main in LanePlanner.lanes_for_tier(3))
+				assert_ne(w.side, w.main)
+				main_seen[w.main] = true
+				seen[w.main] = true
+				if w.side != "":
+					assert_true(w.side in LanePlanner.lanes_for_tier(3))
+					seen[w.side] = true
+	assert_eq(seen.size(), 4, "sw and the three old lanes all appear")
+	assert_true(main_seen.has("sw"))
+
+## The lane_plan stream is consumed with the same call pattern: one main draw per wave, one side draw when it has one.
+func test_tier3_lanes_follow_the_four_lane_oracle() -> void:
+	var lanes := ["west", "north", "east", "sw"]
+	var tb := Balance.data.tiers
+	var p := LanePlanner.plan(555, 24, wb, 3, 22, tb)
+	var rng := Rng.stream(555, 24, &"lane_plan")
+	for w in p.size():
+		var main: String = lanes[rng.randi_range(0, 3)]
+		var others: Array = lanes.filter(func(l): return l != main)
+		var side: String = others[rng.randi_range(0, others.size() - 1)]
+		assert_eq([p[w].main, p[w].side], [main, side], "wave %d" % w)
+
+## Brute rule (doc comment of TierEffects.brute_counts): d = day - tier_day; the last d + 1 waves carry the cap on their
+## main lane until d reaches brute_ramp_days; from then on every wave does, and side lanes get brute_cap_side.
+func test_brute_counts_every_day_of_the_ramp() -> void:
+	var tb := Balance.data.tiers
+	assert_eq([tb.brute_cap_main[3], tb.brute_cap_side[3], tb.brute_ramp_days[3]], [1, 1, 3])
+	var main_by_day := {
+		22: [0, 0, 1], 23: [0, 1, 1], 24: [1, 1, 1], 25: [1, 1, 1], 30: [1, 1, 1],
+	}
+	var side_by_day := {22: [0, 0, 0], 23: [0, 0, 0], 24: [0, 0, 0], 25: [1, 1, 1], 30: [1, 1, 1]}
+	for day in main_by_day:
+		for w in 3:
+			var c := TierEffects.brute_counts(day, 3, 22, w, 3, true, tb)
+			assert_eq([c.main, c.side], [main_by_day[day][w], side_by_day[day][w]], "day %d wave %d" % [day, w])
+			var no_side := TierEffects.brute_counts(day, 3, 22, w, 3, false, tb)
+			assert_eq([no_side.main, no_side.side], [main_by_day[day][w], 0], "day %d wave %d without a side lane" % [day, w])
+
+func test_brute_counts_are_zero_below_tier_3() -> void:
+	var tb := Balance.data.tiers
+	for tier in [1, 2]:
+		for day in range(1, 25):
+			for w in 3:
+				assert_eq(TierEffects.brute_counts(day, tier, 1, w, 3, true, tb), {"main": 0, "side": 0})
+
+func test_tier3_plan_first_night_has_one_brute_on_the_last_main_lane() -> void:
+	var tb := Balance.data.tiers
+	for seed in [1, 2, 3, 555, 20260930]:
+		var p := LanePlanner.plan(seed, 22, wb, 3, 22, tb)
+		var total := 0
+		for w in p.size():
+			total += int(p[w].brute_main) + int(p[w].brute_side)
+		assert_eq(total, 1)
+		assert_eq([p[0].brute_main, p[1].brute_main, p[2].brute_main], [0, 0, 1])
+		assert_eq([p[0].brute_side, p[1].brute_side, p[2].brute_side], [0, 0, 0])
+		var full := LanePlanner.plan(seed, 25, wb, 3, 22, tb)
+		for w in full.size():
+			assert_eq([full[w].brute_main, full[w].brute_side], [1, 1 if full[w].side != "" else 0])
+			# brutes are added, not taken out of the groups
+			var s := WaveMath.split(WaveMath.pressure(25, 3, 22, tb), w, wb)
+			assert_eq([full[w].main_count, full[w].side_count], [int(s.main), int(s.side)])
+
+func test_threat_keys_per_tier_and_brute_hp() -> void:
+	var tb := Balance.data.tiers
+	var t12 := LanePlanner.threat_by_lane(LanePlanner.plan(555, 7, wb, 1, 1, tb), 30.0)
+	assert_eq(t12.keys(), ["west", "north", "east"])
+	var plan := [
+		{"main": "sw", "side": "west", "main_count": 2, "side_count": 1, "hp_mult": 2.0, "brute_main": 1, "brute_side": 1},
+		{"main": "north", "side": "", "main_count": 1, "side_count": 0, "hp_mult": 1.0},
+	]
+	var bhp: float = Balance.data.monsters.stats(&"brute").hp
+	var t := LanePlanner.threat_by_lane(plan, 30.0, 3)
+	assert_eq(t.keys().size(), 4)
+	assert_almost_eq(float(t.sw), 2 * 60.0 + bhp * 2.0, 0.001)
+	assert_almost_eq(float(t.west), 60.0 + bhp * 2.0, 0.001)
+	assert_almost_eq(float(t.north), 30.0, 0.001)
+	assert_almost_eq(float(t.east), 0.0, 0.001)
+
+func test_composition_by_lane_sums_equal_the_counts() -> void:
+	var tb := Balance.data.tiers
+	var p := LanePlanner.with_boss(LanePlanner.plan(555, 25, wb, 3, 22, tb))
+	var comp := LanePlanner.composition_by_lane(p, 3)
+	assert_eq(comp.keys(), ["west", "north", "east", "sw"])
+	var want := {"west": [0, 0, 0, 0], "north": [0, 0, 0, 0], "east": [0, 0, 0, 0], "sw": [0, 0, 0, 0]}
+	for w in p:
+		var m: Array = want[w.main]
+		m[0] += int(w.main_count) - int(w.fast_main)
+		m[1] += int(w.fast_main)
+		m[2] += int(w.brute_main)
+		if bool(w.boss):
+			m[3] += 1
+		if w.side != "":
+			var s: Array = want[w.side]
+			s[0] += int(w.side_count) - int(w.fast_side)
+			s[1] += int(w.fast_side)
+			s[2] += int(w.brute_side)
+	for lane in comp:
+		assert_eq([comp[lane].boar, comp[lane].hare, comp[lane].brute, comp[lane].boss], want[lane], lane)
+	var grand := 0
+	for lane in comp:
+		grand += int(comp[lane].boar) + int(comp[lane].hare) + int(comp[lane].brute) + int(comp[lane].boss)
+	var expected := 1
+	for w in p:
+		expected += int(w.main_count) + int(w.side_count) + int(w.brute_main) + int(w.brute_side)
+	assert_eq(grand, expected)
+	assert_eq(LanePlanner.composition_by_lane(LanePlanner.plan(555, 7, wb, 1, 1, tb)).keys(), ["west", "north", "east"], "default tier 1: three lanes")
