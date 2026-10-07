@@ -1,0 +1,22 @@
+RUN seed policy | nights retry_nights min median mean fences_lost_mean branches branch_gold unspent_last_day hard_break_day
+RUN 20260930 all_a | 14 1 0.097 0.765 0.7101 1.14 20 6800 9849 -1
+RUN 20260930 all_b | 14 0 0.313 0.845 0.7626 2.07 31 10100 4729 -1
+RUN 20260930 mixed | 14 3 0.102 0.550 0.6091 1.79 27 8900 6489 -1
+RUN 20260930 threat | 14 0 0.313 0.938 0.8464 1.00 17 5900 11029 -1
+RUN 1 all_a | 11 0 0.083 0.753 0.6733 1.09 14 5000 8045 -1
+RUN 1 all_b | 11 0 0.533 0.867 0.8033 1.82 24 8000 3925 -1
+RUN 1 mixed | 11 1 0.037 0.700 0.5608 2.00 26 8600 3045 -1
+RUN 1 threat | 11 0 0.013 0.793 0.6797 1.27 19 6500 6125 -1
+RUN 2 all_a | 15 0 0.360 0.610 0.6327 1.27 18 6200 9107 -1
+RUN 2 all_b | 15 0 0.413 0.803 0.7351 1.87 27 8900 5147 -1
+RUN 2 mixed | 15 2 0.243 0.493 0.5029 1.80 26 8600 5587 -1
+RUN 2 threat | 15 0 0.300 0.807 0.7369 1.40 20 6800 8227 -1
+POLICY all_b mean_diner_points=76.7 retry_nights=0 (runs=3)
+POLICY threat mean_diner_points=75.4 retry_nights=0 (runs=3)
+POLICY all_a mean_diner_points=67.2 retry_nights=1 (runs=3)
+POLICY mixed mean_diner_points=55.8 retry_nights=6 (runs=3)
+RANKING all_b 76.7 > threat 75.4 > all_a 67.2 > mixed 55.8
+GAP 20.9 points (best minus worst)
+DOMINANT_BRANCH: yes (gap 20.9 points, threshold 15)
+THREAT_BEST: no (threat 75.4, best all_b 76.7)
+WALL 782 s (parallel=3, 12 runs started)

@@ -1,0 +1,54 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+OVERRIDES none
+WARNING: BotBase stuck at (-6.352843, -4.496198) -> zone_west
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+WARNING: BotBase stuck at (-6.352843, -4.496198) -> zone_west
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked,stations,tier,boss_night,boss_retries,brute_kills,sw_waves,branches
+1,0.667,0,18,36,108,tower_nw:0|tower_ne:0|fence_w:0|fence_n:0|fence_e:0,18,77.1,109.3,8,tank:1,0,tank,counter:0|freezer:0,1,0,0,0,0,0
+2,0.983,0,24,48,144,tower_nw:1|tower_ne:1|fence_w:1|fence_n:0|fence_e:0,24,75.7,139.5,7,tank:2,0,tank,counter:0|freezer:1,1,0,0,0,0,0
+3,0.800,0,31,62,186,tower_nw:1|tower_ne:2|fence_w:1|fence_n:1|fence_e:1,31,88.6,161.9,3,archer:1|tank:2,0,archer,counter:1|freezer:1,1,0,0,0,0,0
+4,0.967,0,36,72,216,tower_nw:2|tower_ne:2|fence_w:2|fence_n:1|fence_e:1,36,85.1,141.9,39,archer:2|tank:2,0,archer,counter:1|freezer:1,1,0,0,0,0,0
+5,1.000,0,43,86,258,tower_nw:3|tower_ne:2|fence_w:2|fence_n:1|fence_e:1,43,87.6,168.4,17,archer:3|tank:2,0,archer,counter:1|freezer:1,1,0,0,0,0,0
+6,1.000,0,50,100,300,tower_nw:3|tower_ne:3|fence_w:2|fence_n:3|fence_e:1,50,89.3,195.6,7,archer:4|tank:2,0,archer,counter:2|freezer:2,1,0,0,0,0,0
+7,1.000,0,56,112,448,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,95.0,177.5,35,gold_per_steak:1|archer:4|tank:2,0,gold_per_steak,counter:3|freezer:4,1,0,0,0,0,0
+8,1.000,0,56,112,448,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,93.6,141.1,243,gold_per_steak:1|archer:4|tank:3,0,tank,counter:4|freezer:4,1,0,0,0,0,0
+9,0.883,0,56,112,448,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,99.8,144.1,11,gold_per_steak:1|archer:4|tank:4,0,tank,counter:4|freezer:5,1,0,0,0,0,0
+10,1.000,0,56,112,448,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,97.5,118.3,459,gold_per_steak:1|archer:5|tank:4,0,archer,counter:4|freezer:5,1,0,0,0,0,0
+11,0.917,0,56,112,448,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,56,96.3,130.2,267,gold_per_steak:1|archer:5|tank:5,0,tank,counter:4|freezer:5,1,0,0,0,0,0
+12,0.500,0,57,212,848,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3,57,127.0,297.0,275,hero_damage:1|gold_per_steak:1|archer:5|tank:5,1,hero_damage,counter:4|freezer:5,1,1,0,0,0,0
+13,1.000,0,63,126,504,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3,63,87.4,158.5,159,hero_damage:1|attack_speed:1|gold_per_steak:1|archer:5|tank:5,0,attack_speed,counter:5|freezer:5,2,0,0,0,0,0
+14,0.520,0,68,136,544,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3,68,91.4,138.0,563,hero_damage:2|attack_speed:1|gold_per_steak:1|archer:5|tank:5,0,hero_damage,counter:5|freezer:5,2,0,0,0,0,0
+15,0.800,0,72,144,576,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3,72,94.0,151.7,999,hero_damage:2|attack_speed:2|gold_per_steak:1|archer:5|tank:5,0,attack_speed,counter:5|freezer:5,2,0,0,0,0,0
+16,1.000,0,72,144,576,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3,72,90.1,138.1,75,hero_damage:3|attack_speed:2|gold_per_steak:1|archer:5|tank:5,0,hero_damage,counter:5|freezer:5,2,0,0,0,0,0
+17,0.520,0,73,294,1176,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3,73,97.9,295.0,31,hero_damage:4|attack_speed:2|gold_per_steak:1|archer:5|tank:5,0,hero_damage,counter:5|freezer:5,2,1,0,0,0,2
+18,0.443,0,79,164,656,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:0|tower_w:3|tower_e:3|tower_sw:3|fence_sw:3,78,106.9,181.1,267,hero_damage:5|attack_speed:2|gold_per_steak:1|archer:5|tank:5,0,hero_damage,counter:5|freezer:5,3,0,0,1,1,0
+19,0.610,0,80,172,860,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3|tower_sw:3|fence_sw:3,78,120.9,196.1,47,hero_damage:5|attack_speed:2|gold_per_steak:2|archer:5|tank:5,0,gold_per_steak,counter:5|freezer:5,3,0,0,2,1,2
+20,0.300,0,81,180,900,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:0|tower_w:3|tower_e:3|tower_sw:3|fence_sw:3,78,125.5,208.0,227,hero_damage:5|attack_speed:3|gold_per_steak:2|archer:5|tank:5,1,attack_speed,counter:5|freezer:5,3,0,0,3,2,1
+21,0.540,0,81,180,900,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3|tower_sw:3|fence_sw:3,78,118.5,204.9,247,hero_damage:5|attack_speed:4|gold_per_steak:2|archer:5|tank:5,0,attack_speed,counter:5|freezer:5,3,0,0,3,1,2
+22,0.537,0,81,180,900,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3|tower_sw:3|fence_sw:3,78,121.5,207.3,67,hero_damage:5|attack_speed:5|gold_per_steak:2|archer:5|tank:5,0,attack_speed,counter:5|freezer:5,3,0,0,3,1,2
+23,0.553,0,81,180,1080,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3|tower_sw:3|fence_sw:3,78,117.5,172.6,207,hero_damage:5|attack_speed:5|gold_per_steak:3|archer:5|tank:5,0,gold_per_steak,counter:5|freezer:5,3,0,0,3,0,2
+24,0.807,0,81,180,1260,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3|tower_sw:3|fence_sw:3,78,116.6,186.0,227,hero_damage:5|attack_speed:5|gold_per_steak:4|archer:5|tank:5,0,gold_per_steak,counter:5|freezer:5,3,0,0,3,0,3
+25,0.947,0,81,180,1440,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3|tower_sw:3|fence_sw:3,78,121.6,187.2,1227,hero_damage:5|attack_speed:5|gold_per_steak:5|archer:5|tank:5,0,gold_per_steak,counter:5|freezer:5,3,0,0,3,0,1
+26,0.973,0,81,180,1440,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3|tower_sw:3|fence_sw:3,78,126.1,190.6,1787,hero_damage:5|attack_speed:5|carry_capacity:1|gold_per_steak:5|archer:5|tank:5,0,carry_capacity,counter:5|freezer:5,3,0,0,3,2,2
+27,0.973,0,81,180,1440,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3|tower_sw:3|fence_sw:3,78,138.6,171.5,2787,hero_damage:5|attack_speed:5|carry_capacity:2|gold_per_steak:5|archer:5|tank:5,0,carry_capacity,counter:5|freezer:5,3,0,0,3,2,1
+28,0.540,0,81,180,1440,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3|tower_sw:3|fence_sw:3,78,115.1,189.3,3787,hero_damage:5|attack_speed:5|carry_capacity:3|gold_per_steak:5|archer:5|tank:5,0,carry_capacity,counter:5|freezer:5,3,0,0,3,1,1
+29,0.887,0,81,180,1440,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3|tower_sw:3|fence_sw:3,78,126.0,170.4,4787,hero_damage:5|attack_speed:5|carry_capacity:4|gold_per_steak:5|archer:5|tank:5,0,carry_capacity,counter:5|freezer:5,3,0,0,3,2,1
+30,0.983,0,81,180,1440,tower_nw:3|tower_ne:3|fence_w:3|fence_n:3|fence_e:3|tower_w:3|tower_e:3|tower_sw:3|fence_sw:3,78,146.4,158.7,6227,hero_damage:5|attack_speed:5|carry_capacity:5|gold_per_steak:5|archer:5|tank:5,0,carry_capacity,counter:5|freezer:5,3,0,0,3,1,0
+SWEEP first_fail_day=-1 hard_break_day=-1 unspent_day14=563
+RETRIES days=30 median=0.0 max_before_day8=0 max=0 target_ok=true
+TIER first_tier2_day=13 boss_retries=0 cap_nights=3 cap_retries=0
+TIER3 nights=13 retry_nights=0 retries=0 cap_nights=13 cap_retry_nights=0 min_frac_held=0.300 median_frac_held=0.610
+TIER3_GATE tier3=on policy=threat events=70
+T3RUN seed=2 policy=threat nights=13 retry_nights=0 min=0.300 median=0.610 mean=0.6995 fences_lost_mean=1.54 branches=18 branch_gold=6200 unspent_last_day=6227 hard_break_day=-1
+LADDER plot_day=17 ladder_done_day=24 max_unspent_during_ladder=267 fence_rebuild_gold_median_at_cap=440 income_at_cap=1260
+UNSPENT_TARGET: PASS (max_unspent 267, limit 650, ladder complete)
