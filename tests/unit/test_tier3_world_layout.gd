@@ -5,7 +5,7 @@ extends GutTest
 const BAR_HALF_DEPTH := 0.5  ## the fence bar's half depth (test_yards.FENCE_BAR_HALF_WIDTH)
 const TRAVELER_RADIUS := 0.3  ## a traveler's body (test_branch_pad_layout.TRAVELER_RADIUS)
 ## The tier-2 kerb (west and east yards) and the default pad list, captured BEFORE Task 16 (27 pieces, 11 points).
-const TIER2_KERB_HASH := 1885942610
+const TIER2_KERB_HASH := 213422789  # of the positions quantized to 0.1 mm; the raw-byte hash 1885942610 (macOS) matched before Task 16 and still did when this was re-pinned
 const TIER2_PADS_HASH := 620547222
 ## The tier-2 terrain mesh (vertices, colours, indices), captured with the plot code in place but unused below tier 3.
 const TIER2_TERRAIN_HASHES := [156478229, 1564565559, 664459956]
@@ -192,11 +192,13 @@ func test_the_tier_3_sign_label_still_fits_the_old_shorter_text() -> void:
 
 # --- the kerb and the lot ---------------------------------------------------
 
+## Quantized to 0.1 mm before hashing: the raw float bytes of the rotated kerb pieces differ in the last bit between macOS (arm64)
+## and the Linux CI runner, so a byte hash pinned on one fails on the other.
 func _hash_transforms(xfs: Array) -> int:
-	var pts := PackedFloat32Array()
+	var pts := PackedInt32Array()
 	for xf in xfs:
 		for v in [xf.basis.x, xf.basis.y, xf.basis.z, xf.origin]:
-			pts.append_array(PackedFloat32Array([v.x, v.y, v.z]))
+			pts.append_array(PackedInt32Array([roundi(v.x * 10000.0), roundi(v.y * 10000.0), roundi(v.z * 10000.0)]))
 	return hash(pts.to_byte_array().hex_encode())
 
 func test_the_tier_2_kerb_and_pad_list_are_byte_identical() -> void:

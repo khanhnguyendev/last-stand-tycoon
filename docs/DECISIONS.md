@@ -2731,8 +2731,10 @@ cost-entry switch and the debug-only tier forcing.
   a pending or skipped test. The hull margin for pads north of a tower is 6.5 px (8 asked, 6.8 reachable). The stood
   stack may reach 3.2 screen-metres from its pad. The near-stage size floors hold up to 3.5 m; the 3.5 to 4.5 m band
   is exempt. To meet the 28 px cost floor at 3.45 m the cost text size went from 0.0123 to 0.0130, and the near
-  block's width cap from 1.2 to 1.25 m (the floor outranks the width heuristic). Pinned today: 7 on-pad findings
-  and 4 near-stage ones.
+  block's width cap from 1.2 to 1.25 m (the floor outranks the width heuristic). Pinned today: 10 on-pad findings
+  (station labels count as obstacles) and the near-stage ones, measured only from ground the hero can reach, from
+  HOME's side and from due south. The kerb hash in tests is taken on positions quantized to 0.1 mm: raw float
+  bytes differ between macOS and the Linux runner.
 - **Onboarding flag** for the pad pointer lives in `SettingsStore` (`branch_hint_done`), not in its own file.
 - **Reveal:** five steps at tier 3 (0.60, 0.95, 1.30, 1.65, 2.00 s; ends at 3.0 s). Branch pads are day-only, so
   they are not a step. A tap skips ANY reveal (tier 2 too) after a 0.6 s guard, so the player re-gripping the stick
