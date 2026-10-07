@@ -2606,3 +2606,19 @@ cost-entry switch and the debug-only tier forcing.
 5. **Next steps without further approval:** write and self-review the spec, write the plan (task graph, waves, D-136
    parallel rules, hot files wired by the main session), execute phases 1 to 4 with self-merges, stop at the end of
    phase 5 with the checkpoint pack `docs/review/E5_T3.md`. Stop earlier only for the standing stop conditions.
+
+**D-275 Rulings while writing the tier-3 spec (main session).**
+- **Longbow starts at 80 per shot every 1.8 s, not 45 per 1.0 s (changes a D-272 starting number).** With real hare HP
+  (about 40 at pressure 12, 46 at 15) the D-272.3 ordering "Longbow kills the fewest hares per second" fails at
+  pressure 12 with 45 per 1.0 s (it one-shots a hare, 1.0 per second, above the unbranched tower's 0.67). 80 per 1.8 s
+  gives 0.56 hares per second at both ends and single-target 44.4 per second (unbranched 36, Volley 20). Cost if
+  wrong: one balance value; the identity test pins the ordering either way.
+- **Brutes are added to a wave; they replace no Boar.** Their HP is in the lane threat and their steaks in the
+  economy. Cost if wrong: tier-3 nights are harder than the pressure alone says; the sims measure it.
+- **Debug forcing (reading of D-270.1).** `GameState.debug_set_tier` stays (tests, sims and tools use it) and clamps
+  to the top tier, so it cannot pass the switch. Forcing tier 3 before the switch exists only in the debug overlay
+  under `ui/debug/`, which the `deploy` job already proves absent from release and profile packs; a source-grep unit
+  test proves no other caller. Cost if wrong: the author wanted the function itself gone from release; that would
+  need the tier tests to stop using it.
+- **Spec path:** `docs/superpowers/specs/2026-10-07-e5-tier3-design.md`. Phase branches `e5/p6-growth`,
+  `e5/p7-t3-data`, `e5/p8-t3-night`, `e5/p9-t3-world`, `e5/p10-t3-proof`.
