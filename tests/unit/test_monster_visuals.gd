@@ -84,3 +84,15 @@ func test_boss_bar_shows_only_for_a_living_boss() -> void:
 	await get_tree().physics_frame
 	await get_tree().process_frame
 	assert_false(bar.visible)
+
+## E5 tier 3, Task 10: the siege brute is clearly bigger and heavier than the Boar, in budget, on palette.
+func test_brute_is_at_least_1_6x_the_boar_in_height_and_width() -> void:
+	var boar := BoarMesh.get_mesh(&"boar").get_aabb()
+	var brute := BoarMesh.get_mesh(&"brute").get_aabb()
+	assert_gte(brute.size.y, boar.size.y * 1.6, "height")
+	assert_gte(brute.size.x, boar.size.x * 1.6, "width")
+	assert_lte(brute.size.y, BoarMesh.get_mesh(&"boss").get_aabb().size.y * 0.85, "clearly smaller than the Boar King")
+	assert_ne(BoarMesh.params(&"brute").upper, BoarMesh.params(&"boss").upper, "not the King's back colour")
+	var king_back: Color = BoarMesh.params(&"boss").upper
+	assert_gt(BoarMesh.params(&"brute").upper.r, king_back.r, "a redder, lighter back than the King")
+	assert_ne(BoarMesh.params(&"brute").body_scale, BoarMesh.BODY_SCALE, "its own proportions, not a scaled Boar")
