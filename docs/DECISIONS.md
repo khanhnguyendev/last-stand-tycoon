@@ -2583,3 +2583,26 @@ cost-entry switch and the debug-only tier forcing.
    most), verified at 40% screenshot scale together with the per-kind telegraph counts.
 5. **Sounds and hint:** the brute and the boss reuse existing monster sounds plus one CC0 thump from a pack already
    in the repo (logged in `docs/ASSET_LICENSES.md`); a one-time onboarding pointer at one branch pad.
+
+**D-274 Tier-3 economy, proof and CI time approved (author).**
+1. **Boss name** "Baron von Hop" accepted (a hobby worldbuilding page is not a meaningful conflict).
+2. **Boss reward rule, general for future tiers:** a boss drops one cap night of the tier being finished. The Baron
+   drops 150 steaks (450 gold, the tier-2 cap night). The D-272 bundling rule applies if the profile build shows a
+   frame cost; economy counts stay exact.
+3. **Ladder costs (starting values):** the plot 1,500 (= the tier-3 cost); the new tower 280 and fence 140 to level
+   3; a tower branch 500 (x5), a fence branch 300 (x4); 5,620 in all. Sweep target: from the tier-3 dawn until the
+   ladder completes, unspent gold at close-up stays at or under one cap night (650). The sweep also reports
+   `fence_rebuild_gold` per night (levels plus branch repurchases after destruction; REVIEW_QUEUE "brutes make fences
+   a tax" if its median at the tier-3 cap exceeds 30% of nightly income), the plot purchase day and the day the
+   ladder completes. It uses the same card policy as the previous tier sweeps so pacing is comparable. Post-ladder
+   pile-up at tier 3 is the accepted known gap (REVIEW_QUEUE: "tier 3 has no sink after the ladder; tier 4 must
+   provide one").
+4. **CI time:** studies are not regression tests. The 10-seed margin study and the multi-seed policy ranking run as
+   report scripts, like the sweep; their results go into the spec results and the checkpoint pack. CI keeps
+   single-seed (or at most 3-seed) assertions: each policy holds the cap; threat-matched >= the others on the CI
+   seed; plus the boss-night, no-yard-towers, Baron-catch, first-night, respawn and identity sims. If `sim-tiers`
+   still nears 150 s it is split into parallel jobs (`sim-tiers-a` / `sim-tiers-b`) before any test is touched, and
+   the main session updates the required checks (authorized). Timings go to the author only if splitting does not fit.
+5. **Next steps without further approval:** write and self-review the spec, write the plan (task graph, waves, D-136
+   parallel rules, hot files wired by the main session), execute phases 1 to 4 with self-merges, stop at the end of
+   phase 5 with the checkpoint pack `docs/review/E5_T3.md`. Stop earlier only for the standing stop conditions.
