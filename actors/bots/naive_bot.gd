@@ -33,15 +33,19 @@ func _night(delta: float) -> void:
 		var p: Vector3 = c.position
 		if Vector2(p.x, p.z).distance_to(hero.xz()) <= r:
 			return  # enemies in range: stay
-	var counts := {"west": 0, "north": 0, "east": 0}
+	var lanes := MapLayout.lanes_for_tier(GameState.tier)
+	var counts := {}
+	for lane in lanes:
+		counts[lane] = 0
 	for b in wd.alive_enemies():
 		counts[String(b.lane)] += 1
 	var best := ""
 	var best_n := 0
-	for lane in LanePlanner.LANES:
+	for lane in lanes:
 		if counts[lane] > best_n:
 			best = lane
 			best_n = counts[lane]
 	if best == "":
 		best = wd.upcoming_main_lane()
-	go_to("zone_" + best)
+	if graph.nodes.has("zone_" + best):  # the tier-1 graph has no south-west zone node
+		go_to("zone_" + best)

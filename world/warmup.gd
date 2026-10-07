@@ -84,10 +84,10 @@ static func _prebuild_tier_caches() -> void:
 	var yards := MapLayout.yards_for_tier(TierEffects.top_tier(Balance.data.tiers))
 	if yards.is_empty():
 		return
-	GroundArt.terrain_mesh(World.ground_rect(), yards)
+	GroundArt.terrain_mesh(World.ground_rect(), yards, MapLayout.lanes_for_tier(TierEffects.top_tier(Balance.data.tiers)))
 	var rects: Array[Rect2] = []
 	for id in yards:
-		rects.append(MapLayout.YARDS[id])
+		rects.append(MapLayout.yard_rect(id))
 	Props.prebuild(rects)
 
 func _place(n: Node3D) -> void:

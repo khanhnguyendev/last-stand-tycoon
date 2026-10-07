@@ -30,9 +30,9 @@ func refresh() -> void:
 		target_scale = 0.0
 		visible = false
 		return
-	var threat := LanePlanner.threat_by_lane(GameState.lane_plan, Balance.data.enemy.hp)
+	var threat := LanePlanner.threat_by_lane(GameState.lane_plan, Balance.data.enemy.hp, GameState.tier)
 	var mx: float = threat.values().max()
-	target_scale = LanePlanner.marker_scale(threat[lane_id], mx, Balance.ui.telegraph_scale_min, Balance.ui.telegraph_scale_max)
+	target_scale = LanePlanner.marker_scale(float(threat.get(lane_id, 0.0)), mx, Balance.ui.telegraph_scale_min, Balance.ui.telegraph_scale_max)
 	visible = _phase == Phase.DAY and target_scale > 0.0
 	if target_scale > 0.0:
 		scale = Vector3.ONE * target_scale

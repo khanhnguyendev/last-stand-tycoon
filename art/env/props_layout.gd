@@ -88,7 +88,7 @@ static func items_of(model: String) -> Array[Dictionary]:
 			out.append(it)
 	return out
 
-## E5 tier 3 Task 2 (spec 5): small props on owned land, keyed by yard id (MapLayout.YARDS). A later tier adds its plot
+## E5 tier 3 Task 2 (spec 5): small props on owned land, keyed by yard id (MapLayout yard ids). A later tier adds its plot
 ## key here. {kind: "crate" | "barrel" | "bench", pos: Vector2 (x, z), rot: yaw radians, scale: float}. Procedural
 ## (palette vertex colours, Props.owned_arrays), no collision, never inside a lane, zone, pad, sign or station
 ## (test_yards.test_owned_props_keep_clear checks every entry against MapLayout per tier).
@@ -108,10 +108,10 @@ const OWNED := {
 	],
 }
 
-## The owned-land items of the yards in `ids` (MapLayout.YARDS keys), in yard order.
+## The owned-land items of the yards in `ids` (MapLayout yard ids), in yard order.
 static func owned_for(ids: Array) -> Array:
 	var out := []
-	for id in MapLayout.YARDS:
+	for id in MapLayout.yards_for_tier(99):  # every yard, in yard order
 		if id in ids and OWNED.has(id):
 			out.append_array(OWNED[id])
 	return out

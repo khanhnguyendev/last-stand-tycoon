@@ -118,23 +118,29 @@ static func yard_arrays(rect: Rect2, cell := 1.0) -> Dictionary:
 	a.c = cols
 	return a
 
-static func _terrain_key(rect: Rect2, yards: Array) -> String:
-	return "t%s" % [rect] if yards.is_empty() else "t%s%s" % [rect, yards]
+## `lanes` empty = the tier-1/2 lane set: those keys are exactly the pre-tier-3 ones.
+static func _terrain_key(rect: Rect2, yards: Array, lanes: Array = []) -> String:
+	var key := "t%s" % [rect] if yards.is_empty() else "t%s%s" % [rect, yards]
+	return key if _is_default_lanes(lanes) else key + "L%s" % [lanes]
+
+static func _is_default_lanes(lanes: Array) -> bool:
+	return lanes.is_empty() or lanes == MapLayout.lanes_for_tier(1)
 
 ## True when terrain_mesh(rect, yards) is already built (the warm-up pre-builds the top tier's, E5 Task 12).
-static func is_cached(rect: Rect2, yards: Array = []) -> bool:
-	return _cache.has(_terrain_key(rect, yards))
+static func is_cached(rect: Rect2, yards: Array = [], lanes: Array = []) -> bool:
+	return _cache.has(_terrain_key(rect, yards, lanes))
 
 ## ONE mesh, ONE surface, ONE draw for the ground, the road, the lane strips, the open yards and their small props (D-201). Cached per
-## (rect, yards); `yards` are MapLayout.YARDS keys. With no yards the mesh is exactly the S4 tier-1 terrain.
-static func terrain_mesh(rect: Rect2, yards: Array = []) -> ArrayMesh:
-	var key := _terrain_key(rect, yards)
+## (rect, yards, lanes); `yards` are MapLayout yard ids, `lanes` MapLayout.lanes_for_tier(tier) (empty = the three tier-1/2 lanes). With no yards
+## and no extra lane the mesh is exactly the S4 tier-1 terrain.
+static func terrain_mesh(rect: Rect2, yards: Array = [], lanes: Array = []) -> ArrayMesh:
+	var key := _terrain_key(rect, yards, lanes)
 	if not _cache.has(key):
 		var parts := [ground_arrays(rect), road_arrays(Vector2(MapLayout.BOUNDS_MAX.x - MapLayout.BOUNDS_MIN.x, 2.0), MapLayout.ROAD_Z)]
-		for id in MapLayout.LANE_PATHS:
-			parts.append(LaneStrip.strip_arrays(MapLayout.LANE_PATHS[id]))
+		for id in LaneStrip.draw_order(lanes):
+			parts.append(LaneStrip.strip_arrays(MapLayout.lane_path(id)))
 		for y in yards:
-			parts.append(yard_arrays(MapLayout.YARDS[y]))
+			parts.append(yard_arrays(MapLayout.yard_rect(y)))
 		var owned := PropsLayout.owned_for(yards)  # E5 tier 3 Task 2: small props on owned land, same mesh, no extra draw
 		if not owned.is_empty():
 			parts.append(Props.owned_arrays(owned))

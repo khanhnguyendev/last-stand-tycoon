@@ -100,19 +100,38 @@ static func edge_transforms(pts: Array, spacing := STONE_SPACING, width := WIDTH
 		walked += len
 	return out
 
-## One world-level MultiMeshInstance3D with the edge stones of every lane (D-201).
-static func edge_stones() -> MultiMeshInstance3D:
+## The order the tier-1/2 lanes were always drawn in (the old dictionary's key order): a mesh and a stone list built in it are
+## byte-identical to the S4 ones. Lanes past these (sw, tier 3) follow in the order given. Empty `lanes` = the tier-1 lanes.
+const DRAW_ORDER: Array[String] = ["north", "west", "east"]
+
+static func draw_order(lanes: Array) -> Array[String]:
+	var want: Array = MapLayout.lanes_for_tier(1) if lanes.is_empty() else lanes
+	var out: Array[String] = []
+	for id in DRAW_ORDER:
+		if id in want:
+			out.append(id)
+	for id in want:
+		if not id in out:
+			out.append(id)
+	return out
+
+## The MultiMesh of the edge stones of `lanes` (World swaps it into its EdgeStones node when the lane set changes).
+static func edge_multimesh(lanes: Array = []) -> MultiMesh:
 	var xfs: Array[Transform3D] = []
-	for id in MapLayout.LANE_PATHS:
-		xfs.append_array(edge_transforms(MapLayout.LANE_PATHS[id]))
+	for id in draw_order(lanes):
+		xfs.append_array(edge_transforms(MapLayout.lane_path(id)))
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = load(STONE_MODEL) as Mesh
 	mm.instance_count = xfs.size()
 	for i in xfs.size():
 		mm.set_instance_transform(i, xfs[i])
+	return mm
+
+## One world-level MultiMeshInstance3D with the edge stones of the lanes in `lanes` (D-201); none = the tier-1 lanes.
+static func edge_stones(lanes: Array = []) -> MultiMeshInstance3D:
 	var mmi := MultiMeshInstance3D.new()
 	mmi.name = "EdgeStones"
-	mmi.multimesh = mm
+	mmi.multimesh = edge_multimesh(lanes)
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return mmi

@@ -25,10 +25,10 @@ static func subject_points(tier: int) -> Array[Vector3]:
 	var h := MapLayout.DINER_HALF
 	for c in [Vector2(-h, -h), Vector2(h, -h), Vector2(-h, h), Vector2(h, h)]:
 		out.append(MapLayout.to3(c))
-	for id in MapLayout.YARDS:
-		if int(MapLayout.YARD_TIER[id]) != tier:
+	for id in MapLayout.yards_for_tier(tier):
+		if MapLayout.yard_tier(id) != tier:
 			continue
-		var r: Rect2 = MapLayout.YARDS[id]
+		var r: Rect2 = MapLayout.yard_rect(id)
 		for c in [r.position, Vector2(r.end.x, r.position.y), Vector2(r.position.x, r.end.y), r.end]:
 			out.append(MapLayout.to3(c))
 	return out
@@ -96,8 +96,8 @@ func _on_tier_reached(tier: int) -> void:
 	_world.rebuild_for_tier()
 	EventBus.banner_requested.emit(tr("The diner grows!"))
 	var yards: Array[String] = []
-	for id in MapLayout.YARDS:
-		if int(MapLayout.YARD_TIER[id]) == tier:
+	for id in MapLayout.yards_for_tier(tier):
+		if MapLayout.yard_tier(id) == tier:
 			yards.append(id)
 	_diner_art = null
 	var diner_visual := _world.diner_body.get_node_or_null("Visual") if _world.diner_body != null else null
@@ -107,7 +107,7 @@ func _on_tier_reached(tier: int) -> void:
 		_diner_base = _diner_art.scale
 	_steps = []
 	for i in yards.size():
-		var centre: Vector2 = (MapLayout.YARDS[yards[i]] as Rect2).get_center()
+		var centre: Vector2 = MapLayout.yard_rect(yards[i]).get_center()
 		_steps.append({"kind": &"dust", "at": MapLayout.to3(centre)})
 		if i == 0:
 			_steps.append({"kind": &"stones", "at": MapLayout.to3(centre, 0.3)})

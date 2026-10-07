@@ -55,23 +55,24 @@ func next_purchase() -> String:
 	var p := super.next_purchase()
 	if p != "":
 		return p
-	var threat := LanePlanner.threat_by_lane(GameState.lane_plan, Balance.data.enemy.hp)
+	var threat := LanePlanner.threat_by_lane(GameState.lane_plan, Balance.data.enemy.hp, GameState.tier)
+	var spots := MapLayout.spots_for_tier(GameState.tier)
 	var best := ""
 	var best_t := 0.0
-	for id in MapLayout.ALL_SPOT_IDS:
-		if id in MapLayout.SPOT_IDS or not GameState.buildings.has(id):
+	for id in spots:
+		if id in MapLayout.SPOT_IDS or not GameState.buildings.has(id) or not graph.nodes.has(id):
 			continue
 		if int(GameState.buildings[id].level) != 0 or GameState.remaining_cost(id) > GameState.gold:
 			continue
 		var t := _spot_threat(id, threat)
-		if best == "" or t > best_t + 1e-6:  # ties keep the earlier in ALL_SPOT_IDS order
+		if best == "" or t > best_t + 1e-6:  # ties keep the earlier in spots_for_tier order
 			best = id
 			best_t = t
 	if best != "":
 		return best
 	var best_rem := 0
-	for id in MapLayout.ALL_SPOT_IDS:
-		if id in MapLayout.SPOT_IDS or not GameState.buildings.has(id) or int(GameState.buildings[id].level) < 1:
+	for id in spots:
+		if id in MapLayout.SPOT_IDS or not GameState.buildings.has(id) or not graph.nodes.has(id) or int(GameState.buildings[id].level) < 1:
 			continue
 		var rem := GameState.remaining_cost(id)
 		if rem > 0 and rem <= GameState.gold and (best == "" or rem < best_rem):

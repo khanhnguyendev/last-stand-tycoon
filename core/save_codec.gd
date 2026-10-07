@@ -114,6 +114,7 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 	if int(s.tier_paid) < 0:
 		return "range tier_paid"
 	var known_tier := mini(tier, TierEffects.top_tier(bd.tiers))  # GameState clamps the tier on load (spec 6.3)
+	var lane_ids := MapLayout.lanes_for_tier(known_tier)
 	if typeof(s.resume_phase) != TYPE_STRING:
 		return "type resume_phase"
 	if not String(s.resume_phase) in RESUME_PHASES:
@@ -166,8 +167,8 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 	for w in s.lane_plan:
 		if typeof(w) != TYPE_DICTIONARY or not w.has_all(["main", "side", "main_count", "side_count", "hp_mult", "fast_main", "fast_side", "boss"]):
 			return "lane_plan fields"
-		if typeof(w.main) != TYPE_STRING or not String(w.main) in LanePlanner.LANES \
-				or typeof(w.side) != TYPE_STRING or not (String(w.side) == "" or String(w.side) in LanePlanner.LANES):
+		if typeof(w.main) != TYPE_STRING or not String(w.main) in lane_ids \
+				or typeof(w.side) != TYPE_STRING or not (String(w.side) == "" or String(w.side) in lane_ids):
 			return "lane"
 		for f in ["main_count", "side_count", "hp_mult"]:
 			if not typeof(w[f]) in [TYPE_INT, TYPE_FLOAT]:

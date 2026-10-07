@@ -22,14 +22,14 @@ func find_target(enemy) -> Dictionary:
 
 ## Distance along the path where a boar stops for its lane's fence; INF when no fence stands.
 static func fence_stop_dist(enemy) -> float:
-	var b: Dictionary = GameState.buildings[MapLayout.LANE_FENCE[enemy.lane]]
+	var b: Dictionary = GameState.buildings[MapLayout.lane_fence(enemy.lane)]
 	if int(b.level) < 1 or float(b.hp) <= 0.0:
 		return INF
 	return enemy.path_length() - MapLayout.FENCE_OFFSET_FROM_END - enemy.stats().reach
 
 static func fence_on_lane(enemy) -> Dictionary:
 	if enemy.dist >= fence_stop_dist(enemy) - 1e-4:
-		return {"kind": &"fence_on_lane", "spot_id": MapLayout.LANE_FENCE[enemy.lane]}
+		return {"kind": &"fence_on_lane", "spot_id": MapLayout.lane_fence(enemy.lane)}
 	return {}
 
 static func diner(enemy) -> Dictionary:
