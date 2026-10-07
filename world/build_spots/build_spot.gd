@@ -92,6 +92,8 @@ func refresh() -> void:
 		label.text = ""
 	label.position.y = _label_y(level)
 	label.visible = zone == null or zone.is_active()  # cost text is a DAY thing; night is clutter
+	if GameState.can_branch(spot_id):
+		label.visible = false  # E5 tier 3: the two branch pads carry the cost now ("MAX" would stack on their labels)
 	_apply_level(level, b)
 	if zone != null:
 		var cost := GameState.next_level_cost(spot_id) if GameState.buildings.has(spot_id) else -1
