@@ -286,7 +286,7 @@ door stays the respawn point. The hero has no HP, so nothing changes for the her
 ## 8. Economy (D-274)
 
 Income: 6 gold per kill before cards. Cap nights: tier 1 336, tier 2 450, tier 3 about 650 with brutes (estimate; the
-sweep measures it).
+sweep measured 1,260 to 1,440 per night with cards, section 13).
 
 | Purchase | Cost | Count | Total |
 |---|---|---|---|
@@ -322,7 +322,7 @@ no-yard-towers run. Three tuning rounds at most for the Baron (D-103).
 | 3 | Baron night, no yard towers (fixture) | fails or needs mercy retries |
 | 4 | Baron alone | the hero at the lane's zone reaches melee range first |
 | 5 | First tier-3 night, tier bot | held, 0 retries |
-| 6 | Tier-3 cap, full build, policies A, B, mixed, threat-matched (CI seed) | each holds with 0 retries; threat-matched diner HP >= each other policy |
+| 6 | Tier-3 cap, full build, policies A, B, mixed, threat-matched (CI seed) | each holds with 0 retries. The ordering "threat-matched >= each other policy" was NOT built into CI (D-280: on the CI night threat is third; the multi-seed report says tie) |
 | 7 | Respawn | a guard respawning into an occupied SW zone is not knocked out again within 5 s; no actor is knocked out more than twice in any 15 s window |
 | 8 | Identity | tier 1 and 2 plans, sweep rows 1 to 7, and one tier-2 fixture night are unchanged by the slice |
 
@@ -350,17 +350,17 @@ Wall time warns at 60 s and fails at 150 s per job. If `sim-tiers` nears 150 s i
 
 | Decision | Requirement | Test or report |
 |---|---|---|
-| D-261.1 | SW visibility >= 2.0 s, every aspect | `test_lane_visibility` over `lanes_for_tier(3)`; `e5t3/lanes/sw.png` |
+| D-261.1 | SW visibility >= 2.0 s, every aspect | `test_lane_visibility` over `lanes_for_tier(3)`; `e5t3/telegraph/day_tier3_sw.png` |
 | D-261.2 | no position reaches 3 lanes | `test_geometry` A' over 4 lanes, pairs printed |
 | D-261.3 | travelers never walk through a fence | `test_tier3_layout`: exit and entry lines vs every fence bar, per tier |
 | D-261.4 | nothing in the SW zone or on its fence spot | `test_tier3_layout`: stations, signs, HOME, queue slots |
 | D-261.5, D-266.1 | `tower_sw` reaches zone and fence; <= 2 lanes | `test_geometry` B, C; `test_longbow_reach` |
 | D-261.6, D-270.3 | tier-1 identity, RNG identity | `tools/baseline_rows.sh 7`; `test_lane_planner` tier 1/2 literals; sim 8 |
-| D-262, D-268 | growth readability | `docs/review/media/e5t3/growth/`; `test_occluder_fade`; `test_tier3_camera` |
+| D-262, D-268 | growth readability | `docs/review/media/e5t3/growth/`; `test_occluder_fade`; `test_diner_art` |
 | D-263.1 | commit on full payment; refund; walk-across | `test_branch_pads`, `test_branch_state` |
 | D-263.2 | branch lost with the fence | `test_branch_state` |
 | D-263.3, D-273.4 | preview and labels readable | `test_branch_pads`; `e5t3/pads/*_40.png` |
-| D-263.4, D-266.2 | pad geometry | `test_branch_pad_layout`; `e5t3/sw_corner.png` |
+| D-263.4, D-266.2 | pad geometry | `test_branch_pad_layout`; `e5t3/pads/sw_corner.png` |
 | D-263.5, D-264 | policies hold; ranking | sim 6; `report_policies` |
 | D-264 | branch definitions | `test_branch_effects`; `test_branch_identity` |
 | D-264, D-271 | Longbow rule and range | `test_longbow_reach` (all tower spots x all lanes) |
@@ -370,12 +370,12 @@ Wall time warns at 60 s and fails at 150 s per job. If `sim-tiers` nears 150 s i
 | D-269, D-270.4 | cap margin | `report_margin`; REVIEW_QUEUE |
 | D-270.1 | the switch | `test_tier3_switch`; sweep assertion |
 | D-270.2, D-273.3 | schema 6 | `test_save_v6` (v5 fixtures, round trip, snapshot) |
-| D-270.6 | pools | `test_pools` |
-| D-271 | gold pile empty at night | `test_gold_pile_night` |
+| D-270.6 | pools | `test_wave_director`, `test_boar`, `test_branch_effects` (pool sizes); sims 5 and 6 (no runtime growth) |
+| D-271 | gold pile empty at night | `test_piles`, `test_tier3_world_layout` (no test file of the planned name exists) |
 | D-271 | respawn protection | `test_guards`; sim 7 |
 | D-271 | layout restored after load | `test_tier3_layout` save/load case |
 | D-272.1 | Spike scaling | `test_branch_effects` |
-| D-272.2, D-274.2 | boss drop and pool; bundling | `test_baron`; `test_pools` |
+| D-272.2, D-274.2 | boss drop and pool; bundling | `test_baron`; `test_wave_director` |
 | D-273.2 | reveal skip and resume | `test_tier_reveal` |
 | D-274.3 | fence rebuild, ladder days | tier sweep `LADDER` line |
 
@@ -394,4 +394,24 @@ Paid respec as a gold sink (D-263.6). Slow and control branches (D-264). A throw
 
 ## 13. Results
 
-Filled at the end of phase 5.
+Filled at the end of phase 5 (2026-10-08). Full pack: `docs/review/E5_T3.md`. Decisions: D-279, D-280.
+
+- **Tier-2 cap (sim 1, margin study):** cap 11 held on 8 of 10 seeds, cap 10 on 10 of 10 (median diner 69%, lowest
+  18%). Applied: 10 (D-276).
+- **Tier-3 difficulty (real play, three seeds, 32 days, threat policy):** with the approved values (cap 15, brutes
+  on both lanes) 23 of 40 tier-3 nights needed a retry. Applied: `tier_cap[3]` 12 and `brute_cap_side[3]` 0, with 0
+  of 40. Tier 3 no longer ramps in pressure. Two early nights on one seed are held at 1% and 4% (D-280).
+- **Baron night:** held with 0 retries on all three seeds (diner 52% to 68%).
+- **Policies (mean diner HP at dawn, points):** Volley + Stone 87.2, Volley + Spike 76.7, threat-matched 75.4,
+  Longbow + Stone 67.2, Longbow + Spike 55.8. Tower effect +20.4 (Volley), fence effect +10.9 (Stone), interaction
+  +1.0. `DOMINANT_BRANCH: yes` (gap 20.9 over the four spec policies; 31.4 over the 2 x 2). `THREAT_BEST: tie`.
+  Retry nights of 40: 0, 0, 0, 1, 6. Both go to the review queue (entries 26, 6); nothing was retuned.
+- **Ladder:** the front lot is paid in sweep row 16 to 20; everything is bought 5 to 8 tier-3 days later; peak
+  unspent gold 267 to 565 (`UNSPENT_TARGET: PASS`, limit 650); `FENCE_TAX: yes` (30.6% to 34.9% of the night's
+  income; threshold 30%); 4,600 to 9,000 gold unspent by day 30.
+- **CI sims 2 to 8:** all pass. Sim 6 asserts that each policy holds one cap night; the threat ordering was not
+  built (D-280). Sim 7's "no actor knocked out more than twice in 15 s" never sees a second knockout with
+  protection on; the ladder runs show 0 or 1 guard knockouts per night.
+- **Performance (profile build, iOS Simulator, a tier-3 night, median of 3):** 58.8 fps, worst frame 110 ms, 48 draw
+  calls; a tier-2 night in the same session 59.4 fps, 43 draw calls. The worst-frame gate (under 60 ms) fails as
+  before (known issue 2).

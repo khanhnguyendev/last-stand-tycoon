@@ -69,6 +69,8 @@ Reference feel (mechanics only, no assets or names): My Little Universe, Alien I
   it and the next morning the diner grows (land, build spots, a monster type, more customers). A lost boss night
   retries like any night, with the payment kept.
 - Tier 2 (built): side yards with two more towers, a fast monster (the hare) that walks past fences, the Boar King.
+- Tier 3 (built): the front lot with a fourth lane, one more tower and fence, the siege brute that wrecks fences,
+  the boss Baron von Hop, and a permanent two-way branch for every max-level tower and fence (D-261 to D-280).
 - Nothing built is ever lost and there is no reset. Tier 5 is the long-term goal. Staff, new equipment and more land
   arrive as tier unlocks (tiers 3 to 5).
 

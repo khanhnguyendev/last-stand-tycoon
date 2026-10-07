@@ -2731,7 +2731,7 @@ cost-entry switch and the debug-only tier forcing.
   a pending or skipped test. The hull margin for pads north of a tower is 6.5 px (8 asked, 6.8 reachable). The stood
   stack may reach 3.2 screen-metres from its pad. The near-stage size floors hold up to 3.5 m; the 3.5 to 4.5 m band
   is exempt. To meet the 28 px cost floor at 3.45 m the cost text size went from 0.0123 to 0.0132 (worst reachable view 28.46 px, at `fence_e`), and the near
-  block's width cap from 1.2 to 1.25 m (the floor outranks the width heuristic). Pinned today: 10 on-pad findings
+  block's width cap from 1.2 to 1.25 m (the floor outranks the width heuristic). Pinned today: 12 on-pad findings
   (station labels count as obstacles) and the near-stage ones, measured only from ground the hero can reach, from
   HOME's side and from due south. The kerb hash in tests is taken on positions quantized to 0.1 mm: raw float
   bytes differ between macOS and the Linux runner. The near-stage test scans each spot's worst
@@ -2780,3 +2780,15 @@ cost-entry switch and the debug-only tier forcing.
   days later, `UNSPENT_TARGET: PASS`, `FENCE_TAX: yes` (31% to 35% of income). Per spec 9.2 these go to the review
   queue; the branch values are NOT retuned in this slice (tier 3 holds with 0 retries; which branch should win is
   the author's design call).
+- **Deviation from D-274.4 (recorded for the author):** the approved CI assertion "threat-matched diner HP is at
+  least every other policy's on the CI seed" was NOT built. On the CI cap night threat is third (0.737 against
+  Volley + Spike 0.770 and Longbow + Stone 0.763), although that fixture gives threat the ideal branches for that
+  night's plan, which real play cannot have (branches are permanent). The ordering lives in the multi-seed report
+  (`THREAT_BEST: tie`).
+- **"Holds with 0 retries" depends on the policy:** 0 of 40 tier-3 nights for threat, Volley + Spike and Volley +
+  Stone; 1 of 40 for Longbow + Stone; 6 of 40 for Longbow + Spike. The carried rule "each policy holds the cap with
+  no retries" (D-263.5) therefore fails for the Longbow pairs in real play; sim 6 proves it on one night only.
+- **Both weak branches were tuned for pressure 15:** Longbow's 120 per 3.0 s and Spike's growth with the night's HP
+  multiplier. At pressure 12 neither reason applies. Retuning them is the follow-up the checkpoint pack recommends.
+- **Evidence:** per-night raw data of the applied setting is in `docs/review/media/e5t3/balance/applied/`; the
+  policy runs in `policies/`. `policies.txt` first cited an amended work-in-progress commit with identical code.

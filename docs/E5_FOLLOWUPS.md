@@ -78,3 +78,26 @@ line against the code before working on it.
 - **Task 15:** assert last_wave_start_s >= 0 before the print; sim 4 should also assert tier == 2; report's sim-4 line not verbatim; sim 1 "night seconds" includes the dawn/reveal; harness header overstates D-113 (reads wave_director.boss_alive/alive_count/enemy_candidates).
 - **Task 16:** sweep_runner reads enemy_count/boss_night once before the first attempt (a non-boss night that fails and is followed by a tier payment in the replayed day would be mis-reported; did not occur); no CI pin of enemy_count(plan) == night_kills(min(day, 7)) for days 1-8.
 - **Final fix wave:** test_sweep_math.gd lacks before_each Balance.reset(); redundant assertion wording at test_boss_night.gd:160-161.
+
+## Slice 2 (tier 3), collected at the checkpoint (2026-10-08)
+
+Design follow-ups (the author decides; `docs/review/E5_T3.md`):
+- Retune the branches: Longbow (tuned for pressure 15) and Spike fence (its scaling is inert at cap = base) are the
+  weak options; Volley + Stone dominates (REVIEW_QUEUE 26, 6).
+- Fence tax and the missing gold sink after the ladder (REVIEW_QUEUE 27); Stone wall repairs the fence in full (9).
+- Tier 3 has no pressure ramp since D-280; the early tier-3 nights are knife-edge on one seed.
+- Pad labels: 12 on-pad and several near-stage overlaps pinned in `test_branch_pads.gd`; the south-west fence pad
+  is the worst (REVIEW_QUEUE 20). Count rows hidden from the home spot (12, 23).
+
+Code and test follow-ups:
+- `test_branch_identity.gd` still exercises pressures 13 to 15, which the game no longer reaches.
+- Policy names live in four places (`tier_bot.gd`, `report_policies.gd`, `sweep_math.gd`, `sweep_runner.gd`) with no
+  test tying them together; `sweep_runner.gd` and `SweepMath.tier3_stats` compute tier-3 stats with different
+  definitions (held-only against all); `_fence_hp` is not reset per retry attempt.
+- Sim 7 cannot observe a second knockout with protection on; the fixtures for sims 4, 5 and 7 are still
+  constructed from the tier-2 save (day-13 cards), which makes sim 5 conservative.
+- The boot warm-up's cost with 31 nodes and three terrain meshes is unmeasured (the perf run was night-only).
+- `tests/unit/test_diner_art.gd` takes about 96 s of the unit suite; other unit files share `user://` paths; the
+  slice-1 fixtures of `make_save.gd --fixture=tier` are still schema 5.
+- The tier bot buys tier 3 only after every station level, so it reaches tier 3 on day 18 to 22.
+
