@@ -12,7 +12,7 @@ static var _fill_mat: StandardMaterial3D
 
 const NAME_FONT_SIZE := 40
 ## The name sits just above the bar, centred on it.
-const NAME_Y := 0.34
+const NAME_Y := 0.42
 
 var _boar: Boar
 var _fill: MeshInstance3D

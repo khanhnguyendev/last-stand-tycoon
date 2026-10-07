@@ -1,8 +1,8 @@
 extends SceneTree
-## Baron von Hop next to a hare and a Boar, bar visible (E5 tier 3 Task 11). Run WITH rendering:
+## Baron von Hop next to a hare, a Boar, the brute and the Boar King, bar visible (E5 tier 3 Task 11). Run WITH rendering:
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_baron.gd -- --out=docs/review/media/e5t3/monsters
 ## Writes baron.png (hare, Boar, Baron in a row, hero for scale) and a _40 copy (288x512). Monsters are spawned by hand and frozen.
-const KINDS := [&"hare", &"boar", &"baron"]
+const KINDS := [&"hare", &"boar", &"baron", &"brute", &"boss"]
 var _focus := Vector2.ZERO
 
 func _initialize() -> void:
@@ -39,10 +39,10 @@ func _run() -> void:
 	var wd = main.world.wave_director
 	wd.stop()
 	main.hero.process_mode = Node.PROCESS_MODE_DISABLED  # nothing may hit the monsters: a hit flashes the mesh pale
-	# A row on open grass left of the north lane: the hero for scale, then the three kinds, all facing the camera.
+	# A row on open grass left of the north lane: the hero for scale, then the five kinds: hare, Boar, Baron, brute, Boar King, all facing the camera.
 	var base: Vector3 = main.hero.global_position + Vector3(-4.2, 0.0, -1.0)
-	main.hero.teleport(Vector2(base.x - 3.4, base.z))
-	var xs := [-2.0, -0.4, 2.4]
+	main.hero.teleport(Vector2(base.x - 5.8, base.z))
+	var xs := [-4.2, -2.8, -0.9, 1.5, 3.9]
 	var mons := []
 	for k in KINDS.size():
 		var b = wd.debug_spawn("north", 0.0, 1.0, KINDS[k])
@@ -50,7 +50,7 @@ func _run() -> void:
 		b.position = base + Vector3(xs[k], 0.0, 0.0)
 		b.visual.face(Vector3(0.0, 0.0, 1.0))
 		mons.append(b)
-	_focus = Vector2(base.x - 0.4, base.z)
+	_focus = Vector2(base.x + 0.1, base.z)
 	await _grab(main, cam, camera_math, bal, mons, out, "baron")
 	quit(0)
 

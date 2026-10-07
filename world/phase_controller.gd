@@ -62,8 +62,11 @@ func _enter_night() -> void:
 	traveler_spawner.stop()
 	phase = Phase.NIGHT
 	EventBus.phase_changed.emit(phase, GameState.day)
-	if GameState.boss_pending:
-		EventBus.banner_requested.emit(tr("The Boar King comes"))
+	if GameState.is_boss_night():
+		if TierEffects.boss_kind_for(GameState.tier, Balance.data.tiers) == &"baron":
+			EventBus.banner_requested.emit(tr("Baron von Hop comes"))
+		else:
+			EventBus.banner_requested.emit(tr("The Boar King comes"))
 	wave_director.start_night(GameState.lane_plan)
 
 func _enter_day() -> void:
