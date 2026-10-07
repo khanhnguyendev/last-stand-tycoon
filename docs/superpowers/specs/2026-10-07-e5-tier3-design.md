@@ -74,11 +74,11 @@ lane, `{boar, hare, brute, boss}` counts for the telegraph (section 6.5).
 |---|---|---|
 | `tier_costs` | `[0, 500]`, then `[0, 500, 1500]` | third entry = the switch |
 | `tier_base` | `[0, 1, 8, 12]` | |
-| `tier_cap` | `[0, 7, 11, 15]` | index 2 may become 10 (section 9.1) |
+| `tier_cap` | `[0, 7, 10, 15]` | index 2 was 11 until the margin study (section 9.1, D-276) |
 | `fast_share_start`, `fast_share`, `fast_ramp_days` | index 3: 0.35, 0.35, 1 | hares stay at the tier-2 share |
 | `brute_cap_main`, `brute_cap_side` | index 3: 1, 1 | per wave |
 | `brute_ramp_days` | index 3: 3 | first night: one brute, on the last wave's main lane |
-| `boss_kind` | `[&"", &"boss", &"baron"]` | the boss fought to LEAVE that tier |
+| `boss_kind` | `[&"", &"boss", &"baron", &""]` | the boss fought to LEAVE that tier; the top tier's entry is empty |
 | `respawn_protect_s` | 1.5 | in `GuardBalance` |
 
 ### 3.4 Monsters (`MonsterBalance`, starting values)
@@ -97,7 +97,7 @@ points and test A' stay valid. Boss reward rule (D-274.2): a boss drops one cap 
 | Branch | Range | Per shot | Interval | Other |
 |---|---|---|---|---|
 | Tower level 3 (today) | 8.0 | 18 | 0.5 s | reference |
-| `longbow` | 9.98 | 80 | 1.8 s | |
+| `longbow` | 9.98 | 120 | 3.0 s | |
 | `volley` | 8.0 | 3 x 10 | 0.5 s | first 3 targets of `Targeting.select`, one projectile each, no splash |
 
 | Branch | HP | Other |
@@ -108,9 +108,9 @@ points and test A' stay valid. Boss reward rule (D-274.2): a boss drops one cap 
 
 - Spike values are the ones at the tier-3 base; both scale with the night's HP multiplier relative to the tier-3
   base multiplier (D-272.1), so Spike does not fade at the cap.
-- Longbow differs from section 3 of the brainstorm (45 per 1.0 s): with real hare HP (about 40 at pressure 12, 46 at
-  15) the D-272.3 ordering needs a slower, heavier shot. 80 per 1.8 s gives single-target 44.4 per second (above the
-  unbranched 36 and Volley's 20) and the fewest hares per second at both ends.
+- Longbow differs from section 3 of the brainstorm (45 per 1.0 s): with real hare HP (39.75 to 51.7 at pressure 12,
+  46.5 to 72.85 at 15, the wave-size factor included) the D-272.3 ordering needs a slow, heavy shot. 120 per 3.0 s
+  gives single-target 40 per second (unbranched 36, Volley 20) and the fewest hares per second at every wave (D-276).
 - Costs: `tower_branch_cost` 500, `fence_branch_cost` 300.
 - Longbow range rule (D-271): at any range a tower may reach the stop points OR the fence spot of at most 2 lanes.
   Probe maximum 10.28 m (bound by `tower_nw` and a SW stop point); Longbow = maximum minus 0.3 = 9.98.
@@ -163,7 +163,7 @@ Tiers 1 and 2 are unchanged. From tier 3:
   (4.2, 10.3), (5.4, 10.3), (6.6, 10.3)]` (today's slots 2 to 4 sit on the lane or in the fence; the worst is 0.12 m
   from the bar). Nearest items: counter pad 1.53 m, close-up sign 1.30 m, HOME 1.46 m.
 - `MapLayout.traveler_exit(tier)`: `TRAVELER_ENTER`'s point, (24, 11) (constraint 3: east reuses the entry line and
-  clears the fence by 3.80 m; today's west exit passes 0.5 m from `tower_sw`).
+  clears the fence by 3.80 m; today's west exit passes 1.74 m from `tower_sw` and crosses the plot).
 - HOME, the close-up sign, the gold pile and the diner door stay. The gold pile is 0.29 m from the lane line and is
   empty at night; a test proves it is empty from close-up until dawn at every tier.
 - The switch happens at the tier-3 dawn, when no traveler exists. A mid-day save/load at tier 3 restores the tier-3
@@ -182,15 +182,18 @@ Tiers 1 and 2 are unchanged. From tier 3:
 
 ## 5. Phase 1: growth readability (D-262, D-268)
 
-- **Diner per tier, inside the footprint, nothing overhanging:** tier 2 = a new roof color, a chimney and a rooftop
-  sign board; tier 3 = a set-back second storey with lanterns (built in phase 4). The terraces of slice 1 stay.
+- **Diner per tier, inside the footprint, nothing overhanging:** tier 2 = a wood roof, a second chimney and a
+  cream sign board, placed so they hide nothing tier 1 does not hide; it is not taller than tier 1 (D-276). Tier 3 =
+  a set-back second storey with lanterns (phase 4), which carries the height change. The terraces of slice 1 stay.
 - **Land:** yards and the plot get a paved tint with a low border instead of lane dirt and edge stones. Small props
   (crates, barrels, a bench) on owned land only, outside every lane, zone, fence spot, pad, station, sign, HOME, queue
   slot and traveler path; non-colliding; in the geometry tests.
 - **Tier sign:** a larger board and label, judged on a 40% screenshot.
 - **Occlusion:** the occluder fade covers the whole building at every tier, and guards trigger it as the hero and
-  monsters do. Camera tests at tier 3 (phase 4): hero, monster and guard at the north zone are visible; the tower
-  bases at `tower_nw` and `tower_ne` are never covered by the taller diner at any focus inside the clamp.
+  monsters do. Camera tests at tier 3 (phase 4): hero, monster and guard at the north zone are visible; the taller
+  diner adds no occlusion of static things (the Archer, tower pads, fence spots, world labels) compared with tier 1,
+  and any ground it newly hides lies inside a fade box (D-276; tier 1 already hides the `tower_nw` and `tower_ne`
+  pad centres from some north-lane positions).
 - **Evidence:** before/after screenshots at full and 40% scale under `docs/review/media/e5t3/growth/`; REVIEW_QUEUE
   entries.
 - Tier-1 identity: phase 1 is visual only; `tools/baseline_rows.sh 7` must print `rows 1-7 identical`.
@@ -232,13 +235,14 @@ cute-dangerous, heavy slow walk; a ground-thump effect and sound on each fence h
   unchanged (test).
 - **Identity test on Balance (D-272.3, D-273.0).** Named measures, computed in whole shots against real monster HP at
   pressure 12 and 15:
-  1. single-target DPS: Longbow highest;
+  1. single-target DPS (raw damage over interval): Longbow highest; in whole shots against a lone brute Longbow is
+     never slower than the unbranched tower;
   2. range: Longbow longest;
-  3. DPS against 3 targets: Volley highest;
+  3. DPS against 3 targets (raw): Volley highest;
   4. hares killed per second (3 or more in range): Volley most, Longbow fewest;
   5. seconds a fence holds against one brute: Stone longest;
   6. damage to a passing hare: only Spike is above 0;
-  7. the unbranched level 3 is the best at none of measures 1 to 6.
+  7. the unbranched level 3 is the best at none of measures 1 to 6, a shared top included.
 
 ### 6.5 Telegraph and arrows (D-264, D-265.3)
 
@@ -295,10 +299,10 @@ Sweep targets and reports (`--bot=tier`, the same card policy as the slice-1 tie
 
 ### 9.1 The tier-2 cap margin (D-269, D-270.4)
 
-Phase 2: a report script runs the tier-2 cap night with the full tier-2 build on at least 10 seeds. Median diner
-margin under 15%: `tier_cap[2]` becomes 10 (fixtures, tier sims and the golden ticks are re-recorded deliberately).
-Otherwise it stays 11 and phase 3 may lighten the Baron. Either way the Baron must still fail the no-yard-towers run.
-Three tuning rounds at most (D-103). The result goes to REVIEW_QUEUE.
+Done in phase 2 (`tests/sim/report_margin.gd`, ten seeds). Cap 11: held on 8 of 10 seeds, median diner HP left 0.393,
+lowest quarter 0.014, two real falls. Cap 10: held on 10 of 10, median 0.688, minimum 0.177. The author lowered
+`tier_cap[2]` to 10 (D-276); fixtures, pins and the tick budget were re-recorded. The Baron must still fail the
+no-yard-towers run. Three tuning rounds at most for the Baron (D-103).
 
 ### 9.2 Tier sims in CI (`tests/sim_tier/`, each with a tick-budget entry)
 
