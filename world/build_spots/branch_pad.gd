@@ -11,6 +11,7 @@ extends Node3D
 ##   FAR   (not the focus spot): the ground ring and the branch glyph on the pad, depth-tested (buildings hide it); no text. The glyph
 ##         is hidden (FAR_QUIET) while the hero stands on any pad.
 ##   NEAR  (the focus spot, hero not on this pad): ring, glyph and the remaining cost under it, one block at most 1.2 m wide.
+##   QUIET (the other pad of the spot the hero stands on): ring and payment ring only; its glyph and cost come back when he leaves.
 ##   ON    (the hero is inside this pad): glyph and cost row, name, preview line, the fence warning line, and the preview at the
 ##         building (range rings, "x3", shield, spikes). It shows before the stand-still threshold and before any gold moves.
 ## The stage is VISUAL ONLY: _on_tick (the payment) never reads it.
@@ -19,6 +20,8 @@ const FAR := 0
 const FAR_QUIET := 1
 const NEAR := 2
 const ON := 3
+## The sibling of the pad the hero stands on: its ground ring and payment ring only (on a pad only the stood option speaks).
+const SIBLING_QUIET := 4
 ## Metres ON THE SCREEN: the gap between the glyph and its cost, and between two stacked items.
 const ROW_GAP := 0.12
 const STACK_GAP_M := 0.08
@@ -36,8 +39,7 @@ const REFUND_LABEL_TIME := 1.4
 ## ON pads that do not use the default (name and preview line above the hero's head, glyph row and warning line below the pad):
 ## "spot:index" -> [row_north, name_south]. Chosen only where the default collides on screen (tests/unit/test_branch_pads.gd).
 const ON_MODES := {
-	"tower_nw:1": [false, true], "tower_ne:0": [false, true], "fence_n:0": [true, true], "tower_w:0": [false, true],
-	"tower_w:1": [true, false], "tower_e:0": [false, true], "fence_sw:1": [true, false],
+	"fence_n:0": [true, true], "tower_w:1": [false, true], "tower_e:0": [false, true], "tower_sw:1": [false, true], "fence_sw:1": [true, false],
 }
 
 ## The texts, through tr() when shown: [name, preview line]. The Volley's line is built from the balance count.
@@ -68,10 +70,12 @@ var preview: Node3D
 var preview_rings: Array[MeshInstance3D] = []
 var hint_icons: Array[MeshInstance3D] = []
 var hint_label: WorldLabel
+## Where the preview glyph stands relative to its default (HINT_AT); call place_hint() after changing it.
+var hint_at := Vector2.ZERO
 ## What the last refund showed: the exact gold (the "+N" label) and how many coins flew for it.
 var last_refund := 0
 var refund_coins := 0
-## The stage shown now (FAR, FAR_QUIET, NEAR, ON).
+## The stage shown now (FAR, FAR_QUIET, NEAR, ON, SIBLING_QUIET).
 var stage := FAR
 ## Where the ON clusters stand (ON_MODES); call _layout_items() and re-apply the stage after changing them.
 var row_north := false
@@ -94,43 +98,67 @@ static var _shown_pads: Array = []
 static var _cache_frame := -1
 static var _focus_spot := ""
 static var _on_pad: BranchPad = null
+## Reused every frame (no allocation in update_focus): spot -> smallest distance to one of its pads; the spots of the tier, refreshed
+## when the tier changes.
+static var _nearest := {}
+static var _spots: Array[String] = []
+static var _spots_tier := -1
 
 ## Computes the focus spot and the pad the hero stands on, once per physics frame: one hero lookup and one distance per shown pad.
 ## The pad the hero stands on gives its spot; else the spot kept from before while the hero is within `branch_pad_leave_m` of its
 ## nearest pad (hysteresis); else the spot whose nearest pad is closest within `branch_pad_near_m` (ties: spots_for_tier order).
+## With no pad shown (night, a new game, a load) nothing is focused.
 static func update_focus(tree: SceneTree) -> void:
 	var frame := Engine.get_physics_frames()
 	if frame == _cache_frame:
 		return
 	_cache_frame = frame
 	_on_pad = null
-	_shown_pads = _shown_pads.filter(func(p): return is_instance_valid(p))
+	for i in range(_shown_pads.size() - 1, -1, -1):  # a pad freed since (a rebuild) leaves the registry
+		if not is_instance_valid(_shown_pads[i]):
+			_shown_pads.remove_at(i)
 	var hero := tree.get_first_node_in_group(&"hero") as Node3D
 	if hero == null or _shown_pads.is_empty():
 		_focus_spot = ""
 		return
 	var hx := hero.global_position.x
 	var hz := hero.global_position.z
-	var nearest := {}  # spot -> smallest distance to one of its pads
+	_nearest.clear()
 	var best_on := INF
 	for p: BranchPad in _shown_pads:
 		var d := Vector2(hx - p.global_position.x, hz - p.global_position.z).length()
-		if d < float(nearest.get(p.spot_id, INF)):
-			nearest[p.spot_id] = d
+		if d < float(_nearest.get(p.spot_id, INF)):
+			_nearest[p.spot_id] = d
 		if d <= MapLayout.BRANCH_PAD_RADIUS and d < best_on:
 			best_on = d
 			_on_pad = p
 	if _on_pad != null:
 		_focus_spot = _on_pad.spot_id
 		return
-	if _focus_spot != "" and nearest.has(_focus_spot) and float(nearest[_focus_spot]) <= Balance.ui.branch_pad_leave_m:
+	if _focus_spot != "" and _nearest.has(_focus_spot) and float(_nearest[_focus_spot]) <= Balance.ui.branch_pad_leave_m:
 		return
 	_focus_spot = ""
+	if _spots_tier != GameState.tier:
+		_spots_tier = GameState.tier
+		_spots = MapLayout.spots_for_tier(GameState.tier)
 	var best := INF
-	for id in MapLayout.spots_for_tier(GameState.tier):
-		if nearest.has(id) and float(nearest[id]) <= Balance.ui.branch_pad_near_m and float(nearest[id]) < best:
-			best = float(nearest[id])
+	for id in _spots:
+		if _nearest.has(id) and float(_nearest[id]) <= Balance.ui.branch_pad_near_m and float(_nearest[id]) < best:
+			best = float(_nearest[id])
 			_focus_spot = id
+
+## Takes a pad out of the shown registry; the last one out clears the focus (night, a new game, a load: no stale focus survives).
+static func _forget_shown(pad: BranchPad) -> void:
+	_shown_pads.erase(pad)
+	for i in range(_shown_pads.size() - 1, -1, -1):
+		if not is_instance_valid(_shown_pads[i]):
+			_shown_pads.remove_at(i)
+	if _shown_pads.is_empty():
+		_focus_spot = ""
+		_on_pad = null
+	elif _on_pad == pad:
+		_on_pad = null
+	_cache_frame = -1
 
 static func focus_spot() -> String:
 	return _focus_spot
@@ -140,7 +168,9 @@ static func pad_hero_stands_on() -> BranchPad:
 
 ## Forgets the shared focus (a new world, tests).
 static func reset_focus() -> void:
-	_shown_pads = _shown_pads.filter(func(p): return is_instance_valid(p))
+	for i in range(_shown_pads.size() - 1, -1, -1):
+		if not is_instance_valid(_shown_pads[i]):
+			_shown_pads.remove_at(i)
 	_cache_frame = -1
 	_focus_spot = ""
 	_on_pad = null
@@ -184,7 +214,7 @@ func setup(p_spot_id: String, p_index: int, world: World) -> void:
 	refresh()
 
 func _exit_tree() -> void:
-	_shown_pads.erase(self)
+	_forget_shown(self)
 	if _on_pad == self:
 		_on_pad = null
 	_cache_frame = -1
@@ -352,26 +382,36 @@ func _ring(radius: float, colour: StringName, node_name: String) -> void:
 ## hero's head from the pads north of it.
 const HINT_Z := 1.7
 const HINT_Y := 0.35
+## Spots whose preview glyph stands elsewhere: spot -> Vector2(x, extra z) added to (0, HINT_Z). Picked with the test, where the
+## default lands on a pad, a pip row or a stack (tests/unit/test_branch_pads.gd).
+const HINT_AT := {"tower_w": Vector2(0.0, -1.5), "tower_sw": Vector2(-1.0, 0.0), "fence_sw": Vector2(0.0, 1.0)}
 
 ## A glyph and, if `mult` is not empty, its multiplier beside it, in front of the building.
 func _hint(kind: StringName, mult: String) -> void:
-	var y := HINT_Y
-	var z := HINT_Z
-	var size_m: float = Balance.ui.branch_pad_icon_m
-	var g := _glyph(kind, size_m, "HintIcon", preview)
+	var g := _glyph(kind, Balance.ui.branch_pad_icon_m, "HintIcon", preview)
 	hint_icons.append(g)
-	var gw := glyph_box(g).x
-	if mult == "":
-		g.position = Vector3(0, y, z)
+	if mult != "":
+		hint_label = WorldLabel.make(mult, Balance.ui.branch_pad_cost_font)
+		hint_label.name = "HintMult"
+		hint_label.pixel_size = Balance.ui.branch_pad_label_pixel_size
+		preview.add_child(hint_label)
+	hint_at = HINT_AT.get(spot_id, Vector2.ZERO)
+	place_hint()
+
+## Puts the preview glyph (and its multiplier) at (hint_at.x, HINT_Y, HINT_Z + hint_at.y) from the building.
+func place_hint() -> void:
+	if hint_icons.is_empty():  # the Longbow previews with rings only
 		return
-	hint_label = WorldLabel.make(mult, Balance.ui.branch_pad_cost_font)
-	hint_label.name = "HintMult"
-	hint_label.pixel_size = Balance.ui.branch_pad_label_pixel_size
+	var g := hint_icons[0]
+	var z := HINT_Z + hint_at.y
+	var gw := glyph_box(g).x
+	if hint_label == null:
+		g.position = Vector3(hint_at.x, HINT_Y, z)
+		return
 	var tw := text_box(hint_label).x
 	var total := gw + WARN_GAP + tw
-	g.position = Vector3(-total * 0.5 + gw * 0.5, y, z)
-	hint_label.position = Vector3(total * 0.5 - tw * 0.5, y, z)
-	preview.add_child(hint_label)
+	g.position = Vector3(hint_at.x - total * 0.5 + gw * 0.5, HINT_Y, z)
+	hint_label.position = Vector3(hint_at.x + total * 0.5 - tw * 0.5, HINT_Y, z)
 
 ## "x3", "x2", "x1.5": a whole number without a decimal.
 static func _mult_text(m: float) -> String:
@@ -412,6 +452,8 @@ func _physics_process(_delta: float) -> void:
 func _stage_now() -> int:
 	if _on_pad == self:
 		return ON
+	if _on_pad != null and _on_pad.spot_id == spot_id:
+		return SIBLING_QUIET
 	if _focus_spot == spot_id:
 		return NEAR
 	return FAR if _on_pad == null else FAR_QUIET
@@ -420,15 +462,15 @@ func _stage_now() -> int:
 func _apply_stage(st: int) -> void:
 	stage = st
 	var ui := Balance.ui
-	icon.visible = st != FAR_QUIET
-	if st <= FAR_QUIET:
+	icon.visible = st != FAR_QUIET and st != SIBLING_QUIET
+	if st <= FAR_QUIET or st == SIBLING_QUIET:
 		icon.material_override = BranchIcons.far_material()
 		icon.scale = Vector3.ONE * ui.branch_pad_far_icon_m
 		icon.position = Vector3(0, 0.45, 0)
 	else:
 		icon.material_override = BranchIcons.material()
 		icon.scale = Vector3.ONE * ui.branch_pad_icon_m
-	cost_label.visible = st >= NEAR
+	cost_label.visible = st == NEAR or st == ON
 	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if st == NEAR else HORIZONTAL_ALIGNMENT_LEFT
 	var on := st == ON
 	name_label.visible = on
@@ -437,7 +479,7 @@ func _apply_stage(st: int) -> void:
 	if warn_label != null:  # the fence pads' "lost if broken" is part of the preview (D-273.4)
 		warn_label.visible = on
 		warn_icon.visible = on
-	if st >= NEAR:
+	if st == NEAR or st == ON:
 		for n in _pos[st]:
 			(n as Node3D).position = _pos[st][n]
 
@@ -462,12 +504,12 @@ func _on_tier_changed(_tier: int, _paid: int, _boss_pending: bool) -> void:
 
 ## Rebuilds everything from GameState. Safe before the first new_game (buildings is empty then). A hidden pad does not process.
 func refresh() -> void:
-	var shown := is_shown()
+	var shown := is_shown() and is_inside_tree()  # a pad a rebuild took out of the tree is never shown
 	if shown and not _was_shown:
 		zone.disarm()  # D-121: a hero already standing here when the pad appears must leave and come back
 		_shown_pads.append(self)
 	elif _was_shown and not shown:
-		_shown_pads.erase(self)
+		_forget_shown(self)
 	if shown != _was_shown:
 		_cache_frame = -1
 	_was_shown = shown
@@ -482,7 +524,8 @@ func refresh() -> void:
 	var cost := GameState.branch_cost(spot_id)
 	if shown:
 		cost_label.text = str(GameState.branch_remaining(spot_id, branch_id))
-		update_focus(get_tree())
+		if is_inside_tree():
+			update_focus(get_tree())
 		_apply_stage(_stage_now())
 	else:
 		preview.visible = false

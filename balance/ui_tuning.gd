@@ -202,5 +202,6 @@ extends Resource
 @export var branch_pad_cost_pixel_size := 0.0123
 @export var branch_pad_warn_pixel_size := 0.0105
 @export var branch_pad_icon_min_px := 28.0
+@export var branch_pad_far_icon_min_px := 20.0
 @export var branch_pad_label_min_px := 28.0
 @export var branch_pad_warn_min_px := 20.0

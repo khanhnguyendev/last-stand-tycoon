@@ -373,12 +373,17 @@ func test_two_gains_after_one_spend_both_wait_and_one_refund_claims_only_its_own
 func test_reactions_freed_in_the_frame_of_a_spend_flush_nothing_and_raise_nothing() -> void:
 	var r := Reactions.new()
 	add_child(r)
+	EventBus.fx_requested.connect(_on_fx)
 	EventBus.gold_changed.emit(40, -10)
 	EventBus.gold_changed.emit(90, 50)
 	r.free()  # the deferred flush must be dropped with the node
 	await get_tree().process_frame
 	await get_tree().process_frame
-	assert_true(true, "no script error was raised (the runner fails on one)")
+	var n := 0
+	for e in _fx_log:
+		if e[0] == &"sparkle":
+			n += 1
+	assert_eq(n, 0, "a freed Reactions flushed no sparkle (and raised no script error: the runner fails on one)")
 
 func test_tiers_1_and_2_never_refresh_a_spot_when_the_world_syncs_its_pads() -> void:
 	await _start(false)
@@ -560,9 +565,19 @@ func test_on_stage_shows_name_and_preview_line_on_exactly_the_stood_pad_and_leav
 	assert_eq(text.name, [pad])
 	assert_eq(text.effect, [pad])
 	assert_eq(text.warn, [pad])
-	assert_eq(text.cost.size(), 2, "the stood pad and its sibling show cost")
+	assert_eq(text.cost.size(), 1, "only the stood option speaks: its cost, not the sibling's")
+	assert_eq(text.cost, [pad])
 	assert_eq(pad.stage, BranchPad.ON)
-	assert_eq(_pads("fence_n")[0].stage, BranchPad.NEAR)
+	var sib: BranchPad = _pads("fence_n")[0]
+	assert_eq(sib.stage, BranchPad.SIBLING_QUIET)
+	assert_false(sib.icon.visible, "the sibling shows no glyph")
+	assert_false(sib.cost_label.visible, "and no cost")
+	assert_true(sib.body.visible and sib.marker.visible, "but its ground ring")
+	var visible_glyphs := 0
+	for q in _pads("fence_n"):
+		if q.icon.visible:
+			visible_glyphs += 1
+	assert_eq(visible_glyphs, 1, "at that spot exactly one pad shows a glyph")
 	var quiet := 0
 	for id in main.world.branch_pads:
 		for p in main.world.branch_pads[id]:
@@ -577,6 +592,70 @@ func test_on_stage_shows_name_and_preview_line_on_exactly_the_stood_pad_and_leav
 		assert_eq(text[k].size(), 0, "leaving reverts: no %s" % k)
 	assert_eq(_visible_icons().size(), 14)
 	assert_false(pad.preview_shown())
+	assert_eq(sib.stage, BranchPad.FAR, "leaving the pad brings the sibling's glyph back")
+	assert_true(sib.icon.visible)
+	main.hero.teleport(_pad_pos("fence_n", 0) + Vector2(0.0, -3.0))  # 3 m north of the pad, out in the lane
+	await _settle()
+	assert_eq(sib.stage, BranchPad.NEAR, "and, near the spot, its cost")
+	assert_true(sib.cost_label.visible and sib.icon.visible)
+
+func test_the_siblings_payment_ring_stays_visible_while_it_is_quiet() -> void:
+	await _start()
+	_max("tower_w")
+	GameState.gold = 120
+	GameState.pay_into_branch("tower_w", &"volley", 120)  # a partial payment on pad B
+	var b: BranchPad = _pads("tower_w")[1]
+	main.hero.teleport(_pad_pos("tower_w", 0))  # stand on pad A
+	await _settle()
+	assert_eq(b.stage, BranchPad.SIBLING_QUIET)
+	assert_false(b.icon.visible)
+	assert_true(b.body.visible and b.marker.visible, "the sibling's ground ring")
+	assert_true(b.zone.ring.visible, "the sibling's payment-progress ring")
+	assert_almost_eq(b.zone.ring.progress, 120.0 / float(_cost("tower_w")), 1e-6)
+
+func test_no_stale_focus_survives_night_a_new_game_or_a_load() -> void:
+	await _start()
+	_max("tower_w")
+	main.hero.teleport(_pad_pos("tower_w", 0))
+	await _settle()
+	assert_eq(BranchPad.focus_spot(), "tower_w")
+	assert_not_null(BranchPad.pad_hero_stands_on())
+	pc.debug_skip_to_night()
+	assert_eq(BranchPad.focus_spot(), "", "night: nothing focused, at once")
+	assert_null(BranchPad.pad_hero_stands_on())
+	pc.debug_skip_to_day()
+	await _settle()
+	assert_eq(BranchPad.focus_spot(), "tower_w")
+	var d := GameState.to_dict()
+	GameState.new_game(3)
+	assert_eq(BranchPad.focus_spot(), "", "a new game")
+	assert_null(BranchPad.pad_hero_stands_on())
+	GameState.from_dict(d)
+	await _settle()
+	assert_eq(BranchPad.focus_spot(), "tower_w", "a load recomputes it")
+
+func test_far_glyphs_meet_their_floor_from_home() -> void:
+	await _start()
+	for id in SEVEN:
+		_max(id)
+	main.hero.teleport(MapLayout.HOME)
+	await _settle()
+	var v := View.new(MapLayout.HOME, 720.0 / 1280.0)
+	var worst := INF
+	var seen := 0
+	var sizes: Array = []
+	for id in SEVEN:
+		for p: BranchPad in _pads(id):
+			assert_eq(p.stage, BranchPad.FAR)
+			if not v.screen().has_point(v.pt(p.icon.global_position)):
+				continue
+			var h := _node_rect(p.icon, v).size.y / 1.14
+			sizes.append("%s %.0f" % [p.name.trim_prefix("BranchPad_"), h])
+			worst = minf(worst, h)
+			seen += 1
+	assert_gt(seen, 6, "most pads are on screen from HOME")
+	gut.p("far glyph heights from HOME at 9:16 (base px): %s; worst %.1f, floor %.0f" % [sizes, worst, Balance.ui.branch_pad_far_icon_min_px])
+	assert_gte(worst, Balance.ui.branch_pad_far_icon_min_px)
 
 func test_at_night_nothing_of_any_pad_shows() -> void:
 	await _start()
@@ -855,9 +934,15 @@ func _attach_m(r: Rect2, centre: Vector2, ppm: float) -> float:
 const ATTACH_ON_M := 3.2
 const ATTACH_NEAR_M := 1.5
 const HULL_MARGIN_PX := 6.5
-## Pads whose ON stack still collides at one view or more (violations over the three aspects): reported, not hidden (see the report).
+## The findings that remain, pinned exactly: "spot:pad|item|obstacle" -> max overlap (w, h) in px rounded up, or (distance, 0) for attachment.
 const OPEN_VIEWS := {
-	"tower_nw:0": 3, "tower_ne:1": 3, "fence_w:1": 3, "fence_e:0": 3, "tower_w:1": 3, "tower_e:1": 3, "tower_sw:1": 3, "fence_sw:0": 3, "fence_sw:1": 15,
+	"fence_w:1|icon|the building's pips": Vector2(37, 23),
+	"fence_e:0|cost|the building's pips": Vector2(35, 22),
+	"fence_sw:1|icon|the hero": Vector2(15, 6),
+	"fence_sw:1|cost|the hero": Vector2(28, 5),
+	"fence_sw:1|name|the close-up sign's label": Vector2(90, 27),
+	"fence_sw:1|warn_icon|the building's pips": Vector2(25, 4),
+	"fence_sw:1|effect|attachment": Vector2(4.56, 0),
 }
 
 func test_the_ui_floors_are_the_plans() -> void:
@@ -868,10 +953,10 @@ func test_the_ui_floors_are_the_plans() -> void:
 	assert_eq(Balance.ui.branch_pad_leave_m, 4.5)
 	assert_true(Balance.ui.branch_pad_label_font in [48, 40] and Balance.ui.branch_pad_cost_font in [48, 40] and Balance.ui.branch_pad_warn_font in [48, 40], "the project's own font sizes")
 
-func test_sizes_meet_the_floors_for_the_stood_pad_and_the_siblings_glyph_and_cost() -> void:
+func test_sizes_meet_the_floors_for_the_stood_pad() -> void:
 	await _start()
 	_all_max()
-	var worst := {"icon": INF, "label": INF, "cost": INF, "warn": INF, "sib_icon": INF, "sib_cost": INF}
+	var worst := {"icon": INF, "label": INF, "cost": INF, "warn": INF}
 	for aspect in ASPECTS:
 		for id in MapLayout.spots_for_tier(3):
 			for i in 2:
@@ -890,16 +975,12 @@ func test_sizes_meet_the_floors_for_the_stood_pad_and_the_siblings_glyph_and_cos
 						worst.cost = minf(worst.cost, _px_h(n.global_position, float(p.cost_label.font_size) * p.cost_label.pixel_size, v))
 					elif n == p.warn_label:
 						worst.warn = minf(worst.warn, _px_h(n.global_position, float(p.warn_label.font_size) * p.warn_label.pixel_size, v))
-				worst.sib_icon = minf(worst.sib_icon, _node_rect(sib.icon, v).size.y / 1.14)
-				worst.sib_cost = minf(worst.sib_cost, _px_h(sib.cost_label.global_position, float(sib.cost_label.font_size) * sib.cost_label.pixel_size, v))
 	gut.p("measured worst (base px): %s" % [worst])
 	var ui := Balance.ui
 	assert_gte(worst.icon, ui.branch_pad_icon_min_px, "the stood pad's glyph")
 	assert_gte(worst.label, ui.branch_pad_label_min_px, "name and preview line em")
 	assert_gte(worst.cost, ui.branch_pad_label_min_px, "the stood pad's cost em")
 	assert_gte(worst.warn, ui.branch_pad_warn_min_px, "the warning line em")
-	assert_gte(worst.sib_icon, ui.branch_pad_icon_min_px, "the sibling's glyph as seen from the stood pad")
-	assert_gte(worst.sib_cost, ui.branch_pad_label_min_px, "the sibling's cost as seen from the stood pad")
 
 func test_the_clutter_cap_at_twenty_positions_over_the_map() -> void:
 	await _start()
@@ -921,8 +1002,16 @@ func test_the_clutter_cap_at_twenty_positions_over_the_map() -> void:
 	assert_eq(n, 20)
 	gut.p("clutter over 20 positions: most visible %s" % [worst])
 
-## The rules for one view (the hero on pad `i` of `id`, at `aspect`): returns the violations as strings (and the smallest gap in
-## `gap_out[0]`). Every rect is built from the real nodes.
+## The projected disc (radius `r` m on the ground) of a pad: the rect its ring covers.
+func _disc_rect(c: Vector3, r: float, v: View) -> Rect2:
+	var pts: Array = []
+	for k in 12:
+		pts.append(c + Vector3(cos(TAU * k / 12.0), 0.0, sin(TAU * k / 12.0)) * r)
+	return v.bounds(pts)
+
+## The rules for one view (the hero on pad `i` of `id`, at `aspect`): returns the findings as [{key, val, text}]: key
+## "spot:pad|item|obstacle", val the overlap (w, h) in px rounded up, or (distance in screen-m rounded up to 0.01, 0) for an
+## attachment finding. Every rect is built from the real nodes; `gap_out[0]` gets the smallest gap.
 func _view_violations(id: String, i: int, aspect: float, rows: Array, gap_out: Array) -> Array:
 	var bad: Array = []
 	var p: BranchPad = _pads(id)[i]
@@ -931,40 +1020,41 @@ func _view_violations(id: String, i: int, aspect: float, rows: Array, gap_out: A
 	var centre := v.pt(p.global_position)
 	var ppm := v.px_per_m(p.global_position)
 	var mine := _pad_items(p, v)
-	var theirs := _pad_items(sib, v)
 	var tag := "%.2f %s pad %d" % [aspect, id, i]
+	var pk := "%s:%d" % [id, i]
+	var add := func(item: String, obstacle: String, val: Vector2, text: String) -> void:
+		bad.append({"key": "%s|%s|%s" % [pk, item, obstacle], "val": val, "text": "%s: %s" % [tag, text]})
 	if p.stage != BranchPad.ON or mine.size() < 4:
-		bad.append(tag + ": the stack does not show")
+		add.call("stack", "not shown", Vector2.ZERO, "the stack does not show")
 		return bad
-	for e in mine + theirs:  # on screen
+	# on this pad only the stood option speaks: the sibling shows its rings and nothing else
+	if sib.stage != BranchPad.SIBLING_QUIET or not _pad_items(sib, v).is_empty():
+		add.call("sibling", "not quiet", Vector2.ZERO, "the sibling is not quiet")
+	for e in mine:  # on screen
+		var item := String(e[0]).get_slice("/", 1)
 		if not v.screen().encloses(e[2]):
-			bad.append("%s: %s %s is not fully on screen" % [tag, e[0], e[2]])
+			add.call(item, "the screen edge", Vector2.ZERO, "%s %s is not fully on screen" % [e[0], e[2]])
 	if not v.screen().has_point(v.pt(sib.global_position)):
-		bad.append(tag + ": the sibling pad is off screen")
+		add.call("sibling", "the screen edge", Vector2.ZERO, "the sibling pad is off screen")
 	var pr = _preview_rect(p, v)
 	if pr != null and not v.screen().encloses(pr):
-		bad.append("%s: the preview glyph %s is not on screen" % [tag, pr])
+		add.call("preview", "the screen edge", Vector2.ZERO, "the preview glyph %s is not on screen" % pr)
 	for e in mine:  # attachment
 		var d := _attach_m(e[2], centre, ppm)
 		if d > ATTACH_ON_M:
-			bad.append("%s: %s stands %.2f screen-m from its pad (limit %.1f)" % [tag, e[0], d, ATTACH_ON_M])
-	for e in theirs:
-		var d := _attach_m(e[2], v.pt(sib.global_position), v.px_per_m(sib.global_position))
-		if d > ATTACH_NEAR_M:
-			bad.append("%s: the sibling's %s stands %.2f screen-m from it (limit %.1f)" % [tag, e[0], d, ATTACH_NEAR_M])
+			add.call(String(e[0]).get_slice("/", 1), "attachment", Vector2(ceilf(d * 100.0) / 100.0, 0.0), "%s stands %.2f screen-m from its pad (limit %.1f)" % [e[0], d, ATTACH_ON_M])
 	var others: Array = []  # [what, rect]
-	for e in theirs:
-		others.append(["the sibling's " + String(e[0]), e[2]])
 	others.append(["the hero", _hero_rect(_pad_pos(id, i), v)])
 	for oid in main.world.branch_pads:
 		for q: BranchPad in main.world.branch_pads[oid]:
-			if q != p and q != sib and q.body.visible and q.icon.visible:
-				others.append(["another pad's glyph " + q.name, _node_rect(q.icon, v)])
+			if q != p and q.body.visible and q.icon.visible:
+				others.append(["another pad's glyph " + String(q.name), _node_rect(q.icon, v)])
 	if pr != null:
 		others.append(["the preview glyph", pr])
 	var sp: BuildSpot = main.world.build_spots[id]
-	var pips := sp.global_position + Vector3(0, sp._pip_y(Balance.data.build.max_level), 0)
-	others.append(["the building's pips", v.quad(pips, Vector2(1.1, 0.4))])
+	var pips_rect := v.quad(sp.global_position + Vector3(0, sp._pip_y(Balance.data.build.max_level), 0), Vector2(1.1, 0.4))
+	var sib_disc := _disc_rect(sib.global_position, MapLayout.BRANCH_PAD_RADIUS, v)
+	others.append(["the building's pips", pips_rect])
 	assert_false(sp.label.visible, id + ": the building's own MAX label is hidden while its pads show, so nothing of it can collide")
 	others.append(["the close-up sign's label", _sign_rect(v)])
 	var tsr = _tier_sign_rect(v)
@@ -974,16 +1064,28 @@ func _view_violations(id: String, i: int, aspect: float, rows: Array, gap_out: A
 	for row in rows:
 		others.append(["the %s telegraph row" % row[0], _row_rect(row[1], v)])
 	for e in mine:
+		var item := String(e[0]).get_slice("/", 1)
 		for o in others:
 			if (e[2] as Rect2).intersects(o[1]):
 				var ov := (e[2] as Rect2).intersection(o[1])
-				bad.append("%s: %s %s overlaps %s %s by %.0f x %.0f px" % [tag, e[0], e[2], o[0], o[1], ov.size.x, ov.size.y])
+				add.call(item, o[0], Vector2(ceilf(ov.size.x), ceilf(ov.size.y)), "%s %s overlaps %s %s by %.0f x %.0f px" % [e[0], e[2], o[0], o[1], ov.size.x, ov.size.y])
 			gap_out[0] = minf(gap_out[0], _gap(e[2], o[1]))
+	if pr != null:  # the preview (glyph and its text) clears the pips and the sibling's ring too
+		for o in [["the building's pips", pips_rect], ["the sibling's ring", sib_disc]]:
+			if (pr as Rect2).intersects(o[1]):
+				var ov := (pr as Rect2).intersection(o[1])
+				add.call("preview", o[0], Vector2(ceilf(ov.size.x), ceilf(ov.size.y)), "the preview %s overlaps %s %s by %.0f x %.0f px" % [pr, o[0], o[1], ov.size.x, ov.size.y])
 	for k in mine.size():
 		for l in range(k + 1, mine.size()):
 			if (mine[k][2] as Rect2).intersects(mine[l][2]):
-				bad.append("%s: %s overlaps %s inside one stack" % [tag, mine[k][0], mine[l][0]])
+				add.call(String(mine[k][0]).get_slice("/", 1), "inside the stack: " + String(mine[l][0]).get_slice("/", 1), Vector2.ONE, "%s overlaps %s inside one stack" % [mine[k][0], mine[l][0]])
 	return bad
+
+## Folds the findings of many views into {key: max val}.
+func _fold(findings: Array, into: Dictionary) -> void:
+	for f in findings:
+		var cur: Vector2 = into.get(f.key, Vector2.ZERO)
+		into[f.key] = Vector2(maxf(cur.x, f.val.x), maxf(cur.y, f.val.y))
 
 func test_with_the_hero_on_any_pad_the_stack_is_on_screen_and_clear_of_everything() -> void:
 	await _start()
@@ -994,36 +1096,31 @@ func test_with_the_hero_on_any_pad_the_stack_is_on_screen_and_clear_of_everythin
 	var rows := _all_rows(plans)
 	var gap := [INF]
 	var views := 0
-	var all_bad: Array = []
+	var found := {}
 	for aspect in ASPECTS:
 		for id in MapLayout.spots_for_tier(3):
 			for i in 2:
 				main.hero.teleport(_pad_pos(id, i))
 				await _settle()
-				var bad := _view_violations(id, i, aspect, rows, gap)
-				for b in bad:
-					all_bad.append(b)
+				_fold(_view_violations(id, i, aspect, rows, gap), found)
 				views += 1
 	assert_eq(views, 54)
-	# Violations by pad ("spot:index"), all three aspects. A pad listed in OPEN_VIEWS has known, REPORTED violations (see the task
-	# report: what overlaps what, by how many px, and the smallest fix); it is marked pending, never passed, and it fails when it
-	# gets WORSE or any other pad collides. A pad that is fixed is deleted from the list (the count then reads 0 and the test says so).
-	var by_pad := {}
-	for b in all_bad:
-		var parts := String(b).split(" ")
-		var key := "%s:%s" % [parts[1], parts[3].trim_suffix(":")]
-		by_pad[key] = by_pad.get(key, 0) + 1
+	# The open views, pinned EXACTLY (see the task report): a finding not in OPEN_VIEWS fails, a listed one that grew fails, and a
+	# listed one that no longer happens fails too (delete it), so the list stays honest.
+	for key in found:
 		if not OPEN_VIEWS.has(key):
-			fail_test(b)
-	for key in by_pad:
-		if OPEN_VIEWS.has(key):
-			assert_lte(by_pad[key], int(OPEN_VIEWS[key]), "%s collides more than the reported %d times: %d" % [key, OPEN_VIEWS[key], by_pad[key]])
+			fail_test("%s collides (%s) and is not in OPEN_VIEWS" % [key, found[key]])
+		else:
+			var pin: Vector2 = OPEN_VIEWS[key]
+			assert_true(found[key].x <= pin.x and found[key].y <= pin.y, "%s grew: %s is past its pin %s" % [key, found[key], pin])
 	for key in OPEN_VIEWS:
-		if not by_pad.has(key):
-			fail_test("%s no longer collides: delete it from OPEN_VIEWS" % key)
-	if not by_pad.is_empty():
-		pending("OPEN (reported to the coordinator): %s" % [by_pad])
-	gut.p("54 views, %d violations %s; the smallest gap between the stood stack and anything: %.1f base px" % [all_bad.size(), by_pad, gap[0]])
+		assert_true(found.has(key), "%s no longer collides: delete it from OPEN_VIEWS" % key)
+	assert_eq(found.size(), OPEN_VIEWS.size())
+	var lines: Array = []
+	for key in found:
+		lines.append("%s -> %s" % [key, found[key]])
+	lines.sort()
+	gut.p("54 views, %d open findings (pinned exactly); smallest gap %.1f base px\n  %s" % [found.size(), gap[0], "\n  ".join(lines)])
 
 ## The world-space box of a spot's level-3 model: every mesh under its visual, transformed to the world.
 func _model_corners(sp: BuildSpot) -> Array:
@@ -1052,7 +1149,7 @@ func test_the_pad_centre_clears_the_level_3_model_by_the_margin_from_the_pad() -
 				var inside := Geometry2D.is_point_in_polygon(v.pt(c3), hull)
 				var margin := _dist_to_hull(v.pt(c3), hull) * (-1.0 if inside else 1.0)
 				worst = minf(worst, margin)
-				assert_gte(margin, HULL_MARGIN_PX, "%.2f %s pad %d: the pad centre %s clears the level-3 model's projected box by %.1f px" % [aspect, id, i, _pad_pos(id, i), margin])
+				assert_gte(margin, HULL_MARGIN_PX, "%.2f %s pad %d: the pad centre %s clears the level-3 model's projected box by %.1f px: re-run the pad search (tools/probe_t3_layout.gd)" % [aspect, id, i, _pad_pos(id, i), margin])
 				var hidden := 0
 				for k in 8:
 					var s3 := c3 + Vector3(cos(TAU * k / 8.0), 0.0, sin(TAU * k / 8.0)) * MapLayout.BRANCH_PAD_RADIUS * 0.5
@@ -1068,6 +1165,31 @@ func _dist_to_hull(p: Vector2, hull: PackedVector2Array) -> float:
 		var q := Geometry2D.get_closest_point_to_segment(p, hull[i], hull[(i + 1) % hull.size()])
 		best = minf(best, p.distance_to(q))
 	return best
+
+func test_warmup_run_places_the_pad_visuals_only_when_the_build_has_tier_3() -> void:
+	await _start()
+	var expected := Warmup.branch_pad_visuals().size()
+	assert_eq(expected, 2 + BranchIcons.KINDS.size() * 2, "two rings and every glyph with both materials")
+	var w := Warmup.new()
+	main.add_child(w)
+	w.run(main)  # to its first process_frame: the temporary nodes are in the tree
+	var far_glyphs := 0
+	var rings := 0
+	for c in w.get_children():
+		if c is MeshInstance3D and c.material_override == BranchIcons.far_material() and c.mesh in BranchIcons.KINDS.map(func(k): return BranchIcons.mesh(k)):
+			far_glyphs += 1
+		if c is MeshInstance3D and c.material_override == BranchIcons.ground_material():
+			rings += 1
+	assert_eq(far_glyphs, BranchIcons.KINDS.size(), "every glyph is drawn with the far material")
+	assert_eq(rings, 2)
+	await w.finished
+	var with_pads := w.built_count
+	w.queue_free()
+	Balance.data.tiers.tier_costs.resize(2)
+	var w2 := Warmup.new()
+	main.add_child(w2)
+	await w2.run(main)
+	assert_eq(with_pads - w2.built_count, expected, "a build without tier 3 places none of them")
 
 func test_the_warm_up_draws_the_pad_visuals_before_the_first_one_shows() -> void:
 	var nodes := Warmup.branch_pad_visuals()
@@ -1307,3 +1429,14 @@ func test_the_settings_store_keeps_the_hint_flag_beside_guide_done() -> void:
 	w.load_settings()
 	assert_false(w.branch_hint_done, "a wrong type means the default")
 	assert_true(w.guide_done)
+
+func test_a_corrupt_settings_file_means_the_hint_is_not_shown_yet() -> void:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(HINT_DIR))
+	var f := FileAccess.open(HINT_DIR.path_join("settings.json"), FileAccess.WRITE)
+	f.store_string("{not json")
+	f.close()
+	var s := SettingsStore.with_dir(HINT_DIR)
+	s.branch_hint_done = true  # a stale value in memory must not survive the load
+	s.load_settings()
+	assert_false(s.branch_hint_done, "corrupt: the pointer has not been shown yet")
+	assert_false(s.guide_done)
