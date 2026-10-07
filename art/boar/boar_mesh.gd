@@ -31,7 +31,7 @@ static func params(kind: StringName) -> Dictionary:
 				"ears": red, "ear_len": 1.2, "tusks": 0, "ridge": 0, "ridge_h": 1.0, "leg_len": 0.32, "leg_xz": Vector2(0.2, 0.42),
 				"head_k": 0.8, "head_dz": 0.22, "tusk_color": Palette.color(&"stone")}
 		&"boss":
-			return {"scale": 2.2, "body_scale": Vector3(1.05, 0.8, 1.15), "upper": maroon.lerp(red, 0.55),
+			return {"scale": 2.2, "body_scale": Vector3(1.05, 0.8, 1.15), "upper": maroon.lerp(red, 0.25),
 				"belly": maroon, "ears": snout, "ear_len": 0.0, "tusks": 4, "ridge": 5, "ridge_h": 0.6,
 				"leg_len": 0.25, "leg_xz": Vector2(0.27, 0.3), "head_k": 1.0, "head_dz": 0.0, "tusk_color": Palette.color(&"stone")}
 		# The siege brute (E5 tier 3 Task 10): a stocky bulldozer. Wider and deeper in the chest than the Boar, a big head set
