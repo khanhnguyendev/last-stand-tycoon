@@ -302,21 +302,39 @@ func test_tier3_rows_clear_every_cost_label_pip_the_hero_and_the_queue() -> void
 					if not _marker(lane).shown().is_empty():
 						assert_false(_row_rect(_marker(lane), v).intersects(body), "%s row on the queue slot %s" % [lane, slot])
 
-func test_rows_with_three_pairs_and_the_boss_are_fully_on_screen_from_home() -> void:
+## The rows the game shows are fully on screen: the three northern ones from a camera up north (from HOME at 9:16 the game hides them,
+## they project under the HUD's top bar: the next test), the south-west one from HOME.
+func test_rows_with_three_pairs_and_the_boss_are_fully_on_screen_where_the_game_shows_them() -> void:
 	_tier3()
 	await get_tree().physics_frame
 	for aspect in [9.0 / 21.0, 720.0 / 1280.0]:
-		var v := View.new(MapLayout.HOME, aspect)
 		for lane in ["west", "east", "sw", "north"]:
+			var focus := {"west": Vector2(-6.0, -8.0), "east": Vector2(6.0, -8.0), "north": Vector2(0.0, -8.0), "sw": MapLayout.HOME}[lane] as Vector2
+			var v := View.new(focus, aspect)
 			_set_plan(_plan_boss_on(lane))
 			var mk := _marker(lane)
 			assert_eq(mk.shown().size(), 4, "%s carries three pairs and the boss" % lane)
 			var r := _row_rect(mk, v)
-			gut.p("home %.2f %s row %s" % [aspect, lane, r])
+			gut.p("%.2f %s row %s" % [aspect, lane, r])
 			assert_gte(r.position.x, -360.0, lane + " left edge on screen")
 			assert_lte(r.end.x, 360.0, lane + " right edge on screen")
 			assert_gte(r.position.y, -_base_height(aspect) * 0.5)
 			assert_lte(r.end.y, _base_height(aspect) * 0.5)
+
+## From HOME at 9:16 the three northern rows project under the HUD's top bar (the game hides them); the south-west row and, at 9:21, all rows clear it.
+func test_from_home_at_9_16_the_three_northern_rows_are_under_the_hud_bar_and_the_sw_row_is_not() -> void:
+	_tier3()
+	await get_tree().physics_frame
+	_set_plan(_plan_boss_on("east"))
+	var v := View.new(MapLayout.HOME, 720.0 / 1280.0)
+	var h := _base_height(720.0 / 1280.0)
+	for lane in ["west", "north", "east"]:
+		var top := _row_rect(_marker(lane), v).position.y + h * 0.5
+		assert_lt(top, Balance.ui.hud_top_bar_px, "%s: the row's top (%.0f px) is inside the top bar" % [lane, top])
+	assert_gt(_row_rect(_marker("sw"), v).position.y + h * 0.5, Balance.ui.hud_top_bar_px)
+	var tall := View.new(MapLayout.HOME, 9.0 / 21.0)
+	for lane in ["west", "north", "east", "sw"]:
+		assert_gt(_row_rect(_marker(lane), tall).position.y + _base_height(9.0 / 21.0) * 0.5, Balance.ui.hud_top_bar_px, "9:21: %s clears the bar" % lane)
 
 func test_the_row_is_up_path_of_its_marker_at_a_fixed_height_and_grows_inward() -> void:
 	_tier3()
@@ -385,6 +403,8 @@ func _settle() -> void:
 
 func after_each() -> void:
 	SafeArea.override_for_tests = {}
+	Balance.reset()
+	GameState.new_game(1)
 
 func test_from_home_at_9_16_the_three_northern_rows_hide_and_the_sw_row_shows() -> void:
 	_sized_main(Vector2i(720, 1280))

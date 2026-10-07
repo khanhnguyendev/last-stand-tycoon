@@ -19,10 +19,8 @@ var target_scale := 0.0
 var row: Node3D
 var items := {}
 var _phase := Phase.NIGHT
-## E5 tier 3 Task 20: the row's local x range [from, to] as _fill_row laid it out (empty when it shows nothing), and the HUD top bar's
-## height in viewport pixels (the safe-area inset + UiTuning.hud_top_bar_px; refreshed on a resize and on a phase change).
+## E5 tier 3 Task 20: the row's local x range [from, to] as _fill_row laid it out (empty when it shows nothing).
 var _row_span := Vector2.ZERO
-var _bar_px := 0.0
 
 func setup(id: String) -> void:
 	lane_id = id
@@ -34,7 +32,7 @@ func setup(id: String) -> void:
 	EventBus.phase_changed.connect(_on_phase_changed)
 	EventBus.state_restored.connect(refresh)
 	EventBus.tier_changed.connect(_on_tier_changed)  # the day the tier is paid, the boss lane already shows
-	_refresh_bar()
+	_bar_stamp = -1
 	refresh()
 
 ## A marker made mid-game missed phase_changed: the world hands it the phase it last announced.
@@ -44,17 +42,22 @@ func sync_phase(p: int) -> void:
 
 func _on_phase_changed(p: int, _day: int) -> void:
 	_phase = p
-	_refresh_bar()
+	_bar_stamp = -1
 	refresh()
 
-## The HUD top bar's height (viewport px), cached: SafeArea.insets may ask the browser, so it is not read every frame.
-func _refresh_bar() -> void:
-	if not is_inside_tree():
-		return
-	var vp := get_viewport()
-	if not vp.size_changed.is_connected(_refresh_bar):
-		vp.size_changed.connect(_refresh_bar)
-	_bar_px = float(SafeArea.insets(vp.get_visible_rect().size).top) + Balance.ui.hud_top_bar_px
+## The HUD top bar's height (viewport px): the safe-area inset (SafeArea may ask the browser) plus UiTuning.hud_top_bar_px. One value for
+## every marker, refreshed at most once a second and whenever the viewport size changes or a marker is made or the phase changes.
+static var _bar_px := 0.0
+static var _bar_stamp := -1
+static var _bar_vp := Vector2.ZERO
+
+static func bar_px(vp_size: Vector2) -> float:
+	var f := Engine.get_physics_frames()
+	if _bar_stamp < 0 or f - _bar_stamp >= 60 or vp_size != _bar_vp:
+		_bar_stamp = f
+		_bar_vp = vp_size
+		_bar_px = float(SafeArea.insets(vp_size).top) + Balance.ui.hud_top_bar_px
+	return _bar_px
 
 ## Visual only, and nothing reads it: a row whose screen rect touches the HUD's top bar (the gold counter and the day label draw over it)
 ## is hidden, shown again when it clears. Once per physics frame, only while the flag shows; `visible` is written only on a change.
@@ -65,25 +68,20 @@ func _physics_process(_delta: float) -> void:
 	if row.visible != want:
 		row.visible = want
 
-## True while the row's projected rect (its icons' extent, from the camera now) intersects the top bar. False for an empty row, with
-## no camera, or when any corner is behind the camera.
+## True while the row's top edge, projected from the camera now, is inside the top bar. Only the two top corners are projected (the icons
+## are billboards: "up" is the camera's up vector). False for an empty row, with no camera, or when a corner is behind the camera.
 func row_under_hud() -> bool:
 	var cam := get_viewport().get_camera_3d()
 	if cam == null or _row_span.x >= _row_span.y:
 		return false
 	var anchor := row_anchor()
-	var half := Balance.ui.telegraph_icon_m * 0.5
-	var lo := Vector2(INF, INF)
-	var hi := Vector2(-INF, -INF)
-	for x in [_row_span.x, _row_span.y]:
-		for dy in [-half, half]:
-			var w := Vector3(anchor.x + x, anchor.y + dy, anchor.z)
-			if cam.is_position_behind(w):
-				return false
-			var p := cam.unproject_position(w)
-			lo = lo.min(p)
-			hi = hi.max(p)
-	return lo.y < _bar_px
+	var lift := cam.global_transform.basis.y * (Balance.ui.telegraph_icon_m * 0.5)
+	var a := Vector3(anchor.x + _row_span.x, anchor.y, anchor.z) + lift
+	var b := Vector3(anchor.x + _row_span.y, anchor.y, anchor.z) + lift
+	if cam.is_position_behind(a) or cam.is_position_behind(b):
+		return false
+	var top := minf(cam.unproject_position(a).y, cam.unproject_position(b).y)
+	return top < TelegraphMarker.bar_px(get_viewport().get_visible_rect().size)
 
 func _on_tier_changed(_tier: int, _paid: int, _boss_pending: bool) -> void:
 	refresh()
@@ -136,7 +134,7 @@ func shown() -> Dictionary:
 
 ## Where each lane's row is anchored (ground x, z), chosen by a search over the whole tier-3 build (every cost label and level
 ## pip at every level, the hero on every spot, pad, zone and HOME, three aspects; tests/unit/test_telegraph.gd re-checks it):
-## the three northern lanes share the one band at z = -15, past the towers' tall labels and still on screen from HOME, each
+## the three northern lanes share the one band at z = -15, past the towers' tall labels (from HOME at 9:16 they project under the HUD's top bar, and row_under_hud hides them there), each
 ## growing inward from where its lane crosses it (the west and east ends are clamped to x = -11 and 11 so a full row stays
 ## on screen); the south-west lane's row sits on the open ground south of its road, off the queue, the sign and HOME.
 const ROW_ANCHORS := {

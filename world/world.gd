@@ -223,7 +223,8 @@ func rebuild_for_tier() -> void:
 ## E5 tier 3 Task 20 (visual only, the reveal's hook): the map as it looks with only `yards` and `lanes` built: the ground mesh
 ## (paving, lane strips, small props), the kerb pieces of those yards and the lane edge stones. The kerb stays ONE MultiMesh (no extra
 ## draw call): the stage swaps its multimesh for the pieces of `yards`, which are the same transforms the full kerb holds for them.
-## show_map_full() puts everything back. Nothing is touched when the tier has no yard.
+## show_map_full() puts everything back. The kerb node is only touched when it exists (it is null while no yard is open); the ground
+## and the edge stones always follow `yards` and `lanes`.
 func show_map_stage(yards: Array, lanes: Array) -> void:
 	var spread: float = Balance.data.enemy.lateral_spread
 	ground.mesh = GroundArt.terrain_mesh(ground_rect(), yards, lanes, spread)
@@ -247,6 +248,31 @@ func show_map_full() -> void:
 ## The diner's art for `tier` (the reveal shows the old storey until its step); 0 = the tier the map follows. Same as rebuild_for_tier's swap.
 func show_diner_for(tier := 0) -> void:
 	_swap_diner_art(tier if tier > 0 else _effective_tier())
+
+## Reveal hook (E5 tier 3 Task 20): shows the art of `tier` in place of the current one and returns the current art, detached and NOT freed,
+## so the reveal can put it back at its step without instantiating it a second time.
+func swap_diner_art_keeping(tier: int) -> Node3D:
+	var vis := diner_body.get_node("Visual")
+	var kept := vis.get_node_or_null("DinerArt") as Node3D
+	if kept != null:
+		vis.remove_child(kept)
+	var fresh := diner_scene_for(tier).instantiate()
+	vis.add_child(fresh)
+	vis.move_child(fresh, 0)
+	occluder_fade.refresh_bounds()
+	return kept
+
+## Puts `art` (from swap_diner_art_keeping) back as the diner's art and frees the one it replaces.
+func put_back_diner_art(art: Node3D) -> void:
+	var vis := diner_body.get_node("Visual")
+	var cur := vis.get_node_or_null("DinerArt")
+	if cur != null and cur != art:
+		vis.remove_child(cur)  # at once: the fade's find_children must not see it
+		cur.queue_free()
+	if art.get_parent() == null:
+		vis.add_child(art)
+	vis.move_child(art, 0)
+	occluder_fade.refresh_bounds()
 
 ## The lane nodes, their edge stones and their telegraph markers follow the tier: the lanes of `lane_ids()` exist, no others.
 ## Tiers 1 and 2 have the same three, so nothing is touched for them.

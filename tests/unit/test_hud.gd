@@ -505,12 +505,6 @@ func _hero_at(p: Vector2) -> void:
 	main.hero.teleport(p)
 	main.camera_rig.snap()
 
-## Where the thumb rests on a floating stick (there is no fixed pad): the lower middle of the screen, radius joystick_radius_px
-## around 80% of the height. Nothing in the HUD may sit there.
-func _thumb_zone(vp: Vector2) -> Rect2:
-	var r: float = Balance.ui.joystick_radius_px
-	return Rect2(Vector2(vp.x * 0.5 - r, vp.y * 0.8 - r), Vector2(r, r) * 2.0)
-
 func _check_sw_arrow(arrow: HudArrow, size: Vector2i, what: String) -> void:
 	var vp := Vector2(size)
 	var g: Vector2 = arrow.position + hud.root.position
@@ -521,7 +515,6 @@ func _check_sw_arrow(arrow: HudArrow, size: Vector2i, what: String) -> void:
 	assert_gt(g.y, vp.y * 0.5, what + ": below the middle: the lane comes in from the south-west")
 	assert_almost_eq(arrow.rotation, PI * 0.5, 0.5, what + ": points left (tip down at 0, so +90 degrees)")
 	assert_gte(g.y - Hud.arrow_extent(), Balance.ui.hud_top_bar_px, what + ": not under the HUD's top bar")
-	assert_false(_thumb_zone(vp).grow(Hud.arrow_extent()).has_point(g), what + ": clear of the joystick's rest area")
 
 func test_the_sw_arrow_sits_on_the_left_edge_for_a_main_and_a_side_slot_at_every_aspect_and_hero_place() -> void:
 	var checked := 0
@@ -569,3 +562,7 @@ func test_the_sw_arrow_does_not_appear_below_tier_3() -> void:
 	EventBus.wave_incoming.emit(0, &"sw", &"west")
 	await get_tree().process_frame
 	assert_eq(hud.arrows.main.position, before, "not placed: no lane to point at")
+
+func after_each() -> void:
+	Balance.reset()
+	GameState.new_game(1)

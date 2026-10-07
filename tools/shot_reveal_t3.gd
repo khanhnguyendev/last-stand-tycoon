@@ -1,7 +1,7 @@
 extends SceneTree
 ## The tier-3 reveal, the south-west arrow and the HUD clear of count rows (E5 tier 3 Task 20). Run WITH rendering:
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_reveal_t3.gd -- --out=docs/review/media/e5t3/reveal
-## Writes reveal_t3_0 (before step 1), reveal_t3_2 (after step 2: the lot and the lane), reveal_t3_5 (after the storey) and
+## Writes reveal_t3_0 (before step 1), reveal_t3_2 (after step 2: the lot and the lane), reveal_t3_5 (after step 5, the storey) and
 ## reveal_t3_end (all steps done, just before the card pick), arrow_sw (a night with the south-west arrow beside a west one, hero at
 ## HOME) and home_rows_hidden (a tier-1 day from HOME: the HUD clear of count rows), each with a _40 copy (288x512).
 ## The tier-3 cost entry is appended here (the switch is Task 21). The game's own camera does the framing: it is at the hero
@@ -61,7 +61,7 @@ func _run() -> void:
 	main.world.wave_director.stop()
 	_drain_banners(main)
 	pc.debug_skip_to_day()  # the tier-3 dawn: the reveal starts
-	# the times: step 1 at 0.6 s, step 2 at 0.91 s, step 5 at 1.85 s, the card pick at 3.0 s
+	# the five steps at 0.60, 0.95, 1.30, 1.65 and 2.00 s (lot, lane, fence spot, tower spot, storey); the card pick at 3.0 s
 	var t := 0
 	for target in [[0.55, "reveal_t3_0"], [1.1, "reveal_t3_2"], [2.1, "reveal_t3_5"], [2.9, "reveal_t3_end"]]:
 		var want := int(target[0] * 60.0)

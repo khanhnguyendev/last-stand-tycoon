@@ -27,6 +27,10 @@ func before_each() -> void:
 	_visual.add_child(_fade)
 	_fade.setup(_diner, func(): return _cam, func(): return _targets)
 
+func after_each() -> void:
+	Balance.reset()  # drops the tier-3 cost entry some tests append
+	GameState.new_game(1)
+
 func _aim_camera_at(hero_xz: Vector2) -> void:
 	_cam.global_transform = CameraMath.camera_transform(CameraMath.focus_for(hero_xz), Balance.ui)
 

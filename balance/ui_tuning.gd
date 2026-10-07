@@ -42,11 +42,12 @@ extends Resource
 @export var tier_reveal_out_s := 0.8
 @export var tier_reveal_step_s := 0.35
 ## E5 tier 3 Task 20: a tap during the reveal sends the camera back to the hero over this long; the tier-3 camera frames this much of the
-## south-west lane's last stretch (m, along the lane from its end); the tier-3 steps never come closer than the build sound's own
-## minimum gap plus this margin (s).
+## south-west lane's last stretch (m, along the lane from its end)
+## (the tier-3 reveal only).
 @export var tier_reveal_skip_ease_s := 0.25
 @export var tier_reveal_lane_stretch_m := 8.0
-@export var tier_reveal_gap_margin_s := 0.01
+## A press in the first this-many seconds of a reveal (physics time since the dawn started) does not skip it: step 1 is always seen.
+@export var tier_reveal_skip_guard_s := 0.6
 ## The tier-3 camera fits its subject points inside this fraction of the half-screen (1.0 = the very edge, as tier 2): air for the HUD's
 ## top bar and for the finger.
 @export var tier_reveal_fit_t3 := 0.8

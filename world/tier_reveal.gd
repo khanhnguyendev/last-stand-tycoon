@@ -5,7 +5,8 @@ extends Node
 ## kills everything. Steps tier_reveal_step_s apart, each with the build sound and a dust puff: the first yard's dust, its
 ## stones, the diner pops, the other yards' dust, the yard spot markers pop. The steps start once the camera has arrived.
 ## Tier 3 (E5 tier 3 Task 20, spec 7) has its own list: the front lot's paving and kerb, the south-west lane strip with its edge stones and
-## flag, the fence spot, the tower spot, the diner's second storey, the branch pads. A tap fast-forwards a reveal (D-273.2): the controller
+## flag, the fence spot, the tower spot, the diner's second storey (five steps; the branch pads appear with the first tier-3 day, the
+## tier-up being a dawn). A tap fast-forwards a reveal (D-273.2): the controller
 ## opens the card pick and this node, hearing it on the bus, applies what is left and sends the camera back to the hero.
 
 var _world: World
@@ -15,12 +16,11 @@ var _steps: Array = []  ## [{at: Vector3, kind: StringName}] not yet run
 var _hidden_spots: Array[BuildSpot] = []
 var _diner_art: Node3D
 var _diner_base := Vector3.ONE
-var _interval := 0.35  ## seconds between two steps of the running reveal
 ## Tier 3: what the running reveal has hidden or swapped, to put back (see _restore).
 var _staged := false  ## the ground, kerb and edge stones show the tier before
 var _diner_old := false  ## the diner shows the previous tier's art
 var _hidden_markers: Array[TelegraphMarker] = []
-var _hidden_pads: Array[BranchPad] = []
+var _diner_kept: Node3D  ## tier 3: the new storey's art, taken out of the diner for the first steps and put back at step 5 (no second instantiation)
 
 func setup(world: World) -> void:
 	_world = world
@@ -59,19 +59,6 @@ static func lane_stretch_points(stretch: float) -> Array[Vector2]:
 			out.append(path[i])
 	out.append(path[path.size() - 1])
 	return out
-
-## Seconds between the steps of a reveal of `n` steps: tier_reveal_step_s while the last step's pop fits the camera's hold, else the
-## spacing that makes it fit, never below the build sound's own minimum gap (a closer step would play silent): the reveal's length
-## never changes (it ends at tier_reveal_time).
-static func step_interval(n: int, ui: UiTuning, total: float) -> float:
-	var step := ui.tier_reveal_step_s
-	if n <= 1:
-		return step
-	var hold := total - ui.tier_reveal_in_s - ui.tier_reveal_out_s
-	if (n - 1) * step + ui.build_pop_time <= hold + 1e-6:
-		return step
-	var floor_s: float = AudioManifest.SFX[&"build_done"].min_gap_s + ui.tier_reveal_gap_margin_s
-	return maxf((hold - ui.build_pop_time) / float(n - 1), floor_s)
 
 ## Pure: the reveal camera for `tier`: the focus is the centre of the subject points' bounding rectangle, the zoom the
 ## smallest in [1.0, ui.tier_reveal_zoom] (steps of 0.05) that shows every point at `aspect`; the cap when none does.
@@ -134,16 +121,15 @@ func _restore() -> void:
 		_world.show_map_full()
 	if _diner_old:
 		_diner_old = false
-		_world.show_diner_for()
+		if _diner_kept != null and is_instance_valid(_diner_kept):
+			_world.put_back_diner_art(_diner_kept)
+		else:
+			_world.show_diner_for()
+	_diner_kept = null
 	for m in _hidden_markers:
 		if is_instance_valid(m):
 			m.refresh()
 	_hidden_markers.clear()
-	for p in _hidden_pads:
-		if is_instance_valid(p):
-			p.body.scale = Vector3.ONE
-			p.refresh()
-	_hidden_pads.clear()
 
 func _on_tier_reached(tier: int) -> void:
 	_cancel()
@@ -163,20 +149,19 @@ func _on_tier_reached(tier: int) -> void:
 	else:
 		_plan_default(tier, yards)
 	var ui := Balance.ui
-	_interval = TierReveal.step_interval(_steps.size(), ui, Balance.data.tiers.tier_reveal_time)
 	var hold := minf(float(_steps.size()) * ui.tier_reveal_step_s, Balance.data.tiers.tier_reveal_time - ui.tier_reveal_in_s - ui.tier_reveal_out_s)
 	var frame := frame_for(tier, ui)
 	EventBus.camera_reveal_requested.emit(ui.tier_reveal_in_s, maxf(hold, 0.0), ui.tier_reveal_out_s, frame.zoom, frame.focus)
 	_tween = create_tween()
 	_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
-	# The steps play inside the camera's hold: the first when the camera has reached its frame (in_s), then _interval apart.
+	# The steps play inside the camera's hold: the first when the camera has reached its frame (in_s), then tier_reveal_step_s apart.
 	# The reveal ends at tier_reveal_time (the card pick opens then), at least build_pop_time after the last step.
-	var last_at := ui.tier_reveal_in_s + float(_steps.size() - 1) * _interval
+	var last_at := ui.tier_reveal_in_s + float(_steps.size() - 1) * ui.tier_reveal_step_s
 	_tween.tween_interval(ui.tier_reveal_in_s)
 	for i in _steps.size():
 		_tween.tween_callback(_step)
 		if i < _steps.size() - 1:
-			_tween.tween_interval(_interval)
+			_tween.tween_interval(ui.tier_reveal_step_s)
 	_tween.tween_interval(maxf(Balance.data.tiers.tier_reveal_time - last_at, ui.build_pop_time))
 	_tween.tween_callback(_finish)
 
@@ -207,9 +192,9 @@ func _plan_default(tier: int, yards: Array[String]) -> void:
 			s.marker.visible = false
 			_hidden_spots.append(s)
 
-## The tier-3 list (spec 7): the lot, the lane, the fence spot, the tower spot, the second storey, the branch pads that show now. Each
+## The tier-3 list (spec 7): the lot, the lane, the fence spot, the tower spot, the second storey. Each
 ## step's things are hidden until it runs: the ground and kerb show the tier-2 yards and lanes only, the lane's flag and the two spots'
-## markers are hidden, the diner shows its tier-2 art, the visible pads are hidden.
+## markers are hidden, the diner shows its tier-2 art.
 func _plan_tier3() -> void:
 	var stretch := TierReveal.lane_stretch_points(Balance.ui.tier_reveal_lane_stretch_m)
 	var lane_mid: Vector2 = stretch[0].lerp(stretch[stretch.size() - 1], 0.5)
@@ -218,12 +203,9 @@ func _plan_tier3() -> void:
 	_steps.append({"kind": &"spot", "id": "fence_sw", "at": MapLayout.to3(MapLayout.spot_position("fence_sw"), 1.0)})
 	_steps.append({"kind": &"spot", "id": "tower_sw", "at": MapLayout.to3(MapLayout.spot_position("tower_sw"), 1.0)})
 	_steps.append({"kind": &"diner", "at": Vector3(0.0, MapLayout.DINER_HEIGHT + 0.5, 0.0)})
-	var pads := _shown_pads()
-	if not pads.is_empty():
-		_steps.append({"kind": &"pads", "at": pads[0].global_position + Vector3(0.0, 1.0, 0.0)})
 	_world.show_map_stage(MapLayout.yards_for_tier(2), MapLayout.lanes_for_tier(2))
 	_staged = true
-	_world.show_diner_for(2)
+	_diner_kept = _world.swap_diner_art_keeping(2)  # the old storey shows; the new art waits detached
 	_diner_old = true
 	var marker: TelegraphMarker = _world.telegraph_markers.get("sw")
 	if marker != null:
@@ -234,18 +216,6 @@ func _plan_tier3() -> void:
 		if s != null:
 			s.marker.visible = false
 			_hidden_spots.append(s)
-	for p in pads:
-		p.body.visible = false
-		_hidden_pads.append(p)
-
-## The branch pads on the map right now (at a DAY world with a branchable building; at the dawn none shows, the zones being inactive).
-func _shown_pads() -> Array[BranchPad]:
-	var out: Array[BranchPad] = []
-	for id in MapLayout.spots_for_tier(3):
-		for p in _world.branch_pads.get(id, []):
-			if (p as BranchPad).body.visible:
-				out.append(p)
-	return out
 
 func _step() -> void:
 	if _steps.is_empty():
@@ -266,7 +236,8 @@ func _apply(st: Dictionary, animate: bool) -> void:
 		&"diner":
 			if _diner_old:
 				_diner_old = false
-				_world.show_diner_for()  # the new storey
+				_world.put_back_diner_art(_diner_kept)  # the new storey (the node the world built at the tier-up)
+				_diner_kept = null
 				var visual := _world.diner_body.get_node_or_null("Visual")
 				_diner_art = visual.get_node_or_null("DinerArt") as Node3D if visual != null else null
 				_diner_base = _diner_art.scale if _diner_art != null else Vector3.ONE
@@ -279,7 +250,7 @@ func _apply(st: Dictionary, animate: bool) -> void:
 					if animate:
 						_pops.append(PopFx.pop(self, s.marker, Vector3.ONE, null))
 		&"lot":
-			if _staged:
+			if _staged and animate:  # a skip goes straight to the full map at the lane step: no mesh built to be replaced at once
 				_world.show_map_stage(MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(2))  # the paving, props and kerb of the lot
 		&"lane":
 			if _staged:
@@ -298,12 +269,6 @@ func _apply(st: Dictionary, animate: bool) -> void:
 				s.marker.visible = true
 				if animate:
 					_pops.append(PopFx.pop(self, s.marker, Vector3.ONE, null))
-		&"pads":
-			for p in _hidden_pads:
-				if is_instance_valid(p):
-					p.body.visible = true
-					if animate:
-						_pops.append(PopFx.pop(self, p.body, Vector3.ONE, null))
 
 ## After the last step and its pop: the reveal ends. The markers stayed shown from step 5 until now; refresh() puts every
 ## spot back to what the phase says: at DAWN the zone is inactive, so it hides the markers until day.

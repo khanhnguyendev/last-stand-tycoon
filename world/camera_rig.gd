@@ -85,8 +85,7 @@ func _on_state_restored() -> void:
 ## follow focus to it during the ease-in and back to the follow focus during the ease-out. Runs in _process; writes
 ## nothing but the camera transform.
 func reveal(seconds_in: float, hold_s: float, seconds_out: float, zoom: float, reveal_focus := Vector2.INF) -> void:
-	# E5 tier 3 Task 20 (D-273.2): a skipped reveal asks for "no ease-in, zoom 1.0, no focus" while one runs: the camera eases back
-	# from where it is (no jump) over seconds_out; with none running it does nothing. Any other request starts a new reveal as before.
+	# Sentinel (in_s <= 0, zoom 1.0, no focus) = "return to the hero from the current pose over seconds_out" (a skipped reveal); a no-op when idle.
 	if seconds_in <= 0.0 and is_equal_approx(zoom, 1.0) and not reveal_focus.is_finite():
 		if not _rv_active:
 			return

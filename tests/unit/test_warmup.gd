@@ -8,6 +8,8 @@ func before_each() -> void:
 	dir = "user://test_saves/wu_%d" % Time.get_ticks_usec()
 
 func after_each() -> void:
+	Balance.reset()
+	GameState.new_game(1)
 	SaveStore.with_dir(dir).wipe()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_saves"))
@@ -184,3 +186,18 @@ func test_warmup_draws_a_kerb_piece_when_the_top_tier_has_yards() -> void:
 	assert_eq(kerbs.size(), 1, "one kerb piece with the kerb material")
 	await warmup.finished
 	assert_eq(warmup.get_child_count(), 0)
+
+## E5 tier 3 Task 20: the tier-3 reveal's first step shows the lot's paving with the tier-2 lanes: that mesh is built before the tier-up.
+func test_warmup_prebuilds_the_tier_3_reveals_first_step_mesh() -> void:
+	if Balance.data.tiers.tier_costs.size() < 3:
+		Balance.data.tiers.tier_costs.append(1500)  # the tier-3 switch is Task 21: the test turns it on
+	var spread: float = Balance.data.enemy.lateral_spread
+	var first_step := GroundArt._terrain_key(World.ground_rect(), MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(2), spread)
+	var full := GroundArt._terrain_key(World.ground_rect(), MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(3), spread)
+	GroundArt._cache.erase(first_step)
+	GroundArt._cache.erase(full)
+	assert_false(GroundArt._cache.has(first_step))
+	Warmup._prebuild_tier_caches()
+	assert_true(GroundArt._cache.has(first_step), "the lot's paving with the tier-2 lanes")
+	assert_true(GroundArt._cache.has(full), "the tier-3 terrain too")
+	assert_true(GroundArt.is_cached(World.ground_rect(), MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(2), spread))

@@ -35,6 +35,8 @@ func after_each() -> void:
 	EventBus.banner_requested.disconnect(_on_banner)
 	EventBus.sfx_requested.disconnect(_on_sfx)
 	EventBus.fx_requested.disconnect(_on_fx)
+	Balance.reset()  # drops the tier-3 cost entry
+	GameState.new_game(1)
 
 func _tier_up() -> void:
 	main.phase_controller.debug_skip_to_day()
@@ -303,11 +305,17 @@ func _tier3_cost() -> void:
 
 ## Plays to the tier-3 dawn through the real controller: tier 2 (its reveal ended by finish_reveal_now), the tier-3 sign paid, the
 ## boss night won. Nothing has run yet: the reveal's first frame.
-func _tier3_dawn() -> void:
+func _tier2_day() -> void:
 	_tier3_cost()
 	_tier_up()
 	main.phase_controller.finish_reveal_now()
 	main.phase_controller.debug_skip_to_day()  # skips the tier-2 card pick
+
+func _tier3_dawn() -> void:
+	_tier2_day()
+	_tier3_dawn_from_tier2_day()
+
+func _tier3_dawn_from_tier2_day() -> void:
 	GameState.add_gold(2000)  # test-only setup
 	GameState.pay_into_tier(GameState.tier_next_cost())
 	main.phase_controller.debug_skip_to_night()
@@ -347,70 +355,57 @@ func _signature() -> Dictionary:
 	var w := main.world
 	var vis := w.diner_body.get_node("Visual")
 	var art := vis.get_node("DinerArt") as Node3D
-	var pads := []
-	for id in w.branch_pads:
-		for p in w.branch_pads[id]:
-			pads.append([p.body.visible, p.body.scale])
 	var sw: TelegraphMarker = w.telegraph_markers["sw"]
 	return {
 		"ground": w.ground.mesh, "kerb": w.yard_stones.multimesh.instance_count, "edges": w.edge_stones.multimesh.instance_count,
 		"diner": art.scene_file_path, "diner_scale": art.scale,
 		"sw_flag": [sw.visible, sw.scale], "fence_sw": [w.build_spots["fence_sw"].marker.visible, w.build_spots["fence_sw"].marker.scale],
-		"tower_sw": [w.build_spots["tower_sw"].marker.visible, w.build_spots["tower_sw"].marker.scale], "pads": pads,
+		"tower_sw": [w.build_spots["tower_sw"].marker.visible, w.build_spots["tower_sw"].marker.scale],
 		"stones_visible": w.yard_stones.visible,
 	}
-
-func test_tier3_interval_is_the_step_time_when_it_fits_else_the_hold_spread_over_the_steps() -> void:
-	var ui := Balance.ui
-	var total: float = Balance.data.tiers.tier_reveal_time
-	assert_almost_eq(TierReveal.step_interval(5, ui, total), 0.35, 1e-6, "tier 2: five steps fit at tier_reveal_step_s, unchanged")
-	assert_almost_eq(TierReveal.step_interval(1, ui, total), 0.35, 1e-6)
-	# six steps: 0.6 + 5 x 0.35 + 0.2 = 2.55 > the camera hold's end 2.2, so the spacing shrinks: (1.6 - 0.2) / 5 = 0.28, but the build sound's
-	# minimum gap is 0.3 s (a closer step plays silent), so it stops at 0.31.
-	assert_almost_eq(TierReveal.step_interval(6, ui, total), 0.31, 1e-6)
-	var last := ui.tier_reveal_in_s + 5.0 * 0.31
-	assert_lte(last + ui.build_pop_time, total, "the last pop ends before the reveal does: the reveal is not lengthened")
-	assert_gt(TierReveal.step_interval(6, ui, total), AudioManifest.SFX[&"build_done"].min_gap_s)
 
 func test_tier3_state_is_tier_3_with_five_steps_waiting_at_the_dawn() -> void:
 	_tier3_dawn()
 	assert_eq(GameState.tier, 3)
 	assert_true(_reveal().running())
-	# no branch pad shows at a dawn (its zone is inactive), so the pads step is left out: five steps
+	# five steps: the lot, the lane, the fence spot, the tower spot, the storey (the branch pads appear with the first tier-3 day)
 	assert_eq(_reveal().steps_left(), 5)
 
 func test_tier3_things_are_hidden_before_their_step_and_shown_after_it_in_the_spec_order() -> void:
-	_tier3_dawn()
-	await get_tree().process_frame
+	_tier2_day()
 	var w := main.world
-	var ui := Balance.ui
-	# pads: make two visible, as in a day world, and restart the reveal so its sixth step exists
-	var pads: Array = w.branch_pads["tower_nw"] + w.branch_pads["fence_w"]
-	await _frames(_total_frames() + 5)
-	for p in pads:
-		p.body.visible = true  # test-only: a world where the pads show (they never do at a dawn)
-	(w.telegraph_markers["sw"] as TelegraphMarker).visible = true  # and the flag and the spots' markers (a day world), so hiding them is a change
-	w.build_spots["fence_sw"].marker.visible = true
-	w.build_spots["tower_sw"].marker.visible = true
+	var kerb_tier2 := _hash_transforms(w.yard_stones.multimesh, w.yard_stones.multimesh.instance_count)  # what the player saw at tier 2
+	var kerb_tier2_n: int = w.yard_stones.multimesh.instance_count
+	var art_at_tier2 := _diner_scene()
+	assert_eq(art_at_tier2, "res://art/env/diner_t2.tscn")
+	_tier3_dawn_from_tier2_day()
+	var reveal := _reveal()
+	await _frames(_total_frames() + 5)  # the dawn's own reveal runs out; the same steps are replayed below so that every hidden thing is a change
+	# the flag and the spots' markers are hidden at a dawn anyway: show them, so that hiding them is a change the reveal must make
 	sfx.clear()
 	fx.clear()
+	(w.telegraph_markers["sw"] as TelegraphMarker).visible = true
+	w.build_spots["fence_sw"].marker.visible = true
+	w.build_spots["tower_sw"].marker.visible = true
 	EventBus.tier_reached.emit(3)
-	var reveal := _reveal()
-	assert_eq(reveal.steps_left(), 6)
-	# before step 1: everything the six steps bring is hidden / old
+	var kept := reveal._diner_kept
+	assert_not_null(kept, "the new storey's art waits detached: the world built it once at the tier-up, the step puts the same node back")
+	var kept_id := kept.get_instance_id()
+	assert_eq(reveal.steps_left(), 5)
+	# before step 1: everything the five steps bring is hidden / old
 	assert_same(w.ground.mesh, _mesh_before_lot(), "ground: tier-2 paving only")
-	assert_eq(w.yard_stones.multimesh.instance_count, _kerb_count(MapLayout.yards_for_tier(2)), "kerb: the tier-2 yards' pieces only")
+	assert_eq(w.yard_stones.multimesh.instance_count, kerb_tier2_n, "kerb: the tier-2 yards' pieces only")
+	assert_eq(_hash_transforms(w.yard_stones.multimesh, kerb_tier2_n), kerb_tier2, "the pieces the player saw at tier 2, byte for byte")
 	assert_eq(w.edge_stones.multimesh.instance_count, _edge_count(MapLayout.lanes_for_tier(2)), "edge stones: no south-west strip")
 	assert_false((w.telegraph_markers["sw"] as TelegraphMarker).visible)
 	assert_false(w.build_spots["fence_sw"].marker.visible)
 	assert_false(w.build_spots["tower_sw"].marker.visible)
 	assert_eq(_diner_scene(), "res://art/env/diner_t2.tscn", "the old storey")
-	for p in pads:
-		assert_false(p.body.visible)
 	# step 1: the front lot
 	await _wait_for_steps(1, 0)
 	assert_same(w.ground.mesh, _mesh_after_lot(), "paving of the lot")
 	assert_eq(w.yard_stones.multimesh.instance_count, _kerb_count(MapLayout.yards_for_tier(3)), "its kerb")
+	assert_eq(_hash_transforms(w.yard_stones.multimesh, kerb_tier2_n), kerb_tier2, "the tier-2 pieces did not move")
 	assert_eq(w.edge_stones.multimesh.instance_count, _edge_count(MapLayout.lanes_for_tier(2)), "no strip yet")
 	assert_false((w.telegraph_markers["sw"] as TelegraphMarker).visible)
 	assert_eq(fx[0][1], MapLayout.to3(MapLayout.yard_rect("front").get_center()), "dust on the lot")
@@ -422,7 +417,7 @@ func test_tier3_things_are_hidden_before_their_step_and_shown_after_it_in_the_sp
 	assert_false(w.build_spots["fence_sw"].marker.visible, "the spots wait")
 	var lane_pt: Vector3 = fx[1][1]
 	var path: Array = MapLayout.lane_path("sw")
-	assert_lt(Geometry.dist_point_segment(Vector2(lane_pt.x, lane_pt.z), path[1], path[2]) , 3.0, "dust on the lane's last stretch")
+	assert_lt(Geometry.dist_point_segment(Vector2(lane_pt.x, lane_pt.z), path[1], path[2]), 3.0, "dust on the lane's last stretch")
 	# step 3: the fence spot, step 4: the tower spot
 	await _wait_for_steps(3, 0)
 	assert_true(w.build_spots["fence_sw"].marker.visible)
@@ -432,45 +427,38 @@ func test_tier3_things_are_hidden_before_their_step_and_shown_after_it_in_the_sp
 	assert_true(w.build_spots["tower_sw"].marker.visible)
 	assert_eq(fx[3][1], MapLayout.to3(MapLayout.spot_position("tower_sw"), 1.0))
 	assert_eq(_diner_scene(), "res://art/env/diner_t2.tscn", "the storey still waits")
-	# step 5: the second storey
+	# step 5: the second storey: the very node the world built, not a new instance
 	await _wait_for_steps(5, 0)
 	assert_eq(_diner_scene(), "res://art/env/diner_t3.tscn")
-	assert_gt((w.diner_body.get_node("Visual").get_node("DinerArt") as Node3D).scale.x, 1.0, "it pops")
-	for p in pads:
-		assert_false(p.body.visible, "pads wait for the last step")
-	# step 6: the pads, all at once
-	await _wait_for_steps(6, 0)
-	for p in pads:
-		assert_true(p.body.visible)
-	assert_eq(fx.size(), 6)
+	var art := w.diner_body.get_node("Visual").get_node("DinerArt") as Node3D
+	assert_eq(art.get_instance_id(), kept_id, "one instantiation of the tier-3 art in the tier-up, none at the step")
+	assert_gt(art.scale.x, 1.0, "it pops")
+	assert_eq(fx.size(), 5)
 	assert_eq(reveal.steps_left(), 0)
 
-func test_tier3_steps_are_one_interval_apart_and_the_reveal_ends_at_tier_reveal_time() -> void:
+func test_tier3_steps_are_the_literal_times_and_the_reveal_ends_at_tier_reveal_time() -> void:
 	_tier3_dawn()
-	await _frames(_total_frames() + 5)
-	var pads: Array = main.world.branch_pads["tower_nw"]
-	for p in pads:
-		p.body.visible = true
-	EventBus.tier_reached.emit(3)
 	var times := []
-	var n0 := sfx.count(&"build_done")
 	var frame := 0
-	while sfx.count(&"build_done") - n0 < 6 and frame < 400:
+	while times.size() < 5 and frame < 400:
 		var before := sfx.count(&"build_done")
 		await get_tree().physics_frame
 		frame += 1
 		if sfx.count(&"build_done") > before:
 			times.append(float(frame) / 60.0)
-	assert_eq(times.size(), 6)
-	assert_almost_eq(float(times[0]), Balance.ui.tier_reveal_in_s, 0.04, "step 1 when the camera has arrived")
-	for i in range(1, 6):
-		assert_almost_eq(float(times[i]) - float(times[i - 1]), 0.31, 0.04, "interval %d" % i)
 	gut.p("tier-3 step times (s): %s" % [times])
+	assert_eq(times.size(), 5)
+	var want := [0.60, 0.95, 1.30, 1.65, 2.00]
+	for i in 5:
+		assert_almost_eq(float(times[i]), float(want[i]), 0.02, "step %d" % (i + 1))
 	assert_true(_reveal().running())
+	assert_true(main.phase_controller.reveal_pending)
 	await _frames(int(Balance.data.tiers.tier_reveal_time * 60.0) - frame - 8)
-	assert_true(_reveal().running(), "still running just before tier_reveal_time")
+	assert_true(_reveal().running(), "still running just before 3.0 s")
+	assert_true(main.phase_controller.reveal_pending)
 	await _frames(16)
-	assert_false(_reveal().running(), "over at tier_reveal_time")
+	assert_false(_reveal().running(), "over at 3.0 s")
+	assert_false(main.phase_controller.reveal_pending, "the card pick opened")
 
 func test_tier3_the_card_pick_opens_at_tier_reveal_time_and_the_world_is_whole() -> void:
 	_tier3_dawn()
@@ -490,7 +478,7 @@ func test_tier3_the_card_pick_opens_at_tier_reveal_time_and_the_world_is_whole()
 func test_tier2_reveal_is_unchanged_by_the_tier_3_list() -> void:
 	_tier_up()
 	assert_eq(_reveal().steps_left(), 5)
-	assert_almost_eq(_reveal()._interval, 0.35, 1e-6)
+	assert_eq(Balance.ui.tier_reveal_step_s, 0.35, "tier 2 plays at the tuning's step time")
 	assert_same(main.world.ground.mesh, GroundArt.terrain_mesh(World.ground_rect(), MapLayout.yards_for_tier(2), MapLayout.lanes_for_tier(2), _spread()), "tier 2 does not stage the ground")
 	assert_eq(_diner_scene(), "res://art/env/diner_t2.tscn")
 
@@ -518,15 +506,17 @@ func test_a_new_game_mid_tier3_reveal_rebuilds_tier_1() -> void:
 # --- the kerb: only the new yard's pieces are staged ---
 
 func test_the_tier2_kerb_pieces_never_leave_during_the_tier3_reveal() -> void:
-	_tier3_dawn()
+	_tier2_day()
 	var w := main.world
-	var tier2 := _kerb_count(MapLayout.yards_for_tier(2))
+	var tier2: int = w.yard_stones.multimesh.instance_count  # the kerb the player saw at tier 2, before the payment
+	var hash_seen := _hash_transforms(w.yard_stones.multimesh, tier2)
+	_tier3_dawn_from_tier2_day()
 	assert_gt(_kerb_count(MapLayout.yards_for_tier(3)), tier2, "the front lot adds pieces")
-	# the first tier2 pieces of the staged multimesh are the tier-2 kerb, transform for transform
-	assert_eq(w.yard_stones.multimesh.instance_count, tier2)
-	var hash_staged := _hash_transforms(w.yard_stones.multimesh, tier2)
+	assert_eq(w.yard_stones.multimesh.instance_count, tier2, "staged: only the tier-2 pieces")
+	assert_eq(_hash_transforms(w.yard_stones.multimesh, tier2), hash_seen, "the pieces the player saw, byte for byte, at the first frame")
 	await _frames(_total_frames() + 5)
-	assert_eq(_hash_transforms(w.yard_stones.multimesh, tier2), hash_staged, "the same pieces, byte for byte, before and after the lot's step")
+	assert_eq(w.yard_stones.multimesh.instance_count, _kerb_count(MapLayout.yards_for_tier(3)))
+	assert_eq(_hash_transforms(w.yard_stones.multimesh, tier2), hash_seen, "and after the lot's step the same first pieces")
 	assert_eq(w.find_children("YardStones*", "MultiMeshInstance3D", false, false).size(), 1, "still ONE kerb draw call")
 
 func _hash_transforms(mm: MultiMesh, n: int) -> int:
@@ -585,15 +575,15 @@ func _mouse(pressed := true, button := MOUSE_BUTTON_LEFT, device := 0) -> InputE
 	e.device = device
 	return e
 
-func _touch(pressed := true) -> InputEventScreenTouch:
+func _touch(pressed := true, pos := Vector2(360, 700)) -> InputEventScreenTouch:
 	var e := InputEventScreenTouch.new()
 	e.pressed = pressed
 	e.index = 0
-	e.position = Vector2(360, 700)
+	e.position = pos
 	return e
 
 func _tap(ev: InputEvent) -> void:
-	get_viewport().push_input(ev)
+	get_viewport().push_input(ev, true)  # local coordinates: the stretch must not rescale the position
 
 var offered: Array = []
 
@@ -648,22 +638,6 @@ func test_the_skip_leaves_the_state_a_reveal_that_ran_to_its_end_leaves() -> voi
 	var skipped := _signature()
 	for k in natural:
 		assert_eq(skipped[k], natural[k], "after the skip: %s as after the full reveal" % k)
-
-func test_skip_matches_the_full_reveal_with_the_pads_showing_too() -> void:
-	_tier3_dawn()
-	await _frames(_total_frames() + 5)
-	for p in main.world.branch_pads["tower_nw"]:
-		p.body.visible = true
-	EventBus.tier_reached.emit(3)
-	await _frames(_total_frames() + 5)
-	var natural := _signature()
-	for p in main.world.branch_pads["tower_nw"]:
-		p.body.visible = true
-	EventBus.tier_reached.emit(3)
-	assert_eq(_reveal().steps_left(), 6)
-	await _frames(_in_frames() + 5)
-	_reveal().skip()
-	assert_eq(_signature(), natural)
 
 func test_a_click_during_the_tier2_reveal_skips_it_too() -> void:
 	_tier_up()
@@ -732,7 +706,7 @@ class _UnhandledCatcher extends Node:
 
 func test_the_skipping_tap_reaches_no_button_under_the_finger_and_starts_no_drag() -> void:
 	_tier3_dawn()
-	await _frames(30)
+	await _frames(40)
 	var seen := []
 	var catcher := _UnhandledCatcher.new()
 	catcher.seen = seen
@@ -758,7 +732,8 @@ func test_the_joystick_is_disabled_from_the_dawn_until_the_reveal_ends_or_is_ski
 	assert_true(hero.input.blocked, "still blocked mid-reveal")
 	assert_eq(hero.input.get_move(), Vector2.ZERO)
 	assert_eq(hero.xz(), at)
-	_tap(_mouse())  # skip: the card pick is open now
+	await _frames(10)
+	_tap(_mouse())  # skip (past the guard): the card pick is open now
 	assert_true(hero.input.blocked, "blocked at the card pick")
 	main.joystick.handle(_joy_touch(true, Vector2(360, 900)))
 	assert_false(main.joystick.is_active())
@@ -825,9 +800,99 @@ func test_a_reload_in_the_middle_of_the_tier3_reveal_resumes_at_the_card_pick_wi
 	assert_true(w.lanes.has("sw"))
 	assert_true(w.telegraph_markers.has("sw"))
 	assert_true(w.build_spots.has("tower_sw") and w.build_spots.has("fence_sw"))
-	assert_eq(w.branch_pads.size(), 9, "the pads of every spot exist (18 pads)")
+	assert_eq(w.branch_pads.size(), 9, "the pads of every spot exist (18 pads)")  # their look is Task 17's; here only that the world is built
 	await _frames(_total_frames() + 10)
 	assert_eq(pc.dawn_substate, "CARD_PICK", "nothing else happens")
 	SaveStore.with_dir(dir).wipe()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_saves"))
+
+# --- the skip guard (the first tier_reveal_skip_guard_s) ---
+
+func test_a_press_in_the_first_0_6_s_is_consumed_and_skips_nothing_one_after_it_skips() -> void:
+	_tier3_dawn()
+	await _frames(10)
+	var seen := []
+	var catcher := _UnhandledCatcher.new()
+	catcher.seen = seen
+	add_child_autofree(catcher)
+	_tap(_mouse())
+	assert_true(main.phase_controller.reveal_pending, "a press at frame 10 (0.17 s) leaves the reveal running")
+	assert_true(_reveal().running())
+	assert_eq(seen.size(), 0, "the ignored press was consumed: it started nothing else")
+	assert_false(main.joystick.is_active())
+	await _frames(30)  # frame 40 (0.67 s)
+	_tap(_mouse())
+	assert_false(main.phase_controller.reveal_pending, "a press at frame 40 skips")
+	assert_false(_reveal().running())
+
+func test_the_guard_also_applies_to_the_tier2_reveal() -> void:
+	_tier_up()
+	await _frames(10)
+	_tap(_touch())
+	assert_true(main.phase_controller.reveal_pending)
+	await _frames(30)
+	_tap(_touch())
+	assert_false(main.phase_controller.reveal_pending)
+
+func test_the_guard_equals_the_camera_arrival() -> void:
+	assert_eq(Balance.ui.tier_reveal_skip_guard_s, Balance.ui.tier_reveal_in_s, "step 1 is always seen")
+
+# --- a tap that skips picks no card (the real targets read _input before the controller) ---
+
+var chosen: Array = []
+
+func _on_chosen(id: StringName) -> void:
+	chosen.append(id)
+
+func _card_centre(i: int) -> Vector2:
+	var vp := get_viewport().get_visible_rect().size
+	return CardPickOverlay.layout(vp, SafeArea.insets(vp), GameState.card_offer.size(), Balance.ui)[i].get_center()
+
+func test_a_full_tap_that_skips_picks_no_card() -> void:
+	_tier3_dawn()
+	await _frames(40)
+	var offer := GameState.card_offer.duplicate()
+	assert_gt(offer.size(), 0)
+	EventBus.card_chosen.connect(_on_chosen)
+	chosen.clear()
+	var c := _card_centre(0)
+	_tap(_touch(true, c))  # the press on the first card's rect skips the reveal
+	assert_false(main.phase_controller.reveal_pending)
+	assert_true(main.card_overlay.visible, "the pick is open")
+	_tap(_touch(false, c))  # its release, at once: the overlay never owned the press
+	assert_eq(chosen, [], "no card picked by the release")
+	assert_eq(main.phase_controller.dawn_substate, "CARD_PICK")
+	await _frames(int(ceil(Balance.ui.card_input_guard_s * 60.0)) + 5)
+	assert_true(main.card_overlay.accepting())
+	_tap(_touch(false, c))  # a release after the guard: still not owned
+	assert_eq(chosen, [], "a late release picks nothing either")
+	assert_eq(main.phase_controller.dawn_substate, "CARD_PICK")
+	assert_eq(GameState.card_offer, offer, "the offer is intact")
+	_tap(_touch(true, c))  # a fresh press and release picks
+	_tap(_touch(false, c))
+	EventBus.card_chosen.disconnect(_on_chosen)
+	assert_eq(chosen.size(), 1, "a fresh tap picks the first card")
+	assert_eq(chosen[0], offer[0])
+
+func test_with_no_offer_the_skip_opens_the_day_and_the_drag_of_that_touch_moves_nobody() -> void:
+	_tier3_dawn()
+	var none: Array[StringName] = []
+	GameState.stash_card_offer(none)  # test-only: a dawn with every card maxed
+	await _frames(40)
+	_tap(_touch(true, Vector2(360, 900)))
+	assert_false(main.phase_controller.reveal_pending)
+	assert_eq(main.phase_controller.phase, Phase.DAY, "no offer: the day begins at once")
+	assert_false(main.hero.input.blocked)
+	var at := main.hero.xz()
+	var drag := InputEventScreenDrag.new()
+	drag.index = 0
+	drag.position = Vector2(460, 900)
+	_tap(drag)  # the same finger keeps moving
+	assert_false(main.joystick.is_active(), "the stick follows only a press it began")
+	assert_eq(main.hero.input.get_move(), Vector2.ZERO)
+	await _frames(10)
+	assert_eq(main.hero.xz(), at)
+	_tap(_touch(false, Vector2(460, 900)))
+	_tap(_touch(true, Vector2(360, 900)))  # a fresh press begins a drag
+	assert_true(main.joystick.is_active())
