@@ -6,10 +6,10 @@ extends Node3D
 
 const SIGN_SCENE := preload("res://art/env/tier_sign.tscn")
 const MARKER_SCENE := preload("res://art/env/spot_marker.tscn")
-## The front-lot sign (selling tier 3) stands near the left edge of the 9:16 view from HOME (its board keeps about 5 px to the edge); its wide
-## label is moved toward the lot so the whole label shows, for "Open the yards" and the longer "Buy the front lot" (test_tier3_world_layout).
+## The front-lot sign (selling tier 3) stands near the left edge of the view from HOME (its board keeps about 16 px to the edge); its wide
+## label is moved 1.4 m toward the lot (a 0.05 m window: more hits the DINER label) so the whole label shows at 9:16 and 9:21, for "Open the yards" and the longer "Buy the front lot" (test_tier3_world_layout).
 ## The tier-2 sign's label stays centred.
-const LABEL_SHIFT_FRONT := 1.3
+const LABEL_SHIFT_FRONT := 1.4
 
 var label: WorldLabel
 var zone: StationZone
