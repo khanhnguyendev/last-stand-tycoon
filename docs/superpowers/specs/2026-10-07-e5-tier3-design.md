@@ -77,7 +77,7 @@ lane, `{boar, hare, brute, boss}` counts for the telegraph (section 6.5).
 | `tier_base` | `[0, 1, 8, 12]` | |
 | `tier_cap` | `[0, 7, 10, 12]` | index 2 was 11 until the margin study (section 9.1, D-276); index 3 was 15 until real-play tuning (D-280) |
 | `fast_share_start`, `fast_share`, `fast_ramp_days` | index 3: 0.35, 0.35, 1 | hares stay at the tier-2 share |
-| `brute_cap_main`, `brute_cap_side` | index 3: 1, 1 | per wave |
+| `brute_cap_main`, `brute_cap_side` | index 3: 1, 0 | per wave; the side cap was 1 until real-play tuning (D-280) |
 | `brute_ramp_days` | index 3: 3 | first night: one brute, on the last wave's main lane |
 | `boss_kind` | `[&"", &"boss", &"baron", &""]` | the boss fought to LEAVE that tier; the top tier's entry is empty |
 | `respawn_protect_s` | 1.5 | in `GuardBalance` |
