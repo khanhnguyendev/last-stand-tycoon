@@ -5,7 +5,7 @@ extends SceneTree
 ## at HOME, then at the tower_w stand point, then at tower_e's; the camera follows the hero's xz.
 ## E5 tier 3 Task 2: the shots are named by --prefix= (default "yards"); the growth evidence uses
 ##   --out=docs/review/media/e5t3/growth --prefix=yards_after   (writes yards_after_west.png, ...).
-## Its yards_after.png is a copy of the west view.
+## The tool also writes <prefix>.png (and _40) as a copy of the west view.
 var _focus := Vector2.ZERO
 
 func _initialize() -> void:
@@ -54,6 +54,10 @@ func _run() -> void:
 			await physics_frame
 		_focus = spots[name]
 		await _grab(cam, camera_math, bal, out, name)
+		if name == prefix + "_west":
+			var dir := ProjectSettings.globalize_path("res://").path_join(out)
+			for suffix in [".png", "_40.png"]:
+				DirAccess.copy_absolute(dir.path_join(name + suffix), dir.path_join(prefix + suffix))
 	quit(0)
 
 func _grab(cam: Camera3D, camera_math, bal, out: String, name: String) -> void:

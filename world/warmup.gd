@@ -64,6 +64,8 @@ func run(main: Main, resume_phase := "") -> void:
 	cube.material_override = main.world.occluder_fade.fade_material_for_warmup()
 	_place(cube)
 	_prebuild_tier_caches()
+	if not MapLayout.yards_for_tier(TierEffects.top_tier(Balance.data.tiers)).is_empty():
+		_place(YardStones.build_sample())  # the kerb's mesh and material are first drawn at the tier-2 reveal
 	for _i in FRAMES:
 		await get_tree().process_frame
 	for c in get_children():

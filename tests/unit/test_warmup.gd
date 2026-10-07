@@ -173,3 +173,14 @@ func test_warmup_prebuilds_the_top_tier_terrain_and_props() -> void:
 	assert_true(GroundArt.is_cached(World.ground_rect(), yards), "tier-2 terrain built by the warm-up")
 	assert_true(Props.is_cached(rects), "tier-2 props merged by the warm-up")
 	assert_eq(warmup.get_child_count(), 0, "no node left behind")
+
+func test_warmup_draws_a_kerb_piece_when_the_top_tier_has_yards() -> void:
+	_main()
+	assert_false(MapLayout.yards_for_tier(TierEffects.top_tier(Balance.data.tiers)).is_empty(), "the top tier has yards")
+	var warmup := Warmup.new()
+	main.add_child(warmup)
+	warmup.run(main)  # no await: the temporary nodes are in the tree
+	var kerbs := warmup.get_children().filter(func(c): return c is MultiMeshInstance3D and c.multimesh.mesh is BoxMesh and c.multimesh.mesh.material == YardStones.material())
+	assert_eq(kerbs.size(), 1, "one kerb piece with the kerb material")
+	await warmup.finished
+	assert_eq(warmup.get_child_count(), 0)

@@ -137,8 +137,8 @@ func test_props_rebuild_for_open_yards_keeps_two_draws_and_shrinks() -> void:
 			back += ((c as MeshInstance3D).mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX].size()
 	assert_eq(back, before, "closing the yards brings the props back")
 
-## The border: a low kerb (<= 0.25 m), gaps where a pad or the tier sign touches the edge.
-func test_the_border_is_a_low_kerb_with_gaps_at_pads_and_the_sign() -> void:
+## The border: a low kerb (<= 0.25 m), gaps where a build-spot pad touches the edge, closed everywhere else.
+func test_the_border_is_a_low_kerb_with_gaps_at_pads() -> void:
 	GameState.debug_set_tier(2, 3)
 	var kerb := main.world.yard_stones
 	assert_not_null(kerb)
@@ -159,49 +159,77 @@ func test_the_border_is_a_low_kerb_with_gaps_at_pads_and_the_sign() -> void:
 	assert_lt(Geometry.dist_point_rect(tower_e, MapLayout.YARDS["east"]), MapLayout.BUILD_RADIUS, "tower_e's pad touches the yard edge")
 	for id in MapLayout.YARDS:
 		for xf in YardStones.transforms(MapLayout.YARDS[id]):
-			var p := Vector2(xf.origin.x, xf.origin.z)
-			assert_gt(p.distance_to(MapLayout.TIER_SIGN), MapLayout.STATION_RADIUS, "no kerb piece at the sign")
+			var seg := _centre_line(xf)
 			for q in YardStones.pad_points():
-				assert_gt(p.distance_to(q), MapLayout.BUILD_RADIUS, "no kerb piece inside a pad at %s" % q)
-	# each piece is as long as its spacing ALONG its edge and WIDTH across it (a global-axis scale gets this wrong)
-	for xf in YardStones.transforms(MapLayout.YARDS["west"]):
-		var along := (xf.basis.x as Vector3).length()
-		assert_between(along, YardStones.SPACING - 0.01, YardStones.SPACING * 1.5, "piece length")
-		assert_almost_eq((xf.basis.z as Vector3).length(), 1.0, 1e-4)
-		var d := (xf.basis.x as Vector3).normalized()
-		assert_true(is_equal_approx(absf(d.x), 1.0) or is_equal_approx(absf(d.z), 1.0), "axis aligned along an edge")
-	# the gap is a gap, not a missing kerb: the same edge elsewhere still has pieces
-	var near_tower := YardStones.transforms(MapLayout.YARDS["east"]).filter(func(xf): return Vector2(xf.origin.x, xf.origin.z).distance_to(tower_e) < 3.0)
-	assert_gt(near_tower.size(), 0, "kerb continues beside the gap")
+				var d := Geometry2D.get_closest_point_to_segment(q, seg[0], seg[1]).distance_to(q)
+				assert_gt(d, MapLayout.BUILD_RADIUS + YardStones.WIDTH * 0.5, "no kerb piece touches the pad at %s" % q)
+		# each piece is as long as its spacing ALONG its edge and WIDTH across it (a global-axis scale gets this wrong)
+		for xf in YardStones.transforms(MapLayout.YARDS[id]):
+			var along := (xf.basis.x as Vector3).length()
+			assert_between(along, YardStones.SPACING - 0.01, YardStones.SPACING * 1.5, "%s piece length" % id)
+			assert_almost_eq((xf.basis.z as Vector3).length(), 1.0, 1e-4)
+			var d := (xf.basis.x as Vector3).normalized()
+			assert_true(is_equal_approx(absf(d.x), 1.0) or is_equal_approx(absf(d.z), 1.0), "%s: axis aligned along an edge" % id)
+	# the gap is a gap, not a missing kerb: the outline point nearest each tower pad is uncovered, the edge beside it is not
+	var gaps := {Vector2(-9.0, MapLayout.spot_position("tower_w").y): Vector2(-9.0, 3.6), Vector2(8.0, tower_e.y): Vector2(9.875, 3.0)}
+	for gap in gaps:
+		assert_gt(_distance_to_kerb(gap), 0.3, "the kerb leaves the pad at %s free" % gap)
+		assert_lt(_distance_to_kerb(gaps[gap]), 0.01, "and continues at %s" % gaps[gap])
+
+## A piece's centre line (xz) from its transform: the origin +- half its length along its x axis.
+func _centre_line(xf: Transform3D) -> Array:
+	var half := Vector2(xf.basis.x.x, xf.basis.x.z) * 0.5
+	var c := Vector2(xf.origin.x, xf.origin.z)
+	return [c - half, c + half]
+
+func _distance_to_kerb(p: Vector2) -> float:
+	var best := INF
+	for id in MapLayout.YARDS:
+		for xf in YardStones.transforms(MapLayout.YARDS[id]):
+			var seg := _centre_line(xf)
+			best = minf(best, Geometry2D.get_closest_point_to_segment(p, seg[0], seg[1]).distance_to(p))
+	return best
 
 ## The "things to stay clear of" for a tier, from MapLayout. Task 8 extends this for tier 3 (the plot, SW lane, the
-## new spots): add them HERE and add 3 to _owned_tiers(). Each entry is {pos: Vector2, d: float} (a point and the least
-## distance from a prop centre) or {rect: Rect2, d: float}, or {seg: [a, b], d: float} (a lane or path line).
+## new spots): add them HERE and add 3 to _owned_tiers(). Each entry is {pos: Vector2, r: float} (a point and its radius),
+## {rect: Rect2, r: float = 0}, or {seg: [a, b], lateral: float} (a lane or path line and its half spread). A prop of
+## radius R and height H keeps r + R + H / tan(camera pitch) from points and rects (the top leans over its base) and
+## lateral + R from lines.
 func _keep_clear(tier: int) -> Array:
 	var out := []
 	for id in MapLayout.spots_for_tier(tier):
-		out.append({"pos": MapLayout.spot_position(id), "d": MapLayout.BUILD_RADIUS + 0.8, "what": id})
+		out.append({"pos": MapLayout.spot_position(id), "r": MapLayout.BUILD_RADIUS, "what": id})
 	for id in MapLayout.STATION_PADS:
-		out.append({"pos": MapLayout.STATION_PADS[id], "d": MapLayout.BUILD_RADIUS + 0.8, "what": "pad %s" % id})
-	var points := {"COUNTER": MapLayout.COUNTER, "FREEZER": MapLayout.FREEZER, "GOLD_PILE": MapLayout.GOLD_PILE, "SIGN": MapLayout.SIGN,
-		"HOME": MapLayout.HOME, "DINER_DOOR": MapLayout.DINER_DOOR, "SERVICE_POINT": MapLayout.SERVICE_POINT,
+		out.append({"pos": MapLayout.STATION_PADS[id], "r": MapLayout.BUILD_RADIUS, "what": "pad %s" % id})
+	out.append({"pos": MapLayout.COUNTER, "r": MapLayout.COUNTER_SIZE.length() * 0.5, "what": "COUNTER"})
+	out.append({"pos": MapLayout.FREEZER, "r": MapLayout.FREEZER_SIZE.length() * 0.5, "what": "FREEZER"})
+	var stations := {"GOLD_PILE": MapLayout.GOLD_PILE, "SIGN": MapLayout.SIGN, "SERVICE_POINT": MapLayout.SERVICE_POINT,
 		"FREEZER_ZONE": MapLayout.FREEZER_ZONE, "COUNTER_DROP": MapLayout.COUNTER_DROP}
-	for name in points:
-		out.append({"pos": points[name], "d": 2.0, "what": name})
-	out.append({"pos": MapLayout.TIER_SIGN, "d": 2.5, "what": "tier sign"})
+	for name in stations:
+		out.append({"pos": stations[name], "r": MapLayout.STATION_RADIUS, "what": name})
+	out.append({"pos": MapLayout.HOME, "r": MapLayout.HERO_RADIUS, "what": "HOME"})
+	out.append({"pos": MapLayout.DINER_DOOR, "r": MapLayout.STATION_RADIUS, "what": "DINER_DOOR"})
+	out.append({"pos": MapLayout.TIER_SIGN, "r": MapLayout.STATION_RADIUS, "what": "tier sign"})
 	for q in MapLayout.QUEUE_SLOTS:
-		out.append({"pos": q, "d": 1.5, "what": "queue slot"})
+		out.append({"pos": q, "r": MapLayout.HERO_RADIUS, "what": "queue slot"})
 	for id in MapLayout.LANE_PATHS:
 		var pts: Array = MapLayout.LANE_PATHS[id]
 		for i in range(1, pts.size()):
-			out.append({"seg": [pts[i - 1], pts[i]], "d": 2.5, "what": "lane %s" % id})
+			out.append({"seg": [pts[i - 1], pts[i]], "lateral": LaneStrip.WIDTH * 0.5, "what": "lane %s" % id})
 	for id in MapLayout.ZONE_RECTS:
-		out.append({"rect": MapLayout.ZONE_RECTS[id], "d": 1.5, "what": "zone %s" % id})
-	out.append({"seg": [MapLayout.TRAVELER_ENTER, MapLayout.TRAVELER_EXIT], "d": 3.0, "what": "traveler path"})
+		out.append({"rect": MapLayout.ZONE_RECTS[id], "r": 0.0, "what": "zone %s" % id})
+	out.append({"seg": [MapLayout.TRAVELER_ENTER, MapLayout.TRAVELER_EXIT], "lateral": MapLayout.HERO_RADIUS, "what": "traveler path"})
 	return out
 
 func _owned_tiers() -> Array:
 	return [2]
+
+## The least allowed distance from a prop's centre to `rule` (see _keep_clear).
+func _least_distance(rule: Dictionary, radius: float, height: float) -> float:
+	var lean := height / tan(deg_to_rad(absf(Balance.ui.camera_pitch)))
+	if rule.has("seg"):
+		return float(rule.lateral) + radius
+	return float(rule.r) + radius + lean
 
 func _distance_to(p: Vector2, rule: Dictionary) -> float:
 	if rule.has("pos"):
@@ -219,10 +247,27 @@ func test_owned_props_keep_clear() -> void:
 			for it in PropsLayout.OWNED.get(id, []):
 				seen += 1
 				var p: Vector2 = it.pos
-				assert_true((MapLayout.YARDS[id] as Rect2).grow(-0.4).has_point(p), "%s %s inside the %s yard, off the kerb" % [it.kind, p, id])
+				var radius := Props.owned_radius(it.kind, float(it.scale))
+				var height := Props.owned_height(it.kind, float(it.scale))
+				var inner := (MapLayout.YARDS[id] as Rect2).grow(-(YardStones.WIDTH * 0.5 + radius))
+				assert_true(inner.has_point(p), "%s %s inside the %s yard inset by the kerb and its own radius %.2f" % [it.kind, p, id, radius])
 				for rule in rules:
-					assert_gte(_distance_to(p, rule), float(rule.d), "tier %d: %s at %s clear of %s" % [tier, it.kind, p, rule.what])
+					assert_gte(_distance_to(p, rule), _least_distance(rule, radius, height), "tier %d: %s at %s clear of %s" % [tier, it.kind, p, rule.what])
 	assert_gt(seen, 6, "props were checked")
+
+func test_owned_prop_dimensions_come_from_the_mesh_builder() -> void:
+	# radius and height are the extents of the geometry the builder emits, so a bigger mesh cannot slip past the rules
+	for kind in ["crate", "barrel", "bench"]:
+		for scale in [1.0, 0.8]:
+			var a := Props.owned_arrays([{"kind": kind, "pos": Vector2.ZERO, "rot": 0.0, "scale": scale}])
+			var far := 0.0
+			var top := 0.0
+			for v in a.v as PackedVector3Array:
+				far = maxf(far, Vector2(v.x, v.z).length())
+				top = maxf(top, v.y)
+			assert_lte(far, Props.owned_radius(kind, scale) + 1e-4, "%s radius covers the mesh" % kind)
+			assert_gte(far, Props.owned_radius(kind, scale) * 0.7, "%s radius is not wildly loose" % kind)
+			assert_almost_eq(top, Props.owned_height(kind, scale), 1e-4, "%s height" % kind)
 
 func test_owned_props_ride_the_ground_mesh_and_have_no_collider() -> void:
 	var tier1 := GroundArt.terrain_mesh(World.ground_rect(), [])
@@ -234,7 +279,13 @@ func test_owned_props_ride_the_ground_mesh_and_have_no_collider() -> void:
 	for id in ["west", "east"]:
 		assert_gt(_props_height_vertices(ground.mesh, MapLayout.YARDS[id]), 50, "%s yard carries its props" % id)
 	assert_eq(main.world.props.find_children("*", "MeshInstance3D", true, false).size(), 2, "the atlas props are still two meshes")
-	assert_eq(main.world.find_children("*", "CollisionObject3D", true, false).filter(func(n): return n.get_parent() == ground or n == ground).size(), 0)
+	# behavioural: the hero walks onto a crate, a barrel and a bench (a collider would stop it short)
+	main.hero.input.player_control = false
+	var picks := [PropsLayout.OWNED["east"][0], PropsLayout.OWNED["west"][1], PropsLayout.OWNED["west"][0]]
+	assert_eq(picks.map(func(it): return it.kind), ["crate", "barrel", "bench"])
+	for it in picks:
+		await TestHelpers.walk_in(main.hero, it.pos)
+		assert_lt(main.hero.xz().distance_to(it.pos), 0.1, "the hero stands on the %s at %s" % [it.kind, it.pos])
 	var top := 0.0
 	for v in ground.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
 		top = maxf(top, v.y)

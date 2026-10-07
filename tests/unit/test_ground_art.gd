@@ -124,14 +124,35 @@ func test_yard_stones_ring_the_outline() -> void:
 		assert_lte(Geometry.dist_point_rect(p, r), 0.4, "on the outline")
 		assert_gte(Geometry.dist_point_rect(p, r.grow(-0.5)), 0.1, "not inside the yard")
 
-func test_yard_stones_keep_clear_of_the_tier_sign() -> void:
+func test_yard_kerb_is_continuous_around_the_sign_corner() -> void:
+	# Fix round 1 ruling: the sign and an open yard never coexist, so the kerb is closed at the west yard's south-east
+	# corner. Before: no piece within SIGN_CLEAR (1.3) of the sign, a gap there. After: no uncovered stretch wider than
+	# the build-spot pad gaps allow, and a piece stands where the sign's edge point is.
 	var r: Rect2 = MapLayout.YARDS["west"]
+	var segs := []
 	for xf in YardStones.transforms(r):
-		assert_gte(Vector2(xf.origin.x, xf.origin.z).distance_to(MapLayout.TIER_SIGN), YardStones.SIGN_CLEAR)
-	# A synthetic rect whose top edge passes 0.2 m from the sign: 6 x 3 m gives 2 * (5 + 2) = 14 stones without the guard.
+		var half := Vector2(xf.basis.x.x, xf.basis.x.z) * 0.5
+		var c := Vector2(xf.origin.x, xf.origin.z)
+		segs.append([c - half, c + half])
+	var corners := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y), r.position]
+	var uncovered := 0
+	for e in 4:
+		var a: Vector2 = corners[e]
+		var b: Vector2 = corners[e + 1]
+		for k in 101:
+			var p := a.lerp(b, k / 100.0)
+			var covered := segs.any(func(s): return Geometry2D.get_closest_point_to_segment(p, s[0], s[1]).distance_to(p) < 0.01)
+			if covered:
+				continue
+			uncovered += 1
+			var near_pad := false
+			for q in YardStones.pad_points():
+				if p.distance_to(q) < YardStones.PAD_CLEAR + YardStones.SPACING:
+					near_pad = true
+			assert_true(near_pad, "uncovered kerb at %s is not at a pad" % p)
+	assert_gt(uncovered, 0, "the tower_w pad gap is still there")
+	var corner := Vector2(MapLayout.TIER_SIGN.x, r.end.y)
+	assert_true(segs.any(func(s): return Geometry2D.get_closest_point_to_segment(corner, s[0], s[1]).distance_to(corner) < 0.01), "kerb under the sign's edge point")
+	# a synthetic rect whose top edge passes 0.2 m from the sign: 6 x 3 m gives 2 * (5 + 2) = 14 pieces, none dropped
 	var near := Rect2(MapLayout.TIER_SIGN - Vector2(3, 0.2), Vector2(6, 3))
-	var xfs := YardStones.transforms(near)
-	assert_lt(xfs.size(), 14, "the stone under the sign is dropped")
-	assert_gt(xfs.size(), 10, "the rest of the ring stays")
-	for xf in xfs:
-		assert_gte(Vector2(xf.origin.x, xf.origin.z).distance_to(MapLayout.TIER_SIGN), YardStones.SIGN_CLEAR)
+	assert_eq(YardStones.transforms(near).size(), 14, "nothing is dropped for the sign")

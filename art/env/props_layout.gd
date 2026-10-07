@@ -94,17 +94,17 @@ static func items_of(model: String) -> Array[Dictionary]:
 ## (test_yards.test_owned_props_keep_clear checks every entry against MapLayout per tier).
 const OWNED := {
 	"west": [
-		{"kind": "bench", "pos": Vector2(-12.6, -1.0), "rot": 1.5708, "scale": 1.0},
+		{"kind": "bench", "pos": Vector2(-12.6, -1.0), "rot": 0.0, "scale": 1.0},
 		{"kind": "barrel", "pos": Vector2(-12.7, 2.9), "rot": 0.0, "scale": 1.0},
 		{"kind": "crate", "pos": Vector2(-12.6, 4.5), "rot": 0.3, "scale": 1.0},
 		{"kind": "crate", "pos": Vector2(-12.0, 5.3), "rot": 1.1, "scale": 0.8},
 		{"kind": "barrel", "pos": Vector2(-12.6, 6.4), "rot": 0.0, "scale": 1.0},
 	],
 	"east": [
-		{"kind": "crate", "pos": Vector2(12.3, 2.4), "rot": 0.4, "scale": 1.0},
-		{"kind": "crate", "pos": Vector2(11.5, 2.6), "rot": 1.2, "scale": 0.8},
+		{"kind": "crate", "pos": Vector2(12.2, 2.2), "rot": 0.4, "scale": 1.0},
+		{"kind": "crate", "pos": Vector2(11.5, 2.3), "rot": 1.2, "scale": 0.8},
 		{"kind": "barrel", "pos": Vector2(12.4, 0.3), "rot": 0.0, "scale": 1.0},
-		{"kind": "bench", "pos": Vector2(11.0, 0.2), "rot": 0.0, "scale": 1.0},
+		{"kind": "bench", "pos": Vector2(11.0, 0.5), "rot": 0.0, "scale": 1.0},
 	],
 }
 
