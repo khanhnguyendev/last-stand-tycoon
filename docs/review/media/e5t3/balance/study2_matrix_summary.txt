@@ -1,0 +1,34 @@
+TIER3 C0 seed=20260930 [none] nights=14 retry_nights=7 retries=8 cap_nights=11 cap_retry_nights=7 min_frac_held=0.010 median_frac_held=0.393
+TIER3 C0 seed=1 [none] nights=11 retry_nights=8 retries=12 cap_nights=8 cap_retry_nights=7 min_frac_held=0.150 median_frac_held=0.634
+TIER3 C0 seed=2 [none] nights=15 retry_nights=8 retries=9 cap_nights=12 cap_retry_nights=6 min_frac_held=0.025 median_frac_held=0.340
+TIER3 C1 seed=20260930 [tier3-cap=14] nights=14 retry_nights=3 retries=3 cap_nights=12 cap_retry_nights=3 min_frac_held=0.099 median_frac_held=0.388
+TIER3 C1 seed=1 [tier3-cap=14] nights=11 retry_nights=8 retries=9 cap_nights=9 cap_retry_nights=7 min_frac_held=0.057 median_frac_held=0.623
+TIER3 C1 seed=2 [tier3-cap=14] nights=15 retry_nights=6 retries=6 cap_nights=13 cap_retry_nights=5 min_frac_held=0.133 median_frac_held=0.493
+TIER3 C2 seed=20260930 [tier3-cap=13] nights=14 retry_nights=2 retries=2 cap_nights=13 cap_retry_nights=2 min_frac_held=0.007 median_frac_held=0.595
+TIER3 C2 seed=1 [tier3-cap=13] nights=11 retry_nights=2 retries=2 cap_nights=10 cap_retry_nights=2 min_frac_held=0.127 median_frac_held=0.572
+TIER3 C2 seed=2 [tier3-cap=13] nights=15 retry_nights=4 retries=4 cap_nights=14 cap_retry_nights=4 min_frac_held=0.073 median_frac_held=0.530
+TIER3 C3 seed=20260930 [tier3-cap=12] nights=14 retry_nights=0 retries=0 cap_nights=14 cap_retry_nights=0 min_frac_held=0.207 median_frac_held=0.715
+TIER3 C3 seed=1 [tier3-cap=12] nights=11 retry_nights=1 retries=1 cap_nights=11 cap_retry_nights=1 min_frac_held=0.037 median_frac_held=0.630
+TIER3 C3 seed=2 [tier3-cap=12] nights=15 retry_nights=0 retries=0 cap_nights=15 cap_retry_nights=0 min_frac_held=0.300 median_frac_held=0.657
+TIER3 C4 seed=20260930 [brute-caps=1,0] nights=14 retry_nights=1 retries=1 cap_nights=11 cap_retry_nights=1 min_frac_held=0.313 median_frac_held=0.603
+TIER3 C4 seed=1 [brute-caps=1,0] nights=11 retry_nights=3 retries=4 cap_nights=8 cap_retry_nights=2 min_frac_held=0.037 median_frac_held=0.433
+TIER3 C4 seed=2 [brute-caps=1,0] nights=15 retry_nights=7 retries=7 cap_nights=12 cap_retry_nights=5 min_frac_held=0.073 median_frac_held=0.370
+TIER3 C5 seed=20260930 [tier3-cap=13 brute-caps=1,0] nights=14 retry_nights=0 retries=0 cap_nights=13 cap_retry_nights=0 min_frac_held=0.140 median_frac_held=0.813
+TIER3 C5 seed=1 [tier3-cap=13 brute-caps=1,0] nights=11 retry_nights=1 retries=1 cap_nights=10 cap_retry_nights=1 min_frac_held=0.183 median_frac_held=0.613
+TIER3 C5 seed=2 [tier3-cap=13 brute-caps=1,0] nights=15 retry_nights=2 retries=2 cap_nights=14 cap_retry_nights=2 min_frac_held=0.143 median_frac_held=0.567
+TIER3 C6 seed=20260930 [fence-mult=2.0] nights=14 retry_nights=4 retries=4 cap_nights=11 cap_retry_nights=4 min_frac_held=0.073 median_frac_held=0.325
+TIER3 C6 seed=1 [fence-mult=2.0] nights=11 retry_nights=7 retries=9 cap_nights=8 cap_retry_nights=6 min_frac_held=0.229 median_frac_held=0.445
+TIER3 C6 seed=2 [fence-mult=2.0] nights=15 retry_nights=9 retries=10 cap_nights=12 cap_retry_nights=7 min_frac_held=0.007 median_frac_held=0.443
+TIER3 C7 seed=20260930 [tier3-cap=13 fence-mult=2.0] nights=14 retry_nights=1 retries=1 cap_nights=13 cap_retry_nights=1 min_frac_held=0.097 median_frac_held=0.618
+TIER3 C7 seed=1 [tier3-cap=13 fence-mult=2.0] nights=11 retry_nights=2 retries=2 cap_nights=10 cap_retry_nights=2 min_frac_held=0.083 median_frac_held=0.703
+TIER3 C7 seed=2 [tier3-cap=13 fence-mult=2.0] nights=15 retry_nights=1 retries=1 cap_nights=14 cap_retry_nights=1 min_frac_held=0.010 median_frac_held=0.487
+
+cfg  t3_nights retry_nights cap_nights cap_retry_nights retries min_held median_held cap_retry_per_seed(20260930,1,2)
+C0 40 23 31 20 29 0.010 0.413 [7, 7, 6]
+C1 40 17 34 15 18 0.057 0.480 [3, 7, 5]
+C2 40 8 37 8 8 0.007 0.579 [2, 2, 4]
+C3 40 1 40 1 1 0.037 0.687 [0, 1, 0]
+C4 40 11 31 8 12 0.037 0.473 [1, 2, 5]
+C5 40 3 37 3 3 0.140 0.627 [0, 1, 2]
+C6 40 20 31 17 23 0.007 0.433 [4, 6, 7]
+C7 40 4 37 4 4 0.010 0.564 [1, 2, 1]

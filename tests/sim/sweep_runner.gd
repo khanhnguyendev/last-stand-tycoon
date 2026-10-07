@@ -6,13 +6,19 @@ extends Node
 ## and the run then asserts that no brute died, no wave came from the south-west and no branch was chosen (the Task 21 assertion, D-279):
 ## a TIER3_GATE line, exit code 1 on a violation. Tier rows end with brute_kills,sw_waves,branches (per day, appended after the old columns; sw_waves counts waves with a south-west lane, formerly named sw_spawns).
 ## After the SWEEP line it prints a RETRIES line (days, median, max_before_day8, max, target_ok) for the D-184 retries-per-night target.
+## Tuning overrides (in memory only, after Balance.reset(); printed on the first output line, tier bot only): `--tier3-cap=<n>` (tier_cap[3]),
+## `--brute-caps=<main>,<side>` (brute_cap_main[3], brute_cap_side[3]), `--brute-hp=<n>`, `--fence-mult=<x>` (the brute's fence_damage_mult).
+## `--out=<file name>` writes tests/sim/out/<file name> instead of the default (parallel runs). `--cols=extra` appends fences_lost (fences at 0 HP when the
+## night ended, final attempt) and lane_load (enemies per lane in the night's plan, brutes included) to the tier rows; without it the CSV is byte-identical to before.
+## The TIER3 line (tier bot): nights, retry_nights, retries, cap_nights (pressure at tier_cap[3] when the night began), cap_retry_nights, and the min and median
+## diner fraction over the tier-3 nights that were held (the final attempt's lowest diner HP). NOTE: `kills` and `brute_kills` in the rows include the kills of failed attempts.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
 
 func _ready() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	var args := {"seed": "20260930", "days": "14", "bot": "planner", "policy": "threat", "tier3": "on"}
+	var args := {"seed": "20260930", "days": "14", "bot": "planner", "policy": "threat", "tier3": "on", "tier3-cap": "", "brute-caps": "", "brute-hp": "", "fence-mult": "", "out": "", "cols": ""}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if kv.size() == 2:
@@ -31,10 +37,28 @@ func _run() -> void:
 	if String(args.tier3) == "off":
 		Balance.data.tiers.tier_costs.resize(2)  # in memory only: no sign sells tier 3
 	var tier_mode := String(args.bot) == "tier"
+	var ov: Array = []
+	if String(args["tier3-cap"]) != "":
+		Balance.data.tiers.tier_cap[3] = int(args["tier3-cap"])
+		ov.append("tier3-cap=%d" % int(args["tier3-cap"]))
+	if String(args["brute-caps"]) != "":
+		var bc := String(args["brute-caps"]).split(",")
+		Balance.data.tiers.brute_cap_main[3] = int(bc[0])
+		Balance.data.tiers.brute_cap_side[3] = int(bc[1])
+		ov.append("brute-caps=%s" % args["brute-caps"])
+	if String(args["brute-hp"]) != "":
+		Balance.data.monsters.brute.hp = float(args["brute-hp"])
+		ov.append("brute-hp=%s" % args["brute-hp"])
+	if String(args["fence-mult"]) != "":
+		Balance.data.monsters.brute.fence_damage_mult = float(args["fence-mult"])
+		ov.append("fence-mult=%s" % args["fence-mult"])
+	print("OVERRIDES %s" % (" ".join(ov) if not ov.is_empty() else "none"))
+	var extra := String(args.cols) == "extra" and tier_mode
 	var upgrader := String(args.bot) == "upgrader" or tier_mode
 	var holder := Node.new()
 	get_tree().root.add_child(holder)
 	var h := SimHarness.new(holder)
+	_h = h
 	h.start(int(args.seed), TierBot if tier_mode else (UpgraderBot if upgrader else PlannerBot))
 	if tier_mode:
 		h.bot.policy = String(args.policy)
@@ -44,7 +68,7 @@ func _run() -> void:
 	EventBus.steak_sold.connect(_on_sold)
 	EventBus.card_picked.connect(_on_picked)
 	EventBus.guard_knocked_out.connect(_on_knockout)
-	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked" + (",stations" if upgrader else "") + (",tier,boss_night,boss_retries,brute_kills,sw_waves,branches" if tier_mode else "")]
+	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked" + (",stations" if upgrader else "") + (",tier,boss_night,boss_retries,brute_kills,sw_waves,branches" if tier_mode else "") + (",fences_lost,lane_load" if extra else "")]
 	var first_fail_day := -1
 	var hard_break_day := -1
 	var retries_per_day: Array = []
@@ -62,6 +86,9 @@ func _run() -> void:
 		var boss_night := GameState.is_boss_night()
 		var start_tier := GameState.tier
 		var at_cap := start_tier == 2 and GameState.pressure() == int(Balance.data.tiers.tier_cap[2])
+		var at_cap3 := start_tier == 3 and GameState.pressure() == int(Balance.data.tiers.tier_cap[3])
+		var lane_load := _lane_load()
+		_fence_hp = {}
 		var defending := _builds()  # what stands when the night starts (spent during the day before)
 		var stock0 := GameState.freezer_steaks + GameState.carried_steaks
 		var t0 := h.elapsed
@@ -80,11 +107,11 @@ func _run() -> void:
 			_knockouts = 0  # per attempt: the row reports the last attempt's knockouts
 			n = await h.run_night()
 		retries_per_day.append(retries)  # hard-break days count too
-		nights.append({"day": day, "tier": start_tier, "boss_night": boss_night, "retries": retries, "at_cap": at_cap})
+		nights.append({"day": day, "tier": start_tier, "boss_night": boss_night, "retries": retries, "at_cap": at_cap, "at_cap3": at_cap3, "frac": n.diner_frac, "failed": n.failed})
 		var night_s := h.elapsed - t0
 		if n.failed:
 			hard_break_day = day
-			var tcols := _tier_cols(tier_mode, start_tier, boss_night, retries)
+			var tcols := _tier_cols(tier_mode, start_tier, boss_night, retries) + (_extra_cols(lane_load) if extra else "")
 			tier3_events += _brute_kills + _sw_waves + _branches
 			rows.append("%d,%.3f,%d,%d,0,0,%s,%d,%.1f,,,%s,%d," % [day, n.diner_frac, retries, n.kills, defending, enemy_count, night_s, _cards(), _knockouts] + _stations(upgrader) + tcols)
 			break
@@ -92,7 +119,7 @@ func _run() -> void:
 		var steaks := GameState.freezer_steaks + GameState.carried_steaks - stock0
 		_gold_sold = 0
 		var d := await h.run_day()
-		var tcols := _tier_cols(tier_mode, start_tier, boss_night, retries)  # after the day: the branches are bought by day
+		var tcols := _tier_cols(tier_mode, start_tier, boss_night, retries) + (_extra_cols(lane_load) if extra else "")  # after the day: the branches are bought by day
 		tier3_events += _brute_kills + _sw_waves + _branches
 		if not d.closed:
 			rows.append("%d,STALL" % day + _stations(upgrader) + tcols)
@@ -111,7 +138,10 @@ func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	var gi := FileAccess.open(out_dir.path_join(".gdignore"), FileAccess.WRITE)  # keep Godot from importing out/
 	gi.close()
-	var f := FileAccess.open(out_dir.path_join("sweep_tier.csv" if tier_mode else ("sweep_upgrader.csv" if upgrader else "sweep.csv")), FileAccess.WRITE)
+	var out_name := "sweep_tier.csv" if tier_mode else ("sweep_upgrader.csv" if upgrader else "sweep.csv")
+	if String(args.out) != "":
+		out_name = String(args.out).get_file()
+	var f := FileAccess.open(out_dir.path_join(out_name), FileAccess.WRITE)
 	f.store_string("\n".join(rows) + "\n")
 	f.close()
 	print("\n".join(rows))
@@ -135,6 +165,24 @@ func _run() -> void:
 				sig.disconnect(pair[1])
 		var ts := SweepMath.tier_summary(nights)
 		print("TIER first_tier2_day=%d boss_retries=%d cap_nights=%d cap_retries=%d" % [ts.first_tier2_day, ts.boss_retries, ts.cap_nights, ts.cap_retries])
+		var t3n := 0
+		var t3_retry_nights := 0
+		var t3_retries := 0
+		var t3_cap := 0
+		var t3_cap_retry := 0
+		var held_fracs: Array = []
+		for nt in nights:
+			if int(nt.tier) != 3:
+				continue
+			t3n += 1
+			t3_retries += int(nt.retries)
+			t3_retry_nights += 1 if int(nt.retries) > 0 else 0
+			t3_cap += 1 if nt.at_cap3 else 0
+			t3_cap_retry += 1 if (nt.at_cap3 and int(nt.retries) > 0) else 0
+			if not nt.failed:
+				held_fracs.append(float(nt.frac))
+		print("TIER3 nights=%d retry_nights=%d retries=%d cap_nights=%d cap_retry_nights=%d min_frac_held=%.3f median_frac_held=%.3f" % [t3n, t3_retry_nights, t3_retries,
+			t3_cap, t3_cap_retry, ReportMath.percentile(held_fracs, 0.0) if not held_fracs.is_empty() else -1.0, ReportMath.median(held_fracs) if not held_fracs.is_empty() else -1.0])
 		print("TIER3_GATE tier3=%s policy=%s events=%d" % [args.tier3, args.policy, tier3_events])
 		if String(args.tier3) == "off" and tier3_events != 0:
 			push_error("tier 3 is not for sale but %d brute kills, south-west spawns and branches were counted" % tier3_events)
@@ -145,6 +193,33 @@ func _run() -> void:
 	get_tree().quit(0)
 
 var _gold_sold := 0
+var _fence_hp := {}
+
+var _h: SimHarness
+
+## Last night tick's fence HP (the dawn reset must not hide a fallen fence).
+func _physics_process(_delta: float) -> void:
+	if _h == null or _h.main == null or GameState.buildings.is_empty() or _h.main.phase_controller.phase != Phase.NIGHT:
+		return
+	for id in GameState.buildings:
+		if MapLayout.spot_kind(id) == "fence" and int(GameState.buildings[id].level) > 0:
+			_fence_hp[id] = float(GameState.buildings[id].hp)
+
+func _extra_cols(lane_load: String) -> String:
+	var lost: Array = []
+	for id in _fence_hp:
+		if float(_fence_hp[id]) <= 0.0:
+			lost.append(id)
+	lost.sort()
+	return ",%s,%s" % ["|".join(lost), lane_load]
+
+func _lane_load() -> String:
+	var comp := LanePlanner.composition_by_lane(GameState.lane_plan, GameState.tier)
+	var parts: Array = []
+	for lane in LanePlanner.lanes_for_tier(GameState.tier):
+		var c: Dictionary = comp.get(lane, {})
+		parts.append("%s:%d" % [lane, int(c.get("boar", 0)) + int(c.get("hare", 0)) + int(c.get("brute", 0)) + int(c.get("boss", 0))])
+	return "|".join(parts)
 var _brute_kills := 0
 var _sw_waves := 0
 var _branches := 0
