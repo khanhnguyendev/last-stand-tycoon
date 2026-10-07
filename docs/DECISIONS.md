@@ -2561,3 +2561,25 @@ level-3 building on the tier-3 dawn.
    until the ordering holds at both. (b) "Between the branches" is checked per measure: with the starting numbers the
    unbranched tower is between on single-target DPS (20 < 36 < 45) but lowest against three targets (36 < 45 < 60);
    the spec states which measures the rule covers.
+
+**D-273 Tier-3 world and interface approved with changes (author).** As proposed: phase 1 growth readability (roof
+color, chimney, sign board; paved yards with a low border; a larger tier sign); the tier-3 dawn reuses the reveal
+system with a new step list and switches the queue and the traveler exit while no traveler exists; two branch pads
+with icon, cost, label and a preview; four branch models; a fourth edge arrow; per-kind telegraph counts; the
+cost-entry switch and the debug-only tier forcing.
+0. **On D-272:** "unbranched is never the best at any named measure" is the rule (it need not sit in the middle); the
+   spec names the measures. The hare test is computed in whole shots against real hare HP at pressure 12 and 15, and
+   the starting damages are adjusted until the ordering holds at both ends.
+1. **Boss name: "Baron von Hop".** "Big Thumper" is rejected: Thumper is a well-known studio rabbit character. Check
+   (web search, 2026-10-07): no well-known game or film character and no trademark found under "Baron von Hop"; the
+   only near match is "Baron Von Hops", a character on a hobby worldbuilding page (World Anvil). "Duke Longears" was
+   dropped for its closeness to Uncle Wiggily Longears. The other new display names in this slice (Longbow, Volley,
+   Stone wall, Spike fence, Siege brute) are generic terms. Any further display name gets the same check.
+2. **Reveal:** a tap anywhere fast-forwards it; the joystick stays disabled until the reveal ends or is skipped.
+   Tests: both paths, plus a resume mid-reveal.
+3. **Pad payments persist** through close-up, night and save/load, like build-spot partial payments today. The
+   D-263 refund applies only when the other pad completes. Covered by the schema-6 round-trip test.
+4. **Label legibility:** the fence pads' second line is a small broken-fence icon plus "lost if broken" (3 words at
+   most), verified at 40% screenshot scale together with the per-kind telegraph counts.
+5. **Sounds and hint:** the brute and the boss reuse existing monster sounds plus one CC0 thump from a pack already
+   in the repo (logged in `docs/ASSET_LICENSES.md`); a one-time onboarding pointer at one branch pad.
