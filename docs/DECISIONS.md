@@ -2505,3 +2505,34 @@ the switch and arrives in the last task of phase 4.
    Main-session reading against D-260: the perf reading is taken once, at the end of phase 5, when every task and
    phase of this slice is done; never between phases.
 6. **Pools:** the brute and boss pools are sized from the new caps (the S1 rule); the runtime-growth warning applies.
+
+**D-271 Tier-3 map approved from probe results (author).** A headless probe using the game's own camera, path and
+geometry code produced the numbers; the plan pins them by tests.
+- **Lane:** `[(-24, 11), (-3.5, 11.0), (-2.75, 5.2)]`, 26.35 m; zone `Rect2(-4.0, 4.0, 2.5, 1.2)`; fence spot
+  (-3.26, 9.17). Visibility before hero range: 2.45 s at aspect 0.30, 3.25 s at 9:21 and 9:16, 8.9 s or more wider. A
+  flat road approach gives 1.60 s on a phone and 0.55 s at 0.30; only bends at x = -4.5 or further east pass every
+  aspect, so the last 6 m come up from the bottom of the screen. (The author's approval text says "x <= -4.5"; the
+  measured rule and the chosen bend are x >= -4.5.)
+- **Coverage:** no reachable position hits 3 lanes; 2-lane positions west+sw 142, west+north 16, north+east 16.
+- **Tower `tower_sw` at (-6.6, 5.6):** SW zone farthest corner 5.35 m, SW fence 4.88 m, lane (with offsets) 2.77 m,
+  guard return path 1.89 m.
+- **Tier-dependent layout:** tiers 1 and 2 are unchanged (byte-identity). At tier 3 the queue mirrors to the east
+  side and travelers exit east (the constraint-3 choice: today's west exit clears the fence by 1.94 m but passes 0.5 m
+  from the new tower; east reuses the entry line and clears the fence by 3.80 m). HOME and the close-up sign stay.
+  The tier-3 sign, shown at tier 2, stands at (-5.6, 9.0) on the plot. The switch happens only at the tier-3 dawn,
+  when no travelers exist; a mid-day save/load test at tier 3 restores the tier-3 layout.
+- **Branch pads:** radius 0.9 m; every one of the nine spots has valid pairs (fewest at the SW fence, 23 positions;
+  worst chosen clearance 0.46 m). The SW corner screenshot must show the SW-fence pads as separate targets at phone
+  size.
+- **Longbow range (updates D-264):** at any range a tower may reach the monster stop points OR the fence spot of at
+  most 2 lanes. The probe's maximum is 10.28 m (bound by `tower_nw` reaching a SW stop point), so Longbow starts at
+  9.98 m (maximum minus 0.3 m, capped near 10). A test iterates all tower spots x all lanes. If a later layout change
+  pushes the result well under 10 m it is reported; the rule does not change.
+- **Gold pile:** stays (0.29 m from the lane line, empty at night). A test proves the pile is empty from close-up
+  until dawn at every tier.
+- **Diner door:** stays the guard respawn point although it is inside the SW zone. Respawn protection:
+  `respawn_protect_s` (start 1.5 s) during which a respawned guard is untargetable and walks toward its post. Tests
+  and sims: with monsters in the SW zone a respawning guard is not knocked out again within 5 s; across `sim-tiers`
+  runs no actor is knocked out more than twice in any 15 s window. REVIEW_QUEUE: "Respawned guards pull SW-zone aggro
+  off the diner: intended?" with the measured effect on diner HP. Main-session note: the hero has no HP and is never
+  knocked out, so the protection applies to guards.
