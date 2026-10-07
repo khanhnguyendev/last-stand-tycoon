@@ -118,29 +118,90 @@ static func yard_arrays(rect: Rect2, cell := 1.0) -> Dictionary:
 	a.c = cols
 	return a
 
+## EnemyBalance.lateral_spread's default (art code does not reach the Balance autoload): the lane track over a tier-3 plot is 2 x this wide.
+const DEFAULT_LANE_SPREAD := 1.0
+## The tier-3 plot's paving is drawn above the lane strips (sw strip: 0.025), and the narrow lane track above the paving.
+const PLOT_Y := 0.03
+const TRACK_Y := 0.035
+
 ## `lanes` empty = the tier-1/2 lane set: those keys are exactly the pre-tier-3 ones.
-static func _terrain_key(rect: Rect2, yards: Array, lanes: Array = []) -> String:
+static func _terrain_key(rect: Rect2, yards: Array, lanes: Array = [], lane_spread := DEFAULT_LANE_SPREAD) -> String:
 	var key := "t%s" % [rect] if yards.is_empty() else "t%s%s" % [rect, yards]
-	return key if _is_default_lanes(lanes) else key + "L%s" % [lanes]
+	key = key if _is_default_lanes(lanes) else key + "L%s" % [lanes]
+	return key if is_equal_approx(lane_spread, DEFAULT_LANE_SPREAD) else key + "S%s" % [lane_spread]
+
+## The parts of `pts` (a polyline of Vector2 xz) inside `rect`, each a polyline (Liang-Barsky per segment, consecutive pieces joined).
+static func clip_path(pts: Array, rect: Rect2) -> Array:
+	var out: Array = []
+	var cur: Array = []
+	for i in range(1, pts.size()):
+		var a: Vector2 = pts[i - 1]
+		var d: Vector2 = (pts[i] as Vector2) - a
+		var t0 := 0.0
+		var t1 := 1.0
+		var ok := true
+		for k in 4:
+			var p: float = [-d.x, d.x, -d.y, d.y][k]
+			var q: float = [a.x - rect.position.x, rect.end.x - a.x, a.y - rect.position.y, rect.end.y - a.y][k]
+			if is_zero_approx(p):
+				if q < 0.0:
+					ok = false
+			elif p < 0.0:
+				t0 = maxf(t0, q / p)
+			else:
+				t1 = minf(t1, q / p)
+		if not ok or t0 >= t1:
+			if cur.size() > 1:
+				out.append(cur)
+			cur = []
+			continue
+		var s := a + d * t0
+		var e := a + d * t1
+		if cur.is_empty() or not (cur[cur.size() - 1] as Vector2).is_equal_approx(s):
+			if cur.size() > 1:
+				out.append(cur)
+			cur = [s]
+		cur.append(e)
+	if cur.size() > 1:
+		out.append(cur)
+	return out
+
+## Fix round 1 (D-266.3): inside an owned tier-3 plot the paving covers the lane's 3 m dirt strip and only a track 2 x `lane_spread` wide
+## (the monsters' lateral spread) is redrawn over it, clipped to the plot, so paving shows on both sides of the lane. Outside it the lane keeps its strip.
+static func plot_arrays(rect: Rect2, lanes: Array, lane_spread: float) -> Array:
+	var parts := []
+	var paved := yard_arrays(rect)
+	var verts: PackedVector3Array = paved.v
+	for i in verts.size():
+		verts[i] = Vector3(verts[i].x, PLOT_Y, verts[i].z)
+	paved.v = verts
+	parts.append(paved)
+	for id in lanes:
+		for seg in clip_path(MapLayout.lane_path(id), rect):
+			parts.append(LaneStrip.strip_arrays(seg, lane_spread * 2.0, LaneStrip.EDGE, TRACK_Y))
+	return parts
 
 static func _is_default_lanes(lanes: Array) -> bool:
 	return lanes.is_empty() or lanes == MapLayout.lanes_for_tier(1)
 
 ## True when terrain_mesh(rect, yards) is already built (the warm-up pre-builds the top tier's, E5 Task 12).
-static func is_cached(rect: Rect2, yards: Array = [], lanes: Array = []) -> bool:
-	return _cache.has(_terrain_key(rect, yards, lanes))
+static func is_cached(rect: Rect2, yards: Array = [], lanes: Array = [], lane_spread := DEFAULT_LANE_SPREAD) -> bool:
+	return _cache.has(_terrain_key(rect, yards, lanes, lane_spread))
 
 ## ONE mesh, ONE surface, ONE draw for the ground, the road, the lane strips, the open yards and their small props (D-201). Cached per
 ## (rect, yards, lanes); `yards` are MapLayout yard ids, `lanes` MapLayout.lanes_for_tier(tier) (empty = the three tier-1/2 lanes). With no yards
 ## and no extra lane the mesh is exactly the S4 tier-1 terrain.
-static func terrain_mesh(rect: Rect2, yards: Array = [], lanes: Array = []) -> ArrayMesh:
-	var key := _terrain_key(rect, yards, lanes)
+static func terrain_mesh(rect: Rect2, yards: Array = [], lanes: Array = [], lane_spread := DEFAULT_LANE_SPREAD) -> ArrayMesh:
+	var key := _terrain_key(rect, yards, lanes, lane_spread)
 	if not _cache.has(key):
 		var parts := [ground_arrays(rect), road_arrays(Vector2(MapLayout.BOUNDS_MAX.x - MapLayout.BOUNDS_MIN.x, 2.0), MapLayout.ROAD_Z)]
 		for id in LaneStrip.draw_order(lanes):
 			parts.append(LaneStrip.strip_arrays(MapLayout.lane_path(id), LaneStrip.WIDTH, LaneStrip.EDGE, LaneStrip.strip_y(id)))
 		for y in yards:
 			parts.append(yard_arrays(MapLayout.yard_rect(y)))
+		for y in yards:
+			if MapLayout.yard_tier(y) >= 3:  # an owned plot over a lane (tier 3 only: tiers 1 and 2 have no such yard)
+				parts.append_array(plot_arrays(MapLayout.yard_rect(y), lanes, lane_spread))
 		var owned := PropsLayout.owned_for(yards)  # E5 tier 3 Task 2: small props on owned land, same mesh, no extra draw
 		if not owned.is_empty():
 			parts.append(Props.owned_arrays(owned))

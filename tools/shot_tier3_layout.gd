@@ -3,7 +3,7 @@ extends SceneTree
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_tier3_layout.gd -- --out=docs/review/media/e5t3/layout
 ## Writes tier2_sign_front_lot.png (tier 2 with the tier-3 cost entry: the sign on the unowned lot, hero at HOME), tier3_day_front.png
 ## (tier 3 by day from HOME, a few travelers in the east queue) and tier3_day_east_queue.png (hero at the counter), each 720x1280 with a
-## _40 copy (288x512). Prints whether the sign and its label are on screen from HOME.
+## _40 copy (288x512), plus tier3_day_front_lot_close.png (hero on the lot beside the SW fence spot). Prints whether the sign and its label are on screen from HOME.
 
 func _initialize() -> void:
 	_run.call_deferred()
@@ -64,6 +64,10 @@ func _run() -> void:
 	for i in 30:
 		await physics_frame
 	await _grab(cam, camera_math, bal, layout.COUNTER_DROP, out, "tier3_day_east_queue")
+	main.hero.teleport(Vector2(-4.6, 7.9))  # on the lot, beside the SW fence spot: paving, kerb, props and the lane track in frame
+	for i in 30:
+		await physics_frame
+	await _grab(cam, camera_math, bal, Vector2(-4.6, 7.9), out, "tier3_day_front_lot_close")
 	quit(0)
 
 func _grab(cam: Camera3D, camera_math, bal, focus: Vector2, out: String, name: String) -> void:

@@ -110,7 +110,9 @@ func test_the_south_west_strip_is_in_the_merged_ground_above_the_road() -> void:
 	var without := _vertices(GroundArt.terrain_mesh(rect, yards, ["west", "north", "east"]))
 	var with := _vertices(GroundArt.terrain_mesh(rect, yards, MapLayout.lanes_for_tier(3)))
 	# the sw path has 3 points and the strip builder emits 4 vertices per point (dark edge, dirt, dirt, dark edge): 12
-	assert_eq(with.size() - without.size(), 12)
+	# Fix round 1 (ruling B): with the front lot among the yards the lane also draws its narrow track over the lot's paving, clipped to the lot:
+	# 2 clipped points x 4 vertices = 8 more (was 12 for the strip alone)
+	assert_eq(with.size() - without.size(), 12 + 8)
 	# the strip's two outer-edge vertices at the entrance (-24, 11) run along +x, so the width is along z: 11 -+ 1.5; y = 0.02 + 0.005
 	assert_true(_has_vertex(with, Vector3(-24, 0.025, 9.5)), "outer edge, north side")
 	assert_true(_has_vertex(with, Vector3(-24, 0.025, 12.5)), "outer edge, south side")

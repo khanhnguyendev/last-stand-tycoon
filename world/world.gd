@@ -135,7 +135,7 @@ func _build_ground() -> void:
 	var rect := ground_rect()
 	# S4 D-201: ground + road + lane strips + open yards are ONE mesh, the edge stones ONE MultiMesh, the props 2 meshes.
 	var yards := yard_ids()
-	ground = GroundArt.instance(GroundArt.terrain_mesh(rect, yards, lane_ids()), "Ground")
+	ground = GroundArt.instance(GroundArt.terrain_mesh(rect, yards, lane_ids(), Balance.data.enemy.lateral_spread), "Ground")
 	add_child(ground)
 	_stone_lanes = lane_ids()
 	edge_stones = LaneStrip.edge_stones(_stone_lanes)
@@ -192,12 +192,9 @@ func rebuild_for_tier() -> void:
 	var tier := _effective_tier()
 	if tier == _built_tier:
 		return
-	var moves_service := MapLayout.queue_slots(tier) != MapLayout.queue_slots(_built_tier) or MapLayout.traveler_exit(tier) != MapLayout.traveler_exit(_built_tier)
 	_built_tier = tier
-	if moves_service:
-		_switch_service_layout()
 	var yards := yard_ids()
-	ground.mesh = GroundArt.terrain_mesh(ground_rect(), yards, lane_ids())
+	ground.mesh = GroundArt.terrain_mesh(ground_rect(), yards, lane_ids(), Balance.data.enemy.lateral_spread)
 	_sync_lanes()
 	props.build(_yard_rects(yards))
 	_set_yard_stones(yards)
@@ -212,16 +209,6 @@ func rebuild_for_tier() -> void:
 		if not build_spots.has(id):
 			_make_spot(id)
 	_swap_diner_art(tier)
-
-## The queue slots and the exit change with the tier (tier 3: the east side, spec 4.2). A traveler alive at that moment would keep
-## the old exit or stand off its slot, so none may be. The normal switch is the tier-up dawn: PhaseController._run_dawn recalls every
-## traveler (and the spawner stopped at close-up) before complete_tier_up changes the tier, so the count is 0 there and this only asserts
-## it. Any other change (debug_set_tier by day, a load, a new game) drops the travelers: the simplest safe behaviour.
-func _switch_service_layout() -> void:
-	if _phase == Phase.DAWN:
-		assert(traveler_spawner.live_count() == 0, "the service layout switches at the dawn, when no traveler is alive")
-		return
-	traveler_spawner.clear_queue()
 
 ## The lane nodes, their edge stones and their telegraph markers follow the tier: the lanes of `lane_ids()` exist, no others.
 ## Tiers 1 and 2 have the same three, so nothing is touched for them.

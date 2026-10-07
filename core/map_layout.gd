@@ -63,7 +63,7 @@ const LANE_FENCE_T3 := {"sw": "fence_sw"}
 const YARDS_T3 := {"front": Rect2(-7.6, 5.6, 6.1, 4.3)}
 const YARD_TIER_T3 := {"front": 3}
 ## The sign of tier N sells tier N and is shown at tier N - 1 (TIER_SIGN is the tier-2 value, kept).
-const TIER_SIGNS := {2: Vector2(-10.0, 7.5), 3: Vector2(-5.6, 9.0)}
+const TIER_SIGNS := {2: Vector2(-10.0, 7.5), 3: Vector2(-5.0, 8.7)}
 ## From tier 3 (spec 4.2): today's slots 2 to 4 would sit on the south-west lane or in its fence, and today's west exit would pass the tower.
 const QUEUE_SLOTS_T3 := [Vector2(0, 6.0), Vector2(1.1, 6.9), Vector2(1.3, 8.0), Vector2(1.4, 9.1),
 	Vector2(1.8, 10.3), Vector2(3.0, 10.3), Vector2(4.2, 10.3), Vector2(5.4, 10.3), Vector2(6.6, 10.3)]

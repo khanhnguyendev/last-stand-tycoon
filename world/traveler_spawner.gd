@@ -9,6 +9,18 @@ var leaving: Array = []
 var active := false
 var _timer := 0.0
 var _rng: RandomNumberGenerator
+## The tier whose service layout (queue slots, exit) the travelers currently use, and the phase as the bus last announced it.
+var _layout_tier := 1
+var _phase := Phase.NIGHT
+## How many travelers the last layout switch dropped (0 at the tier-up dawn: the test reads it).
+var dropped_at_switch := 0
+
+func _ready() -> void:
+	# The spawner switches its own layout (D-128: only PhaseController drives it from outside). Named methods, not lambdas.
+	EventBus.phase_changed.connect(_on_phase_changed)
+	EventBus.tier_changed.connect(_on_tier_changed)
+	EventBus.tier_reached.connect(_on_tier_reached)
+	EventBus.state_restored.connect(_sync_layout)
 
 func setup(p_pool: NodePool, fly_fx: FlyFx = null) -> void:
 	pool = p_pool
@@ -27,6 +39,31 @@ func stop() -> void:
 		t.leave()
 	leaving.append_array(queue)
 	queue.clear()
+
+func _on_phase_changed(p: int, _day: int) -> void:
+	_phase = p
+
+func _on_tier_changed(_tier: int, _paid: int, _boss: bool) -> void:
+	_sync_layout()
+
+func _on_tier_reached(_tier: int) -> void:
+	_sync_layout()
+
+## E5 tier 3 (spec 4.2): the queue slots and the exit change with the tier. A traveler alive at that moment would keep the old exit or stand off
+## its slot, so none may be. At the tier-up dawn PhaseController has already recalled every traveler and the spawner stopped at close-up, so the
+## count is 0 (asserted in debug); any other change (debug_set_tier by day, a load, a new game) drops the travelers, in release builds too.
+## When the layout of the new tier equals the old (tiers 1 and 2) nothing happens.
+func _sync_layout() -> void:
+	var tier := GameState.tier
+	if MapLayout.queue_slots(tier) == MapLayout.queue_slots(_layout_tier) and MapLayout.traveler_exit(tier) == MapLayout.traveler_exit(_layout_tier):
+		_layout_tier = tier
+		return
+	_layout_tier = tier
+	var alive := live_count()
+	if _phase == Phase.DAWN:
+		assert(alive == 0, "the service layout switches at the dawn, when no traveler is alive")
+	dropped_at_switch = alive
+	clear_queue()
 
 ## Travelers alive: queued, walking out, or still out of the pool. The tier-3 layout switch asserts this is 0 (World.rebuild_for_tier).
 func live_count() -> int:
