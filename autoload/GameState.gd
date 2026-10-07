@@ -343,9 +343,9 @@ func fence_thorn_damage(spot_id: String) -> float:
 ## Damage a Spike fence deals once to a monster of `kind` crossing its line; 0.0 unless the fence stands with branch
 ## spike and `kind` is in its pass_kinds. Pure query.
 func fence_pass_damage(spot_id: String, kind: StringName) -> float:
-	if not _spike_stands(spot_id) or not kind in Balance.data.branches.spike.pass_kinds:
+	if not _spike_stands(spot_id):
 		return 0.0
-	return Balance.data.branches.spike.pass_damage * _spike_scale()
+	return BranchMath.pass_damage(Balance.data.branches.spike, kind, _spike_scale())
 
 func _spike_stands(spot_id: String) -> bool:
 	if not buildings.has(spot_id):

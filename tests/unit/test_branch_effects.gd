@@ -181,6 +181,29 @@ func test_volley_attacks_again_after_the_interval() -> void:
 		_attack_once()
 	assert_eq(fired.size(), 4, "two attacks of two projectiles in 31 ticks")
 
+func test_volley_fires_after_an_empty_scan() -> void:
+	_branch(TOWER, &"volley")
+	_arm()
+	for i in 30:
+		_attack_once()
+	assert_eq(fired.size(), 0, "nothing in range")
+	_fake(3.0, 1)
+	var ticks := 0
+	while fired.is_empty() and ticks < 40:
+		_attack_once()
+		ticks += 1
+	assert_eq(fired.size(), 1)
+	assert_lte(ticks, ceili(Balance.data.hero.retarget_interval * 60.0) + 1, "within retarget_interval and one tick")
+
+func test_projectile_pool_covers_five_volley_towers() -> void:
+	# Top tier 2 (4 towers): ceil((4 x 6 + 5) x 1.2) = 35. With the tier-3 entry (5 towers): ceil((5 x 6 + 5) x 1.2) = 42.
+	# in_flight(3, 8.0, 0.5, 16) = 3 x (floor(1.0) + 1) = 6.
+	assert_eq(World.in_flight(3, 8.0, 0.5, 16.0), 6)
+	assert_eq(World.pool_sizes(Balance.data).projectile, 42, "tier-3 entry appended in before_each")
+	assert_gte(World.pool_sizes(Balance.data).projectile, 5 * 6 + 5)
+	Balance.reset()
+	assert_eq(World.pool_sizes(Balance.data).projectile, 35, "top tier 2")
+
 # --- select_many -------------------------------------------------------------
 
 func _c(x: float, z: float, idx: int) -> Dictionary:
@@ -231,8 +254,9 @@ func test_branched_tower_survives_save_and_load_and_new_game_clears_it() -> void
 
 # --- Spike queries -------------------------------------------------------------
 
+## Three waves with different multipliers: only the FIRST sets the scale (a last-wave or max rule would read 1.5x or 2x).
 func _first_wave_mult(m: float) -> void:
-	GameState.lane_plan = [{"hp_mult": m}]
+	GameState.lane_plan = [{"hp_mult": m}, {"hp_mult": m * 1.5}, {"hp_mult": m * 2.0}]
 
 func _base_plan() -> void:
 	_first_wave_mult(WaveMath.hp_mult(12, 0, Balance.data.wave))
@@ -250,6 +274,15 @@ func test_spike_values_grow_with_the_plan_pressure() -> void:
 	assert_almost_eq(Balance.data.wave.hp_growth, 0.15, 1e-9)
 	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 7.019, 0.001)
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 11.698, 0.001)
+
+func test_spike_scale_reads_the_first_wave_of_a_real_plan() -> void:
+	GameState.day = 20
+	GameState.debug_set_tier(3, 17)
+	_branch(FENCE, &"spike")
+	assert_eq(GameState.lane_plan.size(), 3)
+	assert_almost_eq(float(GameState.lane_plan[2].hp_mult), 4.857, 0.001)
+	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 3.1, 0.001)
+	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 7.019, 0.001, "first wave, not the last (would be 10.99)")
 
 func test_spike_scale_is_one_without_a_plan() -> void:
 	_branch(FENCE, &"spike")
@@ -286,3 +319,5 @@ func test_queries_change_no_state() -> void:
 	GameState.fence_pass_damage(FENCE, &"hare")
 	assert_eq(GameState.to_dict(), before)
 	assert_signal_not_emitted(EventBus, "building_changed")
+	assert_signal_not_emitted(EventBus, "gold_changed")
+	assert_signal_not_emitted(EventBus, "branch_chosen")

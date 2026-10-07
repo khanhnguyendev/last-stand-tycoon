@@ -346,6 +346,31 @@ func _build_stations() -> void:
 	for id in lane_ids():
 		_make_marker(id)
 
+## Single shooters besides towers that can have shots in flight at once (hero, archer guard, tank guard).
+const HERO_SHOTS_IN_FLIGHT := 2
+const ARCHER_SHOTS_IN_FLIGHT := 2
+const TANK_SHOTS_IN_FLIGHT := 1
+
+## Shots of one tower in flight at once: `count` per attack, a shot lives range / speed seconds, one attack per interval.
+static func in_flight(count: int, attack_range: float, interval: float, speed: float) -> int:
+	return count * (floori(attack_range / speed / interval) + 1)
+
+## Projectiles for the top tier: every tower of the top tier at its worst in_flight (levels 1 to 3 and both branches)
+## plus the single shooters, with the 20% margin. The pool must never grow at runtime.
+static func projectile_pool_size(bd: BalanceData) -> int:
+	var speed := bd.build.tower_projectile_speed
+	var worst := 0
+	for lv in bd.build.max_level:
+		worst = maxi(worst, World.in_flight(1, bd.build.tower_range[lv], bd.build.tower_interval, speed))
+	for id in BranchBalance.TOWER_BRANCHES:
+		var st := bd.branches.tower(id)
+		worst = maxi(worst, World.in_flight(st.count, st.attack_range, st.interval, speed))
+	var towers := 0
+	for id in MapLayout.spots_for_tier(TierEffects.top_tier(bd.tiers)):
+		if MapLayout.spot_kind(id) == "tower":
+			towers += 1
+	return int(ceil((towers * worst + HERO_SHOTS_IN_FLIGHT + ARCHER_SHOTS_IN_FLIGHT + TANK_SHOTS_IN_FLIGHT) * 1.2))
+
 static func pool_sizes(bd: BalanceData) -> Dictionary:
 	# E5: the steak pool holds the top tier's capped night plus the boss drop, with the old 20% margin (spec 7.1).
 	var top := TierEffects.top_tier(bd.tiers)
@@ -355,7 +380,7 @@ static func pool_sizes(bd: BalanceData) -> Dictionary:
 	return {
 		"enemy": bd.wave.max_wave_size + 1 + 10,
 		"steak": int(ceil((steaks * bd.economy.steaks_per_kill + bd.monsters.stats(&"boss").steaks_per_kill) * 1.2)),
-		"projectile": 24,
+		"projectile": World.projectile_pool_size(bd),
 		"fx": 32,
 	}
 

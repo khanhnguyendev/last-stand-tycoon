@@ -20,7 +20,7 @@ func _build_visual() -> void:
 	add_child(attacker)
 
 ## The one source of a tower's combat stats: levels 1 to 3 from the build balance; the top level with a branch from
-## the branch balance (E5 tier 3, spec 6.4). `branch` &"" = none. A fresh object each call.
+## the branch balance (E5 tier 3, spec 6.4). `branch` &"" = none. Unbranched levels return a fresh object; a branched call returns the shared balance resource (read only).
 static func stats_for(p_level: int, branch: StringName) -> TowerBranchStats:
 	var bb := Balance.data.build
 	assert(p_level >= 1 and p_level <= bb.tower_damage.size() and p_level <= bb.tower_range.size(), "tower level out of range")
