@@ -143,7 +143,7 @@ func test_warmup_nodes_sit_inside_the_camera_frustum() -> void:
 	for p in warmup.placed:
 		assert_true(cam.is_position_in_frustum(p), "%s is in view" % p)
 	# The real lens at each supported aspect, not the headless viewport's own frustum (mutation: ROW = 8 puts slots 0, 7, 8, 15
-	# at x = +-3.5 m, outside the 2.30 m half-width of 9:16 and 9:21; the old un-centred ROW = 5 with 31 nodes puts the 7th row at y = +6 m).
+	# at x = +-3.5 and +-2.5 m, outside the 2.30 m half-width of 9:16 and 9:21; the old un-centred ROW = 5 with 31 nodes puts the 7th row at y = +6 m).
 	var xf := cam.global_transform
 	for aspect in [9.0 / 21.0, 9.0 / 16.0, 16.0 / 9.0]:
 		var proj := CameraMath.projection(Balance.ui, aspect)

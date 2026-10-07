@@ -953,6 +953,9 @@ const OPEN_VIEWS := {
 		"fence_sw:1|name|the close-up sign's label": Vector2(90, 27),
 		"fence_sw:1|warn_icon|the building's pips": Vector2(25, 2),
 		"fence_sw:1|effect|attachment": Vector2(4.6, 0),
+		"fence_sw:1|effect|the Counter label #0": Vector2(20, 26),  # new (round 2): the counter's "0" under "hurts attackers"
+		"tower_e:0|effect|the Pad_freezer label #0": Vector2(38, 24),  # new (round 2): "Freezer" / its cost under "far, heavy, slow"
+		"tower_e:0|effect|the Pad_freezer label #1": Vector2(70, 36),  # new (round 2)
 	},
 	"9:16": {
 		"fence_w:1|icon|the building's pips": Vector2(38, 23),
@@ -962,6 +965,9 @@ const OPEN_VIEWS := {
 		"fence_sw:1|name|the close-up sign's label": Vector2(90, 27),
 		"fence_sw:1|warn_icon|the building's pips": Vector2(25, 2),
 		"fence_sw:1|effect|attachment": Vector2(4.6, 0),
+		"fence_sw:1|effect|the Counter label #0": Vector2(20, 26),  # new (round 2): the counter's "0" under "hurts attackers"
+		"tower_e:0|effect|the Pad_freezer label #0": Vector2(38, 24),  # new (round 2): "Freezer" / its cost under "far, heavy, slow"
+		"tower_e:0|effect|the Pad_freezer label #1": Vector2(70, 36),  # new (round 2)
 	},
 	"16:9": {
 		"fence_w:1|icon|the building's pips": Vector2(38, 23),
@@ -971,17 +977,36 @@ const OPEN_VIEWS := {
 		"fence_sw:1|name|the close-up sign's label": Vector2(90, 27),
 		"fence_sw:1|warn_icon|the building's pips": Vector2(25, 2),
 		"fence_sw:1|effect|attachment": Vector2(4.6, 0),
+		"fence_sw:1|effect|the Counter label #0": Vector2(20, 26),  # new (round 2): the counter's "0" under "hurts attackers"
+		"tower_e:0|effect|the Pad_freezer label #0": Vector2(38, 24),  # new (round 2): "Freezer" / its cost under "far, heavy, slow"
+		"tower_e:0|effect|the Pad_freezer label #1": Vector2(70, 36),  # new (round 2)
 	},
 }
 ## The NEAR findings that remain, pinned exactly per aspect: "spot|what|obstacle" -> max (w, h) in px rounded up (the overflow past the screen
 ## edge for a block). The tower pads stand 2 m apart on the map, so their two NEAR blocks overlap a little on screen; fence_sw's far pad (the
 ## hero 3 m from the other) clips the left edge of the two portrait views. Both need a map or layout change: open, reported.
+## Spots with no spot of ground due south of their southern pad that a hero can stand on within the focus range: the diner's collision box is there
+## (and the neighbouring spots' pads when turned aside). The south approach asserts that this list is exact.
+const SOUTH_UNREACHABLE := ["tower_nw", "tower_ne"]
+## The NEAR findings that remain, pinned exactly per aspect, per approach and distance: "approach dist|spot|what|obstacle" -> (w, h) in px rounded up
+## (the overflow past the screen edge for a block). The tower pads stand 2 m apart on the map, so their two NEAR blocks overlap a little on
+## screen; fence_sw's far pad (the hero 3 m from the other) clips the left edge of the two portrait views. Both need a map or layout change:
+## open, reported. All measured from points a hero can stand on (round 2).
 const NEAR_OPEN_VIEWS := {
-	"9:21": {"tower_e|blocks|each other": Vector2(24, 22), "tower_ne|blocks|each other": Vector2(14, 24), "tower_nw|blocks|each other": Vector2(14, 24),
-		"fence_sw:0|block|the screen edge": Vector2(32, 0)},
-	"9:16": {"tower_e|blocks|each other": Vector2(24, 22), "tower_ne|blocks|each other": Vector2(14, 24), "tower_nw|blocks|each other": Vector2(14, 24),
-		"fence_sw:0|block|the screen edge": Vector2(32, 0)},
-	"16:9": {"tower_e|blocks|each other": Vector2(24, 22), "tower_ne|blocks|each other": Vector2(14, 24), "tower_nw|blocks|each other": Vector2(14, 24)},
+	"9:21": {"home 3.00|tower_e|blocks|each other": Vector2(16, 23), "home 3.00|tower_ne|blocks|each other": Vector2(24, 11),
+		"home 3.00|tower_nw|blocks|each other": Vector2(24, 11), "home 3.45|tower_e|blocks|each other": Vector2(16, 24),
+		"home 3.45|tower_ne|blocks|each other": Vector2(6, 5), "home 3.45|tower_nw|blocks|each other": Vector2(6, 5),
+		"south 3.45|tower_e|blocks|each other": Vector2(14, 24),
+		"home 3.00|fence_sw:0|block|the screen edge": Vector2(17, 0), "home 3.45|fence_sw:0|block|the screen edge": Vector2(32, 0)},
+	"9:16": {"home 3.00|tower_e|blocks|each other": Vector2(16, 23), "home 3.00|tower_ne|blocks|each other": Vector2(24, 11),
+		"home 3.00|tower_nw|blocks|each other": Vector2(24, 11), "home 3.45|tower_e|blocks|each other": Vector2(16, 24),
+		"home 3.45|tower_ne|blocks|each other": Vector2(6, 5), "home 3.45|tower_nw|blocks|each other": Vector2(6, 5),
+		"south 3.45|tower_e|blocks|each other": Vector2(14, 24),
+		"home 3.00|fence_sw:0|block|the screen edge": Vector2(17, 0), "home 3.45|fence_sw:0|block|the screen edge": Vector2(32, 0)},
+	"16:9": {"home 3.00|tower_e|blocks|each other": Vector2(16, 23), "home 3.00|tower_ne|blocks|each other": Vector2(24, 11),
+		"home 3.00|tower_nw|blocks|each other": Vector2(24, 11), "home 3.45|tower_e|blocks|each other": Vector2(16, 24),
+		"home 3.45|tower_ne|blocks|each other": Vector2(6, 5), "home 3.45|tower_nw|blocks|each other": Vector2(6, 5),
+		"south 3.45|tower_e|blocks|each other": Vector2(14, 24)},
 }
 
 func test_the_ui_floors_are_the_plans() -> void:
@@ -1030,80 +1055,140 @@ func _pad_dist(at: Vector2, id: String, others := false) -> float:
 			best = minf(best, at.distance_to(pp))
 	return best
 
-## Where a player comes up to a spot's pads from: `dist` metres from the pad nearest HOME, on the line towards HOME, turned (in 15 degree
-## steps, smallest turn first) until that point is not on a pad and the spot's own pad is the nearest of the map (no other spot takes the focus).
-func _near_hero_at(id: String, dist: float) -> Vector2:
+## The distance (m, on the ground) from `at` to the nearest solid the hero collides with: every BoxShape3D of a layer-1 StaticBody3D in the
+## world (the diner, the counter, the freezer, the fences and towers), read from the real colliders. Negative inside one.
+func _solid_dist(at: Vector2) -> float:
+	var best := INF
+	var q := Vector3(at.x, 0.0, at.y)
+	for body in _static_bodies(main.world):
+		for c in body.get_children():
+			if c is CollisionShape3D and (c as CollisionShape3D).shape is BoxShape3D:
+				var half := ((c as CollisionShape3D).shape as BoxShape3D).size * 0.5
+				var l: Vector3 = (c as CollisionShape3D).global_transform.affine_inverse() * Vector3(q.x, (c as CollisionShape3D).global_position.y, q.z)
+				var out := Vector2(maxf(absf(l.x) - half.x, 0.0), maxf(absf(l.z) - half.z, 0.0))
+				var inside := maxf(absf(l.x) - half.x, absf(l.z) - half.z)
+				best = minf(best, out.length() if out.length() > 0.0 else inside)
+	return best
+
+func _static_bodies(n: Node) -> Array:
+	var out: Array = []
+	if n is StaticBody3D and (n as StaticBody3D).collision_layer & 1 != 0:
+		out.append(n)
+	for c in n.get_children():
+		out.append_array(_static_bodies(c))
+	return out
+
+## Whether `at` is a fair NEAR view of `id`: reachable, the spot's own nearest pad within `limit` and the nearest of the map by 0.5 m.
+func _near_ok(id: String, at: Vector2, limit: float) -> bool:
+	var own := _pad_dist(at, id)
+	return own <= limit and own > MapLayout.BRANCH_PAD_RADIUS and _pad_dist(at, id, true) > own + 0.5 and _solid_dist(at) > MapLayout.HERO_RADIUS + 0.05 \
+			and at.x > -16.0 and at.x < 16.0 and at.y > -19.0 and at.y < 14.0
+
+## "home": `dist` metres from the pad nearest HOME, on the line towards HOME, turned (15 degree steps, smallest turn first) until the point is a
+## fair NEAR view. "south": the worst direction for size, the pad NORTH of the hero (the camera pitch makes a pad smaller the further north
+## of the hero it is): the spot's southern pad + (0, dist), turned off due south in 15 degree steps (up to 90) until it is off solids and pads. Returns the point, or
+## Vector2(INF, INF) when none is reachable.
+func _near_hero_at(id: String, dist: float, approach: String) -> Vector2:
 	var pads: Array = MapLayout.BRANCH_PADS[id]
+	var limit := Balance.ui.branch_pad_near_m - 0.01
+	if approach == "south":
+		var south: Vector2 = pads[0] if (pads[0] as Vector2).y >= (pads[1] as Vector2).y else pads[1]
+		for k in range(0, 7):  # turned off due south in 15 degree steps (up to 90), smallest turn first, until the point is reachable
+			for sgn in ([1.0] if k == 0 else [1.0, -1.0]):
+				var at := south + Vector2(0.0, dist).rotated(deg_to_rad(15.0 * k) * sgn)
+				if _near_ok(id, at, limit):
+					return at
+		return Vector2(INF, INF)
 	var nearest: Vector2 = pads[0] if (pads[0] as Vector2).distance_to(MapLayout.HOME) <= (pads[1] as Vector2).distance_to(MapLayout.HOME) else pads[1]
 	var toward := (MapLayout.HOME - nearest).normalized()
 	for k in range(0, 13):
-		for sign in ([1.0] if k == 0 else [1.0, -1.0]):
-			var at := nearest + toward.rotated(deg_to_rad(15.0 * k) * sign) * dist
-			if _pad_dist(at, id) <= dist + 0.01 and _pad_dist(at, id) > MapLayout.BRANCH_PAD_RADIUS and _pad_dist(at, id, true) > _pad_dist(at, id) + 0.5 \
-					and at.x > -16.0 and at.x < 16.0 and at.y > -19.0 and at.y < 14.0:
+		for sgn in ([1.0] if k == 0 else [1.0, -1.0]):
+			var at := nearest + toward.rotated(deg_to_rad(15.0 * k) * sgn) * dist
+			if _near_ok(id, at, dist + 0.01):
 				return at
-	return nearest + toward * dist
+	return Vector2(INF, INF)
 
-## The NEAR stage, measured like the stood pad: the hero 3 m from a spot's pads, and again at branch_pad_near_m - 0.05, on the side a
-## player comes from (towards HOME), not on a pad. The floors must hold UP TO branch_pad_near_m (3.5 m); the 3.5 to 4.5 m hysteresis band
+## The NEAR stage, measured like the stood pad, from ground a hero can stand on (every point is further from every real solid than his
+## 0.4 m radius, and the hero is asserted to be AT the point after settling: a collision push-out fails). Two approaches per spot, each
+## from branch_pad_near_m - 0.05 (3.45 m) of the spot's NEAREST pad (the sibling may be further: pads stand up to 5 m apart; only the
+## nearest pad has to be within the 3.5 m that wakes the focus): "home" (towards HOME, also at 3.0 m) and "south" (due south of the
+## southern pad, the worst direction for size). The floors must hold UP TO branch_pad_near_m (3.5 m); the 3.5 to 4.5 m hysteresis band
 ## (the focus is kept while the hero walks away) is exempt: the glyph and the cost may be smaller there than the floors.
-## Hard asserts: the focus, the stage, the glyph and cost floors, the block within ATTACH_NEAR_M of its pad. The screen edge and the
-## two-blocks rule are findings pinned per aspect in NEAR_OPEN_VIEWS (the pads' map positions are not this task's to move).
-## Mutation: a cost pixel size that puts the cost under its floor at 3.45 m (0.0123 does, at tower_nw) fails the cost floor; a focus that
-## never reaches the spot, or one that stays on a neighbour, fails the focus line; a block moved away from its pad fails the attachment.
+## Hard asserts: the focus, the stage, each pad yields exactly a glyph and a cost, the glyph and cost floors, each item within ATTACH_NEAR_M of
+## its pad. The screen edge and the two-blocks rule are findings pinned per aspect in NEAR_OPEN_VIEWS, keyed by approach and distance.
+## Mutation: a hero point inside the diner (or within 0.4 m of any solid) fails the position assert; a cost pixel size under its floor at
+## the south approach fails the cost floor; a focus that never reaches the spot fails the focus line; an item moved away from its pad fails
+## the attachment.
 func test_near_stage_meets_the_floors_on_screen_and_beside_its_pad_at_every_spot() -> void:
 	await _start()
 	_all_max()
 	var ui := Balance.ui
-	var worst := {"icon": INF, "cost": INF, "attach": 0.0}
+	var worst := {"icon": INF, "cost": INF, "icon_at": "", "cost_at": "", "attach": 0.0}
 	var found := {}
 	for an in ASPECT_NAMES:
 		found[an] = {}
-	var cases := 0
-	for dist in [3.0, ui.branch_pad_near_m - 0.05]:
+	var cases_run := 0
+	var near_m: float = ui.branch_pad_near_m - 0.05
+	for case in [["home", 3.0], ["home", near_m], ["south", near_m]]:
+		var approach: String = case[0]
+		var dist: float = case[1]
+		var tag := "%s %.2f" % [approach, dist]
 		for id in MapLayout.spots_for_tier(3):
-			var at := _near_hero_at(id, dist)
+			var at := _near_hero_at(id, dist, approach)
+			var unreachable := approach == "south" and id in SOUTH_UNREACHABLE
+			assert_eq(at.is_finite(), not unreachable, "%s %s: a reachable approach %s" % [tag, id, "does not exist (the diner stands south of it)" if unreachable else "exists"])
+			if not at.is_finite():
+				continue
+			cases_run += 1
 			main.hero.teleport(Vector2(15.0, 8.0))  # far from every pad: no focus kept from the last spot (hysteresis)
 			await _settle()
 			main.hero.teleport(at)
 			await _settle()
-			assert_eq(BranchPad.focus_spot(), id, "%s at %.2f m: the focus is on the spot" % [id, dist])
-			assert_null(BranchPad.pad_hero_stands_on(), "%s: the hero is not on a pad" % id)
+			var hp := Vector2(main.hero.global_position.x, main.hero.global_position.z)
+			assert_lt(hp.distance_to(at), 0.01, "%s %s: the hero stands where the point is (a push-out from a solid would move him): %s vs %s" % [tag, id, hp, at])
+			assert_eq(BranchPad.focus_spot(), id, "%s %s: the focus is on the spot" % [tag, id])
+			assert_null(BranchPad.pad_hero_stands_on(), "%s %s: the hero is not on a pad" % [tag, id])
 			for a in ASPECTS.size():
 				var v := View.new(at, ASPECTS[a])
 				var blocks: Array = []
 				for i in 2:
 					var p: BranchPad = _pads(id)[i]
-					assert_eq(p.stage, BranchPad.NEAR, "%s pad %d is NEAR" % [id, i])
+					assert_eq(p.stage, BranchPad.NEAR, "%s %s pad %d is NEAR" % [tag, id, i])
+					var items := _pad_items(p, v)
+					assert_eq(items.map(func(it): return it[1]), [p.icon, p.cost_label], "%s %s pad %d yields exactly a glyph and a cost" % [tag, id, i])
 					var block := Rect2()
 					var first := true
-					for it in _pad_items(p, v):
+					for it in items:
 						var n: Node3D = it[1]
 						var r: Rect2 = it[2]
+						var what := "icon"
 						if n == p.icon:
 							var h := r.size.y / 1.14
-							worst.icon = minf(worst.icon, h)
-							assert_gte(h, ui.branch_pad_icon_min_px, "%s pad %d glyph at %.2f m, %s" % [id, i, dist, ASPECT_NAMES[a]])
-						elif n == p.cost_label:
+							if h < worst.icon:
+								worst.icon = h
+								worst.icon_at = "%s %s pad %d at %s" % [tag, id, i, ASPECT_NAMES[a]]
+							assert_gte(h, ui.branch_pad_icon_min_px, "%s %s pad %d glyph, %s" % [tag, id, i, ASPECT_NAMES[a]])
+						else:
+							what = "cost"
 							var em := _px_h(n.global_position, float(p.cost_label.font_size) * p.cost_label.pixel_size, v)
-							worst.cost = minf(worst.cost, em)
-							assert_gte(em, ui.branch_pad_label_min_px, "%s pad %d cost at %.2f m, %s" % [id, i, dist, ASPECT_NAMES[a]])
+							if em < worst.cost:
+								worst.cost = em
+								worst.cost_at = "%s %s pad %d at %s" % [tag, id, i, ASPECT_NAMES[a]]
+							assert_gte(em, ui.branch_pad_label_min_px, "%s %s pad %d cost, %s" % [tag, id, i, ASPECT_NAMES[a]])
+						var d := _attach_m(r, v.pt(p.global_position), v.px_per_m(p.global_position))
+						worst.attach = maxf(worst.attach, d)
+						assert_lte(d, ATTACH_NEAR_M, "%s %s pad %d: the %s stands %.2f screen-m from its pad" % [tag, id, i, what, d])
 						block = r if first else block.merge(r)
 						first = false
-					assert_false(first, "%s pad %d shows a block" % [id, i])
 					if not v.screen().encloses(block):
 						var s := v.screen()
 						var out := Vector2(maxf(0.0, maxf(s.position.x - block.position.x, block.end.x - s.end.x)), maxf(0.0, maxf(s.position.y - block.position.y, block.end.y - s.end.y)))
-						_fold([{"key": "%s:%d|block|the screen edge" % [id, i], "val": Vector2(ceilf(out.x), ceilf(out.y))}], found[ASPECT_NAMES[a]])
-					var d := _attach_m(block, v.pt(p.global_position), v.px_per_m(p.global_position))
-					worst.attach = maxf(worst.attach, d)
-					assert_lte(d, ATTACH_NEAR_M, "%s pad %d: the block stands %.2f screen-m from its pad" % [id, i, d])
+						_fold([{"key": "%s|%s:%d|block|the screen edge" % [tag, id, i], "val": Vector2(ceilf(out.x), ceilf(out.y))}], found[ASPECT_NAMES[a]])
 					blocks.append(block)
 				if (blocks[0] as Rect2).intersects(blocks[1]):
 					var ov := (blocks[0] as Rect2).intersection(blocks[1])
-					_fold([{"key": "%s|blocks|each other" % id, "val": Vector2(ceilf(ov.size.x), ceilf(ov.size.y))}], found[ASPECT_NAMES[a]])
-				cases += 1
-	assert_eq(cases, 2 * 9 * 3)
+					_fold([{"key": "%s|%s|blocks|each other" % [tag, id], "val": Vector2(ceilf(ov.size.x), ceilf(ov.size.y))}], found[ASPECT_NAMES[a]])
+	assert_eq(cases_run, 3 * 9 - SOUTH_UNREACHABLE.size())
 	var lines: Array = []
 	for an in ASPECT_NAMES:
 		var got: Dictionary = found[an]
@@ -1116,8 +1201,9 @@ func test_near_stage_meets_the_floors_on_screen_and_beside_its_pad_at_every_spot
 			lines.append("%s %s -> %s" % [an, key, got[key]])
 		for key in pins:
 			assert_true(got.has(key), "%s: NEAR %s no longer happens: delete it from NEAR_OPEN_VIEWS" % [an, key])
+		assert_eq(got.size(), pins.size(), "%s: the NEAR finding count" % an)
 	lines.sort()
-	gut.p("NEAR worst (base px): glyph %.1f (floor %.0f), cost %.1f (floor %.0f), block %.2f screen-m from its pad (limit %.1f)\n  %s" % [worst.icon, ui.branch_pad_icon_min_px, worst.cost, ui.branch_pad_label_min_px, worst.attach, ATTACH_NEAR_M, "\n  ".join(lines)])
+	gut.p("NEAR worst (base px): glyph %.2f at %s (floor %.0f), cost %.2f at %s (floor %.0f), item %.2f screen-m from its pad (limit %.1f)\n  %s" % [worst.icon, worst.icon_at, ui.branch_pad_icon_min_px, worst.cost, worst.cost_at, ui.branch_pad_label_min_px, worst.attach, ATTACH_NEAR_M, "\n  ".join(lines)])
 
 func test_the_clutter_cap_at_twenty_positions_over_the_map() -> void:
 	await _start()
@@ -1198,6 +1284,28 @@ func _view_violations(id: String, i: int, aspect: float, rows: Array, gap_out: A
 	if tsr != null:
 		others.append(["the tier sign's label", tsr])
 	others.append(["the HUD's top bar", _hud_rect(v)])
+	for l in get_tree().get_nodes_in_group(&"world_labels"):  # the stations' own world labels (Counter, Freezer, ...); not the pads', the tier sign's,
+		var lab := l as Label3D  # the close-up sign's or the telegraph rows' (those have their own rects above)
+		if lab == null or lab.text == "" or not lab.is_visible_in_tree() or (main.world.tier_sign != null and lab == main.world.tier_sign.label):
+			continue
+		var skip := lab.get_parent().name == "CloseUpSign"
+		var anc: Node = lab.get_parent()
+		while anc != null and not skip:
+			skip = anc is TelegraphMarker
+			anc = anc.get_parent()
+		if skip:
+			continue
+		var mine_own := false
+		for oid in main.world.branch_pads:
+			for q: BranchPad in main.world.branch_pads[oid]:
+				mine_own = mine_own or q.is_ancestor_of(lab)
+		if not mine_own:
+			var idx := 0  # a stable name: the label's index among its parent's labels (engine names like @Label3D@724 change between runs)
+			for lsib in lab.get_parent().get_children():
+				if lsib == lab:
+					break
+				idx += int(lsib is Label3D)
+			others.append(["the %s label #%d" % [lab.get_parent().name, idx], _node_rect(lab, v)])
 	for row in rows:
 		others.append(["the %s telegraph row" % row[0], _row_rect(row[1], v)])
 	for e in mine:
