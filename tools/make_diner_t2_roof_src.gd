@@ -1,20 +1,26 @@
 extends SceneTree
 ## Writes art/env/src/diner_t2_top.res (E5 slice 2 Task 1): what the tier-2 diner adds above the tier-1 roof, as ONE
-## mesh on ONE surface of the shared fantasy-town atlas (every box is one palette texel, so it stays on palette):
-##   - roof_cap: a thin terracotta slab laid on the flat roof (3.0 to 3.03: the Archer's perch stays at 3.0),
-##   - chimney: a tall stone stack at the north-west corner with a dark steel cap (tier 1 has one at the north-east),
-##   - sign board: a gold plate on two dark posts above the middle of the roof.
-## Everything stays inside |x| <= 4.0 and |z| <= 4.0 (nothing overhangs the walls: awnings hid actors, slice 1).
+## mesh on ONE surface of the shared atlas (every box is one palette texel, so it stays on palette; the colours follow
+## docs/ART_BIBLE.md roles: no gold, no steak_brown on the building):
+##   - roof cap: a thin wood slab laid on the flat roof out to the parapet's inner edge (3.0 to 3.03: the Archer's
+##     perch stays at 3.0),
+##   - chimney: a stone stack with a dark steel band and cap a little west of the roof's middle (a corner stack or a taller one hid the yards' ground or the Archer at wide aspects),
+##   - sign board: a wood plate with a diner_cream face on two short posts in the south half of the roof.
+## The camera looks north from the south, so a raised part hides what lies north of it: both stand in the south half
+## and low enough that their "shadow" ends on the roof (tests/unit/test_diner_art.gd sweeps the camera to prove they hide
+## no ground and never the Archer that tier 1 does not already hide). Everything stays inside |x|, |z| <= 4.0.
 ## Run: "$GODOT" --headless --path . -s res://tools/make_diner_t2_roof_src.gd
 const ATLAS := "res://art/palette/atlas/kenney-fantasy-town__colormap.png"
-## [palette name, centre x, base y, centre z, size x, size y, size z]
+## [palette name, centre x, base y, centre z, size x, size y, size z]; the test reads these (24 vertices per box, in order).
 const BOXES := [
-	[&"steak_brown", 0.0, 3.0, 0.0, 5.6, 0.03, 5.6],     # roof_cap
-	[&"stone", -3.0, 3.0, -3.0, 0.7, 2.9, 0.7],          # chimney stack, top at 5.9
-	[&"steel_dark", -3.0, 5.9, -3.0, 0.95, 0.2, 0.95],   # chimney cap, top at 6.1 (tier 1's highest point is 5.1)
-	[&"wood_dark", -1.1, 3.0, -1.2, 0.2, 1.3, 0.2],      # sign post
-	[&"wood_dark", 1.1, 3.0, -1.2, 0.2, 1.3, 0.2],       # sign post
-	[&"gold", 0.0, 4.2, -1.2, 3.0, 1.2, 0.2],            # sign board, top at 5.4
+	[&"wood", 0.0, 3.0, 0.0, 7.7, 0.03, 7.7],            # 0 roof cap, to the parapet's inner edge (3.85)
+	[&"stone", -1.0, 3.0, 0.0, 0.7, 1.4, 0.7],           # 1 chimney stack, top at 4.4, mid-roof
+	[&"steel_dark", -1.0, 3.9, 0.0, 0.84, 0.15, 0.84],   # 2 chimney band
+	[&"steel_dark", -1.0, 4.4, 0.0, 0.95, 0.2, 0.95],    # 3 chimney cap, top at 4.6
+	[&"wood_dark", -1.1, 3.0, 1.8, 0.2, 0.6, 0.2],       # 4 sign post
+	[&"wood_dark", 1.1, 3.0, 1.8, 0.2, 0.6, 0.2],        # 5 sign post
+	[&"wood", 0.0, 3.5, 1.8, 3.0, 1.0, 0.2],             # 6 sign board plate, z 1.7 to 1.9, top at 4.5
+	[&"diner_cream", 0.0, 3.65, 1.92, 2.6, 0.7, 0.04],   # 7 board face on the south side, z 1.9 to 1.94
 ]
 
 func _initialize() -> void:

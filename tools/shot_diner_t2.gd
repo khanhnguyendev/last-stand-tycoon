@@ -50,6 +50,13 @@ func _run() -> void:
 	for i in 20:
 		await physics_frame
 	await _grab(cam, camera_math, bal, out, "diner_t2_home_day")
+	# E5 slice 2 Task 1: the hero in the north zone, behind the diner: the fade is active (diner_t2_after_north).
+	_focus = (map_layout.ZONE_RECTS["north"] as Rect2).get_center()
+	main.hero.teleport(_focus)
+	for i in 90:
+		await physics_frame
+	print("fade active: ", main.world.occluder_fade.is_faded())
+	await _grab(cam, camera_math, bal, out, "diner_t2_after_north")
 	_focus = Vector2(-7.0, 3.0)
 	main.hero.teleport(_focus)
 	for i in 20:
