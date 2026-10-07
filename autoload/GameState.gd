@@ -333,6 +333,33 @@ func pay_into_branch(spot_id: String, branch_id: StringName, amount: int) -> int
 		EventBus.branch_refunded.emit(StringName(spot_id), refund)
 	return pay
 
+## Thorn damage a Spike fence deals back to an attacker on each hit the fence takes; 0.0 unless the fence stands
+## (level >= 1, hp > 0) with branch spike. Pure query.
+func fence_thorn_damage(spot_id: String) -> float:
+	if not _spike_stands(spot_id):
+		return 0.0
+	return Balance.data.branches.spike.thorn_damage * _spike_scale()
+
+## Damage a Spike fence deals once to a monster of `kind` crossing its line; 0.0 unless the fence stands with branch
+## spike and `kind` is in its pass_kinds. Pure query.
+func fence_pass_damage(spot_id: String, kind: StringName) -> float:
+	if not _spike_stands(spot_id) or not kind in Balance.data.branches.spike.pass_kinds:
+		return 0.0
+	return Balance.data.branches.spike.pass_damage * _spike_scale()
+
+func _spike_stands(spot_id: String) -> bool:
+	if not buildings.has(spot_id):
+		return false
+	var b: Dictionary = buildings[spot_id]
+	return int(b.level) >= 1 and float(b.hp) > 0.0 and String(b.branch) == "spike"
+
+## Spike's growth (D-272.1): the plan's FIRST wave hp_mult stands for the whole night (GameState does not know the
+## current wave), over the first-wave multiplier at the tier-3 base pressure. No plan: 1.0.
+func _spike_scale() -> float:
+	if lane_plan.is_empty():
+		return 1.0
+	return BranchMath.spike_scale(float(lane_plan[0].hp_mult), BranchMath.spike_base_mult(Balance.data.wave, Balance.data.tiers))
+
 # --- stations (E1) ---------------------------------------------------------
 
 static func _fresh_stations() -> Dictionary:

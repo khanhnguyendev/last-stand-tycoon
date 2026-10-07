@@ -19,16 +19,30 @@ func _build_visual() -> void:
 	attacker.enabled = false
 	add_child(attacker)
 
-func _apply_level(p_level: int, _b: Dictionary) -> void:
+## The one source of a tower's combat stats: levels 1 to 3 from the build balance; the top level with a branch from
+## the branch balance (E5 tier 3, spec 6.4). `branch` &"" = none. A fresh object each call.
+static func stats_for(p_level: int, branch: StringName) -> TowerBranchStats:
+	var bb := Balance.data.build
+	assert(p_level >= 1 and p_level <= bb.tower_damage.size() and p_level <= bb.tower_range.size(), "tower level out of range")
+	if branch != &"" and p_level == bb.max_level:
+		return Balance.data.branches.tower(branch)
+	var s := TowerBranchStats.new()
+	s.attack_range = bb.tower_range[p_level - 1]
+	s.damage = bb.tower_damage[p_level - 1]
+	s.interval = bb.tower_interval
+	s.count = 1
+	return s
+
+func _apply_level(p_level: int, b: Dictionary) -> void:
 	var built := p_level >= 1
 	visual.visible = built
 	_show_model(p_level, MODELS[mini(p_level, MODELS.size()) - 1] if built else null)
 	attacker.enabled = built
 	if built:
-		var bb := Balance.data.build
-		assert(p_level <= bb.tower_damage.size() and p_level <= bb.tower_range.size(), "tower level out of range")
-		attacker.configure(bb.tower_damage[p_level - 1], bb.tower_range[p_level - 1], bb.tower_interval,
-			Balance.data.hero.retarget_interval, 1.0, bb.tower_projectile_speed)
+		# refresh() runs on building_changed (a branch purchase emits it), state_restored (load, new_game) and phase changes.
+		var st := TowerSpot.stats_for(p_level, StringName(String(b.get("branch", ""))))
+		attacker.configure(st.damage, st.attack_range, st.interval, Balance.data.hero.retarget_interval, 1.0,
+			Balance.data.build.tower_projectile_speed, st.count)
 
 func _pip_y(p_level: int) -> float:
 	return MODEL_HEIGHTS[clampi(p_level, 1, MODEL_HEIGHTS.size()) - 1] + 0.3
