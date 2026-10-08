@@ -10,8 +10,11 @@ extends Control
 ##   row 3  the guarded lane(s), each with its lane-character icon (none if neutral)  (full width, bottom line)
 ## The rows are numbered as in the spec; they are laid out in three lines because five stacked 40 px icons do not fit 170 px.
 ## It is a listener: it reads BranchPad's static focus helpers and GameState, writes nothing, and every Control in it ignores the
-## mouse, so a joystick touch may start on it. With no lane character (flag off, or below tier 3) it stays hidden and its
-## _process returns after one null check, so it cannot change behaviour.
+## mouse, so a joystick touch may start on it. With no lane character (flag off, or below tier 3) it stays hidden: while no
+## armed pad is under the hero _process does one lookup and returns, and on a pad it asks GameState for the (empty) character
+## and hides. It never writes game state, so it cannot change behaviour. The character is read once per shown pad (and again
+## after a tier change or a load), not every frame.
+## Every string goes through tr(); the card re-reads them on NOTIFICATION_TRANSLATION_CHANGED.
 ##
 ## TEXT FIT RULE: every label has one line and a fixed width. Its font starts at the row's maximum and shrinks one pixel at a
 ## time to the row's floor (name 32 -> 30, other text 24 .. 28, never below 24 on the 720 base) until the text fits. If it does
@@ -34,14 +37,13 @@ const TEXT_MAX := 28
 const TEXT_MIN := 24
 const BAR_W := 150.0
 const BAR_H := 22.0
-const LANE_GAP := 20.0
+const LANE_GAP := 36.0
 const OUTLINE_PX := 4
 const TEX_PX := 96
 
-## Tests install a function String -> String that rewrites every card string after tr() (the pseudo-locale).
-static var text_filter := Callable()
-
 static var _tex := {}
+## Icons rasterized so far (a first show after the warm-up must not add to it).
+static var rasterized := 0
 
 ## What the card shows now: "" when hidden.
 var spot_id := ""
@@ -59,8 +61,7 @@ var warn_icon: TextureRect
 var warn_label: Label
 
 var _key := ""
-var _character := {}
-var _paid := -1
+var _shown_remaining := -1
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -73,11 +74,17 @@ func _ready() -> void:
 	grow_horizontal = Control.GROW_DIRECTION_BOTH
 	grow_vertical = Control.GROW_DIRECTION_BEGIN
 	visible = false
+	EventBus.tier_changed.connect(func(_t: int, _p: int, _b: bool): _key = "")
+	EventBus.state_restored.connect(func(): _key = "")
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED:
+		_key = ""  # the next refresh rebuilds every string from tr()
 
 func _process(_delta: float) -> void:
 	refresh()
 
-## The pad the hero stands on when it is armed, shown, and the run has a lane character; else null.
+## The pad the hero stands on when it is shown and armed (he walked in); else null.
 func _armed_pad() -> BranchPad:
 	var pad := BranchPad.pad_hero_stands_on()
 	if pad == null or not is_instance_valid(pad) or not pad.is_inside_tree() or pad.zone == null:
@@ -92,14 +99,13 @@ func refresh() -> void:
 	if pad == null:
 		_hide()
 		return
-	var character := GameState.lane_character()
-	if character.is_empty():
-		_hide()
-		return
 	var key := "%s:%s" % [pad.spot_id, pad.branch_id]
-	if key != _key or character != _character:
+	if key != _key:  # the character is read once per shown pad, not every frame
+		var character := GameState.lane_character()
+		if character.is_empty():
+			_hide()
+			return
 		_key = key
-		_character = character
 		_build(pad.spot_id, pad.branch_id, character)
 	visible = true
 	var remaining := GameState.branch_remaining(spot_id, branch_id)
@@ -112,23 +118,15 @@ func _hide() -> void:
 	branch_id = &""
 	_key = ""
 
-## Forces the next refresh to rebuild (the pseudo-locale changes the strings, not the state).
-func rebuild() -> void:
-	_key = ""
-	_paid = -1
-	refresh()
-
 # --- content -----------------------------------------------------------------------------------------
-
-static func _t(s: String) -> String:
-	return String(text_filter.call(s)) if text_filter.is_valid() else s
 
 func branch_name(id: StringName) -> String:
 	match id:
 		&"longbow": return tr("Longbow")
 		&"volley": return tr("Volley")
 		&"stone": return tr("Stone wall")
-		_: return tr("Spike fence")
+		&"spike": return tr("Spike fence")
+		_: return ""
 
 ## The specialty line, at most three words.
 func specialty(id: StringName) -> String:
@@ -136,25 +134,27 @@ func specialty(id: StringName) -> String:
 		&"longbow": return tr("breaks brutes")
 		&"volley": return tr("hits %d targets") % int(Balance.data.branches.tower(&"volley").count)
 		&"stone": return tr("holds brutes")
-		_: return tr("hurts hares")
+		&"spike": return tr("hurts hares")
+		_: return ""
 
 ## The character the specialty answers: siege for Longbow and Stone wall, hare for Volley and Spike fence.
 static func specialty_kind(id: StringName) -> StringName:
-	return LaneCharacterIcons.SIEGE if id == &"longbow" or id == &"stone" else LaneCharacterIcons.HARE
+	match id:
+		&"longbow", &"stone": return LaneCharacterIcons.SIEGE
+		&"volley", &"spike": return LaneCharacterIcons.HARE
+		_: return &""
 
 func lane_name(lane: String) -> String:
 	match lane:
 		"west": return tr("west road")
 		"north": return tr("north path")
 		"east": return tr("east road")
-		_: return tr("south road")
+		"sw": return tr("south road")
+		_: return ""
 
 ## The lanes the building guards: a tower's own, a fence's single lane.
 static func guarded_lanes(spot: String) -> Array:
 	return MapLayout.tower_lanes(spot) if MapLayout.spot_kind(spot) == "tower" else [MapLayout.fence_lane(spot)]
-
-static func is_fence_branch(id: StringName) -> bool:
-	return id == &"stone" or id == &"spike"
 
 ## &"siege", &"hare" or &"" (neutral) for a lane.
 static func lane_icon_kind(character: Dictionary, lane: String) -> StringName:
@@ -183,7 +183,7 @@ func _build(p_spot: String, p_branch: StringName, character: Dictionary) -> void
 	_clear()
 	spot_id = p_spot
 	branch_id = p_branch
-	_paid = -1
+	_shown_remaining = -1
 	var backing := Panel.new()
 	backing.name = "Backing"
 	backing.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -204,11 +204,11 @@ func _build(p_spot: String, p_branch: StringName, character: Dictionary) -> void
 	var right_w := CARD_SIZE.x - MARGIN_X - xr
 	# row 1: branch icon and name
 	name_icon = _icon("NameIcon", branch_texture(p_branch), Vector2(MARGIN_X, y1))
-	name_label = _fit_label("Name", _t(branch_name(p_branch)), Vector2(MARGIN_X + ICON_PX + ICON_GAP, y1),
+	name_label = _fit_label("Name", branch_name(p_branch), Vector2(MARGIN_X + ICON_PX + ICON_GAP, y1),
 		LEFT_W - ICON_PX - ICON_GAP, NAME_MAX, NAME_MIN)
 	# row 2: the specialty with its character icon
 	spec_icon = _icon("SpecIcon", LaneCharacterIcons.texture(specialty_kind(p_branch)), Vector2(MARGIN_X, y2))
-	spec_label = _fit_label("Spec", _t(specialty(p_branch)), Vector2(MARGIN_X + ICON_PX + ICON_GAP, y2),
+	spec_label = _fit_label("Spec", specialty(p_branch), Vector2(MARGIN_X + ICON_PX + ICON_GAP, y2),
 		LEFT_W - ICON_PX - ICON_GAP, TEXT_MAX, TEXT_MIN)
 	# row 4: the payment bar and the remaining number
 	var bar_y := y1 + (ROW_H - BAR_H) * 0.5
@@ -235,9 +235,9 @@ func _build(p_spot: String, p_branch: StringName, character: Dictionary) -> void
 	add_child(bar_fill)
 	cost_label = _fit_label("Cost", "0", Vector2(xr + BAR_W + ICON_GAP, y1), right_w - BAR_W - ICON_GAP, NAME_MAX, TEXT_MIN)
 	# row 5: fences only
-	if is_fence_branch(p_branch):
+	if Balance.data.branches.is_fence_branch(p_branch):
 		warn_icon = _icon("WarnIcon", branch_texture(&"broken"), Vector2(xr, y2))
-		warn_label = _fit_label("Warn", _t(tr("lost if broken")), Vector2(xr + ICON_PX + ICON_GAP, y2),
+		warn_label = _fit_label("Warn", tr("lost if broken"), Vector2(xr + ICON_PX + ICON_GAP, y2),
 			right_w - ICON_PX - ICON_GAP, TEXT_MAX, TEXT_MIN)
 	# row 3: the guarded lanes
 	_build_lanes(guarded_lanes(p_spot), character, y3)
@@ -247,14 +247,13 @@ func _build_lanes(lanes: Array, character: Dictionary, y: float) -> void:
 	var texts: Array[String] = []
 	var kinds: Array[StringName] = []
 	for lane in lanes:
-		texts.append(_t(lane_name(String(lane))))
+		texts.append(lane_name(String(lane)))
 		kinds.append(lane_icon_kind(character, String(lane)))
-	# one size for all entries: the largest that fits the whole row, else the floor
+	# Every entry is [icon slot][text]: a neutral lane leaves its slot blank, so the text always starts in the text column and an
+	# icon always sits left of the name it belongs to. One size for all entries: the largest that fits the whole row, else the floor.
 	var probe := _probe_label()
 	var font := probe.get_theme_font(&"font")
-	var fixed := LANE_GAP * float(lanes.size() - 1)
-	for k in kinds:
-		fixed += (ICON_PX + ICON_GAP) if k != &"" else 0.0
+	var fixed := LANE_GAP * float(lanes.size() - 1) + (ICON_PX + ICON_GAP) * float(lanes.size())
 	var fs := TEXT_MIN
 	for s in range(TEXT_MAX, TEXT_MIN - 1, -1):
 		var w := fixed
@@ -269,15 +268,13 @@ func _build_lanes(lanes: Array, character: Dictionary, y: float) -> void:
 	var share := (avail - fixed) / float(maxi(lanes.size(), 1))
 	for i in lanes.size():
 		if kinds[i] != &"":
-			var ic := _icon("LaneIcon%d" % i, LaneCharacterIcons.texture(kinds[i]), Vector2(x, y))
-			lane_icons.append(ic)
-			x += ICON_PX + ICON_GAP
+			lane_icons.append(_icon("LaneIcon%d" % i, LaneCharacterIcons.texture(kinds[i]), Vector2(x, y)))
 		else:
 			lane_icons.append(null)
+		x += ICON_PX + ICON_GAP
 		var tw := _text_w(font, texts[i], fs)
 		var lw := tw if tw <= share else share
-		var l := _label("Lane%d" % i, texts[i], fs, Vector2(x, y), lw)
-		lane_labels.append(l)
+		lane_labels.append(_label("Lane%d" % i, texts[i], fs, Vector2(x, y), lw))
 		x += lw + LANE_GAP
 
 func _probe_label() -> Label:
@@ -330,29 +327,14 @@ func _fit_label(node_name: String, text: String, pos: Vector2, width: float, max
 	return l
 
 func _set_payment(cost: int, remaining: int) -> void:
-	if remaining == _paid:
+	if remaining == _shown_remaining:
 		return
-	_paid = remaining
+	_shown_remaining = remaining
 	var ratio := clampf(float(cost - remaining) / float(maxi(cost, 1)), 0.0, 1.0)
 	bar_fill.size.x = (BAR_W - 6.0) * ratio
 	cost_label.text = str(remaining)
 
-# --- geometry for tests ------------------------------------------------------------------------------
-
-## The rect (card-local) the text of `l` actually covers: its measured width, at most the label's width, centred in the row.
-func text_rect(l: Label) -> Rect2:
-	var font := l.get_theme_font(&"font")
-	var fs := l.get_theme_font_size(&"font_size")
-	var w := minf(_text_w(font, l.text, fs), l.size.x)
-	var h := font.get_height(fs)
-	return Rect2(l.position + Vector2(0.0, (l.size.y - h) * 0.5), Vector2(w, h))
-
-## True when any label needs more width than it has at its font size (it would trim with an ellipsis).
-func overflowing() -> bool:
-	for l in all_labels():
-		if _text_w(l.get_theme_font(&"font"), l.text, l.get_theme_font_size(&"font_size")) > l.size.x + 0.01:
-			return true
-	return false
+# --- for tests ---------------------------------------------------------------------------------------
 
 func all_labels() -> Array[Label]:
 	var out: Array[Label] = []
@@ -368,26 +350,13 @@ func all_controls() -> Array[Control]:
 		out.append(c as Control)
 	return out
 
-## The text and icon items as [name, Rect2] in card-local px (backing and bar excluded).
-func item_rects() -> Array:
-	var out: Array = []
-	for c in get_children():
-		if c is Label:
-			out.append([c.name, text_rect(c)])
-		elif c is TextureRect:
-			out.append([c.name, Rect2(c.position, c.size)])
-	return out
-
-## The card's screen rect (global).
-func screen_rect() -> Rect2:
-	return get_global_rect()
-
 # --- icons -------------------------------------------------------------------------------------------
 
 ## A branch glyph (BranchIcons.layers) rasterized for the HUD: ink outline under every fill, like the world mesh.
 static func branch_texture(kind: StringName) -> ImageTexture:
 	if _tex.has(kind):
 		return _tex[kind]
+	rasterized += 1
 	var ls := BranchIcons.layers(kind)
 	var outs: Array = []
 	for l in ls:
@@ -418,3 +387,10 @@ static func branch_texture(kind: StringName) -> ImageTexture:
 	var tex := ImageTexture.create_from_image(img)
 	_tex[kind] = tex
 	return tex
+
+## Rasterizes every icon the card draws (the warm-up calls this behind the retune accessor, so the first show costs nothing).
+static func prebuild_textures() -> void:
+	for kind in BranchIcons.KINDS:
+		branch_texture(kind)
+	for kind in LaneCharacterIcons.KINDS:
+		LaneCharacterIcons.texture(kind)

@@ -28,7 +28,7 @@ const BRANCHES := {
 }
 const VI := {
 	"Longbow": "Cung tầm xa", "Volley": "Loạt tên", "Stone wall": "Tường đá", "Spike fence": "Hàng rào chông",
-	"breaks brutes": "phá quái nặng", "holds brutes": "chặn quái nặng", "hits 3 targets": "bắn trúng 3 mục tiêu",
+	"breaks brutes": "phá quái nặng", "holds brutes": "chặn quái nặng", "hits %d targets": "bắn trúng %d mục tiêu",
 	"hurts hares": "làm đau thỏ", "west road": "đường phía tây", "north path": "đường phía bắc",
 	"east road": "đường phía đông", "south road": "đường phía nam", "lost if broken": "mất nếu bị phá",
 }
@@ -36,6 +36,8 @@ const VI := {
 var main: Main
 var pc: PhaseController
 var card: BranchCard
+var _added: Array[Translation] = []
+var _old_locale := ""
 
 func before_each() -> void:
 	BranchPad.reset_focus()
@@ -43,11 +45,14 @@ func before_each() -> void:
 	Balance.data.tiers.retune_enabled = true
 	if Balance.data.tiers.tier_costs.size() < 3:
 		Balance.data.tiers.tier_costs.append(1500)  # test-only: the build knows tier 3
-	BranchCard.text_filter = Callable()
+	_old_locale = TranslationServer.get_locale()
 	SafeArea.override_for_tests = {}
 
 func after_each() -> void:
-	BranchCard.text_filter = Callable()
+	for t in _added:
+		TranslationServer.remove_translation(t)
+	_added.clear()
+	TranslationServer.set_locale(_old_locale)
 	SafeArea.override_for_tests = {}
 	BranchPad.reset_focus()
 	Balance.reset()
@@ -202,12 +207,16 @@ func test_it_appears_only_on_an_armed_pad_by_day_at_tier_3_with_the_flag_on() ->
 	await _stand_on("tower_e", 0)
 	assert_true(BranchPad.pad_hero_stands_on().zone.armed)
 	assert_true(card.visible, "armed")
-	# the flag off while standing
+	# the flag off: walking in again shows nothing
 	Balance.data.tiers.retune_enabled = false
+	main.hero.teleport(_pad_pos("tower_e", 0) + Vector2(0, 4))
 	await _settle()
+	assert_false(card.visible)
+	await _stand_on("tower_e", 0)
+	assert_true(BranchPad.pad_hero_stands_on().zone.armed, "setup: armed")
 	assert_false(card.visible, "flag off: nothing")
 	Balance.data.tiers.retune_enabled = true
-	await _settle()
+	await _stand_on("tower_e", 0)
 	assert_true(card.visible, "flag on again")
 	# night
 	pc.debug_skip_to_night()
@@ -424,30 +433,69 @@ func test_the_card_never_covers_the_hero_on_any_of_the_18_pads_and_stays_in_the_
 
 # --- text length -------------------------------------------------------------------------------------
 
-## Pads a string to about 40% longer with characters of average width.
-static func _longer(s: String) -> String:
-	var out := s
+## Pads a string to about 40% longer with characters of average width ("%d" stays a format).
+static func _longer(src: String) -> String:
+	var out := src
 	var pad := "ena"
-	var extra := ceili(float(s.length()) * 0.4)
-	for k in extra:
+	for k in ceili(float(src.length()) * 0.4):
 		out += pad[k % pad.length()]
 	return out
 
-static func _viet(s: String) -> String:
-	return VI.get(s, s)
+## Installs a real Translation for `code` (every source string -> `table`) and makes it the locale.
+func _install_locale(code: String, table: Dictionary) -> void:
+	var t := Translation.new()
+	t.locale = code
+	for k in table:
+		t.add_message(k, table[k])
+	TranslationServer.add_translation(t)
+	_added.append(t)
+	TranslationServer.set_locale(code)
+
+func _vi_locale() -> void:
+	_install_locale("vi", VI)
+
+func _pseudo_locale() -> void:
+	var table := {}
+	for k in VI:
+		table[k] = _longer(k)
+	_install_locale("eo", table)
+
+## Every English source string of the card (the unformatted Volley line included) and its formatted form.
+func _english_sources() -> Array:
+	var out: Array = VI.keys()
+	out.append("hits 3 targets")
+	return out
+
+## Independent of the card's own helpers: a fresh Label with the same variation, font size, outline and text, never trimmed.
+func _needed_width(l: Label) -> float:
+	var f := Label.new()
+	f.theme_type_variation = &"BannerLabel"
+	f.add_theme_font_size_override("font_size", l.get_theme_font_size(&"font_size"))
+	f.add_theme_constant_override("outline_size", l.get_theme_constant(&"outline_size"))
+	f.text = l.text
+	add_child(f)
+	var w := f.get_minimum_size().x
+	remove_child(f)
+	f.free()
+	return w
 
 func _no_overlap_no_overflow(tag: String) -> void:
-	assert_false(card.overflowing(), "%s: a label needs more width than it has" % tag)
-	var inner := Rect2(BranchCard.MARGIN_X, 0.0, BranchCard.CARD_SIZE.x - 2.0 * BranchCard.MARGIN_X, BranchCard.CARD_SIZE.y)
-	var items := card.item_rects()
-	items.append(["BarBack", Rect2(card.bar_back.position, card.bar_back.size)])
-	for it in items:
-		var r: Rect2 = it[1]
-		assert_true(inner.encloses(r), "%s: %s %s leaves the card's inner width %s" % [tag, it[0], r, inner])
-		assert_lte(r.end.y, BranchCard.CARD_SIZE.y, "%s: %s below the card" % [tag, it[0]])
+	for l in card.all_labels():
+		assert_lte(_needed_width(l), l.size.x, "%s: '%s' needs more width than its label has (it would trim)" % [tag, l.text])
+		assert_ne(l.text_overrun_behavior, TextServer.OVERRUN_NO_TRIMMING, tag)
+	var inner := card.get_global_rect()
+	inner.position.x += BranchCard.MARGIN_X
+	inner.size.x -= 2.0 * BranchCard.MARGIN_X
+	var items: Array = []
+	for c in card.get_children():
+		if c is Label or c is TextureRect:
+			items.append(c)
+	items.append(card.bar_back)
+	for c in items:
+		assert_true(inner.encloses(c.get_global_rect()), "%s: %s %s leaves the card's inner area %s" % [tag, c.name, c.get_global_rect(), inner])
 	for a in items.size():
 		for b in range(a + 1, items.size()):
-			assert_false((items[a][1] as Rect2).intersects(items[b][1]), "%s: %s %s overlaps %s %s" % [tag, items[a][0], items[a][1], items[b][0], items[b][1]])
+			assert_false(items[a].get_global_rect().intersects(items[b].get_global_rect()), "%s: %s %s overlaps %s %s" % [tag, items[a].name, items[a].get_global_rect(), items[b].name, items[b].get_global_rect()])
 
 func _sizes_ok(tag: String) -> void:
 	assert_gte(card.name_label.get_theme_font_size(&"font_size"), 30, "%s: name >= 30 px" % tag)
@@ -458,32 +506,132 @@ func _sizes_ok(tag: String) -> void:
 			assert_gte(c.size.x, 40.0, "%s: icon %s >= 40 px" % [tag, c.name])
 			assert_gte(c.size.y, 40.0, "%s: icon %s >= 40 px" % [tag, c.name])
 
-## Mutations: a fixed-width layout that lets a longer string run into its neighbour or off the card; a font below the floor.
+## Under a test locale no label may still show its English source (numbers aside): a string that bypasses tr() fails here.
+func _all_translated(tag: String) -> void:
+	var english := _english_sources()
+	for l in card.all_labels():
+		if l.text.is_valid_int():
+			continue
+		assert_false(l.text in english, "%s: '%s' is still the English source (not through tr())" % [tag, l.text])
+
+## Mutations: a fixed-width layout that lets a longer string run into its neighbour or off the card; a font below the floor;
+## a string that skips tr() (it stays English under the test locales).
 func test_longer_strings_and_the_vietnamese_sample_fit_without_overlap() -> void:
 	await _start()
 	await _max_all()
-	var modes := {"english": Callable(), "40% longer": _longer, "vietnamese": _viet}
-	for mode in modes:
-		BranchCard.text_filter = modes[mode]
+	for mode in ["english", "40% longer", "vietnamese"]:
+		match mode:
+			"40% longer": _pseudo_locale()
+			"vietnamese": _vi_locale()
 		var smallest := {}
-		var tightest := 0.0
 		for spot in MapLayout.spots_for_tier(3):
 			var options := GameState.branch_options(spot)
 			for i in 2:
 				await _stand_on(spot, i)
-				card.rebuild()
 				var tag := "%s %s pad %d" % [mode, spot, i]
 				assert_true(card.visible, tag)
 				if mode == "40% longer":
 					assert_gt(card.name_label.text.length(), (BRANCHES[options[i]][0] as String).length(), "%s: setup, the name is longer" % tag)
+				if mode != "english":
+					_all_translated(tag)
 				_no_overlap_no_overflow(tag)
 				_sizes_ok(tag)
 				for l in card.all_labels():
 					var n := String(l.name).rstrip("0123456789")
 					smallest[n] = mini(int(smallest.get(n, 999)), l.get_theme_font_size(&"font_size"))
-					tightest = maxf(tightest, card.text_rect(l).size.x / l.size.x)
-		gut.p("%s: smallest font per label %s, tightest text/label width %s" % [mode, smallest, tightest])
-	BranchCard.text_filter = Callable()
+		gut.p("%s: smallest font per label %s" % [mode, smallest])
+
+func test_the_vietnamese_locale_gives_exactly_the_sample_strings_and_switching_is_live() -> void:
+	await _start()
+	await _max_all()
+	await _stand_on("fence_w", 1)
+	assert_eq(card.name_label.text, "Spike fence")
+	_vi_locale()
+	await _settle()
+	assert_true(card.visible)
+	assert_eq(card.name_label.text, "Hàng rào chông", "re-read on a locale change, card showing")
+	assert_eq(card.spec_label.text, "làm đau thỏ")
+	assert_eq(card.lane_labels[0].text, "đường phía tây")
+	assert_eq(card.warn_label.text, "mất nếu bị phá")
+	await _stand_on("tower_e", 1)
+	assert_eq(card.spec_label.text, "bắn trúng 3 mục tiêu", "the Volley line keeps its count through the translated format")
+	TranslationServer.set_locale("en")
+	await _settle()
+	assert_eq(card.spec_label.text, "hits 3 targets")
+
+## Mutation: row 3's text starting flush left when a lane has no icon; a gap under 36 px.
+func test_row_3_text_always_starts_in_the_text_column_and_lanes_are_36_px_apart() -> void:
+	await _start()
+	await _max_all()
+	var worst := INF
+	for mode in ["english", "40% longer", "vietnamese"]:
+		match mode:
+			"40% longer": _pseudo_locale()
+			"vietnamese": _vi_locale()
+		for spot in ["tower_nw", "tower_ne", "tower_w", "fence_n"]:
+			await _stand_on(spot, 0)
+			var tag := "%s %s" % [mode, spot]
+			var lanes: Array = LANES[spot]
+			var text_x := BranchCard.MARGIN_X + 50.0
+			for k in lanes.size():
+				var l: Label = card.lane_labels[k]
+				var ic: TextureRect = card.lane_icons[k]
+				if k == 0:
+					assert_eq(l.position.x, text_x, "%s: the first lane's text is in the text column, icon or not" % tag)
+				else:
+					var prev: Label = card.lane_labels[k - 1]
+					assert_gte(l.position.x - 50.0 - (prev.position.x + prev.size.x), 36.0, "%s: 36 px between a name and the next lane's icon slot" % tag)
+				if ic != null:
+					assert_eq(ic.position.x + 50.0, l.position.x, "%s: the icon is 6 px left of its own name" % tag)
+			if lanes.size() == 2:
+				var slack := 624.0 - 100.0 - (_needed_width_at(card.lane_labels[0], 24) + _needed_width_at(card.lane_labels[1], 24))
+				worst = minf(worst, slack)
+	gut.p("row 3, two lanes at the 24 px floor: the widest case (%s locales) leaves %s px for the gap; 36 fits: %s" % ["all three", worst, worst >= 36.0])
+	assert_gte(worst, 36.0, "the 36 px gap fits at the floor in every locale")
+
+func _needed_width_at(l: Label, size: int) -> float:
+	var f := Label.new()
+	f.theme_type_variation = &"BannerLabel"
+	f.add_theme_font_size_override("font_size", size)
+	f.add_theme_constant_override("outline_size", BranchCard.OUTLINE_PX)
+	f.text = l.text
+	add_child(f)
+	var w := f.get_minimum_size().x + float(BranchCard.OUTLINE_PX)
+	remove_child(f)
+	f.free()
+	return w
+
+## Mutation: a default arm that names an unknown branch or lane "Spike fence" / "south road".
+func test_unknown_ids_are_not_given_a_default_label() -> void:
+	await _start()
+	assert_eq(card.branch_name(&"bogus"), "")
+	assert_eq(card.specialty(&"bogus"), "")
+	assert_eq(card.lane_name("bogus"), "")
+	assert_eq(BranchCard.specialty_kind(&"bogus"), &"")
+	assert_eq(card.branch_name(&"spike"), "Spike fence")
+	assert_eq(card.lane_name("sw"), "south road")
+
+## Mutation: rasterizing at the first show (the warm-up building nothing, or building under the flag off).
+func test_the_warmup_rasterizes_the_icons_so_the_first_show_does_not() -> void:
+	BranchCard._tex.clear()
+	LaneCharacterIcons._tex.clear()
+	BranchCard.rasterized = 0
+	Balance.data.tiers.retune_enabled = false
+	Warmup.prebuild_card_textures()
+	assert_eq(BranchCard.rasterized, 0, "flag off: the warm-up builds nothing")
+	assert_true(LaneCharacterIcons._tex.is_empty())
+	Balance.data.tiers.retune_enabled = true
+	Warmup.prebuild_card_textures()
+	assert_eq(BranchCard.rasterized, 5, "four branches and the broken fence")
+	var lane_tex := LaneCharacterIcons._tex.size()
+	assert_gt(lane_tex, 0)
+	await _start()
+	await _max_all()
+	for spec in [["fence_e", 0], ["fence_w", 1], ["tower_nw", 0], ["tower_e", 1]]:
+		await _stand_on(spec[0], spec[1])
+		assert_true(card.visible)
+	assert_eq(BranchCard.rasterized, 5, "the first shows rasterized nothing")
+	assert_eq(LaneCharacterIcons._tex.size(), lane_tex)
 
 func test_the_font_has_a_glyph_for_every_character_of_the_vietnamese_sample() -> void:
 	await _start()

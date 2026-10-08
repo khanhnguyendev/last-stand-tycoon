@@ -60,15 +60,17 @@ func _run() -> void:
 	gs.pay_into_branch("tower_ne", &"volley", 200)
 	gs.gold = 0
 	await _card(main, camera_math, layout, "card_partial", "tower_ne", 1)
-	var vi := {"Stone wall": "Tường đá", "holds brutes": "chặn quái nặng", "west road": "đường phía tây", "lost if broken": "mất nếu bị phá"}
-	_card_script().text_filter = func(s: String) -> String: return vi.get(s, s)
+	# the Vietnamese sample through a real Translation, the way a locale would arrive
+	var vi := Translation.new()
+	vi.locale = "vi"
+	for k in {"Stone wall": "Tường đá", "holds brutes": "chặn quái nặng", "west road": "đường phía tây", "lost if broken": "mất nếu bị phá"}:
+		vi.add_message(k, {"Stone wall": "Tường đá", "holds brutes": "chặn quái nặng", "west road": "đường phía tây", "lost if broken": "mất nếu bị phá"}[k])
+	TranslationServer.add_translation(vi)
+	TranslationServer.set_locale("vi")
 	await _card(main, camera_math, layout, "card_vietnamese", "fence_w", 0)
-	_card_script().text_filter = Callable()
+	TranslationServer.set_locale("en")
+	TranslationServer.remove_translation(vi)
 	quit(0)
-
-## Loaded at run time: naming BranchCard here would compile it before the autoloads exist.
-func _card_script():
-	return load("res://ui/hud/branch_card.gd")
 
 func _card(main, camera_math, layout, name: String, spot: String, idx: int) -> void:
 	var p: Vector2 = (layout.BRANCH_PADS[spot] as Array)[idx]
@@ -84,13 +86,19 @@ func _card(main, camera_math, layout, name: String, spot: String, idx: int) -> v
 		await physics_frame
 	main.hero.input.set_move(Vector2.ZERO)
 	for i in 30:
+		main.hero.input.set_move(Vector2(0.3, 0.0) if (i / 6) % 2 == 0 else Vector2(-0.3, 0.0))
 		await physics_frame
+	main.hero.input.set_move(Vector2.ZERO)
 	var card = main.hud.branch_card
-	if _card_script().text_filter.is_valid():
-		card.rebuild()
+	var gs = root.get_node("GameState")
+	gs.gold = 0
+	gs.add_gold(340)  # (through the API so the HUD shows it) a purse that is plausible but never enough to move the bar: the hero shuffles so the pad takes nothing
 	main.camera_rig.snap_to(camera_math.focus_for(p))
 	for i in 90:
-		await process_frame
+		main.hero.input.set_move(Vector2(0.3, 0.0) if (i / 6) % 2 == 0 else Vector2(-0.3, 0.0))
+		await physics_frame
+	main.hero.input.set_move(Vector2.ZERO)
+	await process_frame
 	print(name, ": card visible ", card.visible, " rect ", card.get_global_rect(), " armed ", main.hero.global_position)
 	var img := root.get_texture().get_image()
 	var dir := ProjectSettings.globalize_path("res://").path_join(_out)
