@@ -2927,3 +2927,28 @@ one Balance switch.
 The independent parts (the worst-frame diagnosis with any warm-up fix; the real-play fixtures) merge on their own,
 early, with the usual gates.
 
+**D-287 Design section 1 approved: lane character and the night plan (author, 2026-10-08).**
+
+Accepted as presented: `LaneCharacter.for_run` / `apply` as pure core helpers; the stream
+`Rng.stream(run_seed, 0, "lane_character")` (siege lane from four, hare lane from the other three); the plan format
+with `extra` groups; truthful composition, threat and telegraph; the pool sized for the worst case; schema 7 with the
+v6 migration; the documented replay change; the character distribution test (200 seeds, each lane siege at least 30
+times). Refinements:
+
+1. **Extra hare group:** the moved hares are taken from the main and side hare counts PROPORTIONALLY (deterministic
+   largest-remainder rounding, never negative), not from the main group only. Per-wave totals of enemies, hares and
+   brutes stay exactly as today.
+2. **At most three active lanes per wave** at tier 3, never four; deterministic post-processing, no new draws:
+   a. if the wave has brutes and the siege lane is neither main nor side, the SIDE lane becomes the siege lane (the
+      side group moves there);
+   b. then, if the hare lane is neither main nor side, its share comes as an extra group;
+   c. hard cap of 3 active lanes: if it would be exceeded, that wave's hare share stays split between main and side,
+      and the report counts how often that happens;
+   d. extra groups use the side-group delay.
+   Tests: at most 3 active lanes on every wave over the 200-seed scan; every brute on the siege lane; wave totals
+   unchanged; the night-level hare-lane share reported per seed (target about 0.7; flagged below 0.6).
+3. **Arrows and telegraph:** a third active lane gets its own small arrow; the edge-arrow and HUD tests cover three
+   simultaneous arrows without overlap at 720 x 1280 and at the narrowest supported aspect.
+4. **Saves:** if the stored character differs from the one derived from `run_seed`, the derived one is used and a
+   warning is logged (debug overlay). Tested.
+
