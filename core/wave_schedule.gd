@@ -33,11 +33,42 @@ static func build(wave: Dictionary, wb: WaveBalance, tb: TierBalance = null, tie
 		out.append({"t": lead + wb.side_group_delay + i * wb.spawn_interval, "lane": String(wave.side), "side": true, "kind": kind})
 	for j in brute_side:
 		out.append({"t": lead + wb.side_group_delay + (side_n + j) * wb.spawn_interval, "lane": String(wave.side), "side": true, "kind": &"brute"})
-	out.sort_custom(func(a, b):
-		if not is_equal_approx(a.t, b.t):
-			return a.t < b.t
-		return not a.side and b.side)
-	return out
+	# E6: extra groups (LaneCharacter.apply) start with the side group, on their own lane, hares last; "side": true and
+	# "extra": true (the key exists only on these entries, so a wave without extra is entry-for-entry what it was).
+	var extras: Array = wave.get("extra", [])
+	for k in extras.size():
+		var e: Dictionary = extras[k]
+		var n := int(e.count)
+		var fast := int(e.fast)
+		for i in n:
+			var kind: StringName = &"hare" if i >= n - fast else &"boar"
+			out.append({"t": lead + wb.side_group_delay + i * wb.spawn_interval, "lane": String(e.lane), "side": true, "extra": true, "kind": kind})
+	if extras.is_empty():
+		out.sort_custom(func(a, b):
+			if not is_equal_approx(a.t, b.t):
+				return a.t < b.t
+			return not a.side and b.side)
+		return out
+	return _sorted_with_extras(out)
+
+## Ties at the same time break by group rank (boss and main 0, side 1, extra groups 2), then by build order (the boss
+## first, then main, brutes, side, then extra groups in wave.extra order): a total order, so the result never depends
+## on the sort's stability.
+static func _sorted_with_extras(entries: Array) -> Array:
+	var keyed: Array = []
+	for i in entries.size():
+		var e: Dictionary = entries[i]
+		var rank := 1 if bool(e.side) else 0
+		if bool(e.get("extra", false)):
+			rank = 2
+		keyed.append([e, rank, i])
+	keyed.sort_custom(func(a, b):
+		if not is_equal_approx(a[0].t, b[0].t):
+			return a[0].t < b[0].t
+		if a[1] != b[1]:
+			return a[1] < b[1]
+		return a[2] < b[2])
+	return keyed.map(func(k): return k[0])
 
 static func is_cleared(planned: int, spawned: int, alive: int) -> bool:
 	return spawned >= planned and alive == 0
