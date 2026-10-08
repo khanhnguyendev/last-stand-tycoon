@@ -2952,3 +2952,22 @@ times). Refinements:
 4. **Saves:** if the stored character differs from the one derived from `run_seed`, the derived one is used and a
    warning is logged (debug overlay). Tested.
 
+**D-288 Design section 2 approved: the specialists (author, 2026-10-08).**
+
+Accepted as presented: Longbow gains `kind_mult {brute: x}` (start 2.0, range 1.5 to 3.0; no Baron bonus unless data
+demands it); Stone wall unchanged; Spike fence pass damage up (start 16, range 12 to 24), its HP-multiplier scaling
+kept; Volley unchanged unless data demands; the threat-matched table (siege-lane fence Stone, other fences Spike;
+towers covering the siege lane Longbow, also when they cover the hare lane too; other towers Volley; the bot reads
+the lane character, not tonight's plan); the tuning procedure (bench, 4 tuning seeds, at most 3 rounds, fence-tax
+levers in the order Longbow's saving / re-buy cost / fence HP, the ramp attempt at 13 then 14, the 8 hold-out seeds
+once; escalate if the 15-point spread and the 5-point lead conflict). Refinements:
+
+0. Rule 2c of D-287 is unreachable given 2a; it stays as an asserted guard with a reported count.
+1. **Bench measures per lane type:** siege lane: diner HP lost, then fence HP left. Hare lane: diner HP lost, then
+   hares reaching the diner's attack zone (fewer is better), then time to clear. Neutral lane: diner HP lost, then
+   time to clear. The floor uses the same order: a branch is "no worse than unbranched" only if it is no worse on
+   the primary measure AND, when tied there, no worse on that lane type's first tie-breaker.
+2. **The 15% specialist margin** applies on the first measure that separates the two branches, in that order.
+3. **The bench runs at pressure 12 AND at the final cap** (13 or 14 too if the ramp returns). With the flag off it
+   pins today's values.
+
