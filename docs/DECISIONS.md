@@ -2994,3 +2994,25 @@ Additions:
 4. **Flavour banners** are at most 6 words (readable in 2 s at phone size) and go to REVIEW_QUEUE for the author's
    tone check.
 
+**D-290 Design section 4 approved: proof (author, 2026-10-08).**
+
+Accepted as presented: the report `tests/sim/report_retune.gd` (seed scan upward from 1: the first seed per siege
+lane is the tuning set of four, the next two per siege lane the final set of eight, all printed; six policies per
+seed: the four fixed pairs, threat-matched, unbranched; verdict lines `THREAT_LEAD`, `THREAT_LEAD_BY_LANE`,
+`RETRY_NIGHTS`, `FIRST_T3_NIGHT`, `FENCE_TAX` (with and without Longbow on the siege lane), `FIXED_SPREAD`,
+`HARE_SHARE`, `LANE_CAP_GUARD`, each per seed and per siege lane; the final set only with `--final`, recording its
+commit); the off-state baseline recorded from today's main and `tools/baseline_t3_off.sh`; the existing tier-3 sims
+running flag-off in CI with their exact pins; three flag-on CI sims on fixtures recorded from real play (sim 4 keeps
+a constructed night with real gear); the split into `sim-tiers-a` / `sim-tiers-b` with the required checks updated
+(D-274.4); the unit additions with the bench at about 10 s at most; the worst-frame diagnosis (window shifted by 1 s
+and 3 s; first-use draws into the warm-up if real; the boot warm-up's cost) as an early independent PR; the standing
+escalation rule (D-281.6). Additions:
+
+1. **Hold-out integrity:** if the `--final` run fails any target, escalate to the author with the data; no further
+   tuning against those 8 seeds. If more tuning follows, the next final run uses a NEW hold-out set: the next 2
+   seeds per siege lane from the same scan. The report prints which hold-out set it is (#1, #2, ...) and the
+   commit; earlier sets' results stay in the report history.
+2. **Off-state baseline visibility:** the output of `tools/baseline_t3_off.sh` ("tier-3 off identical", with the
+   commit) is pasted into EVERY phase PR body of this slice beside the existing baseline outputs. A phase PR without
+   it is not self-mergeable under D-137. The baseline is recorded from today's main before phase 1.
+
