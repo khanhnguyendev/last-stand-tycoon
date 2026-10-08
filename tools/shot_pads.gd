@@ -7,6 +7,8 @@ extends SceneTree
 ##     keeps the ring, the glyph and the preview shape),
 ##   near_stage.png (the hero about 3 m from tower_ne's nearest pad, north-east of it, not on a pad: ring, glyph and cost on both of its pads),
 ##   sw_corner.png (the hero on fence_sw's first pad: tower_sw's and fence_sw's four pads, the close-up sign and the south-west count row),
+##   near_fence_sw_a.png / near_fence_sw_b.png (the hero 3 m west of fence_sw's pad a / 3 m east of its pad b, on no pad: the pad in reach shows ring, glyph
+##     and cost, the other pad of the spot, out of reach, ring and glyph only),
 ##   unarmed.png (the hero PLACED on tower_e's first pad, not walked in: the card stays hidden, the pad keeps its glyph and cost),
 ##   far_stage.png (the hero at HOME: every pad shows its ring and glyph only), refund.png (the E5 refund flight, unchanged).
 ## The hero shuffles in place after arriving (a hero standing still would pay into the pad), with a purse that cannot move the bar.
@@ -72,6 +74,8 @@ func _run() -> void:
 			await _walk_and_grab(main, camera_math, bal, "pad_%s_%s" % [id, "ab"[i]], table[id][i])
 	await _place_and_grab(main, camera_math, bal, "near_stage", Vector2(6.0, -9.5))
 	await _walk_and_grab(main, camera_math, bal, "sw_corner", table["fence_sw"][0])
+	await _place_and_grab(main, camera_math, bal, "near_fence_sw_a", Vector2(table["fence_sw"][0].x - 3.0, table["fence_sw"][0].y))
+	await _place_and_grab(main, camera_math, bal, "near_fence_sw_b", Vector2(table["fence_sw"][1].x + 3.0, table["fence_sw"][1].y))
 	await _place_and_grab(main, camera_math, bal, "unarmed", table["tower_e"][0])
 	await _place_and_grab(main, camera_math, bal, "far_stage", layout.HOME)
 	# the refund: half the Volley pad on tower_e, then the Longbow pad paid in full with the hero standing on it

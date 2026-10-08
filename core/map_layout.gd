@@ -87,12 +87,13 @@ const BRANCH_PADS := {
 ## ONLY the spots whose pads move are listed; branch_pads(true) falls back to BRANCH_PADS for the rest. Read pads ONLY through branch_pads().
 const BRANCH_PADS_RETUNE := {
 	"tower_nw": [Vector2(-4.0, -7.4), Vector2(-3.0, -5.2)],
-	"tower_ne": [Vector2(3.0, -5.1), Vector2(4.0, -7.5)],
+	"tower_ne": [Vector2(3.2, -5.1), Vector2(4.0, -7.5)],
 	"tower_e": [Vector2(6.6, 2.6), Vector2(7.5, 0.0)],
-	"tower_w": [Vector2(-10.7, 2.4), Vector2(-8.9, 1.0)],
-	"tower_sw": [Vector2(-7.7, 3.7), Vector2(-5.4, 4.0)],
-	"fence_n": [Vector2(-2.4, -8.5), Vector2(2.5, -10.4)],
-	"fence_e": [Vector2(6.1, -6.1), Vector2(9.4, -3.3)],
+	"tower_w": [Vector2(-10.7, 2.4), Vector2(-8.7, 0.8)],
+	"tower_sw": [Vector2(-7.7, 3.1), Vector2(-5.4, 4.0)],
+	"fence_e": [Vector2(6.1, -6.1), Vector2(9.5, -3.8)],
+	"fence_w": [Vector2(-9.6, -3.9), Vector2(-6.1, -6.1)],
+	"fence_sw": [Vector2(-5.6, 7.8), Vector2(-1.0, 10.5)],
 }
 
 ## The pad centres of every tier-3 spot: the retune's table where it moves a spot, today's BRANCH_PADS elsewhere. `retune` is

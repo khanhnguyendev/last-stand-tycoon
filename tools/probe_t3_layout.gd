@@ -82,13 +82,13 @@ func load_yard_obstacles() -> void:
 			_props.append({"pos": it.pos, "radius": Props.owned_radius(it.kind, float(it.scale)), "height": Props.owned_height(it.kind, float(it.scale)), "what": "%s %s" % [it.kind, id]})
 
 func load_lot_obstacles() -> void:
-	for xf in YardStones.transforms(MapLayout.yard_rect("front"), true):
+	for xf in YardStones.transforms(MapLayout.yard_rect("front"), true, bd.enemy.lateral_spread, true):
 		var half := Vector2(xf.basis.x.x, xf.basis.x.z) * 0.5
 		var c := Vector2(xf.origin.x, xf.origin.z)
 		_lot_kerb.append([c - half, c + half])
 	for it in PropsLayout.OWNED.get("front", []):
 		_lot_props.append({"pos": it.pos, "radius": Props.owned_radius(it.kind, float(it.scale)), "height": Props.owned_height(it.kind, float(it.scale)), "what": "%s front" % it.kind})
-	for xf in LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true):
+	for xf in LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true, true):
 		_stones.append(Vector2(xf.origin.x, xf.origin.z))
 
 func visibility(lane: String) -> Dictionary:

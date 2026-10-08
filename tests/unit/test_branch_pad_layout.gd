@@ -200,7 +200,7 @@ func _retune_pad_list() -> Array:
 func _lot_clearances(p: Vector2) -> Array:
 	var r := MapLayout.BRANCH_PAD_RADIUS
 	var out: Array = []
-	for xf in YardStones.transforms(MapLayout.yard_rect("front"), true):
+	for xf in YardStones.transforms(MapLayout.yard_rect("front"), true, Balance.data.enemy.lateral_spread, true):
 		var half := Vector2(xf.basis.x.x, xf.basis.x.z) * 0.5
 		var c := Vector2(xf.origin.x, xf.origin.z)
 		out.append([Geometry.dist_point_segment(p, c - half, c + half) - r - YardStones.WIDTH * 0.5, "front lot kerb"])
@@ -210,7 +210,7 @@ func _lot_clearances(p: Vector2) -> Array:
 		if it.pos.y > p.y:
 			need += Props.owned_height(it.kind, float(it.scale)) * lean_k
 		out.append([p.distance_to(it.pos) - need, "front lot %s" % it.kind])
-	for xf in LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true):
+	for xf in LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true, true):
 		out.append([p.distance_to(Vector2(xf.origin.x, xf.origin.z)) - r - LaneStrip.STONE_RADIUS, "south-west lane stone"])
 	return out
 
@@ -236,9 +236,8 @@ func test_retune_the_table_replaces_only_the_listed_spots() -> void:
 	moved.sort()
 	for must in ["tower_e", "tower_ne", "tower_nw"]:
 		assert_true(must in moved, "%s moves (D-284.5)" % must)
-	# D-284.5 also names fence_sw. Its two pads can only stand in two clusters 5.4 m apart (tests/unit/test_branch_pads.gd, the fence_sw near-stage
-	# test), so no move clears its near stage: the pads stay where they are until the task report's options are decided.
-	assert_false("fence_sw" in moved, "fence_sw keeps today's pads")
+	assert_true("fence_sw" in moved, "fence_sw moves (D-284.5)")
+	assert_false("fence_n" in moved, "fence_n keeps today's pads: the badge moved off them")
 
 func test_retune_pads_are_on_a_tenth_of_a_metre_near_their_spot_and_apart() -> void:
 	for pad in _retune_pad_list():
@@ -274,10 +273,10 @@ func test_retune_a_lot_rule_would_catch_a_bad_pad() -> void:
 	# negative controls: a pad on the front lot's props, on its kerb, and on a south-west lane stone
 	var prop: Vector2 = (PropsLayout.OWNED["front"] as Array)[0].pos
 	assert_lt(float(_least(_lot_clearances(prop))[0]), 0.0, "on a front-lot prop")
-	var kerb: Array = YardStones.transforms(MapLayout.yard_rect("front"), true)
+	var kerb: Array = YardStones.transforms(MapLayout.yard_rect("front"), true, Balance.data.enemy.lateral_spread, true)
 	var xf: Transform3D = kerb[0]
 	assert_lt(float(_least(_lot_clearances(Vector2(xf.origin.x, xf.origin.z)))[0]), 0.0, "on the kerb")
-	var stones: Array = LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true)
+	var stones: Array = LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true, true)
 	assert_gt(stones.size(), 0)
 	assert_lt(float(_least(_lot_clearances(Vector2(stones[0].origin.x, stones[0].origin.z)))[0]), 0.0, "on a lane stone")
 
@@ -338,3 +337,41 @@ func test_retune_the_graph_and_the_bot_walk_to_the_moved_pads() -> void:
 	assert_eq(bot.graph.position_of("pad_%s_a" % any_id), MapLayout.BRANCH_PADS[any_id][0], "flag off again")
 	assert_eq(bot.graph.position_of(PAD_COUNTER_NODE), MapLayout.STATION_PADS[&"counter"], "the station pads are still there")
 	bot.free()
+
+## The kerb and the lane stones follow the pads (art/env/yard_stones.gd and lane_strip.gd take the same accessor): with the flag on no kerb
+## piece and no lane stone is within a pad's radius of any pad of the retune table, and no piece or stone is lost to the OLD positions
+## (the retune's pads, not the old ones, keep them away); with it off the transforms are exactly the default call's.
+func test_retune_no_kerb_piece_or_lane_stone_is_within_a_pad_radius_and_the_off_state_is_unchanged() -> void:
+	var r := MapLayout.BRANCH_PAD_RADIUS
+	var spread: float = Balance.data.enemy.lateral_spread
+	var pads: Array = []
+	for id in MapLayout.branch_pads(true):
+		pads.append_array(MapLayout.branch_pads(true)[id])
+	assert_eq(pads.size(), 18)
+	var pieces := 0
+	for yard in MapLayout.all_yards():
+		var rect := MapLayout.yard_rect(yard)
+		var t3 := MapLayout.yard_tier(yard) >= 3
+		for xf in YardStones.transforms(rect, t3, spread, true):
+			var half := Vector2(xf.basis.x.x, xf.basis.x.z) * 0.5
+			var c := Vector2(xf.origin.x, xf.origin.z)
+			pieces += 1
+			if not t3:
+				continue  # the tier-2 yards' kerb meets the pads through the layout test's yard-kerb rule
+			for p in pads:
+				assert_gte(Geometry.dist_point_segment(p, c - half, c + half), r, "a kerb piece at %s lies within the radius of the pad at %s" % [c, p])
+	assert_gt(pieces, 0)
+	var stones := 0
+	for lane in MapLayout.lanes_for_tier(3):
+		if lane in LaneStrip.DRAW_ORDER:
+			continue
+		for xf in LaneStrip.edge_transforms(MapLayout.lane_path(lane), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true, true):
+			stones += 1
+			for p in pads:
+				assert_gte(p.distance_to(Vector2(xf.origin.x, xf.origin.z)), r, "a lane stone at %s lies within the radius of the pad at %s" % [xf.origin, p])
+	assert_gt(stones, 0)
+	# flag off: the same transforms as the default call, piece for piece
+	for yard in MapLayout.all_yards():
+		var t3 := MapLayout.yard_tier(yard) >= 3
+		assert_eq(YardStones.transforms(MapLayout.yard_rect(yard), t3, spread, false), YardStones.transforms(MapLayout.yard_rect(yard), t3, spread))
+	assert_eq(LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true, false), LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true))

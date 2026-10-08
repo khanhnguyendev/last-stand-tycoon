@@ -23,7 +23,9 @@ extends Node3D
 ##   UNARMED (the hero stands on a pad that is not armed: he was placed there, or the pad appeared under him; the card stays hidden until he
 ##         leaves and re-enters): the world must still say what the pad is, so the pad keeps its NEAR content, the glyph and the cost, laid out
 ##         beside the hero (above his head or below the pad, like the ON glyph) instead of on him; no preview. The sibling stays quiet.
-##   FAR / NEAR / QUIET are the same as with the flag off. With the flag off every stage is exactly as before.
+##   NEAR  is per PAD: the focus spot's pad shows its cost only while the hero is within branch_pad_near_m of that pad (branch_pad_leave_m once
+##         shown); the spot's other pad, if farther, stays FAR (ring and glyph). With the flag off the whole spot goes NEAR together, as before.
+##   FAR / QUIET are the same as with the flag off. With the flag off every stage is exactly as before.
 
 const FAR := 0
 const FAR_QUIET := 1
@@ -56,13 +58,7 @@ const ON_MODES := {
 }
 ## E6 (flag on): where the lone ON glyph (and the UNARMED glyph-and-cost row) stands: "spot:index" -> true above the hero's head, false below
 ## the pad. Searched with the zero-overlap test (tests/unit/test_branch_pads.gd); a pad not listed stands above.
-const ON_ROW_NORTH_RETUNE := {"tower_nw:0": false, "tower_nw:1": false, "fence_n:0": false}
-## E6 (flag on): where a pad's NEAR block (glyph over cost) stands relative to the pad: "spot:index" -> Vector2(metres right, metres up) ON THE SCREEN.
-## Searched with the zero-overlap test; a pad not listed has the block centred on its ring.
-const NEAR_SHIFT_RETUNE := {
-	"tower_nw:0": Vector2(-0.3, -0.15), "tower_ne:0": Vector2(-0.3, 0.0), "tower_ne:1": Vector2(0.0, -0.3), "tower_e:0": Vector2(0.0, -0.15),
-	"tower_sw:0": Vector2(0.0, -0.3), "fence_n:0": Vector2(0.0, -0.3), "fence_e:0": Vector2(0.0, 0.3), "fence_w:0": Vector2(0.0, 0.3), "fence_w:1": Vector2(0.0, 0.15),
-}
+const ON_ROW_NORTH_RETUNE := {"tower_nw:0": false, "tower_ne:1": false}
 
 ## The texts, through tr() when shown: [name, preview line]. The Volley's line is built from the balance count.
 const TEXTS := {
@@ -101,8 +97,6 @@ var refund_coins := 0
 var stage := FAR
 ## Where the ON clusters stand (ON_MODES); call _layout_items() and re-apply the stage after changing them.
 var row_north := false
-## E6: the NEAR block's shift (NEAR_SHIFT_RETUNE); call _layout_items() and re-apply the stage after changing it.
-var near_shift := Vector2.ZERO
 var name_south := false
 ## E6: the retune flag as read when the pad was made (TierEffects.retune_on): the pad table, the labels and the stages follow it.
 var retune := false
@@ -304,7 +298,6 @@ func _build_items() -> void:
 	name_south = mode[1]
 	if retune:
 		row_north = bool(ON_ROW_NORTH_RETUNE.get("%s:%d" % [spot_id, index], true))
-		near_shift = NEAR_SHIFT_RETUNE.get("%s:%d" % [spot_id, index], Vector2.ZERO)
 	_layout_items()
 	cost_label.text = ""
 
@@ -315,8 +308,8 @@ func _layout_items() -> void:
 	# NEAR: the glyph with the cost centred under it; the block (at most 1.25 m wide) centred on the pad
 	var block_h := ibox.y + STACK_GAP_M + cbox.y
 	_pos[NEAR] = {
-		icon: _at(block_h * 0.5 - ibox.y * 0.5 + near_shift.y, true) + Vector3(near_shift.x, 0, 0),
-		cost_label: _at(block_h * 0.5 - cbox.y * 0.5 - near_shift.y, false) + Vector3(near_shift.x, 0, 0),
+		icon: _at(block_h * 0.5 - ibox.y * 0.5, true),
+		cost_label: _at(block_h * 0.5 - cbox.y * 0.5, false),
 	}
 	if retune:
 		_layout_retune(ibox, cbox)
@@ -504,8 +497,19 @@ func _stage_now() -> int:
 	if _on_pad != null and _on_pad.spot_id == spot_id:
 		return SIBLING_QUIET
 	if _focus_spot == spot_id:
+		if retune and not _in_reach():
+			return FAR  # E6: a pad of the focus spot that is out of reach keeps its ring and glyph; the cost is for the pads the hero can walk to
 		return NEAR
 	return FAR if _on_pad == null else FAR_QUIET
+
+## E6 (flag on): the hero is within `branch_pad_near_m` of THIS pad, or, while it already shows its cost, within `branch_pad_leave_m` (the same
+## hysteresis as the spot's focus, per pad).
+func _in_reach() -> bool:
+	var hero := get_tree().get_first_node_in_group(&"hero") as Node3D
+	if hero == null:
+		return false
+	var d := Vector2(hero.global_position.x - global_position.x, hero.global_position.z - global_position.z).length()
+	return d <= (Balance.ui.branch_pad_leave_m if stage == NEAR else Balance.ui.branch_pad_near_m)
 
 ## Writes the items of `st`: only when the stage changes (visibility, positions, glyph size and material).
 func _apply_stage(st: int) -> void:
