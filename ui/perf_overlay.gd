@@ -57,9 +57,12 @@ var _phase_msec := 0
 var _first: Array[String] = []
 var _first_seen := {}
 var _log_label: Label
-## `?perfglyph=1` (experiment, E6 A2): draw every glyph the two labels will ever show once, in the first frame (under the boot fade), to test
-## whether the window's first labelled frames pay for the glyphs' first rasterisation (the "window-start frame", diagnosis.md).
-var _glyph_prime := false
+## E6 A2 (D-292): the overlay draws every glyph its two labels will ever show once, in its first frame (under the boot fade). Without it the first
+## numbers the label shows 0.1 s into the window cost 95 to 133 ms (the first rasterisation of the digits: a measurement artifact, not a game frame; every
+## reading taken before this change carries it). `?perfglyph=0` restores the old behaviour to reproduce such a reading.
+## `?perfnofade=1` (diagnosis only): switches the diner's occluder fade off, to test whether its first activation is a frame of the night.
+var _glyph_prime := true
+var _nofade := false
 const GLYPHS := "0123456789 .,:=@()+-%_/ abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 var _seen_fade := true
 var _fades: Array[Node] = []
@@ -91,7 +94,8 @@ func _ready() -> void:
 		_warm = float(pw)  # ?perfwarm=<s>: warm-up length (default WARMUP_S), to tell the overlay's own boundary from a game event
 	EventBus.phase_changed.connect(_on_phase_changed)
 	EventBus.wave_started.connect(_on_wave_started)
-	_glyph_prime = UrlFlags.get_flag("perfglyph") == "1"
+	_glyph_prime = UrlFlags.get_flag("perfglyph") != "0"
+	_nofade = UrlFlags.get_flag("perfnofade") == "1"
 	_log_s = positive_seconds(UrlFlags.get_flag("perflog"))
 	_close_s = positive_seconds(UrlFlags.get_flag("perfclose"))
 	if _log_s > 0.0:
@@ -244,16 +248,21 @@ func _process(delta: float) -> void:
 
 ## One frame: raw = measured seconds, delta = the engine's (clamped) delta. Split out so tests can inject time.
 func _tick(raw: float, delta: float) -> void:
-	if _glyph_prime:
-		_glyph_prime = false
-		_label.text = GLYPHS
-		_frozen_label.text = GLYPHS
-		return  # drawn once; the next tick writes the real text
+	if _nofade:
+		var fades := get_parent().find_children("*", "OccluderFade", true, false)
+		for f in fades:
+			f.process_mode = Node.PROCESS_MODE_DISABLED
+		_nofade = fades.is_empty()  # keep looking until the diner exists
 	var state := "frozen" if _frozen else ("warm-up" if _since_reset < _warm else "")
 	var n := maxi(_n, 1)
-	_label.text = "fps %.0f  avg %.1f  worst %.0f ms  win %.0fs %s\nproc %.1f ms  phys %.1f ms  dc %.0f  slow %.1f%%" % [
-		Engine.get_frames_per_second(), avg_fps(), worst_ms(), _raw_sum, state,
-		_proc_sum / n, _phys_sum / n, _dc_sum / n, 100.0 * _slow / n]
+	if _glyph_prime:
+		_glyph_prime = false
+		_label.text = GLYPHS  # drawn once; the next tick writes the real text
+		_frozen_label.text = GLYPHS
+	else:
+		_label.text = "fps %.0f  avg %.1f  worst %.0f ms  win %.0fs %s\nproc %.1f ms  phys %.1f ms  dc %.0f  slow %.1f%%" % [
+			Engine.get_frames_per_second(), avg_fps(), worst_ms(), _raw_sum, state,
+			_proc_sum / n, _phys_sum / n, _dc_sum / n, 100.0 * _slow / n]
 	if raw <= 0.0 or _frozen:
 		return
 	var before := _since_reset

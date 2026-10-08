@@ -338,16 +338,22 @@ func test_perf_close_emits_closeup_only_in_day_after_the_seconds() -> void:
 	assert_eq(hits[0], 1, "once")
 	EventBus.closeup_requested.disconnect(cb)
 
-func test_perf_glyph_prime_draws_the_glyph_set_once_and_only_with_the_flag() -> void:
-	var off := _perf()
-	off._tick(1.0 / 60.0, 1.0 / 60.0)
-	assert_ne(off._label.text, PerfOverlay.GLYPHS, "no flag: the real text from the first tick")
-	UrlFlags.set_for_tests("perfglyph=1")
+func test_perf_glyph_prime_is_the_default_and_perfglyph_0_turns_it_off() -> void:
 	var on := _perf()
-	UrlFlags.set_for_tests("")
 	on._tick(1.0 / 60.0, 1.0 / 60.0)
-	assert_eq(on._label.text, PerfOverlay.GLYPHS, "flag: the glyph set is on screen for one frame")
+	assert_eq(on._label.text, PerfOverlay.GLYPHS, "default: the glyph set is on screen for one frame")
 	on._tick(1.0 / 60.0, 1.0 / 60.0)
 	assert_ne(on._label.text, PerfOverlay.GLYPHS, "then the real text")
 	for ch in "0123456789.%":
 		assert_true(PerfOverlay.GLYPHS.contains(ch), "glyph " + ch)
+	UrlFlags.set_for_tests("perfglyph=0")
+	var off := _perf()
+	UrlFlags.set_for_tests("")
+	off._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_ne(off._label.text, PerfOverlay.GLYPHS, "perfglyph=0: the real text from the first tick (the old reading)")
+
+func test_perf_priming_frame_is_still_counted() -> void:
+	var p := _perf()
+	for i in 130:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_gt(p._n, 0, "frames past the 2 s warm-up are counted exactly as before the prime existed")
