@@ -4,8 +4,8 @@ extends GutTest
 
 const FIXTURE_DIR := "res://tests/fixtures/v5/"
 const V5_WAVE_KEYS := ["boss", "fast_main", "fast_side", "hp_mult", "main", "main_count", "side", "side_count"]
-const V5_STATE_KEYS := ["boss_pending", "buildings", "card_offer", "cards", "carried_steaks", "counter_steaks", "day",
-	"diner_hp", "freezer_steaks", "gold", "gold_pile", "guards", "lane_plan", "night_fails", "resume_phase", "run_seed",
+const V7_STATE_KEYS := ["boss_pending", "buildings", "card_offer", "cards", "carried_steaks", "counter_steaks", "day",
+	"diner_hp", "freezer_steaks", "gold", "gold_pile", "guards", "lane_character", "lane_plan", "night_fails", "resume_phase", "run_seed",
 	"stations", "tier", "tier_day", "tier_paid", "v"]
 
 func before_each() -> void:
@@ -122,8 +122,9 @@ func _is_older_step_addition(line: String, from_v: int) -> bool:
 		return line == "/stations: added " + str(a) or line == "/stations: added " + str(b)
 	return false
 
-func test_every_fixture_migrates_to_v6_changing_only_the_two_building_fields() -> void:
-	assert_eq(GameState.SCHEMA_VERSION, 6)
+## Schema 7 (E6) adds one more field to what this chain produces: an empty `lane_character`; it is the only addition allowed besides the v6 ones.
+func test_every_old_fixture_migrates_to_v7_adding_only_the_branch_fields_and_an_empty_lane_character() -> void:
+	assert_eq(GameState.SCHEMA_VERSION, 7)
 	for f in _fixture_files():
 		var old := _v5_state(f)
 		var from_v := int(old.v)
@@ -131,13 +132,14 @@ func test_every_fixture_migrates_to_v6_changing_only_the_two_building_fields() -
 		assert_true(r.ok, "%s: %s" % [f, r.reason])
 		if not r.ok:
 			continue
-		assert_eq(int(r.state.v), 6, f)
+		assert_eq(int(r.state.v), 7, f)
+		assert_eq(r.state.lane_character, {}, f)
 		var diffs: Array[String] = []
 		_diff(old, r.state, "", diffs)
 		var unexpected: Array[String] = []
 		var new_fields := 0
 		for line in diffs:
-			if line.begins_with("/v: "):
+			if line.begins_with("/v: ") or line == "/lane_character: added {  }" or line == "/lane_character: added {}":
 				continue
 			var is_new_field := false
 			for id in old.buildings:
@@ -301,12 +303,12 @@ func test_at_tier_3_every_wave_carries_both_brute_keys() -> void:
 
 # --- the tier-1/2 shape is unchanged ---------------------------------------------------------------------------
 
-func test_a_new_game_at_tier_1_has_the_v5_keys_and_the_two_building_fields() -> void:
+func test_a_new_game_at_tier_1_has_the_v7_keys_and_the_two_building_fields() -> void:
 	GameState.new_game(7)
 	var d := GameState.to_dict()
 	var keys: Array = d.keys()
 	keys.sort()
-	assert_eq(keys, V5_STATE_KEYS)
+	assert_eq(keys, V7_STATE_KEYS)
 	for id in d.buildings:
 		var bk: Array = d.buildings[id].keys()
 		bk.sort()

@@ -7,10 +7,12 @@ extends UpgraderBot
 
 ## E5 tier 3 (Task 22): how it chooses a branch for each max-level building (spec 9.4, D-263.5): all_a (Longbow, Stone wall), all_b (Volley,
 ## Spike fence), mixed (towers A, fences B: the spec names the policy but not its mix; this is the fixed one), volley_stone (towers Volley, fences Stone wall) and threat (Stone wall and
-## Longbow on a lane with a brute in tonight's plan, Spike fence and Volley elsewhere).
+## Longbow on a lane with a brute in tonight's plan, Spike fence and Volley elsewhere). With a non-empty lane character (tier 3, retune on) `threat`
+## follows the character instead of tonight's plan (see `branch_choices`); `unbranched` is in REPORT_POLICIES below.
 const POLICIES: Array[String] = ["all_a", "all_b", "mixed", "threat"]
 ## Report-only policy (Task 24 fix round: the 2 x 2 table of tower x fence). Kept out of POLICIES, which the fixtures (make_save) and sim 6 iterate over.
-const REPORT_POLICIES: Array[String] = ["volley_stone"]
+## `unbranched` (E6, D-283) buys no branch at all: the report's floor. It still buys everything else, and is not a skipped goal.
+const REPORT_POLICIES: Array[String] = ["volley_stone", "unbranched"]
 
 var tier_ups := 0
 var boss_nights_won := 0
@@ -50,10 +52,15 @@ func think(delta: float) -> void:
 	super.think(delta)
 
 ## Pure: {spot_id: branch id} for `spot_ids` under `policy`, from tonight's `plan` (a lane has a brute when composition_by_lane says so).
-static func branch_choices(p_policy: String, spot_ids: Array, plan: Array, tier := 3) -> Dictionary:
+## E6 (spec 4.4, D-283): a non-empty lane `character` ({siege, hare}) makes `threat` read the run's lane character instead of the plan: a fence
+## on the siege lane takes Stone wall, any other fence Spike fence; a tower covering the siege lane (also when it covers the hare lane too)
+## takes Longbow, any other tower Volley. The same every day. An empty character is today's rule. `unbranched` chooses nothing ({}).
+static func branch_choices(p_policy: String, spot_ids: Array, plan: Array, tier := 3, character := {}) -> Dictionary:
 	assert(p_policy in POLICIES or p_policy in REPORT_POLICIES, "unknown policy " + p_policy)  # the sweep runner validates --policy and exits 2 before any bot exists
-	var comp := LanePlanner.composition_by_lane(plan, tier)
 	var out := {}
+	if p_policy == "unbranched":
+		return out
+	var comp := LanePlanner.composition_by_lane(plan, tier)
 	for id in spot_ids:
 		var tower := MapLayout.spot_kind(id) == "tower"
 		var opts: Array[StringName] = BranchBalance.TOWER_BRANCHES if tower else BranchBalance.FENCE_BRANCHES
@@ -68,7 +75,10 @@ static func branch_choices(p_policy: String, spot_ids: Array, plan: Array, tier 
 				a = not tower
 			"threat":
 				for l in lanes:
-					if int(comp.get(l, {}).get("brute", 0)) > 0:
+					if not character.is_empty():
+						if LaneCharacter.lane_type(character, String(l)) == LaneCharacter.SIEGE:
+							a = true
+					elif int(comp.get(l, {}).get("brute", 0)) > 0:
 						a = true
 		out[id] = opts[0] if a else opts[1]
 	return out
@@ -189,7 +199,9 @@ func _next_branch_pad() -> String:
 	if _blocked_day != GameState.day:
 		_blocked_day = GameState.day
 		_blocked_pads.clear()
-	var choices := branch_choices(policy, spots, GameState.lane_plan, GameState.tier)
+	if policy == "unbranched":
+		return ""  # the report's floor: no branch is a goal, so none is a skipped goal either
+	var choices := branch_choices(policy, spots, GameState.lane_plan, GameState.tier, GameState.lane_character())
 	for id in spots:
 		if not GameState.can_branch(id):
 			continue

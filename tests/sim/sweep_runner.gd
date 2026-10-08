@@ -2,7 +2,7 @@ extends Node
 ## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1-14 by default -> tests/sim/out/sweep.csv.
 ## `--bot=upgrader` runs the UpgraderBot and writes `sweep_upgrader.csv` with a `stations` column (E1).
 ## `--bot=tier` runs the TierBot -> `sweep_tier.csv` (+ tier,boss_night,boss_retries) and prints a TIER line (E5).
-## `--policy=all_a|all_b|mixed|threat|volley_stone` sets the tier bot's branch policy (default threat). `--tier3=off` removes the tier-3 cost entry in memory,
+## `--policy=all_a|all_b|mixed|threat|volley_stone|unbranched` sets the tier bot's branch policy (default threat). `--tier3=off` removes the tier-3 cost entry in memory,
 ## and the run then asserts that no brute died, no wave came from the south-west and no branch was chosen (the Task 21 assertion, D-279):
 ## a TIER3_GATE line, exit code 1 on a violation. Tier rows end with brute_kills,sw_waves,branches (per day, appended after the old columns; sw_waves counts waves with a south-west lane, formerly named sw_spawns).
 ## After the SWEEP line it prints a RETRIES line (days, median, max_before_day8, max, target_ok) for the D-184 retries-per-night target.
@@ -51,7 +51,7 @@ func _run() -> void:
 		get_tree().quit(2)
 		return
 	if not (String(args.policy) in TierBot.POLICIES or String(args.policy) in TierBot.REPORT_POLICIES) or not String(args.tier3) in ["on", "off"]:
-		push_error("bad --policy=%s (all_a|all_b|mixed|threat|volley_stone) or --tier3=%s (on|off)" % [args.policy, args.tier3])
+		push_error("bad --policy=%s (all_a|all_b|mixed|threat|volley_stone|unbranched) or --tier3=%s (on|off)" % [args.policy, args.tier3])
 		get_tree().quit(2)
 		return
 	if not String(args.bot) == "tier" and (args.policy != "threat" or args.tier3 != "on"):

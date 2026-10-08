@@ -14,6 +14,8 @@ var _rect := Rect2()
 var _owned := {}
 var _label: Label
 var _warnings: Array = []
+## E6 (D-286.4): GameState.load_warnings as of the last state_restored (a save load or a new game), shown under the pool warnings.
+var _load_warnings: Array = []
 var _scene_query := {}
 var _state_left := 0.0
 
@@ -39,6 +41,7 @@ func setup(main: Main) -> void:
 	_refresh_button()
 	get_viewport().size_changed.connect(_place_button)
 	_place_button()
+	watch_load_warnings()
 	for pool in main.find_children("*", "NodePool", true, false):
 		pool.grew.connect(func(n: int): _warnings.append("%s grew to %d" % [pool.name, n]))
 	if OS.has_feature("web"):
@@ -56,10 +59,38 @@ func setup(main: Main) -> void:
 			fade_button.visible = false
 		EventBus.phase_changed.connect(_on_first_phase, CONNECT_ONE_SHOT)
 
+## Keeps `_load_warnings` equal to GameState.load_warnings after every state_restored (from_dict and new_game both emit it).
+func watch_load_warnings() -> void:
+	_on_state_restored()
+	if not EventBus.state_restored.is_connected(_on_state_restored):
+		EventBus.state_restored.connect(_on_state_restored)
+
+func _on_state_restored() -> void:
+	_load_warnings = GameState.load_warnings.duplicate()
+
+func load_warnings_shown() -> Array:
+	return _load_warnings
+
+## The overlay's warning lines: pool growth first, then the save-load warnings.
+static func warnings_text(pool_warnings: Array, load_warnings: Array) -> String:
+	return "\n".join(pool_warnings + load_warnings)
+
 ## The URL scene waits for the game's first NIGHT (Main starts it deferred) and then runs deferred, so it never
 ## re-enters PhaseController while _enter_night is still emitting phase_changed.
 func _on_first_phase(_phase: int, _day: int) -> void:
 	_apply_scene.call_deferred()
+
+## E6 (D-286): URL flags that change Balance are applied from Main._enter_tree, BEFORE any child's _ready, so things sized at
+## construction (World's pools) already see them. setup() runs too late for that (after World._ready).
+static func apply_url_balance() -> void:
+	if not OS.has_feature("web"):
+		return
+	if retune_arg(UrlFlags.parse(str(JavaScriptBridge.eval("window.location.search", true)))):
+		Balance.data.tiers.retune_enabled = true  # ?retune=1
+
+## E6 (D-286): does the URL ask for the tier-3 retune? Only retune=1.
+static func retune_arg(flags: Dictionary) -> bool:
+	return flags.get("retune", "") == "1"
 
 ## The autoplay script and policy a parsed URL asks for: [] for none, else [script path, policy].
 static func autoplay_args(flags: Dictionary) -> Array:
@@ -88,7 +119,7 @@ func _process(delta: float) -> void:
 	var wd := _main.world.wave_director
 	_label.text = "seed %d\nday %d  %s\nwave %d  alive %d\nfps %d\n%s" % [GameState.run_seed, GameState.day,
 		Phase.name_of(_main.phase_controller.phase), wd.wave_index, wd.alive_count(),
-		Engine.get_frames_per_second(), "\n".join(_warnings)]
+		Engine.get_frames_per_second(), warnings_text(_warnings, _load_warnings)]
 
 ## Web debug only (S5 Task 11): window.LST_STATE = {unlocked, muted, music_id}, once a second, for export/pw_s5_check.mjs.
 func _publish_state(delta: float) -> void:

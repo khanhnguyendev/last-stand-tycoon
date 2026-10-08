@@ -4,6 +4,9 @@ extends GutTest
 func before_each() -> void:
 	Balance.reset()
 
+func after_each() -> void:
+	Balance.reset()
+
 func _max_tier1_defense() -> void:
 	for id in MapLayout.SPOT_IDS:  # test-only setup
 		GameState.buildings[id].level = Balance.data.build.max_level
@@ -381,6 +384,136 @@ func test_the_default_policy_reads_the_nights_plan_for_a_fence() -> void:
 	assert_eq(bot.next_purchase(), "pad_fence_w_a", "Stone wall")
 	GameState.lane_plan = [_wave("sw", 2)]
 	assert_eq(bot.next_purchase(), "pad_fence_w_b", "Spike fence")
+
+## E6 Task 6 (spec 4.4, D-283, D-288). The lanes each tier-3 spot covers, written by hand (not read from MapLayout), in spots_for_tier order.
+const SPOT_LANES := {"tower_nw": ["west", "north"], "tower_ne": ["north", "east"], "fence_w": ["west"], "fence_n": ["north"],
+	"fence_e": ["east"], "tower_w": ["west"], "tower_e": ["east"], "tower_sw": ["sw"], "fence_sw": ["sw"]}
+
+## The tiny oracle: a fence takes Stone wall when its lane is the siege lane, a tower takes Longbow when the siege lane is among its lanes.
+func _oracle(spot: String, siege: String) -> StringName:
+	var on_siege: bool = siege in SPOT_LANES[spot]
+	if spot.begins_with("tower"):
+		return &"longbow" if on_siege else &"volley"
+	return &"stone" if on_siege else &"spike"
+
+## Hand-written expected table for the character {siege: north, hare: west}: [spot, lanes, branch].
+## Mutations: the character ignored (the plan read with the flag on: the no-brute plan makes every row Volley/Spike); "covers the siege lane"
+## replaced by "covers only the siege lane" (tower_nw and tower_ne, which also cover west and east, turn Volley).
+func test_threat_with_a_character_follows_the_documented_table_for_siege_north() -> void:
+	var ch := {"siege": "north", "hare": "west"}
+	var table := [
+		["tower_nw", &"longbow"],  # west + north: covers the siege lane and the hare lane
+		["tower_ne", &"longbow"],  # north + east
+		["fence_w", &"spike"],     # west: hare lane, not siege
+		["fence_n", &"stone"],     # north: the siege lane
+		["fence_e", &"spike"],
+		["tower_w", &"volley"],    # west only: the hare lane
+		["tower_e", &"volley"],    # east only
+		["tower_sw", &"volley"],   # sw only
+		["fence_sw", &"spike"],
+	]
+	var ids := MapLayout.spots_for_tier(3)
+	assert_eq(ids.size(), table.size(), "the table lists every tier-3 spot")
+	var got := TierBot.branch_choices("threat", ids, [_wave("sw")], 3, ch)  # tonight's plan has no brute anywhere
+	for row in table:
+		assert_eq(got[row[0]], row[1], "siege north: " + row[0])
+
+## All four possible siege lanes, every tier-3 spot, against the independent oracle (the hare lane is always another lane).
+func test_threat_with_a_character_matches_the_oracle_for_every_siege_lane_and_spot() -> void:
+	var lanes := ["west", "north", "east", "sw"]
+	var tried := 0
+	for siege in lanes:
+		var hare: String = lanes[(lanes.find(siege) + 1) % 4]
+		var got := TierBot.branch_choices("threat", MapLayout.spots_for_tier(3), [_wave("sw", 2)], 3, {"siege": siege, "hare": hare})
+		for spot in SPOT_LANES:
+			assert_eq(got[spot], _oracle(spot, siege), "siege %s hare %s %s" % [siege, hare, spot])
+			tried += 1
+	assert_eq(tried, 36)
+
+## tower_nw covers west and north: with siege west and hare north (both its lanes) it still takes Longbow. Mutation: "covers only the siege lane".
+func test_a_tower_covering_both_the_siege_and_the_hare_lane_takes_longbow() -> void:
+	var got := TierBot.branch_choices("threat", ["tower_nw", "tower_ne"], [], 3, {"siege": "west", "hare": "north"})
+	assert_eq(got["tower_nw"], &"longbow", "tower_nw covers siege west and hare north")
+	assert_eq(got["tower_ne"], &"volley", "tower_ne covers north (hare) and east, not the siege lane")
+	var got2 := TierBot.branch_choices("threat", ["tower_nw", "tower_ne"], [], 3, {"siege": "north", "hare": "east"})
+	assert_eq(got2["tower_ne"], &"longbow", "tower_ne covers siege north and hare east")
+
+## The same character gives the same choices under any night plan. Mutation: the plan still read with a character.
+func test_the_character_choice_does_not_change_from_day_to_day() -> void:
+	var ch := {"siege": "east", "hare": "sw"}
+	var ids := MapLayout.spots_for_tier(3)
+	var base := TierBot.branch_choices("threat", ids, [_wave("north")], 3, ch)  # no brute tonight
+	for plan in [[_wave("west", 3)], [_wave("sw", 2, "north", 2)], [_wave("north", 0, "west", 4)]]:  # brutes on other lanes
+		assert_eq(TierBot.branch_choices("threat", ids, plan, 3, ch), base)
+	for spot in SPOT_LANES:
+		assert_eq(base[spot], _oracle(spot, "east"), spot)
+
+## Through the bot instance. Mutation: the bot passes {} instead of GameState.lane_character() (it then reads the plan: Volley here).
+func test_with_the_flag_on_the_bot_buys_longbow_on_the_siege_lane_whatever_tonights_plan() -> void:
+	Balance.data.tiers.retune_enabled = true
+	var bot := _one_branch_bot()
+	var siege := String(GameState.lane_character().get("siege", ""))
+	assert_eq(siege, "east", "pinned: the siege lane of run seed 1")
+	var tower := ""
+	for id in ["tower_nw", "tower_ne", "tower_w", "tower_e", "tower_sw"]:
+		if siege in SPOT_LANES[id]:
+			tower = id
+			break
+	assert_ne(tower, "")
+	_only(bot, tower)
+	var other := "west" if siege != "west" else "north"
+	GameState.lane_plan = [_wave(other, 3)]  # tonight's brutes are NOT on the siege lane
+	assert_eq(bot.next_purchase(), "pad_%s_a" % tower, "Longbow")
+	GameState.lane_plan = []  # no brute tonight at all
+	assert_eq(bot.next_purchase(), "pad_%s_a" % tower, "Longbow the next day too")
+	Balance.reset()
+
+## Flag off, the same seed: the plan decides (no brute on the tower's lanes tonight gives Volley).
+func test_with_the_flag_off_the_bot_still_reads_the_nights_plan() -> void:
+	var bot := _one_branch_bot()
+	assert_true(GameState.lane_character().is_empty())
+	_only(bot, "tower_nw")
+	GameState.lane_plan = [_wave("sw", 3)]
+	assert_eq(bot.next_purchase(), "pad_tower_nw_b", "Volley")
+	GameState.lane_plan = [_wave("west", 3)]
+	assert_eq(bot.next_purchase(), "pad_tower_nw_a", "Longbow")
+
+## `unbranched` (report-only) buys no branch and is not a skipped goal. Mutations: it buying any branch; an unbought branch counted as skipped;
+## idle_goal changing (the concrete goal is pinned).
+func test_unbranched_never_buys_a_branch_and_skips_nothing() -> void:
+	assert_true("unbranched" in TierBot.REPORT_POLICIES)
+	assert_false("unbranched" in TierBot.POLICIES, "fixtures and the CI sim loop over POLICIES")
+	for flag in [false, true]:
+		Balance.data.tiers.retune_enabled = flag
+		var bot := _one_branch_bot()
+		bot.policy = "unbranched"
+		GameState.lane_plan = [_wave("west", 3), _wave("north", 2, "east", 2)]
+		assert_eq(bot.next_purchase(), "", "everything max, 5000 gold, nothing else to build (flag %s)" % flag)
+		assert_eq(bot.skipped_goals, 0)
+		assert_eq(TierBot.branch_choices("unbranched", MapLayout.spots_for_tier(3), GameState.lane_plan), {})
+		assert_eq(bot.idle_goal(), "pad_freezer", "tier 3, everything max, 5000 gold: the cheapest station level (the upgrader's idle goal)")
+		Balance.reset()
+
+## `unbranched` skips only the branch pads. Mutation: the policy short-circuits next_purchase (no yard tower) or idle_goal (no sign).
+func test_unbranched_still_buys_a_level_0_yard_tower() -> void:
+	var bot := _one_branch_bot()
+	bot.policy = "unbranched"
+	GameState.buildings["tower_w"].level = 0  # test-only setup: one yard tower still to build
+	assert_eq(bot.next_purchase(), "tower_w")
+
+func test_unbranched_still_seeks_the_tier_3_sign_at_tier_2() -> void:
+	GameState.new_game(1)
+	GameState.debug_set_tier(2, 1)
+	GameState.add_gold(5000)
+	var bot := TierBot.new()
+	autofree(bot)
+	bot.policy = "unbranched"
+	assert_eq(bot.idle_goal(), "tier_sign_3")
+
+## An unknown policy still fails loudly (the assert), so a typo never silently becomes a policy.
+func test_an_unknown_policy_still_fails_loudly() -> void:
+	var src := FileAccess.get_file_as_string("res://actors/bots/tier_bot.gd")
+	assert_true(src.contains('assert(p_policy in POLICIES or p_policy in REPORT_POLICIES, "unknown policy "'))
 
 ## A pad that never arms: the bot gives up after PAD_WAIT_CAP_TICKS, counts one skip and picks another goal (no stall).
 func test_a_pad_that_never_pays_is_skipped_once_after_the_cap() -> void:
