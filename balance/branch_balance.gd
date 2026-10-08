@@ -12,6 +12,12 @@ const FENCE_BRANCHES: Array[StringName] = [&"stone", &"spike"]
 @export var volley: TowerBranchStats = BranchBalance._volley()
 @export var stone: FenceBranchStats = BranchBalance._stone()
 @export var spike: FenceBranchStats = BranchBalance._spike()
+## E6 RETUNE SET (D-283, D-286, spec 4.1): read ONLY through BranchMath.longbow_kind_mult / spike_pass_base, which
+## pick it by the retune flag. Removed with the old set at the E6 cleanup. Stone wall and Volley have no new value.
+## Longbow damage x this by the kind of the monster it hits (an absent kind = 1.0; no entry for the Baron or the Boar King).
+@export var longbow_kind_mult_retune: Dictionary[StringName, float] = {&"brute": 2.0}
+## Spike pass damage at scale 1.0 (old set: 10.0 on `spike`); tuning range 12 to 24. Its scaling and the thorns are unchanged.
+@export var spike_pass_damage_retune := 16.0
 
 static func _tower(range_m: float, damage: float, interval: float, count: int) -> TowerBranchStats:
 	var s := TowerBranchStats.new()
