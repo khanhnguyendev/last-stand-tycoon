@@ -8,6 +8,7 @@ const MARGIN := 0.1  # every chosen pad clears every rule by at least this much 
 const TRAVELER_RADIUS := 0.3  # a queued traveler's body, kept clear of a pad
 const NOT_BOTH_SIDES := ["tower_e", "tower_ne", "tower_nw", "tower_w"]  # pinned: their pads sit on one side of the building
 const ASPECTS := [9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0]
+const PAD_COUNTER_NODE := "pad_counter"
 
 func before_each() -> void:
 	Balance.reset()
@@ -55,6 +56,13 @@ func _colliders() -> Array:
 
 ## [[clearance, what], ...] of the pad at `p` (clearance = distance minus the radii involved; the rule holds at >= 0).
 func _clearances(p: Vector2, own: String, others: Array) -> Array:
+	var out := _clearances_nokerb(p, own, others)
+	for k in _kerb_segments():
+		out.append([Geometry.dist_point_segment(p, k[0], k[1]) - MapLayout.BRANCH_PAD_RADIUS - YardStones.WIDTH * 0.5, "yard kerb"])
+	return out
+
+## The same without the tier-2 yards' kerb (a search caches that list).
+func _clearances_nokerb(p: Vector2, own: String, others: Array) -> Array:
 	var r := MapLayout.BRANCH_PAD_RADIUS
 	var spread: float = Balance.data.enemy.lateral_spread
 	var out: Array = []
@@ -91,8 +99,6 @@ func _clearances(p: Vector2, own: String, others: Array) -> Array:
 			if it.pos.y > p.y:
 				need += Props.owned_height(it.kind, float(it.scale)) * lean_k
 			out.append([p.distance_to(it.pos) - need, "owned %s in the %s yard" % [it.kind, id]])
-	for k in _kerb_segments():
-		out.append([Geometry.dist_point_segment(p, k[0], k[1]) - r - YardStones.WIDTH * 0.5, "yard kerb"])
 	var inside := minf(minf(p.x - MapLayout.BOUNDS_MIN.x, MapLayout.BOUNDS_MAX.x - p.x), minf(p.y - MapLayout.BOUNDS_MIN.y, MapLayout.BOUNDS_MAX.y - p.y))
 	out.append([inside - r, "map bounds"])
 	return out
@@ -176,3 +182,159 @@ func test_pad_sides_as_the_camera_sees_them() -> void:
 			not_both.append(id)
 	not_both.sort()
 	assert_eq(not_both, NOT_BOTH_SIDES)
+
+# --- E6 (spec 5.3, D-284.5, D-286): the pads the retune moves --------------------------------------------------------------------
+# MapLayout.branch_pads(true) is BRANCH_PADS with the spots of BRANCH_PADS_RETUNE replaced. Every pad of it passes the rules above, and the
+# moved ones also the front lot's kerb, props and the south-west lane's edge stones (laid out with today's pads); the flag-off table is untouched.
+
+func _retune_pad_list() -> Array:
+	var out: Array = []
+	var table := MapLayout.branch_pads(true)
+	for id in _ids():
+		for i in 2:
+			out.append({"id": id, "i": i, "pos": (table[id] as Array)[i]})
+	return out
+
+## Rules the table-wide `_clearances` does not have: the front lot's kerb as laid out, the front lot's props (as the tier-2 yards' above), the
+## south-west lane's edge stones. [[clearance, what]].
+func _lot_clearances(p: Vector2) -> Array:
+	var r := MapLayout.BRANCH_PAD_RADIUS
+	var out: Array = []
+	for xf in YardStones.transforms(MapLayout.yard_rect("front"), true):
+		var half := Vector2(xf.basis.x.x, xf.basis.x.z) * 0.5
+		var c := Vector2(xf.origin.x, xf.origin.z)
+		out.append([Geometry.dist_point_segment(p, c - half, c + half) - r - YardStones.WIDTH * 0.5, "front lot kerb"])
+	var lean_k := 1.0 / tan(deg_to_rad(absf(Balance.ui.camera_pitch)))
+	for it in PropsLayout.OWNED.get("front", []):  # the rule of the tier-2 yards above: footprint, plus the lean for a prop SOUTH of the pad
+		var need := r + Props.owned_radius(it.kind, float(it.scale))
+		if it.pos.y > p.y:
+			need += Props.owned_height(it.kind, float(it.scale)) * lean_k
+		out.append([p.distance_to(it.pos) - need, "front lot %s" % it.kind])
+	for xf in LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true):
+		out.append([p.distance_to(Vector2(xf.origin.x, xf.origin.z)) - r - LaneStrip.STONE_RADIUS, "south-west lane stone"])
+	return out
+
+func test_retune_the_table_replaces_only_the_listed_spots() -> void:
+	assert_eq(MapLayout.branch_pads(false), MapLayout.BRANCH_PADS, "flag off: today's table itself")
+	var on := MapLayout.branch_pads(true)
+	var keys := on.keys()
+	keys.sort()
+	var want := _ids()
+	want.sort()
+	assert_eq(keys, want, "still the nine spots")
+	for id in MapLayout.BRANCH_PADS_RETUNE:
+		assert_true(id in MapLayout.BRANCH_PADS, "%s is a spot" % id)
+		assert_eq((MapLayout.BRANCH_PADS_RETUNE[id] as Array).size(), 2, id)
+		assert_ne(MapLayout.BRANCH_PADS_RETUNE[id], MapLayout.BRANCH_PADS[id], "%s is listed because it moves" % id)
+	for id in _ids():
+		for i in 2:
+			assert_eq(MapLayout.branch_pad(id, i, true), (on[id] as Array)[i], "%s pad %d: the accessors agree" % [id, i])
+			assert_eq(MapLayout.branch_pad(id, i, false), (MapLayout.BRANCH_PADS[id] as Array)[i])
+			if not MapLayout.BRANCH_PADS_RETUNE.has(id):
+				assert_eq((on[id] as Array)[i], (MapLayout.BRANCH_PADS[id] as Array)[i], "%s keeps its pads" % id)
+	var moved := MapLayout.BRANCH_PADS_RETUNE.keys()
+	moved.sort()
+	for must in ["tower_e", "tower_ne", "tower_nw"]:
+		assert_true(must in moved, "%s moves (D-284.5)" % must)
+	# D-284.5 also names fence_sw. Its two pads can only stand in two clusters 5.4 m apart (tests/unit/test_branch_pads.gd, the fence_sw near-stage
+	# test), so no move clears its near stage: the pads stay where they are until the task report's options are decided.
+	assert_false("fence_sw" in moved, "fence_sw keeps today's pads")
+
+func test_retune_pads_are_on_a_tenth_of_a_metre_near_their_spot_and_apart() -> void:
+	for pad in _retune_pad_list():
+		for v in [pad.pos.x, pad.pos.y]:
+			assert_almost_eq(v * 10.0, roundf(v * 10.0), 1e-4, "%s pad %d: %s" % [pad.id, pad.i, pad.pos])
+	var on := MapLayout.branch_pads(true)
+	for id in _ids():
+		var pads: Array = on[id]
+		for p in pads:
+			assert_lte((p as Vector2).distance_to(MapLayout.spot_position(id)), NEAR, "%s pad %s within %.1f m of its spot" % [id, p, NEAR])
+		assert_gte((pads[0] as Vector2).distance_to(pads[1]), APART, "%s: the two pads are %.1f m apart" % [id, APART])
+
+func test_retune_every_pad_clears_every_rule_with_margin() -> void:
+	var all: Array = []
+	for pad in _retune_pad_list():
+		all.append(pad.pos)
+	var worst := INF
+	for pad in _retune_pad_list():
+		var others := all.duplicate()
+		others.erase(pad.pos)
+		var list := _clearances(pad.pos, pad.id, others)
+		if MapLayout.BRANCH_PADS_RETUNE.has(pad.id):
+			list.append_array(_lot_clearances(pad.pos))
+		for c in list:
+			assert_gte(float(c[0]), 0.0, "%s pad %d at %s: %s" % [pad.id, pad.i, pad.pos, c[1]])
+		var least := _least(list)
+		worst = minf(worst, float(least[0]))
+		gut.p("%-9s %s %s: smallest clearance %.2f m (%s)%s" % [pad.id, "ab"[pad.i], pad.pos, least[0], least[1], "  MOVED" if MapLayout.BRANCH_PADS_RETUNE.has(pad.id) else ""])
+		assert_gte(float(least[0]), MARGIN, "%s pad %d keeps a margin of %.1f m (limit: %s)" % [pad.id, pad.i, MARGIN, least[1]])
+	gut.p("worst retune pad clearance %.2f m" % worst)
+
+func test_retune_a_lot_rule_would_catch_a_bad_pad() -> void:
+	# negative controls: a pad on the front lot's props, on its kerb, and on a south-west lane stone
+	var prop: Vector2 = (PropsLayout.OWNED["front"] as Array)[0].pos
+	assert_lt(float(_least(_lot_clearances(prop))[0]), 0.0, "on a front-lot prop")
+	var kerb: Array = YardStones.transforms(MapLayout.yard_rect("front"), true)
+	var xf: Transform3D = kerb[0]
+	assert_lt(float(_least(_lot_clearances(Vector2(xf.origin.x, xf.origin.z)))[0]), 0.0, "on the kerb")
+	var stones: Array = LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true)
+	assert_gt(stones.size(), 0)
+	assert_lt(float(_least(_lot_clearances(Vector2(stones[0].origin.x, stones[0].origin.z)))[0]), 0.0, "on a lane stone")
+
+func test_retune_the_building_and_the_other_pad_are_on_screen_from_either_pad() -> void:
+	var on := MapLayout.branch_pads(true)
+	for pad in _retune_pad_list():
+		var spot := MapLayout.spot_position(pad.id)
+		var other: Vector2 = (on[pad.id] as Array)[1 - pad.i]
+		var xf := CameraMath.camera_transform(CameraMath.focus_for(pad.pos), Balance.ui)
+		for aspect in ASPECTS:
+			var proj := CameraMath.projection(Balance.ui, aspect)
+			assert_true(CameraMath.on_screen(MapLayout.to3(spot), xf, proj), "%s from its pad %s at aspect %.3f" % [pad.id, pad.pos, aspect])
+			assert_true(CameraMath.on_screen(MapLayout.to3(other), xf, proj), "%s: the other pad %s from pad %s at aspect %.3f" % [pad.id, other, pad.pos, aspect])
+
+## The bot walks to the pads where they stand: with the flag on the graph's pad nodes are the retune table's, with it off today's; the new
+## edges clear the colliders either way, and a TierBot rebuilds its graph when the flag turns on.
+func test_retune_the_graph_and_the_bot_walk_to_the_moved_pads() -> void:
+	for retune in [false, true]:
+		var g := WaypointGraph.create_for_tier(3, retune)
+		var table := MapLayout.branch_pads(retune)
+		for id in table:
+			for i in 2:
+				var pad_name := "pad_%s_%s" % [id, "ab"[i]]
+				assert_eq(g.position_of(pad_name), (table[id] as Array)[i], "%s (retune %s)" % [pad_name, retune])
+				assert_false(g.shortest("home", pad_name).is_empty(), "home reaches %s (retune %s)" % [pad_name, retune])
+		var bodies := [Rect2(-4, -4, 8, 8), Rect2(MapLayout.COUNTER - MapLayout.COUNTER_SIZE / 2, MapLayout.COUNTER_SIZE),
+			Rect2(MapLayout.FREEZER - MapLayout.FREEZER_SIZE / 2, MapLayout.FREEZER_SIZE)]
+		for id in table:
+			for i in 2:
+				var pa: Vector2 = g.position_of("pad_%s_%s" % [id, "ab"[i]])
+				var pb: Vector2 = g.position_of(id)
+				for k in 101:
+					for body in bodies:
+						assert_true(Geometry.dist_point_rect(pa.lerp(pb, k / 100.0), body) >= MapLayout.HERO_RADIUS - 0.01, "edge pad_%s_%s-%s hits a collider (retune %s)" % [id, "ab"[i], id, retune])
+	assert_eq(WaypointGraph.create_for_bot(3).nodes, WaypointGraph.create_for_bot(3, false).nodes, "the default is the flag off")
+	var off := WaypointGraph.create_for_bot(3, false)
+	var on := WaypointGraph.create_for_bot(3, true)
+	for id in MapLayout.BRANCH_PADS_RETUNE:
+		var moved := 0
+		for i in 2:
+			var pad_name := "pad_%s_%s" % [id, "ab"[i]]
+			assert_eq(on.position_of(pad_name), (MapLayout.BRANCH_PADS_RETUNE[id] as Array)[i], "%s with the flag on" % pad_name)
+			assert_eq(off.position_of(pad_name), (MapLayout.BRANCH_PADS[id] as Array)[i], "%s with the flag off" % pad_name)
+			moved += int(on.position_of(pad_name) != off.position_of(pad_name))
+		assert_gt(moved, 0, "%s: the graph's pads move" % id)
+	# the bot itself: its graph at tier 3 follows the flag (a flip rebuilds it)
+	GameState.new_game(1)
+	GameState.debug_set_tier(3, 1)
+	var bot := TierBot.new()
+	bot._sync_graph()
+	var any_id: String = MapLayout.BRANCH_PADS_RETUNE.keys()[0]
+	assert_eq(bot.graph.position_of("pad_%s_a" % any_id), MapLayout.BRANCH_PADS[any_id][0], "flag off: today's pad")
+	Balance.data.tiers.retune_enabled = true
+	bot._sync_graph()
+	assert_eq(bot.graph.position_of("pad_%s_a" % any_id), MapLayout.BRANCH_PADS_RETUNE[any_id][0], "flag on: the moved pad")
+	Balance.data.tiers.retune_enabled = false
+	bot._sync_graph()
+	assert_eq(bot.graph.position_of("pad_%s_a" % any_id), MapLayout.BRANCH_PADS[any_id][0], "flag off again")
+	assert_eq(bot.graph.position_of(PAD_COUNTER_NODE), MapLayout.STATION_PADS[&"counter"], "the station pads are still there")
+	bot.free()
