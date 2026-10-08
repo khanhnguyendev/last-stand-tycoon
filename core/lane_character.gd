@@ -51,6 +51,11 @@ static func spot_types(character: Dictionary, lanes: Array) -> Array:
 ##  c. GUARD. A wave never has more than 3 active lanes: if the extra group would make 4, it is skipped and the wave is
 ##     marked "lane_cap_guard": true (count them with guard_hits). Unreachable after (a); kept as an asserted guard.
 ##  d. Extra groups carry NO delay field: the consumer spawns them with the side-group delay.
+## Idempotent: applying the result again with the same character changes nothing (a wave that already has an extra group
+## on the hare lane is left alone). The caller still applies it once, to fresh LanePlanner.plan output.
+## Rounding: roundi is "half away from zero"; with share 0.7 this is exact only for H up to 30 (max_wave_size, the
+## largest group), since float error in 0.7 x H could otherwise flip a half case. T is clamped to H so a share above 1
+## cannot make a count negative.
 static func apply(plan: Array, character: Dictionary, tb: TierBalance) -> Array:
 	var out: Array = plan.duplicate(true)
 	if character.is_empty():
@@ -81,7 +86,7 @@ static func _apply_hares(wave: Dictionary, hare: String, share: float) -> void:
 	var fm := int(wave.get("fast_main", 0))
 	var fs := int(wave.get("fast_side", 0))
 	var h := fm + fs
-	var t := roundi(share * h)
+	var t := mini(roundi(share * h), h)
 	if h <= 0 or t <= 0 or hare == "":
 		return
 	var mc := int(wave.main_count)
@@ -97,6 +102,9 @@ static func _apply_hares(wave: Dictionary, hare: String, share: float) -> void:
 		wave["fast_side"] = h - new_m
 		wave["fast_main"] = new_m
 	else:
+		for e in wave.get("extra", []):
+			if String(e.lane) == hare:
+				return  # already applied: a second pass leaves the wave as it is (idempotent)
 		var lanes := _lane_set(wave)
 		if not lanes.has(hare):
 			lanes.append(hare)

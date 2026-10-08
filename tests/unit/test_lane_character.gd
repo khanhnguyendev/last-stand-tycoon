@@ -172,6 +172,26 @@ func test_hares_lane_neither_largest_remainder_5_to_2() -> void:
 	assert_eq([w.main_count, w.fast_main, w.side_count, w.fast_side], [5, 1, 5, 1])
 	assert_eq(_totals(w), [15, 7, 0])
 
+func test_split_leftover_goes_to_side_when_its_remainder_is_larger() -> void:
+	# main 16 (6 hares), side 13 (5 hares), siege sw, hare north, no brutes (lanes stay east / west).
+	# H = 11, T = roundi(0.7 x 11 = 7.7) = 8. main: 8 x 6 / 11 = 4 remainder 4; side: 8 x 5 / 11 = 3 remainder 7.
+	# 4 + 3 = 7 < 8: the leftover hare goes to the larger remainder, the side. Gives main 4, side 4.
+	# Result: main_count 12, fast_main 2, side_count 9, fast_side 1. Fails for a leftover that always goes to main.
+	var w := _one(_wave("east", "west", 16, 13, 6, 5), "sw", "north")
+	assert_eq([w.main_count, w.fast_main, w.side_count, w.fast_side], [12, 2, 9, 1])
+	assert_eq(w.extra, [{"lane": "north", "count": 8, "fast": 8}])
+
+func test_share_above_one_is_clamped() -> void:
+	# Fails without the clamp T <= H: a share of 1.5 would give T = 15 of 10 hares and negative counts.
+	var tb: TierBalance = _tb().duplicate()
+	tb.hare_lane_share = 1.5
+	var ch := {"siege": "sw", "hare": "north"}
+	var w: Dictionary = LaneCharacter.apply([_wave("east", "west", 8, 8, 5, 5)], ch, tb)[0]
+	assert_eq([w.main_count, w.fast_main, w.side_count, w.fast_side], [3, 0, 3, 0])
+	assert_eq(w.extra, [{"lane": "north", "count": 10, "fast": 10}])
+	var m: Dictionary = LaneCharacter.apply([_wave("east", "west", 8, 8, 5, 5)], {"siege": "sw", "hare": "east"}, tb)[0]
+	assert_eq([m.fast_main, m.fast_side], [8, 2])
+
 func test_proportional_not_main_only() -> void:
 	# fast 3 : 3, H = 6, T = roundi(4.2) = 4: 2 from each. Fails for "taken from main only" (main would give 3).
 	var w := _one(_wave("east", "west", 9, 9, 3, 3), "sw", "north")
@@ -249,6 +269,8 @@ func test_purity_and_identity() -> void:
 func test_scan_invariants_200_seeds() -> void:
 	# Fails for any rule that loses/duplicates enemies, leaves a brute off the siege lane, makes a 4th lane, or mutates input.
 	var guard := 0
+	var moved := 0
+	var extras := 0
 	var waves_with_brutes := 0
 	for s in range(1, 201):
 		var ch := LaneCharacter.for_run(s)
@@ -258,10 +280,15 @@ func test_scan_invariants_200_seeds() -> void:
 			var out := LaneCharacter.apply(plan, ch, _tb())
 			assert_eq(plan, before, "seed %d day %d input mutated" % [s, day])
 			guard += LaneCharacter.guard_hits(out)
+			assert_eq(LaneCharacter.apply(out, ch, _tb()), out, "seed %d day %d not idempotent" % [s, day])
 			for i in plan.size():
 				var win: Dictionary = plan[i]
 				var w: Dictionary = out[i]
 				var tag := "seed %d day %d wave %d" % [s, day, i]
+				if String(w.side) != String(win.side):
+					moved += 1
+				if w.has("extra"):
+					extras += 1
 				var tin := [int(win.main_count) + int(win.side_count), int(win.fast_main) + int(win.fast_side), int(win.brute_main) + int(win.brute_side)]
 				if _totals(w) != tin:
 					fail_test("%s totals %s != %s" % [tag, _totals(w), tin])
@@ -284,23 +311,28 @@ func test_scan_invariants_200_seeds() -> void:
 				if int(w.brute_main) < 0 or int(w.brute_side) < 0:
 					fail_test("%s negative brutes" % tag)
 					return
-	gut.p("scan: waves with brutes %d, LANE_CAP_GUARD hits %d" % [waves_with_brutes, guard])
+	gut.p("scan: waves with brutes %d, side group moved %d, extra group %d, LANE_CAP_GUARD hits %d" % [waves_with_brutes, moved, extras, guard])
 	assert_gt(waves_with_brutes, 0)
+	assert_gt(moved, 0, "the side-group-moves branch must be exercised")
+	assert_gt(extras, 0, "the extra-group branch must be exercised")
 	assert_eq(guard, 0, "guard count")
 
 func test_hare_share_report_and_floor() -> void:
 	# Fails for an implementation that leaves most hares off the hare lane (share below the author's 0.6 flag level).
-	var shares: Array = []
-	var per_seed: Array = []
-	for s in range(1, 201):
-		var ch := LaneCharacter.for_run(s)
-		var plan := LanePlanner.plan(s, 10, Balance.data.wave, 3, 1, _tb())
-		var sh := LaneCharacter.hare_share(LaneCharacter.apply(plan, ch, _tb()), ch)
-		shares.append(sh)
-		if s <= 14:
-			per_seed.append("%d:%.3f" % [s, sh])
-		assert_gte(sh, 0.6, "seed %d hare share" % s)
-	gut.p("hare share day 10, seeds 1-14: %s" % [", ".join(per_seed)])
-	var sorted := shares.duplicate()
-	sorted.sort()
-	gut.p("hare share over 200 seeds: min %.3f median %.3f max %.3f" % [sorted[0], (sorted[99] + sorted[100]) / 2.0, sorted[199]])
+	# Today the share is 21/29 = 0.724 on every tier-3 night because the pressure is fixed at 12; the assertion
+	# guards a future ramp.
+	for day in [1, 2, 3, 4, 10]:
+		var shares: Array = []
+		var per_seed: Array = []
+		for s in range(1, 201):
+			var ch := LaneCharacter.for_run(s)
+			var plan := LanePlanner.plan(s, day, Balance.data.wave, 3, 1, _tb())
+			var sh := LaneCharacter.hare_share(LaneCharacter.apply(plan, ch, _tb()), ch)
+			shares.append(sh)
+			if s <= 14:
+				per_seed.append("%d:%.3f" % [s, sh])
+			assert_gte(sh, 0.6, "day %d seed %d hare share" % [day, s])
+		gut.p("hare share day %d, seeds 1-14: %s" % [day, ", ".join(per_seed)])
+		var sorted := shares.duplicate()
+		sorted.sort()
+		gut.p("hare share day %d over 200 seeds: min %.3f median %.3f max %.3f" % [day, sorted[0], (sorted[99] + sorted[100]) / 2.0, sorted[199]])
