@@ -896,3 +896,128 @@ func test_with_no_offer_the_skip_opens_the_day_and_the_drag_of_that_touch_moves_
 	_tap(_touch(false, Vector2(460, 900)))
 	_tap(_touch(true, Vector2(360, 900)))  # a fresh press begins a drag
 	assert_true(main.joystick.is_active())
+
+# --- E6 Task 11 (spec 5.4, D-289): the sixth step, the lane character's two badges and flavour lines --------------------------------
+
+## Hand-written from LaneCharacter.for_run(1) (pinned forever): siege east, hare west.
+const LC_SIEGE_LINE := "Heavy tracks on the east road..."
+const LC_HARE_LINE := "Quick paws in the west grass..."
+
+## The tier-3 dawn of a run on seed 1 with the retune flag as given. Nothing of the reveal has run yet.
+func _lc_dawn(flag := true) -> void:
+	Balance.data.tiers.retune_enabled = flag
+	main.phase_controller.start_new_game(1)
+	_tier3_dawn()
+	banners.clear()  # the "diner grows" banner of the tier-ups is not under test
+
+func _badge(lane: String) -> LaneCharacterMarker:
+	return (main.world.telegraph_markers[lane] as TelegraphMarker).badge
+
+func _lines_seen() -> Array:
+	return [banners.count(LC_SIEGE_LINE), banners.count(LC_HARE_LINE)]
+
+## Mutation: the step is missing (five steps); the step is at another place or time.
+func test_lc_the_reveal_has_six_steps_at_the_literal_times_and_ends_at_3_seconds() -> void:
+	_lc_dawn()
+	assert_eq(GameState.lane_character(), {"siege": "east", "hare": "west"})
+	assert_eq(_reveal().steps_left(), 6, "lot, lane, lane character, fence_sw, tower_sw, diner")
+	var times := []
+	var frame := 0
+	while times.size() < 6 and frame < 400:
+		var before := sfx.count(&"build_done")
+		await get_tree().physics_frame
+		frame += 1
+		if sfx.count(&"build_done") > before:
+			times.append(float(frame) / 60.0)
+	assert_eq(times.size(), 6)
+	var want := [0.60, 0.95, 1.30, 1.65, 2.00, 2.35]
+	for i in 6:
+		assert_almost_eq(float(times[i]), float(want[i]), 0.02, "step %d" % (i + 1))
+	assert_true(_reveal().running())
+	await _frames(int(Balance.data.tiers.tier_reveal_time * 60.0) - frame - 8)
+	assert_true(_reveal().running(), "still running just before 3.0 s")
+	await _frames(16)
+	assert_false(_reveal().running(), "over at 3.0 s")
+	assert_true(Balance.ui.tier_reveal_in_s + 5.0 * Balance.ui.tier_reveal_step_s < Balance.data.tiers.tier_reveal_time)
+
+## Mutation: the badges are visible before their step (never hidden); a neutral lane gets a badge; a badge stays hidden after the step.
+func test_lc_the_badges_are_hidden_until_step_three_and_visible_after_it() -> void:
+	_lc_dawn()
+	assert_not_null(_badge("east"), "setup: the siege lane has its badge")
+	assert_not_null(_badge("west"))
+	assert_null(_badge("north"), "a neutral lane has none")
+	assert_null(_badge("sw"))
+	assert_false(_badge("east").visible, "hidden at the start")
+	assert_false(_badge("west").visible)
+	await _frames(int(1.25 * 60.0))  # after step 2 (0.95 s), before step 3 (1.30 s)
+	assert_eq(_reveal().steps_left(), 4, "steps 1 and 2 have run")
+	assert_false(_badge("east").visible, "still hidden after the lane step")
+	assert_false(_badge("west").visible)
+	await _frames(8)  # 1.38 s
+	assert_eq(_reveal().steps_left(), 3, "step 3 ran")
+	assert_true(_badge("east").visible)
+	assert_true(_badge("west").visible)
+	await _frames(int(Balance.data.tiers.tier_reveal_time * 60.0))
+	assert_true(_badge("east").visible, "and after the reveal")
+	assert_true(_badge("west").visible)
+	assert_eq(_badge("east").scale, Vector3.ONE, "no pop left running")
+
+## Mutation: one combined or doubled banner; the hare line at the wrong step; a line missing.
+func test_lc_the_siege_line_shows_at_step_three_the_hare_line_at_step_six_each_once() -> void:
+	_lc_dawn()
+	await _frames(int(1.25 * 60.0))
+	assert_eq(_lines_seen(), [0, 0], "nothing before step 3")
+	await _frames(8)
+	assert_eq(_lines_seen(), [1, 0], "the siege line at step 3")
+	await _frames(50)  # 2.2 s: not yet step 6 (2.35 s)
+	assert_eq(_lines_seen(), [1, 0])
+	await _frames(15)  # 2.45 s
+	assert_eq(_lines_seen(), [1, 1], "the hare line at step 6")
+	await _frames(int(2.0 * 60.0))
+	assert_eq(_lines_seen(), [1, 1], "once each")
+	assert_true(GameState.lane_character_shown)
+
+## Mutation: the banner texts do not come from the run's character.
+func test_lc_the_banner_texts_are_the_lines_of_the_runs_character() -> void:
+	_lc_dawn()
+	await _frames(int(Balance.data.tiers.tier_reveal_time * 60.0))
+	var lc := banners.filter(func(b): return String(b).begins_with("Heavy") or String(b).begins_with("Quick"))
+	assert_eq(lc, [LC_SIEGE_LINE, LC_HARE_LINE])
+	assert_eq(LaneCharacter.flavour_lines(GameState.lane_character()), [LC_SIEGE_LINE, LC_HARE_LINE])
+
+## Mutation: a skip leaves a badge hidden, shows a line twice or never, or leaves the flag false.
+func test_lc_a_skip_at_any_time_leaves_everything_visible_the_flag_true_and_each_line_once() -> void:
+	for at in [0, 20, 50, 80, 100, 130, 170]:  # frames after the dawn: before step 1 ... after step 6
+		_lc_dawn()
+		await _frames(at)
+		main.phase_controller.finish_reveal_now()  # what a tap does: the pick opens, the reveal hears it and applies what is left
+		var tag := "skip at frame %d" % at
+		assert_eq(_reveal().steps_left(), 0, tag)
+		assert_true(_badge("east").visible, tag)
+		assert_true(_badge("west").visible, tag)
+		assert_eq(_badge("east").scale, Vector3.ONE, tag)
+		assert_true(GameState.lane_character_shown, tag)
+		await _frames(5)
+		assert_eq(_lines_seen(), [1, 1], tag + ": each line once")
+
+## Mutation: the tap path does not reach the step (the controller's tap, after the guard).
+func test_lc_a_tap_after_the_guard_applies_the_step_and_shows_the_banner_once() -> void:
+	_lc_dawn()
+	await _frames(int(0.7 * 60.0))
+	assert_false(_badge("east").visible)
+	_tap(_mouse())
+	assert_true(_badge("east").visible)
+	assert_true(_badge("west").visible)
+	assert_true(GameState.lane_character_shown)
+	assert_eq(_lines_seen(), [1, 1])
+
+## Mutation: the new step is not behind the flag (five steps become six, or a badge/banner appears, with the flag off).
+func test_lc_flag_off_the_reveal_has_five_steps_no_badge_and_no_lane_banner() -> void:
+	_lc_dawn(false)
+	assert_eq(GameState.lane_character(), {})
+	assert_eq(_reveal().steps_left(), 5)
+	for lane in ["west", "north", "east", "sw"]:
+		assert_null(_badge(lane), lane)
+	await _frames(int(Balance.data.tiers.tier_reveal_time * 60.0))
+	assert_eq(_lines_seen(), [0, 0])
+	assert_false(GameState.lane_character_shown, "the field stays false")

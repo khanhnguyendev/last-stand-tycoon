@@ -147,6 +147,9 @@ func _on_reveal_timer(id: int) -> void:
 	if id != _reveal_id or phase != Phase.DAWN:
 		return
 	reveal_pending = false
+	# E6 (D-289): the tier-3 reveal has shown the lane character (its step ran, or a tap applied it); an empty character is no-op.
+	if not GameState.lane_character().is_empty():
+		GameState.mark_lane_character_shown()
 	_card_pick(GameState.card_offer)  # the stashed offer; empty when none was drawn
 
 func _cancel_reveal() -> void:
@@ -158,6 +161,7 @@ func _card_pick(offer: Array[StringName]) -> void:
 	if offer.is_empty():
 		dawn_substate = ""
 		EventBus.banner_requested.emit(tr("Dawn"))  # the pick overlay would hide it otherwise
+		_announce_lane_character()
 		_enter_day()
 		return
 	dawn_substate = "CARD_PICK"
@@ -169,7 +173,23 @@ func _on_card_chosen(id: StringName) -> void:
 	var level := GameState.pick_card(id)
 	dawn_substate = ""
 	EventBus.banner_requested.emit(CardCatalog.pick_banner(id, level))
+	_announce_lane_character()
 	_enter_day()
+
+## E6 (D-289): a save that was already at tier 3 when the retune switched on meets its lane character once, at the first dawn (shown as
+## the day starts, after the pick overlay closes). A run that reached tier 3 with the reveal has it marked shown by the reveal's step.
+## The hare line follows the siege line banner_time later, so each is read in full.
+func _announce_lane_character() -> void:
+	var lines := LaneCharacter.flavour_lines(GameState.lane_character())
+	if lines.is_empty() or GameState.lane_character_shown:
+		return
+	GameState.mark_lane_character_shown()
+	EventBus.banner_requested.emit(lines[0])
+	get_tree().create_timer(Balance.ui.banner_time, false, true).timeout.connect(_on_lane_banner_timer.bind(_reveal_id, lines[1]))
+
+func _on_lane_banner_timer(id: int, line: String) -> void:
+	if id == _reveal_id and phase == Phase.DAY:  # _cancel_reveal() bumps the id on every restore and new game
+		EventBus.banner_requested.emit(line)
 
 func _on_diner_fell() -> void:
 	if phase != Phase.NIGHT or failing:
