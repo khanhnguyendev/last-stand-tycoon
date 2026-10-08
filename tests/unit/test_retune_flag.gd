@@ -6,7 +6,8 @@ var DO = load("res://ui/debug/debug_overlay.gd")
 const PROD_DIRS := ["res://autoload", "res://core", "res://components", "res://actors", "res://world", "res://ui", "res://art", "res://balance"]
 ## Every other top-level directory of res:// is named here as non-production (third-party, docs, tests, tools, export shell).
 ## A new top-level directory is in neither list, so test_prod_dirs_are_every_production_directory fails until it is sorted.
-const NON_PROD_DIRS := ["res://addons", "res://assets", "res://docs", "res://export", "res://tests", "res://tools"]
+## `build` (web exports, export/README.md) and `android` are gitignored and exist only in some checkouts.
+const NON_PROD_DIRS := ["res://addons", "res://android", "res://assets", "res://build", "res://docs", "res://export", "res://tests", "res://tools"]
 const DECL_FILE := "res://balance/tier_balance.gd"
 const DECL_LINE := "@export var retune_enabled := false"
 

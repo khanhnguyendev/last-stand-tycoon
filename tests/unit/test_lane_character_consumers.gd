@@ -240,7 +240,12 @@ func test_a_real_night_spawns_brutes_on_the_siege_lane_extra_groups_with_the_sid
 	assert_true(saw_diverted, "the night had a wave whose side lane was replaced by the siege lane")
 	assert_eq(_growth, [], "no pool grew during the night")
 	var pool_size: int = World.pool_sizes(Balance.data).enemy
-	assert_gt(_peak, 0, "enemies were alive")
+	var biggest := 0
+	for wv in plan:
+		biggest = maxi(biggest, _total(wv))
+	# Counted from the PLAN, not from WaveSchedule.build: the whole biggest wave, its third group included, stood alive at once
+	# (the test kills a wave only after it has fully spawned). Mutation: a wave_spawned_out that fires before the extra group ends.
+	assert_eq(_peak, biggest, "the whole biggest wave stood alive at once")
 	assert_lte(_peak, pool_size, "the enemy pool covers the most alive at once (a third group spawns in parallel, not on top)")
 
 ## The pools are sized from a night's TOTALS and one wave at a time (waves never overlap), and apply keeps every wave's
