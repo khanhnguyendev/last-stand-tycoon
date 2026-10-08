@@ -36,6 +36,39 @@ var _pre: Array[Dictionary] = []
 var _warm := WARMUP_S
 var _wave := -1
 var _wave_at := -1.0
+## E6 A2 (`?perflog=<s>`): every frame of the first <s> seconds after each phase change, printed once to the console as `PERFLOG ...`
+## and summarised on screen (frames over LOG_SHOW_MS, the first use of each event). 0 = off: the code below stays inert.
+## `?perfclose=<s>`: s seconds into a DAY the overlay emits `closeup_requested`, the signal the close-up sign sends, so a perf run can
+## measure a night the game entered by playing (not one resumed from a save). 0 = off.
+const LOG_SHOW_MS := 30.0
+var _log_s := 0.0
+var _close_s := 0.0
+var _closed := false
+var _log_t: Array[float] = []
+var _log_ms: Array[float] = []
+## For a frame of LOG_SHOW_MS or more: the previous frame's script time, physics time, draw calls, and the node count and video memory change.
+var _log_extra: Dictionary = {}
+var _prev_nodes := 0
+var _prev_vmem := 0.0
+var _log_done := false
+var _stable_run := 0
+var _stable_at := -1.0
+var _phase_msec := 0
+var _first: Array[String] = []
+var _first_seen := {}
+var _log_label: Label
+## `?perfglyph=1` (experiment, E6 A2): draw every glyph the two labels will ever show once, in the first frame (under the boot fade), to test
+## whether the window's first labelled frames pay for the glyphs' first rasterisation (the "window-start frame", diagnosis.md).
+var _glyph_prime := false
+const GLYPHS := "0123456789 .,:=@()+-%_/ abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+var _seen_fade := true
+var _fades: Array[Node] = []
+var _seen_banner := false
+var _seen_arrow := false
+
+## A positive number of seconds from a query flag value, else 0 (flag absent, not a number, zero or negative).
+static func positive_seconds(flag: String) -> float:
+	return float(flag) if flag.is_valid_float() and float(flag) > 0.0 else 0.0
 
 func _ready() -> void:
 	layer = 20
@@ -58,6 +91,28 @@ func _ready() -> void:
 		_warm = float(pw)  # ?perfwarm=<s>: warm-up length (default WARMUP_S), to tell the overlay's own boundary from a game event
 	EventBus.phase_changed.connect(_on_phase_changed)
 	EventBus.wave_started.connect(_on_wave_started)
+	_glyph_prime = UrlFlags.get_flag("perfglyph") == "1"
+	_log_s = positive_seconds(UrlFlags.get_flag("perflog"))
+	_close_s = positive_seconds(UrlFlags.get_flag("perfclose"))
+	if _log_s > 0.0:
+		_log_label = Label.new()
+		_log_label.theme_type_variation = &"HudLabel"
+		_log_label.position = Vector2(12, 930)
+		_log_label.add_theme_font_size_override("font_size", 13)
+		_log_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_log_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+		_log_label.custom_minimum_size = Vector2(696, 0)
+		add_child(_log_label)
+		EventBus.wave_started.connect(func(w: int, _m: StringName, _s: StringName) -> void: _mark("wave%d" % w))
+		EventBus.enemy_killed.connect(func(_i: int, _l: StringName, _p: Vector3, k: StringName) -> void: _mark("kill_" + String(k)))
+		EventBus.fx_requested.connect(func(k: StringName, _p: Vector3) -> void: _mark("fx_" + String(k)))
+		EventBus.sfx_requested.connect(func(id: StringName) -> void: _mark("sfx_" + String(id)))
+		EventBus.wave_spawned_out.connect(func(w: int) -> void: _mark("spawned_out%d" % w))
+		EventBus.wave_cleared.connect(func(w: int) -> void: _mark("cleared%d" % w))
+		EventBus.guard_knocked_out.connect(func(_g: StringName) -> void: _mark("guard_ko"))
+		EventBus.banner_requested.connect(func(_t: String) -> void: _mark("banner"))
+		EventBus.diner_damaged.connect(func(_a: float, _h: float) -> void: _mark("diner_hit"))
+		EventBus.guard_damaged.connect(func(_g: StringName, _h: float) -> void: _mark("guard_hit"))
 
 func _on_wave_started(w: int, _main: StringName, _side: StringName) -> void:
 	_wave = w
@@ -66,6 +121,7 @@ func _on_wave_started(w: int, _main: StringName, _side: StringName) -> void:
 func _on_phase_changed(p: int, d: int) -> void:
 	_phase = p
 	_day = d
+	_phase_msec = Time.get_ticks_msec()
 	_reset_window()
 
 func _reset_window() -> void:
@@ -84,6 +140,83 @@ func _reset_window() -> void:
 	_pre.clear()
 	_wave = -1
 	_wave_at = -1.0
+	_closed = false
+	_log_t.clear()
+	_log_ms.clear()
+	_log_extra.clear()
+	_log_done = false
+	_stable_run = 0
+	_stable_at = -1.0
+	_first.clear()
+	_first_seen.clear()
+	_seen_banner = false
+	_seen_arrow = false
+
+## First use of each event name inside the log's seconds: `name@t`.
+func _mark(name: String) -> void:
+	if _log_done or _first_seen.has(name):
+		return
+	_first_seen[name] = true
+	_first.append("%s@%.2f" % [name, _since_reset])
+
+## Marks the first frame the HUD banner panel and the lane arrow change visibility (log mode only; nothing happens when the parent has no `hud`).
+func _poll_visuals() -> void:
+	var h = get_parent().get("hud") if get_parent() != null else null
+	if h == null:
+		return
+	var banner_on: bool = h.banner_panel.visible
+	if banner_on != _seen_banner:
+		_seen_banner = banner_on
+		_mark("banner_on" if banner_on else "banner_off")
+	var fade = get_parent().get("boot_fade")
+	var fade_here: bool = fade != null and is_instance_valid(fade)
+	if _seen_fade and not fade_here:
+		_seen_fade = false
+		_mark("bootfade_gone")
+	elif fade_here and fade.is_lifting():
+		_mark("bootfade_lift")
+	if _fades.is_empty():
+		_fades = get_parent().find_children("*", "OccluderFade", true, false)
+	for f in _fades:
+		if is_instance_valid(f) and f.is_faded():
+			_mark("fade_" + String(f.get_parent().get_parent().name))
+	var arrow_on: bool = h.arrows.main.visible
+	if arrow_on != _seen_arrow:
+		_seen_arrow = arrow_on
+		_mark("arrow_on" if arrow_on else "arrow_off")
+
+func _log_frame(raw: float) -> void:
+	var ms := raw * 1000.0
+	_log_t.append(_since_reset)
+	_log_ms.append(ms)
+	var nodes := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	var vmem := Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0
+	if ms >= LOG_SHOW_MS:
+		_log_extra[_log_t.size() - 1] = "[p%.0f s%.1f dc%.0f n%+d v%+.1f]" % [Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+			Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0, Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), nodes - _prev_nodes, vmem - _prev_vmem]
+	_prev_nodes = nodes
+	_prev_vmem = vmem
+	if ms < Balance.ui.boot_fade_stable_ms:
+		_stable_run += 1
+		if _stable_run >= Balance.ui.boot_fade_stable_frames and _stable_at < 0.0:
+			_stable_at = _since_reset  # when the boot fade would lift, i.e. the first playable frame
+	else:
+		_stable_run = 0
+	if _since_reset >= _log_s:
+		_flush_log()
+
+## Prints the whole log once and shows the slow frames and first events on screen.
+func _flush_log() -> void:
+	_log_done = true
+	var all: PackedStringArray = []
+	var slow: PackedStringArray = []
+	for i in _log_t.size():
+		all.append("%.2f:%.0f" % [_log_t[i], _log_ms[i]])
+		if _log_ms[i] >= LOG_SHOW_MS:
+			slow.append("%.1f:%.0f%s" % [_log_t[i], _log_ms[i], _log_extra.get(i, "")])
+	var head := "PERFLOG phase=%s day=%d phase_msec=%d stable_at=%.2f n=%d" % [_phase_name(), _day, _phase_msec, _stable_at, _log_t.size()]
+	print(head + " first=" + ",".join(_first) + " frames=" + ",".join(all))
+	_log_label.text = "%s\n>=%.0fms (t:ms): %s\nfirst: %s" % [head, LOG_SHOW_MS, " ".join(slow), " ".join(_first)]
 
 ## Counts one frame (seconds) into the window.
 func record(frame_seconds: float) -> void:
@@ -111,6 +244,11 @@ func _process(delta: float) -> void:
 
 ## One frame: raw = measured seconds, delta = the engine's (clamped) delta. Split out so tests can inject time.
 func _tick(raw: float, delta: float) -> void:
+	if _glyph_prime:
+		_glyph_prime = false
+		_label.text = GLYPHS
+		_frozen_label.text = GLYPHS
+		return  # drawn once; the next tick writes the real text
 	var state := "frozen" if _frozen else ("warm-up" if _since_reset < _warm else "")
 	var n := maxi(_n, 1)
 	_label.text = "fps %.0f  avg %.1f  worst %.0f ms  win %.0fs %s\nproc %.1f ms  phys %.1f ms  dc %.0f  slow %.1f%%" % [
@@ -120,6 +258,13 @@ func _tick(raw: float, delta: float) -> void:
 		return
 	var before := _since_reset
 	_since_reset += raw
+	if _close_s > 0.0 and not _closed and _phase == Phase.DAY and _since_reset >= _close_s:
+		_closed = true
+		EventBus.closeup_requested.emit()  # the phase changes here and the window resets: this frame is the old phase's last
+		return
+	if _log_s > 0.0 and not _log_done:
+		_poll_visuals()
+		_log_frame(raw)
 	if before < _warm:
 		_track_pre(raw)
 		_prime_reads()

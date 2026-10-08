@@ -264,3 +264,90 @@ func test_perf_warmup_tracks_pre3_and_adds_nothing_to_the_window() -> void:
 		p._tick(1.0 / 60.0, 1.0 / 60.0)
 	assert_eq(p.avg_fps(), 0.0, "warm-up frames are not in the window")
 	assert_eq(p.pre3_text().split(" ").size(), 3, "the 3 worst warm-up frames are tracked")
+
+# --- E6 A2: the per-frame log and the play-entered close-up (`?perflog`, `?perfclose`) ---
+
+func test_perf_flag_parsing_is_positive_seconds_only() -> void:
+	assert_eq(PerfOverlay.positive_seconds(""), 0.0, "absent")
+	assert_eq(PerfOverlay.positive_seconds("abc"), 0.0, "not a number")
+	assert_eq(PerfOverlay.positive_seconds("0"), 0.0)
+	assert_eq(PerfOverlay.positive_seconds("-3"), 0.0)
+	assert_eq(PerfOverlay.positive_seconds("25"), 25.0)
+	assert_eq(PerfOverlay.positive_seconds("1.5"), 1.5)
+
+func test_perf_log_is_inert_without_the_flag() -> void:
+	var p := _perf()
+	for i in 300:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(p._log_s, 0.0)
+	assert_eq(p._log_t.size(), 0, "no frame was logged")
+	assert_null(p._log_label)
+
+func test_perf_log_records_every_frame_and_flushes_once() -> void:
+	UrlFlags.set_for_tests("perflog=2")
+	var p := _perf()
+	UrlFlags.set_for_tests("")
+	assert_eq(p._log_s, 2.0)
+	for i in 119:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(p._log_t.size(), 119)
+	assert_false(p._log_done, "1.98 s: still logging")
+	p._tick(0.120, 0.016)  # one slow frame closes the log
+	assert_true(p._log_done)
+	assert_eq(p._log_t.size(), 120)
+	assert_almost_eq(p._log_ms[119], 120.0, 0.01)
+	assert_true(p._log_label.text.contains("2.1:120"), "the slow frame is on screen: " + p._log_label.text)
+	p._tick(0.5, 0.016)
+	assert_eq(p._log_t.size(), 120, "nothing is logged after the flush")
+
+func test_perf_log_stable_frames_and_first_events() -> void:
+	UrlFlags.set_for_tests("perflog=3")
+	var p := _perf()
+	UrlFlags.set_for_tests("")
+	p._tick(0.9, 0.016)  # a load freeze
+	for i in 12:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_gt(p._stable_at, 0.9, "stable after the freeze, 10 frames under the boot fade's limit")
+	assert_lt(p._stable_at, 1.2)
+	EventBus.sfx_requested.emit(&"zzz_test")
+	EventBus.sfx_requested.emit(&"zzz_test")
+	assert_eq(p._first.size(), 1, "a name is recorded once")
+	assert_true(p._first[0].begins_with("sfx_zzz_test@"))
+
+func test_perf_close_emits_closeup_only_in_day_after_the_seconds() -> void:
+	UrlFlags.set_for_tests("perfclose=1")
+	var p := PerfOverlay.new()
+	add_child_autofree(p)
+	UrlFlags.set_for_tests("")
+	var hits := [0]
+	var cb := func() -> void: hits[0] += 1
+	EventBus.closeup_requested.connect(cb)
+	EventBus.phase_changed.emit(Phase.NIGHT, 3)
+	for i in 100:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(hits[0], 0, "not in a night")
+	EventBus.phase_changed.emit(Phase.DAY, 3)
+	for i in 50:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(hits[0], 0, "before the seconds")
+	for i in 20:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(hits[0], 1, "after 1 s of day")
+	for i in 100:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(hits[0], 1, "once")
+	EventBus.closeup_requested.disconnect(cb)
+
+func test_perf_glyph_prime_draws_the_glyph_set_once_and_only_with_the_flag() -> void:
+	var off := _perf()
+	off._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_ne(off._label.text, PerfOverlay.GLYPHS, "no flag: the real text from the first tick")
+	UrlFlags.set_for_tests("perfglyph=1")
+	var on := _perf()
+	UrlFlags.set_for_tests("")
+	on._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(on._label.text, PerfOverlay.GLYPHS, "flag: the glyph set is on screen for one frame")
+	on._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_ne(on._label.text, PerfOverlay.GLYPHS, "then the real text")
+	for ch in "0123456789.%":
+		assert_true(PerfOverlay.GLYPHS.contains(ch), "glyph " + ch)

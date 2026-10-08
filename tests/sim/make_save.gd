@@ -22,8 +22,8 @@ func _run() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--fixture="):
 			_fixture = a.trim_prefix("--fixture=")
-	if _fixture != "day3_counter5" and _fixture != "night3" and _fixture != "tier" and _fixture != "tier3" and _fixture != "tier3_branch_day":
-		push_error("usage: -- --fixture=day3_counter5|night3|tier|tier3|tier3_branch_day")
+	if _fixture != "day3_counter5" and _fixture != "night3" and _fixture != "tier" and _fixture != "tier3" and _fixture != "tier3_branch_day" and _fixture != "tier3_cap_day":
+		push_error("usage: -- --fixture=day3_counter5|night3|tier|tier3|tier3_branch_day|tier3_cap_day")
 		quit(2)
 		return
 	if _fixture == "tier":
@@ -34,6 +34,9 @@ func _run() -> void:
 		return
 	if _fixture == "tier3_branch_day":
 		quit(0 if _run_branch_day() else 1)
+		return
+	if _fixture == "tier3_cap_day":
+		quit(0 if _run_cap_day() else 1)
 		return
 	root.get_node("Balance").reset()
 	var main = load("res://world/main.gd").create()
@@ -398,4 +401,34 @@ func _run_branch_day() -> bool:
 		push_error("fixture tier3_branch_day invalid: " + why)
 		return false
 	_write("tier3_branch_day", s)
+	return true
+
+## E6 A2 (perf aid): the tier-3 cap night's close-up as a DAY resume. The committed tier3_cap_threat (decoded through the real codec)
+## with resume_phase DAY, so a profile build resumes into the day and `?perfclose=<s>` enters the same night by play (export/perf_night3.sh PLAY_ENTERED=1).
+## Writes export/fixtures/tier3_cap_threat_day.save.json (the stem is `<night fixture>_day`).
+func _run_cap_day() -> bool:
+	var stem := "tier3_cap_threat"  # `-- --from=tier3_cap_all_a` reads another night fixture (writes <stem>_day)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--from="):
+			stem = a.trim_prefix("--from=")
+	var text := FileAccess.get_file_as_string("res://export/fixtures/%s.save.json" % stem)
+	var bd = root.get_node("Balance").data
+	var codec = load("res://core/save_codec.gd")
+	var r: Dictionary = codec.decode(text, int(root.get_node("GameState").SCHEMA_VERSION), bd)
+	if not bool(r.ok):
+		push_error("%s does not decode: %s" % [stem, String(r.reason)])
+		return false
+	var s: Dictionary = r.state
+	s.resume_phase = "DAY"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--wave1="):  # an experiment: `--wave1=west,east` moves wave 1 onto those lanes (writes <stem>_<main>_<side>_day)
+			var lanes := a.trim_prefix("--wave1=").split(",")
+			s.lane_plan[1].main = lanes[0]
+			s.lane_plan[1].side = lanes[1]
+			stem += "_" + lanes[0] + "_" + lanes[1]
+	var why: String = codec.validate(s, bd)
+	if why != "":
+		push_error("fixture %s_day invalid: %s" % [stem, why])
+		return false
+	_write(stem + "_day", s)
 	return true
