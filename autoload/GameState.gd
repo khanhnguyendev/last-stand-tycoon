@@ -1,7 +1,7 @@
 extends Node
 ## The only mutable game data (spec 4, D-096). Only these methods change it; they emit EventBus signals.
 
-const SCHEMA_VERSION := 6
+const SCHEMA_VERSION := 7
 
 var resume_phase := "NIGHT"
 var run_seed := 0
@@ -28,10 +28,14 @@ var tier := 1
 var tier_day := 1
 var tier_paid := 0
 var boss_pending := false
+## E6 (D-286.4): non-fatal problems met by the last from_dict (a stored lane character that differs from the derived one).
+## Cleared at the start of every from_dict; the debug overlay can read it. Not part of the save.
+var load_warnings: Array[String] = []
 
 func new_game(seed: int = 0) -> void:
 	run_seed = seed if seed != 0 else Rng.new_run_seed()
 	resume_phase = "NIGHT"
+	load_warnings = []
 	day = 1
 	gold = 0
 	gold_pile = 0
@@ -71,10 +75,12 @@ func to_dict() -> Dictionary:
 		"guards": _guards_out(), "night_fails": night_fails,
 		"stations": _stations_out(),
 		"tier": tier, "tier_day": tier_day, "tier_paid": tier_paid, "boss_pending": boss_pending,
+		"lane_character": lane_character(),  # E6 schema 7: {} below tier 3 or with the retune flag off
 	}
 
 func from_dict(d: Dictionary) -> void:
 	assert(int(d.v) == SCHEMA_VERSION, "unknown snapshot schema")
+	load_warnings = []
 	resume_phase = String(d.resume_phase)
 	run_seed = int(d.run_seed)
 	day = int(d.day)
@@ -126,6 +132,16 @@ func from_dict(d: Dictionary) -> void:
 	# A pending boss always rides tonight's plan (a hand-edited save cannot skip it), when the tier has a boss to send.
 	if boss_pending and not lane_plan.is_empty() and TierEffects.boss_kind_for(tier, Balance.data.tiers) != &"":
 		lane_plan[lane_plan.size() - 1].boss = true
+	# E6 (spec 3.4, D-286.4): with a lane character (tier 3, flag on) the stored plan is never trusted: it is re-derived under
+	# today's rules, so extra groups hold and a plan made under the old rules is replaced. Flag off / below tier 3: untouched.
+	var derived := lane_character()
+	if not derived.is_empty():
+		var stored = d.get("lane_character", {})
+		if typeof(stored) == TYPE_DICTIONARY and not stored.is_empty() \
+				and (String(stored.get("siege", "")) != String(derived.siege) or String(stored.get("hare", "")) != String(derived.hare)):
+			load_warnings.append("lane character in the save (%s / %s) differs from the one derived from run_seed (%s / %s); using the derived one" \
+				% [str(stored.get("siege", "")), str(stored.get("hare", "")), derived.siege, derived.hare])
+		lane_plan = _plan_today()
 	cards = {}
 	for k in d.cards:
 		cards[StringName(k)] = int(d.cards[k])
@@ -446,7 +462,16 @@ func advance_day() -> void:
 
 func _plan_today() -> Array:
 	var p := LanePlanner.plan(run_seed, day, Balance.data.wave, tier, tier_day, Balance.data.tiers)
+	var character := lane_character()
+	if not character.is_empty():  # E6 (D-287): the single place a fresh plan meets the lane character; flag off = the old code
+		p = LaneCharacter.apply(p, character, Balance.data.tiers)
 	return _with_tonights_boss(p) if boss_pending else p
+
+## E6 (D-282): the run's lane character ({"siege", "hare"}), or {} below tier 3 or with the retune flag off.
+func lane_character() -> Dictionary:
+	if tier >= 3 and TierEffects.retune_on(Balance.data.tiers):
+		return LaneCharacter.for_run(run_seed)
+	return {}
 
 ## Marks the last wave as the boss wave, unless this tier has no boss to send (the top tier: a pending boss there is a clamped save).
 func _with_tonights_boss(p: Array) -> Array:

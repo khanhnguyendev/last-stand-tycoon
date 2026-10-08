@@ -56,7 +56,7 @@ func test_every_tier3_fixture_decodes_at_the_current_schema_with_a_valid_checksu
 		assert_ne(text, "", "%s exists" % stem)
 		var r: Dictionary = SaveCodec.decode(text, GameState.SCHEMA_VERSION, Balance.data)
 		assert_true(r.ok, "%s: %s" % [stem, r.get("reason", "")])
-		assert_eq(int(r.state.v), 6, "%s: schema 6" % stem)
+		assert_eq(int(r.state.v), 7, "%s: migrated to schema 7" % stem)
 		assert_eq(int(r.state.run_seed), 20260930, stem)
 
 func test_boss_night_tier1() -> void:

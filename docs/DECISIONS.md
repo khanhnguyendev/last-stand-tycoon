@@ -3036,3 +3036,38 @@ process of the last slice; the escalation rule. Additions:
    save.
 3. **Phase A goes first** and merges on its own as soon as it is green; it does not wait for the other phases.
 
+**D-292 Author's answers to four escalations during the E6 build (2026-10-08).**
+
+1. **Bench measure (changes D-288):** the diner is INVULNERABLE in the lane-type bench; the primary measure is total
+   diner HP lost, then the D-288 lane-type tie-breakers. The bench ranks branches relatively and does not predict
+   real nights; real outcomes are judged by the report. Reason: as approved (one lane, one tower, one fence, no
+   hero, no guards, pressure 12) the diner fell in almost every configuration, so the measure read 300 everywhere.
+2. **Bench placement (changes D-288.3):** split. The unit suite keeps a fast subset under about 10 s (each lane type
+   at pressure 12, the primary measure only), enough to catch a regression in the floor, the specialist margin or
+   the identity ordering. The FULL bench (all lane types, pressure 12 and the final cap, all tie-breakers) is its own
+   CI job with tick budgets (D-247 rules), added as a required check under D-274.4. Deviation logged: the bench took
+   70 to 79 s against the approved "about 10 s in the unit suite".
+3. **Badge placement (changes D-289):** the lane-character badge sits BELOW the count row and OFF the road surface.
+   It must pass the zero-overlap test with the flag on and the 40% and grayscale checks. The card's row 3 is the
+   in-the-moment source, so the badge is not required to be visible from home. Reason: "beside the row" puts it
+   under the HUD bar from the home view (on the gold coin, "Day N" or the gear).
+4. **Merging with open escalations (clarifies D-137):** per phase. A phase may self-merge when its OWN tasks have no
+   open escalation and all gates pass, including the three baselines and "tier-3 off identical". PR #62 merged.
+
+**On the early bench warning** (Volley beats Longbow on the siege lane; Longbow is below unbranched on the hare lane):
+- PRE-AUTHORIZED, no need to ask: widening any NUMERIC Longbow or Spike range when the approved ranges cannot satisfy
+  the D-288 floor, specialist and identity rules: Longbow's interval, damage per shot, range within the D-271
+  coverage limit, and `kind_mult` up to 4.0; Spike's pass and thorn damage. Each widening is logged with the bench
+  numbers that forced it.
+- NOT pre-authorized: any new mechanic (pierce, splash, a bonus against boars, and so on) or any change to Volley or
+  Stone wall. If numeric levers cannot make the specialist win on its lane while keeping the floor: escalate with
+  the bench data and 2 to 3 options.
+- Real bench numbers go to the author only with that escalation, or at the checkpoint.
+
+**A2 (worst frame):** the window-start finding suggests a measurement artifact. Confirm the cause. If it is purely
+the window: fix the MEASUREMENT (start the window after a fixed, documented settle time); do not add a warm-up. The
+boot warm-up's cost is reported as planned.
+
+Also recorded (main session, D-283): Spike fence's `pass_kinds` are unchanged, so with the flag on the Baron's pass
+damage is also the new base; unreachable in play (the Baron is fought to leave tier 2; branches need tier 3).
+

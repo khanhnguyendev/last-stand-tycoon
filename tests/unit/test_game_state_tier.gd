@@ -126,7 +126,7 @@ func test_snapshot_round_trip_carries_the_tier() -> void:
 	GameState.complete_tier_up()
 	GameState.add_gold(70)
 	var d := GameState.to_dict()
-	assert_eq(int(d.v), 6)
+	assert_eq(int(d.v), 7)
 	assert_eq([d.tier, d.tier_day, d.tier_paid, d.boss_pending], [2, 1, 0, false])
 	assert_true(d.buildings.has("tower_e"))
 	GameState.new_game(5)

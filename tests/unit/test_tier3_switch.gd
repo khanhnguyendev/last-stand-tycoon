@@ -276,7 +276,7 @@ func test_a_schema_6_save_at_tier_2_keeps_its_partial_tier_3_payment() -> void:
 	GameState.add_gold(700)
 	assert_eq(GameState.pay_into_tier(700), 700)
 	var saved := GameState.to_dict()
-	assert_eq([int(saved.v), int(saved.tier), int(saved.tier_paid)], [6, 2, 700])
+	assert_eq([int(saved.v), int(saved.tier), int(saved.tier_paid)], [7, 2, 700])
 	GameState.new_game(1)
 	_load_state(saved)
 	assert_eq([GameState.tier, GameState.tier_paid, GameState.boss_pending], [2, 700, false])
