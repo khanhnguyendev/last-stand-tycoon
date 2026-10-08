@@ -3071,3 +3071,31 @@ boot warm-up's cost is reported as planned.
 Also recorded (main session, D-283): Spike fence's `pass_kinds` are unchanged, so with the flag on the Baron's pass
 damage is also the new base; unreachable in play (the Baron is fought to leave tier 2; branches need tier 3).
 
+**D-293 Tuning round 1 on the lane-type bench (main session, under the pre-authorization of D-292; 2026-10-08).**
+
+Values with the flag on (the old values stay beside them until the cleanup):
+- **Longbow firing interval 3.0 s -> 2.4 s** (a widening: the interval was not a lever in D-283's table; damage 120,
+  range 9.98 and the brute multiplier 2.0 are unchanged).
+- **Spike fence pass damage 16 -> 24** (the top of D-283's range 12 to 24).
+
+Bench numbers that forced them (invulnerable diner, pressure 12, diner HP lost; `tests/bench_report/`):
+- The floor failed on the hare lane: Longbow 2313 against the unbranched tower's 1693, at EVERY brute multiplier
+  (2, 3, 4) and damage per shot (120, 160, 200, 240) and at the largest range the coverage rule allows (10.27 m).
+  Only the interval moves that row: 2.4 s -> siege 412, hare 1387, neutral 202; 2.5 s passes thinly; 2.6 s fails
+  (hare 1707, siege 636 against the bound 600.1); 1.8 s -> 0 / 545 / 8 (near-dominant on neutral: not chosen).
+- Spike pass damage: 16 -> hare 1062; 24 -> 855 (a hare has 39.75 HP in waves 1 and 2, 51.7 in wave 3: 24 and 32
+  give the same result; 40 kills a wave-1 hare in its one pass: 775).
+
+Result at the applied values (production path, equal to the in-memory candidate):
+
+| Lane type | unbranched | Longbow | Volley | Stone | Spike |
+|---|---|---|---|---|---|
+| siege | 1780 | 412 | 706 | 1478 | 1673 |
+| hare | 1693 | 1387 | 395 | 1355 | 855 |
+| neutral | 560 | 202 | 100 | 315 | 335 |
+
+24 of 26 bench rules pass. Not reachable with the pre-authorized levers, escalated to the author with data:
+"Stone wall beats Spike fence by 15% on the siege lane" (1478 against the bound 1422; Stone HP 710 or a brute
+multiplier of 0.33 would pass; by fence-fall time Stone passes today: 68.5 s against 30.2 s) and "Stone keeps the
+most fence HP" (the fence is destroyed in every siege configuration).
+
