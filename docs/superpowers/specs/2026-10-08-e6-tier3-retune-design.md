@@ -116,6 +116,10 @@ lane; a group's hares never exceed its count.
 
 ### 4.2 The lane-type bench: "paying never makes it worse"
 
+> D-292: the bench's diner is INVULNERABLE and the primary measure is the total diner HP lost. The bench ranks
+> branches relatively; it does not predict real nights (the report does). A fast subset (each lane type at pressure
+> 12, primary measure only, about 10 s) runs in the unit suite; the full bench is its own CI job with tick budgets.
+
 - `tests/support/branch_bench.gd`: a micro-sim of ONE lane (its fence, the tower covering it, no hero, no guards)
   against a fixed wave mix per lane type. Siege: boars with the full brute count. Hare: boars with 70% of the
   night's hares. Neutral: boars with the leftover hares.
@@ -155,7 +159,8 @@ today's meaning.
 
 ### 5.1 The lane-character marker
 
-- At each tier-3 lane entrance, beside tonight's count row: a siege icon on the siege lane, a hare icon on the hare
+- At each tier-3 lane entrance, BELOW tonight's count row and off the road surface (D-292; beside the row it sat
+  under the HUD bar from the home view): a siege icon on the siege lane, a hare icon on the hare
   lane, nothing on neutral lanes. By day and night from the tier-3 dawn on. It does not hide under the HUD bar.
 - The icons differ by SHAPE, not only colour; checked in grayscale at 40% scale.
 
