@@ -37,6 +37,8 @@ extends RefCounted
 ##  - kills         monsters killed (information).
 ##  - fence_fell_s  seconds from the first spawn to the tick the fence's HP first reached 0; -1 if it never fell.
 ##  - fence_absorbed the fence's HP lost over the run (start HP minus HP at the end; overkill is not counted).
+##  - fence_stands_s how long the fence STANDS (D-294.6): fence_fell_s, or INF when the fence never fell (it stood for the whole run, whatever
+##                  that run's length; INF compares equal to INF and above every finite time). Higher is better.
 ## `timed_out` is true when MAX_TICKS passed before the night cleared (clear_s is then MAX_TICKS / 60; expected never).
 
 const SEED := 71
@@ -46,6 +48,91 @@ const INVULNERABLE_HP := 1.0e7
 const LANE := "sw"
 const TOWER_ID := "tower_sw"
 const FENCE_ID := "fence_sw"
+
+# ---- the rules, shared by the unit-suite fast subset, the identity test and the full bench ---------------------------------------
+const MARGIN := 0.15
+const SAME := 0.001
+const PRESSURE := 12
+## The five single-change configurations [tower branch, fence branch], and their names ("-" = unbranched).
+const FAST_CONFIGS: Array = [[&"", &""], [&"longbow", &""], [&"volley", &""], [&"", &"stone"], [&"", &"spike"]]
+const LANES: Array[StringName] = [&"siege", &"hare", &"neutral"]
+## FLOOR order per lane type: [measure, higher_is_better]. Diner HP lost is primary on every lane type (D-294.6 keeps it for the floor).
+const FLOOR_ORDER := {
+	&"siege": [["diner_lost", false], ["fence_hp_left", true]],
+	&"hare": [["diner_lost", false], ["hares_in_zone", false]],
+	&"neutral": [["diner_lost", false], ["clear_s", false]],
+}
+## The measures deciding a SPECIALIST rule: the first one on which the two differ (by more than SAME) decides, at the 15% margin.
+const ORDER_SIEGE_TOWER := [["diner_lost", false], ["fence_hp_left", true]]
+## D-294.6: the siege FENCE rule is decided by how long the fence stands (higher is better), diner HP lost breaking a tie.
+const ORDER_SIEGE_FENCE := [["fence_stands_s", true], ["diner_lost", false]]
+const ORDER_HARE := [["diner_lost", false], ["hares_in_zone", false], ["clear_s", false]]
+## [lane, specialist [tower, fence], reference [tower, fence], name, order, the mutation that fails the rule]
+const SPECIALISTS: Array = [
+	[&"siege", [&"longbow", &""], [&"volley", &""], "Longbow over Volley", ORDER_SIEGE_TOWER, "Longbow kind multiplier 1.0 (longbow_kind_mult_retune[brute] = 1.0)"],
+	[&"siege", [&"", &"stone"], [&"", &"spike"], "Stone over Spike (fence fall time)", ORDER_SIEGE_FENCE, "Stone wall HP halved (stone.hp = 0.5 x) or brute multiplier 1.0"],
+	[&"hare", [&"volley", &""], [&"longbow", &""], "Volley over Longbow", ORDER_HARE, "Volley damage cut to 5 (volley.damage = 5.0)"],
+	[&"hare", [&"", &"spike"], [&"", &"stone"], "Spike over Stone", ORDER_HARE, "Spike pass damage 10 (spike_pass_damage_retune = 10.0)"],
+]
+
+static func cfg_name(cfg: Array) -> String:
+	return "%s/%s" % [cfg[0] if cfg[0] != &"" else &"-", cfg[1] if cfg[1] != &"" else &"-"]
+
+## Equal within SAME; two infinities (a fence that never fell in both runs) are equal.
+static func same(a: float, b: float) -> bool:
+	if is_inf(a) or is_inf(b):
+		return is_inf(a) and is_inf(b) and signf(a) == signf(b)
+	return absf(a - b) <= SAME
+
+## Is `a` no worse than `b` on this lane type's floor order? {ok, why}.
+static func no_worse(a: Dictionary, b: Dictionary, lane: StringName) -> Dictionary:
+	for m in FLOOR_ORDER[lane]:
+		var name: String = m[0]
+		var higher: bool = m[1]
+		if same(float(a[name]), float(b[name])):
+			continue
+		var better: bool = float(a[name]) > float(b[name]) if higher else float(a[name]) < float(b[name])
+		return {"ok": better, "why": "%s %s vs %s" % [name, snappedf(float(a[name]), 0.01), snappedf(float(b[name]), 0.01)]}
+	return {"ok": true, "why": "tied on every floor measure"}
+
+## Does the specialist beat the reference by MARGIN on the first measure of `order` that separates them?
+## {ok, measure, a, b, bound, why}. Lower-is-better: a <= 0.85 b. Higher-is-better: a >= 1.15 b (INF if b is INF; a reference of 0 is beaten by any positive a).
+## If no measure separates them, ok is false.
+static func beats_by_margin(spec: Dictionary, ref: Dictionary, order: Array) -> Dictionary:
+	for m in order:
+		var name: String = m[0]
+		var higher: bool = m[1]
+		var a := float(spec[name])
+		var b := float(ref[name])
+		if same(a, b):
+			continue
+		var need := (1.0 + MARGIN) * b if higher else (1.0 - MARGIN) * b
+		var ok: bool = a >= need if higher else a <= need
+		return {"ok": ok, "measure": name, "a": a, "b": b, "bound": need,
+			"why": "first separating measure %s: specialist %.2f vs reference %.2f (needs %s %.2f)" % [name, a, b, ">=" if higher else "<=", need]}
+	return {"ok": false, "measure": "none", "a": 0.0, "b": 0.0, "bound": 0.0, "why": "no measure separates the two"}
+
+## The FAST subset's results (flag ON, pressure 12, the LAST wave of each mix only, the five single-change configurations on all
+## three lane types: 15 runs), computed once per process and cached: lane -> cfg_name -> run result. The identity test reuses it.
+static var _fast := {}
+
+## The cached results, for synchronous code after `await fast_results()` has run (empty before).
+static func fast_cached() -> Dictionary:
+	return _fast
+
+static func fast_results() -> Dictionary:
+	if not _fast.is_empty():
+		return _fast
+	Balance.reset()
+	Balance.data.tiers.retune_enabled = true
+	var out := {}
+	for lane in LANES:
+		out[lane] = {}
+		for cfg in FAST_CONFIGS:
+			out[lane][cfg_name(cfg)] = await run(lane, cfg[0], cfg[1], PRESSURE, {"last_wave_only": true})
+	Balance.reset()
+	_fast = out
+	return _fast
 
 ## The three waves of the lane type at `pressure`, from WaveMath / TierEffects, with the tier-3 hare share.
 ## Per wave: {boars, hares, brutes, hp_mult}.
@@ -178,6 +265,7 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 		"ticks": ticks, "kills": kills[0], "timed_out": end_tick < 0,
 		"fence_fell_s": float(fence_fell_tick - first_spawn_tick) / 60.0 if fence_fell_tick >= 0 else -1.0,
 		"fence_absorbed": fence_start - float(GameState.buildings[FENCE_ID].hp),
+		"fence_stands_s": float(fence_fell_tick - first_spawn_tick) / 60.0 if fence_fell_tick >= 0 else INF,
 	}
 	EventBus.diner_damaged.disconnect(on_hit)
 	EventBus.enemy_killed.disconnect(on_kill)

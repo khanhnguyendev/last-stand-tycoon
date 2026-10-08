@@ -8,63 +8,49 @@ extends GutTest
 ## type's first tie-breaker: siege = fence HP left (higher is better), hare = hares reaching the attack zone (fewer), neutral = time to
 ## clear (shorter).
 ##
-## SPECIALIST (D-288.2): on its own lane type the specialist beats the OTHER branch of the same building (the other building unbranched)
-## by at least 15% on the FIRST measure, in the lane type's order, on which the two differ (by more than 0.001). Orders: siege = diner HP
-## lost, then fence HP left; hare = diner HP lost, then hares in the zone, then time to clear.
+## SPECIALIST (D-288.2, refined by D-294.6): on its own lane type the specialist beats the OTHER branch of the same building (the other
+## building unbranched) by at least 15% on the FIRST measure, in the rule's order, on which the two differ (by more than 0.001). Orders (all
+## in tests/support/branch_bench.gd, shared with the unit suite's fast subset): siege TOWER = diner HP lost, then fence HP left; siege FENCE
+## (Stone over Spike) = how long the fence STANDS (fence_fell_s; a fence that never falls counts as INF, standing for the whole run), then
+## diner HP lost; hare = diner HP lost, then hares in the zone, then time to clear.
 ##   "15% better": lower-is-better measures (diner HP lost, hares in the zone, time to clear): specialist <= 0.85 x reference.
-##   Higher-is-better (fence HP left): specialist >= 1.15 x reference.
+##   Higher-is-better (fence HP left, fence standing time): specialist >= 1.15 x reference (Stone's time >= 1.15 x Spike's).
 ##   Reference 0: lower-is-better, the two would be equal unless the specialist is worse, so it is never the deciding case and a non-zero
 ##   specialist fails; higher-is-better, any positive specialist value beats a reference of 0 (1.15 x 0 = 0).
 ##   If NO measure of the order separates the two, the assertion FAILS (the specialist is not clearly better on its own lane type).
 ## Own lane types: Longbow over Volley and Stone over Spike on siege; Volley over Longbow and Spike over Stone on hare.
 ##
-## IDENTITY (spec 4.3, restated on these measures): Longbow loses the least diner HP of the three tower states on siege, Volley on hare;
-## Stone keeps the most fence HP against the siege mix; Spike lets the fewest hares reach the zone on the hare mix; unbranched is never
+## IDENTITY (spec 4.3, restated on these measures, D-294.6): Longbow loses the least diner HP of the three tower states on siege, Volley on hare;
+## Stone wall's fence stands longest against the brutes (the longest fence_fell_s of unbranched / Stone / Spike on siege, strictly); Spike lets the fewest hares reach the zone on the hare mix; unbranched is never
 ## best (some branch of each kind is strictly better on the primary measure) on every lane type.
 ##
 ## Run at pressure 12 and at the final cap (skipped with a note while tier_cap[3] is 12), flag ON; the flag-OFF rows of the single-branch
 ## configurations are printed and the siege and hare ones pinned as literals (the "before" numbers of the retune).
+## The FLOOR keeps diner HP lost as primary on every lane type (D-294.6). The rule table (rule, the two numbers, the bound, PASS) is printed at the end.
 ## Results are cached per configuration inside this file; the TICKS of a test therefore include the runs it was the first to need.
 
-const LANES: Array[StringName] = [&"siege", &"hare", &"neutral"]
+const LANES: Array[StringName] = BranchBench.LANES
 ## The nine configurations of the matrix: [tower branch, fence branch].
 const CONFIGS: Array = [
 	[&"", &""], [&"longbow", &""], [&"volley", &""], [&"", &"stone"], [&"", &"spike"],
 	[&"longbow", &"stone"], [&"longbow", &"spike"], [&"volley", &"stone"], [&"volley", &"spike"],
 ]
 const SINGLES: Array = [[&"longbow", &""], [&"volley", &""], [&"", &"stone"], [&"", &"spike"]]
-## [measure, higher_is_better]
-const FLOOR_ORDER := {
-	&"siege": [["diner_lost", false], ["fence_hp_left", true]],
-	&"hare": [["diner_lost", false], ["hares_in_zone", false]],
-	&"neutral": [["diner_lost", false], ["clear_s", false]],
-}
-const SPECIALIST_ORDER := {
-	&"siege": [["diner_lost", false], ["fence_hp_left", true]],
-	&"hare": [["diner_lost", false], ["hares_in_zone", false], ["clear_s", false]],
-}
-## [specialist [tower, fence], reference [tower, fence], what changed, the mutation that fails the assertion]
-const SPECIALISTS := {
-	&"siege": [
-		[[&"longbow", &""], [&"volley", &""], "Longbow over Volley", "Longbow kind multiplier 1.0 (longbow_kind_mult_retune[brute] = 1.0)"],
-		[[&"", &"stone"], [&"", &"spike"], "Stone over Spike", "Stone's brute damage multiplier 1.0 (stone.damage_taken_mult_by_kind[brute] = 1.0)"],
-	],
-	&"hare": [
-		[[&"volley", &""], [&"longbow", &""], "Volley over Longbow", "Volley damage cut to 5 (volley.damage = 5.0)"],
-		[[&"", &"spike"], [&"", &"stone"], "Spike over Stone", "Spike pass damage 10 (spike_pass_damage_retune = 10.0)"],
-	],
-}
-const MARGIN := 0.15
-const SAME := 0.001
-const PRESSURE := 12
+const MARGIN := BranchBench.MARGIN
+const SAME := BranchBench.SAME
+const PRESSURE := BranchBench.PRESSURE
 
 var _cache := {}
 var _t0 := 0
+var _rows: Array = []
 
 func before_all() -> void:
 	_t0 = Time.get_ticks_msec()
 
 func after_all() -> void:
+	gut.p("FULL RULE TABLE: rule | the two numbers | bound | verdict")
+	for r in _rows:
+		gut.p("  %-58s %-26s vs %-14s %-16s %s" % [r[0], r[1], r[2], r[3], "PASS" if r[4] else "FAIL"])
 	gut.p("BRANCH BENCH FULL FILE WALL TIME %.1f s, %d bench runs" % [(Time.get_ticks_msec() - _t0) / 1000.0, _cache.size()])
 
 func before_each() -> void:
@@ -85,10 +71,13 @@ func _run(flag: bool, lane: StringName, tb: StringName, fb: StringName, pressure
 	return _cache[key]
 
 func _cfg_name(cfg: Array) -> String:
-	return "%s/%s" % [cfg[0] if cfg[0] != &"" else &"-", cfg[1] if cfg[1] != &"" else &"-"]
+	return BranchBench.cfg_name(cfg)
+
+func _row(rule: String, a: String, b: String, bound: String, ok: bool) -> void:
+	_rows.append([rule, a, b, bound, ok])
 
 func _fmt(r: Dictionary) -> String:
-	return "lost %8.1f  fence %6.1f  hares %2d  clear %7.2f s  (%d ticks, %d kills)" % [r.diner_lost, r.fence_hp_left, r.hares_in_zone, r.clear_s, r.ticks, r.kills]
+	return "lost %8.1f  fence %6.1f  stands %7.2f s  hares %2d  clear %7.2f s  (%d ticks, %d kills)" % [r.diner_lost, r.fence_hp_left, r.fence_stands_s, r.hares_in_zone, r.clear_s, r.ticks, r.kills]
 
 func _print_matrix(title: String, flag: bool, pressure: int, configs: Array) -> void:
 	gut.p("MATRIX %s (flag %s, pressure %d); columns: tower/fence branch" % [title, "ON" if flag else "OFF", pressure])
@@ -97,51 +86,26 @@ func _print_matrix(title: String, flag: bool, pressure: int, configs: Array) -> 
 			var r: Dictionary = await _run(flag, lane, cfg[0], cfg[1], pressure)
 			gut.p("  %-8s %-18s %s" % [lane, _cfg_name(cfg), _fmt(r)])
 
-func _same(a: float, b: float) -> bool:
-	return absf(a - b) <= SAME
-
-## Is `a` no worse than `b` for this lane type's floor order? Returns {ok, why}.
-func _no_worse(a: Dictionary, b: Dictionary, lane: StringName) -> Dictionary:
-	for m in FLOOR_ORDER[lane]:
-		var name: String = m[0]
-		var higher: bool = m[1]
-		if _same(float(a[name]), float(b[name])):
-			continue
-		var better: bool = float(a[name]) > float(b[name]) if higher else float(a[name]) < float(b[name])
-		return {"ok": better, "why": "%s %s vs %s" % [name, snappedf(float(a[name]), 0.01), snappedf(float(b[name]), 0.01)]}
-	return {"ok": true, "why": "tied on every floor measure"}
-
-## Does the specialist beat the reference by MARGIN on the first measure that separates them? Returns {ok, why}.
-func _beats_by_margin(spec: Dictionary, ref: Dictionary, lane: StringName) -> Dictionary:
-	for m in SPECIALIST_ORDER[lane]:
-		var name: String = m[0]
-		var higher: bool = m[1]
-		var a := float(spec[name])
-		var b := float(ref[name])
-		if _same(a, b):
-			continue
-		var need := (1.0 + MARGIN) * b if higher else (1.0 - MARGIN) * b
-		var ok: bool = a >= need if higher else a <= need
-		return {"ok": ok, "why": "first separating measure %s: specialist %.2f vs reference %.2f (needs %s %.2f)" % [name, a, b, ">=" if higher else "<=", need]}
-	return {"ok": false, "why": "no measure separates the two (specialist %s | reference %s)" % [_fmt(spec), _fmt(ref)]}
-
 func _check_floor(pressure: int) -> void:
 	for lane in LANES:
 		var base: Dictionary = await _run(true, lane, &"", &"", pressure)
 		for cfg in SINGLES:
 			var r: Dictionary = await _run(true, lane, cfg[0], cfg[1], pressure)
-			var v := _no_worse(r, base, lane)
+			var v := BranchBench.no_worse(r, base, lane)
+			_row("FLOOR p%d %s %s" % [pressure, lane, _cfg_name(cfg)], "lost %.1f" % r.diner_lost, "%.1f" % base.diner_lost, "<= unbranched", v.ok)
 			assert_true(v.ok, "FLOOR p%d %s lane, %s must be no worse than unbranched: %s | unbranched %s | branch %s | fails when: Longbow damage cut to 30, Spike hp cut to 100, Volley damage cut to 2" % [pressure, lane, _cfg_name(cfg), v.why, _fmt(base), _fmt(r)])
 
 func _check_specialists(pressure: int) -> void:
-	for lane in SPECIALISTS:
-		for row in SPECIALISTS[lane]:
-			var s: Array = row[0]
-			var f: Array = row[1]
-			var spec: Dictionary = await _run(true, lane, s[0], s[1], pressure)
-			var ref: Dictionary = await _run(true, lane, f[0], f[1], pressure)
-			var v := _beats_by_margin(spec, ref, lane)
-			assert_true(v.ok, "SPECIALIST p%d %s lane, %s by 15%%: %s | fails when: %s" % [pressure, lane, row[2], v.why, row[3]])
+	for row in BranchBench.SPECIALISTS:
+		var lane: StringName = row[0]
+		var s: Array = row[1]
+		var f: Array = row[2]
+		var spec: Dictionary = await _run(true, lane, s[0], s[1], pressure)
+		var ref: Dictionary = await _run(true, lane, f[0], f[1], pressure)
+		var v := BranchBench.beats_by_margin(spec, ref, row[4])
+		var upper: bool = v.measure == "fence_stands_s" or v.measure == "fence_hp_left"
+		_row("SPECIALIST p%d %s: %s" % [pressure, lane, row[3]], "%s %.2f" % [v.measure, v.a], "%.2f" % v.b, "%s %.2f" % [">=" if upper else "<=", v.bound], v.ok)
+		assert_true(v.ok, "SPECIALIST p%d %s lane, %s by 15%%: %s | spec %s | ref %s | fails when: %s" % [pressure, lane, row[3], v.why, _fmt(spec), _fmt(ref), row[5]])
 
 func _check_identity(pressure: int) -> void:
 	var siege := {}
@@ -150,17 +114,24 @@ func _check_identity(pressure: int) -> void:
 		siege[_cfg_name(cfg)] = await _run(true, &"siege", cfg[0], cfg[1], pressure)
 		hare[_cfg_name(cfg)] = await _run(true, &"hare", cfg[0], cfg[1], pressure)
 	var lb: float = siege["longbow/-"].diner_lost
+	_row("IDENTITY p%d siege: Longbow best tower state" % pressure, "Longbow %.1f" % lb, "base %.1f / Volley %.1f" % [siege["-/-"].diner_lost, siege["volley/-"].diner_lost], "strictly least", lb < siege["-/-"].diner_lost - SAME and lb < siege["volley/-"].diner_lost - SAME)
 	assert_true(lb < siege["-/-"].diner_lost - SAME and lb < siege["volley/-"].diner_lost - SAME, "IDENTITY p%d siege: Longbow %.1f loses least of unbranched %.1f / Volley %.1f | fails when: Longbow kind multiplier 1.0" % [pressure, lb, siege["-/-"].diner_lost, siege["volley/-"].diner_lost])
 	var vy: float = hare["volley/-"].diner_lost
+	_row("IDENTITY p%d hare: Volley best tower state" % pressure, "Volley %.1f" % vy, "base %.1f / Longbow %.1f" % [hare["-/-"].diner_lost, hare["longbow/-"].diner_lost], "strictly least", vy < hare["-/-"].diner_lost - SAME and vy < hare["longbow/-"].diner_lost - SAME)
 	assert_true(vy < hare["-/-"].diner_lost - SAME and vy < hare["longbow/-"].diner_lost - SAME, "IDENTITY p%d hare: Volley %.1f loses least of unbranched %.1f / Longbow %.1f | fails when: Volley damage cut to 5" % [pressure, vy, hare["-/-"].diner_lost, hare["longbow/-"].diner_lost])
-	var st: float = siege["-/stone"].fence_hp_left
-	assert_true(st > siege["-/-"].fence_hp_left + SAME and st > siege["-/spike"].fence_hp_left + SAME, "IDENTITY p%d siege: Stone keeps the most fence HP (%.1f vs unbranched %.1f, Spike %.1f) | fails when: Stone brute multiplier 1.0" % [pressure, st, siege["-/-"].fence_hp_left, siege["-/spike"].fence_hp_left])
+	var st: float = siege["-/stone"].fence_stands_s
+	var st_ok: bool = st > siege["-/-"].fence_stands_s and st > siege["-/spike"].fence_stands_s
+	_row("IDENTITY p%d siege: Stone's fence stands longest" % pressure, "Stone %.2f s" % st, "base %.2f / Spike %.2f" % [siege["-/-"].fence_stands_s, siege["-/spike"].fence_stands_s], "strictly longest", st_ok)
+	assert_true(st_ok, "IDENTITY p%d siege: Stone wall's fence stands longest (%s s vs unbranched %s s, Spike %s s) | fails when: Stone wall HP halved" % [pressure, st, siege["-/-"].fence_stands_s, siege["-/spike"].fence_stands_s])
 	var sp: int = hare["-/spike"].hares_in_zone
+	_row("IDENTITY p%d hare: Spike fewest hares in the zone" % pressure, "Spike %d" % sp, "base %d / Stone %d" % [hare["-/-"].hares_in_zone, hare["-/stone"].hares_in_zone], "strictly fewest", sp < hare["-/-"].hares_in_zone and sp < hare["-/stone"].hares_in_zone)
 	assert_true(sp < hare["-/-"].hares_in_zone and sp < hare["-/stone"].hares_in_zone, "IDENTITY p%d hare: Spike lets the fewest hares reach the zone (%d vs unbranched %d, Stone %d) | fails when: Spike pass damage 10" % [pressure, sp, hare["-/-"].hares_in_zone, hare["-/stone"].hares_in_zone])
 	for lane in LANES:
 		var base: Dictionary = await _run(true, lane, &"", &"", pressure)
 		var towers := minf((await _run(true, lane, &"longbow", &"", pressure)).diner_lost, (await _run(true, lane, &"volley", &"", pressure)).diner_lost)
 		var fences := minf((await _run(true, lane, &"", &"stone", pressure)).diner_lost, (await _run(true, lane, &"", &"spike", pressure)).diner_lost)
+		_row("IDENTITY p%d %s: unbranched tower never best" % [pressure, lane], "best branch %.1f" % towers, "base %.1f" % base.diner_lost, "strictly less", towers < base.diner_lost - SAME)
+		_row("IDENTITY p%d %s: unbranched fence never best" % [pressure, lane], "best branch %.1f" % fences, "base %.1f" % base.diner_lost, "strictly less", fences < base.diner_lost - SAME)
 		assert_lt(towers, base.diner_lost - SAME, "IDENTITY p%d %s: the unbranched tower is never best (best branch %.1f vs %.1f)" % [pressure, lane, towers, base.diner_lost])
 		assert_lt(fences, base.diner_lost - SAME, "IDENTITY p%d %s: the unbranched fence is never best (best branch %.1f vs %.1f)" % [pressure, lane, fences, base.diner_lost])
 
