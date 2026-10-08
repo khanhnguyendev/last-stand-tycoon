@@ -352,3 +352,70 @@ func test_only_the_planner_draws_from_the_lane_plan_stream() -> void:
 	var effects := FileAccess.get_file_as_string("res://core/tier_effects.gd")
 	assert_eq(planner.count("Rng.stream("), 1)
 	assert_eq(effects.count("Rng.stream("), 0)
+
+# --- E6 task 4: extra groups count in composition and threat ------------------------------------------------------------
+
+## The unapplied plan and the plan LaneCharacter.apply makes of it (siege north, hare sw): of the 3 hares, T = roundi(0.7 x 3) = 2
+## move to a third group on sw. Both are literals; the apply check below ties them.
+func _unapplied() -> Array:
+	return [{"main": "west", "side": "north", "main_count": 6, "side_count": 3, "hp_mult": 2.0, "fast_main": 3, "fast_side": 0,
+		"brute_main": 0, "brute_side": 2, "boss": false}]
+
+func _applied() -> Array:
+	return [{"main": "west", "side": "north", "main_count": 4, "side_count": 3, "hp_mult": 2.0, "fast_main": 1, "fast_side": 0,
+		"brute_main": 0, "brute_side": 2, "boss": false, "extra": [{"lane": "sw", "count": 2, "fast": 2}]}]
+
+func test_the_literal_applied_plan_is_what_apply_makes() -> void:
+	assert_eq(LaneCharacter.apply(_unapplied(), {"siege": "north", "hare": "sw"}, Balance.data.tiers), _applied())
+
+## Mutation: composition ignores wave.extra (sw would be all zeros, west would keep 3 hares less).
+func test_composition_counts_the_extra_group() -> void:
+	var comp := LanePlanner.composition_by_lane(_applied(), 3)
+	assert_eq(comp, {
+		"west": {"boar": 3, "hare": 1, "brute": 0, "boss": 0},
+		"north": {"boar": 3, "hare": 0, "brute": 2, "boss": 0},
+		"east": {"boar": 0, "hare": 0, "brute": 0, "boss": 0},
+		"sw": {"boar": 0, "hare": 2, "brute": 0, "boss": 0},
+	})
+	var want_total := {"boar": 6, "hare": 3, "brute": 2}
+	for kind in want_total:
+		var sum_after := 0
+		var sum_before := 0
+		for lane in comp:
+			sum_after += int(comp[lane][kind])
+		for lane in LanePlanner.composition_by_lane(_unapplied(), 3):
+			sum_before += int(LanePlanner.composition_by_lane(_unapplied(), 3)[lane][kind])
+		assert_eq(sum_after, want_total[kind], "applied %s" % kind)
+		assert_eq(sum_before, want_total[kind], "unapplied %s" % kind)
+
+## Mutation: threat ignores wave.extra (sw stays 0 and the plan-wide total drops by 120).
+func test_threat_counts_the_extra_group() -> void:
+	var bhp: float = Balance.data.monsters.stats(&"brute").hp
+	var t := LanePlanner.threat_by_lane(_applied(), 30.0, 3)
+	assert_almost_eq(float(t.sw), 2 * 60.0, 0.001)
+	assert_almost_eq(float(t.west), 4 * 60.0, 0.001)
+	assert_almost_eq(float(t.north), 3 * 60.0 + 2 * bhp * 2.0, 0.001)
+	assert_almost_eq(float(t.east), 0.0, 0.001)
+	var before := LanePlanner.threat_by_lane(_unapplied(), 30.0, 3)
+	var sum_b := 0.0
+	var sum_a := 0.0
+	for lane in t:
+		sum_a += float(t[lane])
+		sum_b += float(before[lane])
+	assert_almost_eq(sum_a, sum_b, 0.001, "moving hares between lanes keeps the plan's total threat")
+
+## apply and with_boss commute (the main lane never changes), so the boss wave stays last on its main lane.
+func test_with_boss_and_apply_commute() -> void:
+	var c := {"siege": "north", "hare": "sw"}
+	var tb := Balance.data.tiers
+	for s in [1, 2, 3, 4]:
+		var p := LanePlanner.plan(s, 20, wb, 3, 17, tb)
+		assert_eq(LaneCharacter.apply(LanePlanner.with_boss(p), c, tb), LanePlanner.with_boss(LaneCharacter.apply(p, c, tb)), "seed %d" % s)
+
+## A plan without extra: threat and composition equal what they were (the literal hand plan above is also pinned).
+func test_plans_without_extra_are_unchanged_by_the_extra_loops() -> void:
+	var p := _unapplied()
+	var with_empty := _unapplied()
+	with_empty[0]["extra"] = []
+	assert_eq(LanePlanner.composition_by_lane(p, 3), LanePlanner.composition_by_lane(with_empty, 3))
+	assert_eq(LanePlanner.threat_by_lane(p, 30.0, 3), LanePlanner.threat_by_lane(with_empty, 30.0, 3))
