@@ -86,7 +86,7 @@ static func plan_for(lane_type: StringName, pressure: int) -> Array:
 	return waves
 
 ## `overrides` (sensitivity tables only), applied in memory before the world exists and undone on return:
-## longbow_brute_mult, longbow_damage, longbow_interval, longbow_range, spike_pass, spike_thorn, stone_brute_mult, stone_hp (all floats), and
+## longbow_brute_mult, longbow_damage, longbow_interval (sets the RETUNE field: it does nothing with the flag off), longbow_range, spike_pass, spike_thorn, stone_brute_mult, stone_hp (all floats), and
 ## last_wave_only (bool: the director plays only the LAST wave of the mix; GameState.lane_plan keeps the full plan so Spike's scale is unchanged).
 ## `&""` as a branch = unbranched.
 static func run(lane_type: StringName, tower_branch: StringName, fence_branch: StringName, pressure: int, overrides := {}) -> Dictionary:
@@ -94,7 +94,7 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	var bb: BranchBalance = Balance.data.branches
 	var saved := {
 		"mult": bb.longbow_kind_mult_retune.duplicate(), "pass": bb.spike_pass_damage_retune, "thorn": bb.spike.thorn_damage,
-		"dmg": bb.longbow.damage, "int": bb.longbow.interval, "rng": bb.longbow.attack_range,
+		"dmg": bb.longbow.damage, "int": bb.longbow_interval_retune, "rng": bb.longbow.attack_range,
 		"diner": Balance.data.build.diner_max_hp, "stone_mult": bb.stone.damage_taken_mult_by_kind.duplicate(), "stone_hp": bb.stone.hp,
 	}
 	if overrides.has("longbow_brute_mult"):
@@ -102,7 +102,7 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	if overrides.has("longbow_damage"):
 		bb.longbow.damage = float(overrides.longbow_damage)
 	if overrides.has("longbow_interval"):
-		bb.longbow.interval = float(overrides.longbow_interval)
+		bb.longbow_interval_retune = float(overrides.longbow_interval)
 	if overrides.has("longbow_range"):
 		bb.longbow.attack_range = float(overrides.longbow_range)
 	if overrides.has("spike_pass"):
@@ -188,7 +188,7 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	bb.spike_pass_damage_retune = saved["pass"]
 	bb.spike.thorn_damage = saved.thorn
 	bb.longbow.damage = saved.dmg
-	bb.longbow.interval = saved["int"]
+	bb.longbow_interval_retune = saved["int"]
 	bb.longbow.attack_range = saved.rng
 	bb.stone.damage_taken_mult_by_kind = saved.stone_mult
 	bb.stone.hp = saved.stone_hp
