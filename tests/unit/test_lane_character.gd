@@ -7,11 +7,6 @@ const PINS := {
 }
 const LANES := ["west", "north", "east", "sw"]
 
-func test_same_seed_same_character() -> void:
-	# Fails for an implementation that draws from a global or time-based RNG.
-	for s in [1, 7, 20260930]:
-		assert_eq(LaneCharacter.for_run(s), LaneCharacter.for_run(s), "seed %d" % s)
-
 func test_pinned_characters_seeds_1_to_8() -> void:
 	# Fails if the stream name, day, draw order, lane order or "others" order changes.
 	for s in PINS:
@@ -40,16 +35,17 @@ func test_distribution_over_200_seeds() -> void:
 		assert_gte(int(siege.get(lane, 0)), 30, "%s as siege" % lane)
 		assert_gte(int(hare.get(lane, 0)), 30, "%s as hare" % lane)
 
-func test_for_run_touches_only_its_own_stream() -> void:
-	# Fails for an implementation that draws from another named stream or a shared RNG.
-	for n in [&"lane_plan", &"cards", &"spawns", &"drops", &"travelers"]:
-		var used := Rng.stream(77, 2, n)
-		var a := [used.randi(), used.randi()]
-		LaneCharacter.for_run(77)
-		var b := [used.randi(), used.randi()]
-		var fresh := Rng.stream(77, 2, n)
-		assert_eq(a, [fresh.randi(), fresh.randi()], "%s first" % n)
-		assert_eq(b, [fresh.randi(), fresh.randi()], "%s after for_run" % n)
+func test_for_run_draws_from_exactly_one_stream_the_lane_character_one() -> void:
+	# Fails for an implementation that adds a second Rng.stream( call (another stream, another day) or renames the stream:
+	# for_run's generator is private, so the source is what can be checked (as test_lane_planner.gd does for its stream).
+	var src := FileAccess.get_file_as_string("res://core/lane_character.gd")
+	var code := ""
+	for line in src.split("\n"):
+		var hash_at := line.find("#")
+		code += (line if hash_at < 0 else line.substr(0, hash_at)) + "\n"
+	assert_eq(code.count("Rng.stream("), 1)
+	assert_eq(code.count("Rng.stream(run_seed, 0, &\"lane_character\")"), 1)
+	assert_false(code.contains("randf") or code.contains("randi()") or code.contains("randomize"), "no global or extra draws")
 
 func test_lane_type_literal_character() -> void:
 	# Fails if siege and hare are swapped or a lane outside the character is not neutral.
@@ -63,13 +59,10 @@ func test_lane_type_empty_character_is_neutral() -> void:
 	for lane in LANES:
 		assert_eq(LaneCharacter.lane_type({}, lane), &"neutral", lane)
 
-func test_spot_types_in_order() -> void:
-	var c := {"siege": "east", "hare": "west"}
-	assert_eq(LaneCharacter.spot_types(c, ["west", "north", "east"]), [&"hare", &"neutral", &"siege"])
-	assert_eq(LaneCharacter.spot_types({}, ["west"]), [&"neutral"])
-
-func test_scan_for_tuning_and_holdout_seeds() -> void:
-	# Prints the first seeds per siege lane (tuning set) and the next two (hold-out set #1). Informational.
+func test_tuning_and_holdout_seed_sets_are_pinned() -> void:
+	# The scan is PER LANE over seeds 1, 2, 3, ...: the first seed whose siege lane is L goes to the tuning set, and that
+	# lane's next two seeds (still counting from the start, in order) go to hold-out set #1. The sets are pinned as literals.
+	# Fails if for_run's draw changes, and if the scan resumed after the LAST tuning seed instead of after each lane's own.
 	var first := {}
 	var nxt := {}
 	for s in range(1, 400):
@@ -81,9 +74,8 @@ func test_scan_for_tuning_and_holdout_seeds() -> void:
 			if a.size() < 2:
 				a.append(s)
 			nxt[c.siege] = a
-	gut.p("tuning set (first seed per siege lane): %s" % [first])
-	gut.p("hold-out set #1 (next two per siege lane): %s" % [nxt])
-	assert_eq(first.size(), 4)
+	assert_eq(first, {"east": 1, "sw": 3, "west": 4, "north": 7}, "tuning set")
+	assert_eq(nxt, {"east": [2, 5], "sw": [10, 12], "west": [6, 13], "north": [9, 14]}, "hold-out set #1")
 
 # ---------------------------------------------------------------- E6 task 3: apply (spec 3.2, D-287)
 

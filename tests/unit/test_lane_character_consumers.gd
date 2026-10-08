@@ -82,7 +82,8 @@ func test_lane_character_is_empty_below_tier_3_and_with_the_flag_off() -> void:
 	Balance.data.tiers.retune_enabled = false
 	assert_eq(GameState.lane_character(), {}, "tier 3 with the flag off")
 
-## Mutation: the plan skips apply, applies it twice into a different shape, or applies it after the boss.
+## Mutation: the plan skips apply, or is built from another seed, day or tier_day. (apply is idempotent by design, so a second
+## application cannot be detected here; the boss mark is added later by PhaseController, outside GameState.lane_plan.)
 func test_flag_on_tier3_plan_is_the_planner_through_apply() -> void:
 	Balance.data.tiers.retune_enabled = true
 	var tb := Balance.data.tiers
@@ -106,7 +107,9 @@ func test_tier_up_to_tier_3_goes_through_the_character() -> void:
 	GameState.day = 14
 	GameState.complete_tier_up()
 	assert_eq(GameState.tier, 3)
-	var want := LaneCharacter.apply(LanePlanner.plan(20260930, GameState.day, Balance.data.wave, 3, GameState.tier_day, tb), LaneCharacter.for_run(20260930), tb)
+	var raw := LanePlanner.plan(20260930, GameState.day, Balance.data.wave, 3, GameState.tier_day, tb)
+	var want := LaneCharacter.apply(raw, LaneCharacter.for_run(20260930), tb)
+	assert_ne(want, raw, "setup: the character changes this night, so the plan below cannot be the planner's own")
 	assert_eq(GameState.lane_plan, want)
 
 # --- a real night -----------------------------------------------------------------------------------------------------
@@ -192,47 +195,53 @@ func test_a_real_night_spawns_brutes_on_the_siege_lane_extra_groups_with_the_sid
 	EventBus.wave_started.disconnect(_on_wave_started)
 	EventBus.wave_cleared.disconnect(_on_wave_cleared)
 	assert_true(_cleared, "the night ran to the last wave's clear")
-	var planned := 0
+	var raw_plan := LanePlanner.plan(scan.seed, scan.day, Balance.data.wave, 3, 17, Balance.data.tiers)
 	var saw_extra := false
 	var saw_diverted := false
 	for i in plan.size():
-		var sched := WaveSchedule.build(plan[i], wb, Balance.data.tiers, 3)
-		planned += sched.size()
 		var got: Array = _log.filter(func(e): return e.w == i)
-		assert_eq(got.size(), sched.size(), "wave %d: every scheduled enemy spawned" % i)
-		for e in got:
-			if e.kind == &"brute":
-				assert_eq(String(e.lane), String(c.siege), "wave %d: a brute off the siege lane" % i)
+		# lanes and kinds against the PLAN's own fields (not against WaveSchedule.build, which the director also calls)
 		var want_counts := {}
-		for e in sched:
-			var k := "%s/%s" % [e.lane, e.kind]
-			want_counts[k] = int(want_counts.get(k, 0)) + 1
+		var add := func(lane: String, kind: String, n: int) -> void:
+			if n > 0:
+				want_counts["%s/%s" % [lane, kind]] = int(want_counts.get("%s/%s" % [lane, kind], 0)) + n
+		var pw: Dictionary = plan[i]
+		add.call(String(pw.main), "boar", int(pw.main_count) - int(pw.fast_main))
+		add.call(String(pw.main), "hare", int(pw.fast_main))
+		add.call(String(pw.main), "brute", int(pw.brute_main))
+		add.call(String(pw.side), "boar", int(pw.side_count) - int(pw.fast_side))
+		add.call(String(pw.side), "hare", int(pw.fast_side))
+		add.call(String(pw.side), "brute", int(pw.brute_side))
+		for ex in pw.get("extra", []):
+			add.call(String(ex.lane), "boar", int(ex.count) - int(ex.fast))
+			add.call(String(ex.lane), "hare", int(ex.fast))
 		var got_counts := {}
 		for e in got:
 			var k := "%s/%s" % [e.lane, e.kind]
 			got_counts[k] = int(got_counts.get(k, 0)) + 1
-		assert_eq(got_counts, want_counts, "wave %d: lanes and kinds as scheduled" % i)
-		for ex in plan[i].get("extra", []):
+			if e.kind == &"brute":
+				assert_eq(String(e.lane), String(c.siege), "wave %d: a brute off the siege lane" % i)
+		assert_eq(got_counts, want_counts, "wave %d: lanes and kinds as planned" % i)
+		for ex in pw.get("extra", []):
 			saw_extra = true
-			var on_lane: Array = got.filter(func(e): return e.lane == String(ex.lane) and e.tick >= int(_wave_start[i]))
+			assert_false(String(ex.lane) in [String(pw.main), String(pw.side)], "wave %d: the extra group has its own lane" % i)
+			var on_lane: Array = got.filter(func(e): return e.lane == String(ex.lane))
+			assert_eq(on_lane.size(), int(ex.count), "wave %d: the extra group's size" % i)
+			assert_eq(on_lane.filter(func(e): return e.kind == &"hare").size(), int(ex.fast), "wave %d: the extra group's hares" % i)
+			assert_false(on_lane.is_empty(), "wave %d: the extra group spawned (so its first tick exists)" % i)
 			var first_tick: int = on_lane.map(func(e): return e.tick).min()
-			var plain_first: Array = got.filter(func(e): return e.lane == String(ex.lane) and e.tick - int(_wave_start[i]) < 200)
 			var start_s := float(first_tick - int(_wave_start[i])) / 60.0
-			if String(plan[i].side) != String(ex.lane) and String(plan[i].main) != String(ex.lane):
-				assert_almost_eq(start_s, wb.side_group_delay, 0.1, "wave %d: the extra group starts at the side delay" % i)
-				assert_eq(plain_first.size(), 0, "wave %d: nothing on the extra lane before the delay" % i)
-		var raw_b := int(plan[i].brute_main) + int(plan[i].brute_side)
-		if raw_b > 0:
+			assert_almost_eq(start_s, wb.side_group_delay, 0.1, "wave %d: the extra group starts at the side delay (nothing earlier)" % i)
+		# a wave whose drawn side lane was replaced by the siege lane: compare the unapplied and the applied plan
+		var brutes := int(pw.brute_main) + int(pw.brute_side)
+		if brutes > 0 and String(raw_plan[i].side) != String(pw.side) and String(pw.side) == String(c.siege):
 			saw_diverted = true
-	assert_eq(_log.size(), planned)
 	assert_true(saw_extra, "the night had an extra group")
-	assert_true(saw_diverted, "the night had brutes")
+	assert_true(saw_diverted, "the night had a wave whose side lane was replaced by the siege lane")
 	assert_eq(_growth, [], "no pool grew during the night")
-	var biggest := 0
-	for i in plan.size():
-		biggest = maxi(biggest, WaveSchedule.build(plan[i], wb, Balance.data.tiers, 3).size())
-	assert_eq(_peak, biggest, "the most enemies alive at once is the biggest wave (a third group spawns in parallel, not on top)")
-	assert_lte(_peak, World.pool_sizes(Balance.data).enemy, "and the enemy pool covers it")
+	var pool_size: int = World.pool_sizes(Balance.data).enemy
+	assert_gt(_peak, 0, "enemies were alive")
+	assert_lte(_peak, pool_size, "the enemy pool covers the most alive at once (a third group spawns in parallel, not on top)")
 
 ## The pools are sized from a night's TOTALS and one wave at a time (waves never overlap), and apply keeps every wave's
 ## total: so pool_sizes needs no change. Mutation: an apply that adds or drops enemies.

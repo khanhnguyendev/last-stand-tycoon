@@ -4,6 +4,9 @@ extends GutTest
 var DO = load("res://ui/debug/debug_overlay.gd")
 
 const PROD_DIRS := ["res://autoload", "res://core", "res://components", "res://actors", "res://world", "res://ui", "res://art", "res://balance"]
+## Every other top-level directory of res:// is named here as non-production (third-party, docs, tests, tools, export shell).
+## A new top-level directory is in neither list, so test_prod_dirs_are_every_production_directory fails until it is sorted.
+const NON_PROD_DIRS := ["res://addons", "res://assets", "res://docs", "res://export", "res://tests", "res://tools"]
 const DECL_FILE := "res://balance/tier_balance.gd"
 const DECL_LINE := "@export var retune_enabled := false"
 
@@ -38,6 +41,33 @@ func test_debug_helper_true_only_for_retune_1() -> void:
 	assert_false(DO.retune_arg(UrlFlags.parse("?retune=")))
 	assert_false(DO.retune_arg(UrlFlags.parse("?autoplay=1")))
 	assert_false(DO.retune_arg({}))
+
+## What UrlFlags.parse does today: a key with no "=" gets the value "1" (the parser's convention for every flag, e.g.
+## ?autoplay or ?mute). So a bare `?retune` DOES turn the retune on; the spec's "only retune=1" holds because the parser
+## turns the bare key into "1". Pinned so a parser change that breaks this is a conscious one.
+## Mutation: parse gives a bare key "" or "true" (retune_arg false), or retune_arg stops reading the parsed value.
+func test_a_bare_retune_parses_to_1_and_turns_it_on() -> void:
+	assert_eq(UrlFlags.parse("?retune"), {"retune": "1"})
+	assert_true(DO.retune_arg(UrlFlags.parse("?retune")))
+	assert_true(DO.retune_arg(UrlFlags.parse("?autoplay=1&retune")))
+
+## Mutation: PROD_DIRS names a directory that does not exist (typo) so the scan silently covers less.
+func test_every_prod_dir_opens() -> void:
+	for d in PROD_DIRS:
+		assert_not_null(DirAccess.open(d), d)
+
+## Mutation: a new top-level production directory is added and escapes the scan.
+func test_prod_dirs_are_every_production_directory() -> void:
+	var top := DirAccess.open("res://")
+	var found: Array = []
+	for d in top.get_directories():
+		var path := "res://" + d
+		if not NON_PROD_DIRS.has(path):
+			found.append(path)
+	found.sort()
+	var want: Array = PROD_DIRS.duplicate()
+	want.sort()
+	assert_eq(found, want, "res:// top-level directories minus the named non-production set equal PROD_DIRS")
 
 ## Mutation: a test leaks the flag and Balance.reset() no longer restores it (e.g. reset keeps tiers).
 func test_reset_restores_false_after_a_test_set_it() -> void:
@@ -117,4 +147,4 @@ func test_scan_b_every_read_goes_through_the_accessor() -> void:
 			else:
 				offenders.append("%s: %s" % [path, line])
 	assert_eq(offenders, [], "only TierEffects.retune_on may read retune_enabled; offenders: %s" % str(offenders))
-	assert_gt(accessor_hits, 0, "the accessor itself reads the flag")
+	assert_eq(accessor_hits, 1, "the accessor reads the flag on exactly one line")

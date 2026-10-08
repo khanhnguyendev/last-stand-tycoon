@@ -14,6 +14,8 @@ var _rect := Rect2()
 var _owned := {}
 var _label: Label
 var _warnings: Array = []
+## E6 (D-286.4): GameState.load_warnings as of the last state_restored (a save load or a new game), shown under the pool warnings.
+var _load_warnings: Array = []
 var _scene_query := {}
 var _state_left := 0.0
 
@@ -39,6 +41,7 @@ func setup(main: Main) -> void:
 	_refresh_button()
 	get_viewport().size_changed.connect(_place_button)
 	_place_button()
+	watch_load_warnings()
 	for pool in main.find_children("*", "NodePool", true, false):
 		pool.grew.connect(func(n: int): _warnings.append("%s grew to %d" % [pool.name, n]))
 	if OS.has_feature("web"):
@@ -55,6 +58,22 @@ func setup(main: Main) -> void:
 			_label.visible = false  # ?nooverlay=1: hide the debug readout and button for recordings
 			fade_button.visible = false
 		EventBus.phase_changed.connect(_on_first_phase, CONNECT_ONE_SHOT)
+
+## Keeps `_load_warnings` equal to GameState.load_warnings after every state_restored (from_dict and new_game both emit it).
+func watch_load_warnings() -> void:
+	_on_state_restored()
+	if not EventBus.state_restored.is_connected(_on_state_restored):
+		EventBus.state_restored.connect(_on_state_restored)
+
+func _on_state_restored() -> void:
+	_load_warnings = GameState.load_warnings.duplicate()
+
+func load_warnings_shown() -> Array:
+	return _load_warnings
+
+## The overlay's warning lines: pool growth first, then the save-load warnings.
+static func warnings_text(pool_warnings: Array, load_warnings: Array) -> String:
+	return "\n".join(pool_warnings + load_warnings)
 
 ## The URL scene waits for the game's first NIGHT (Main starts it deferred) and then runs deferred, so it never
 ## re-enters PhaseController while _enter_night is still emitting phase_changed.
@@ -100,7 +119,7 @@ func _process(delta: float) -> void:
 	var wd := _main.world.wave_director
 	_label.text = "seed %d\nday %d  %s\nwave %d  alive %d\nfps %d\n%s" % [GameState.run_seed, GameState.day,
 		Phase.name_of(_main.phase_controller.phase), wd.wave_index, wd.alive_count(),
-		Engine.get_frames_per_second(), "\n".join(_warnings)]
+		Engine.get_frames_per_second(), warnings_text(_warnings, _load_warnings)]
 
 ## Web debug only (S5 Task 11): window.LST_STATE = {unlocked, muted, music_id}, once a second, for export/pw_s5_check.mjs.
 func _publish_state(delta: float) -> void:
