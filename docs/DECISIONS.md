@@ -2849,3 +2849,24 @@ Also in the follow-up:
    policy, fixed or matched, still holds the cap with zero retry nights, so a wrong choice costs margin, not the
    run (the non-punishing pillar). If both cannot hold, escalate with the data; neither is relaxed silently.
 
+**D-283 Branch retune direction (follow-up slice, brainstorm question 2; author, 2026-10-08).** Sharpen the
+specialists.
+
+1. **Kind-specific strengths, all in Balance:** Longbow gets a bonus damage multiplier against brutes (and against
+   the boss only if the tier-2 to tier-3 boss flow needs it: decided from data and logged). Stone wall keeps its
+   brute damage reduction. Spike fence gets higher pass damage on hares, still scaled with the night's HP
+   multiplier (D-272). Volley keeps its general multi-target role unless the data demands otherwise.
+2. **"Paying never makes it worse" floor** (replaces the vaguer off-lane floor). For each lane type (siege lane,
+   hare lane, neutral lane), measured by a fixed micro-sim of that lane's realistic wave mix: every branch is at
+   least as good as the unbranched level 3 on every lane type; a specialist clearly beats the other branch on its
+   own lane type. Built as a unit / micro-sim test so tuning cannot break it silently. The D-272 identity test moves
+   to these lane-type measures and keeps "unbranched is never the best at any named measure".
+3. **Readability:** pad previews and labels show the specialty in at most 3 words with the lane-character icon (for
+   example a siege icon plus "bonus vs brutes"), so the marker-to-choice mapping is visible at the moment of
+   purchase. Checked at about 40% scale.
+4. **Side effect to verify:** a Longbow on the siege lane kills brutes sooner, so fewer fences fall. The fence tax
+   (target at most 30%, D-281.3) is reported with and without that effect.
+5. **Report targets** stay as D-281 / D-282: threat-matched at least best fixed + 5 points; every policy holds the
+   cap with zero retry nights; no first tier-3 night below 25%. Then try restoring the pressure ramp (D-281.1) on
+   the tuned values.
+
