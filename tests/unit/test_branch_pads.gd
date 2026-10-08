@@ -1467,10 +1467,18 @@ func _badge_rect(b: LaneCharacterMarker, v: View) -> Rect2:
 	var c := b.icon.global_position + v.xf.basis.x * (bb.get_center().x * b.icon.scale.x) + v.xf.basis.y * (bb.get_center().y * b.icon.scale.y)
 	return v.quad(c, Vector2(bb.size.x, bb.size.y) * b.icon.scale.x)
 
-## The card's rect (View coordinates: the origin is the screen centre) for a bottom safe inset.
+## The card's rect (View coordinates: the origin is the screen centre) for a bottom safe inset. While the REAL card control shows (`main.hud.branch_card`)
+## its size and its distance from the bottom of the base view come from the control's own global rect; hidden, from the card's constants.
 func _card_rect_v(v: View, inset: float) -> Rect2:
-	var bottom := v.half_h() - inset - BranchCard.BOTTOM_GAP
-	return Rect2(-BranchCard.CARD_SIZE.x * 0.5, bottom - BranchCard.CARD_SIZE.y, BranchCard.CARD_SIZE.x, BranchCard.CARD_SIZE.y)
+	var size := BranchCard.CARD_SIZE
+	var gap := BranchCard.BOTTOM_GAP
+	var card: Control = main.hud.branch_card
+	if card.visible:
+		var r := card.get_global_rect()
+		size = r.size
+		gap = card.get_viewport().get_visible_rect().size.y - r.end.y
+	var bottom := v.half_h() - inset - gap
+	return Rect2(-size.x * 0.5, bottom - size.y, size.x, size.y)
 
 ## Every obstacle a pad's world item must clear, as [[what, rect]]: the hero's body at `hero_at`, the pips of all nine buildings at level 3
 ## (and any building MAX label that shows), the close-up sign's label, the stations' own labels (Counter, Freezer, ...), tonight's count rows
@@ -1527,16 +1535,23 @@ func _fmt_overlap(a: Rect2, b: Rect2) -> String:
 	var ov := a.intersection(b)
 	return "%.0f x %.0f px" % [ov.size.x, ov.size.y]
 
-## The ON findings of the hero standing on pad `i` of `id` at `aspect` (the hero walked in: the zone is armed): [text], empty when clean.
-func _on_findings(id: String, i: int, aspect: float, rows: Array, badges: Array) -> Array:
+## The ON findings of the hero standing on pad `i` of `id` at `hero_at` (the pad's centre when INF) at `aspect`: [text], empty when clean.
+## `armed`: the hero walked in (stage ON: the glyph and the preview shape); else he was placed there (stage UNARMED: the glyph alone, no preview).
+## Either way the world shows the glyph and NOTHING else of the pad: no cost, no name, no preview line, no warning.
+func _on_findings(id: String, i: int, aspect: float, rows: Array, badges: Array, hero_at := Vector2.INF, armed := true) -> Array:
 	var bad: Array = []
 	var p: BranchPad = _pads(id)[i]
 	var sib: BranchPad = _pads(id)[1 - i]
-	var v := View.new(_pad_pos(id, i), aspect)
-	var tag := "%s %s pad %d" % [ASPECT_NAMES[ASPECTS.find(aspect)], id, i]
-	if p.stage != BranchPad.ON:
-		bad.append("%s: the stage is %d, not ON" % [tag, p.stage])
+	if not hero_at.is_finite():
+		hero_at = _pad_pos(id, i)
+	var v := View.new(hero_at, aspect)
+	var tag := "%s %s pad %d hero at %s" % [ASPECT_NAMES[ASPECTS.find(aspect)], id, i, hero_at]
+	var want_stage := BranchPad.ON if armed else BranchPad.UNARMED
+	if p.stage != want_stage:
+		bad.append("%s: the stage is %d, not %d" % [tag, p.stage, want_stage])
 		return bad
+	if p.cost_label.visible:
+		bad.append("%s: the cost shows" % tag)
 	if sib.stage != BranchPad.SIBLING_QUIET or not _pad_items(sib, v).is_empty():
 		bad.append("%s: the sibling is not quiet" % tag)
 	var mine := _pad_items(p, v)
@@ -1546,11 +1561,14 @@ func _on_findings(id: String, i: int, aspect: float, rows: Array, badges: Array)
 	for it in mine:
 		items.append([String(it[0]).get_slice("/", 1), it[2]])
 	var pr = _preview_rect(p, v)
-	if pr != null:
+	if not armed:
+		if p.preview.visible:
+			bad.append("%s: a preview shows on an unarmed pad" % tag)
+	elif pr != null:
 		items.append(["preview", pr])
 	elif p.branch_id != &"longbow":
 		bad.append("%s: the preview shape does not show" % tag)
-	var obstacles := _on_obstacles(v, _pad_pos(id, i), rows, badges, [p, sib])
+	var obstacles := _on_obstacles(v, hero_at, rows, badges, [p, sib])
 	for it in items:
 		var r: Rect2 = it[1]
 		if not v.screen().encloses(r):
@@ -1599,99 +1617,329 @@ func _dump(title: String, lines: Array) -> void:
 	for l in lines:
 		gut.p("  " + String(l))
 
-func test_flag_on_the_stood_pad_shows_zero_overlaps_in_all_54_views() -> void:
+## The hero walks onto each of the 18 pads (armed: the card shows) and stands at its centre and at four edge points (N, E, S, W at 0.8 of the pad's
+## radius; a point inside a solid, or on another pad, is skipped, and at least three per pad must be measured): the world shows the glyph (which
+## FOLLOWS the hero) and the preview shape, and nothing of them meets the hero, the pips, the labels, the count rows, the badges, the HUD bar, the
+## card or another pad's items. Mutation: the glyph anchored to the pad's centre again fails the north edge point (it lands on his head).
+func test_flag_on_the_stood_pad_shows_zero_overlaps_at_the_centre_and_four_edge_points_in_every_view() -> void:
 	await _start_on()
 	_all_max()
 	var rows := _all_rows([_plan_boss_on("west"), _plan_boss_on("north"), _plan_boss_on("east"), _plan_boss_on("sw")])
 	var badges := _badge_nodes()
 	var findings: Array = []
 	var views := 0
+	var edge_min := 99
 	for id in MapLayout.spots_for_tier(3):
 		for i in 2:
 			await _walk_onto(id, i)
 			assert_true(main.hud.branch_card.visible, "%s pad %d: the card shows (armed), so the world may leave the words to it" % [id, i])
+			var c := _pad_pos(id, i)
 			for a in ASPECTS.size():
 				findings.append_array(_on_findings(id, i, ASPECTS[a], rows, badges))
 				views += 1
-	assert_eq(views, 54)
-	_dump("ON, 54 views", findings)
+			var edges := 0
+			for dir in [Vector2(0, -1), Vector2(1, 0), Vector2(0, 1), Vector2(-1, 0)]:
+				var pt: Vector2 = c + dir * (0.8 * MapLayout.BRANCH_PAD_RADIUS)
+				if _solid_dist(pt) <= MapLayout.HERO_RADIUS or pt.distance_to(_pad_pos(id, 1 - i)) <= MapLayout.BRANCH_PAD_RADIUS:
+					continue
+				var other_pad := false
+				for oid in MapLayout.spots_for_tier(3):
+					for k in 2:
+						other_pad = other_pad or ((oid != id or k != i) and pt.distance_to(_pad_pos(oid, k)) <= MapLayout.BRANCH_PAD_RADIUS)
+				if other_pad:
+					continue
+				main.hero.global_position = MapLayout.to3(pt)  # not teleport: that would disarm the pad
+				await _settle()
+				assert_true(main.hud.branch_card.visible, "%s pad %d edge %s: still armed" % [id, i, dir])
+				edges += 1
+				for a in ASPECTS.size():
+					findings.append_array(_on_findings(id, i, ASPECTS[a], rows, badges, pt))
+					views += 1
+			assert_gte(edges, 3, "%s pad %d: at least three edge points were measured" % [id, i])
+			edge_min = mini(edge_min, edges)
+	gut.p("ON: %d views (centre and edge points), at least %d edge points per pad" % [views, edge_min])
+	_dump("ON, centre and edge points", findings)
 	assert_eq(findings, [], "an empty expected set: no pinned view, no exemption")
 
-## Near stage, per pad (the flag on): from the old test's approach points (home at 3.0 and 3.45 m, the worst reachable point) a pad within
-## branch_pad_near_m of the hero shows glyph over cost; a pad of the focus spot beyond it shows ring and glyph only (no cost). The blocks that
-## show stand apart, are fully on screen, keep the 28 px floors and overlap none of the obstacles. Eight spots here, fence_sw below.
-func test_flag_on_the_near_stage_shows_zero_overlaps_at_every_spot_but_fence_sw() -> void:
-	var spots: Array = MapLayout.spots_for_tier(3).filter(func(id): return id != "fence_sw")
-	await _near_zero_overlaps(spots)
-
-## fence_sw's two pads stand 5.4 m apart, so from the ends of its near range one is out of reach: by the per-pad rule that pad shows no
-## cost, and the one in reach is a block that fits (D-284.5 as ruled by the main session).
-func test_flag_on_the_near_stage_shows_zero_overlaps_at_fence_sw() -> void:
-	await _near_zero_overlaps(["fence_sw"])
-
-func _near_zero_overlaps(spots: Array) -> void:
+## Near stage, per pad (the flag on). EVERY pad is measured over EVERY reachable view in which it shows its cost: the hero on a 0.5 m grid within
+## branch_pad_near_m of the pad (arriving from far away), and the keep band out to branch_pad_leave_m (the hero first inside the reach, then walked
+## outward in 0.25 m steps along the line from the pad, so the hysteresis keeps the cost shown). Reachable = off every solid by his radius + 0.05, on
+## no pad, inside the map. At each such point, at 9:21, 9:16 and 16:9, the pad that shows its cost is a block (glyph over cost) that is fully on
+## screen, keeps the 28 px floors and intersects NONE of: the hero, the pips (and MAX labels) of all nine buildings, the close-up sign's label, the
+## station labels, tonight's count rows (four plans), the tier sign's label, the HUD's top bar, every lane badge, the other pads' glyphs and costs, and
+## the sibling's block. Empty expected set: no pinned view, no exemption. The obstacles are the real nodes' rects, cached once (they do not depend on
+## where the hero stands); the cache is compared with `_world_obstacles` (the stood-pad tests' list) at the first view of every pad.
+## Mutations: a pad moved back / an offset removed (tower_ne b), the old three-point sampling (it never saw tower_ne b's pips), a wider block.
+func test_flag_on_the_near_stage_shows_zero_overlaps_for_every_pad_over_its_reachable_views() -> void:
+	var t0 := Time.get_ticks_msec()
 	await _start_on()
 	_all_max()
 	var rows := _all_rows([_plan_boss_on("west"), _plan_boss_on("north"), _plan_boss_on("east"), _plan_boss_on("sw")])
 	var badges := _badge_nodes()
-	var findings: Array = []
-	var near_m: float = Balance.ui.branch_pad_near_m - 0.05
-	var cases := 0
-	var far_seen := 0
-	for case in [["home", 3.0], ["home", near_m], ["worst", 0.0]]:
-		for id in spots:
-			var at := _near_hero_at(id, case[1], case[0])
-			assert_true(at.is_finite(), "%s %s: a reachable point exists" % [case[0], id])
-			if not at.is_finite():
-				continue
-			cases += 1
-			main.hero.teleport(Vector2(15.0, 8.0))
-			await _settle()
-			main.hero.teleport(at)
-			await _settle()
-			assert_lt(main.hero.xz().distance_to(at), 0.01, "%s %s: the hero stands at the point" % [case[0], id])
-			assert_eq(BranchPad.focus_spot(), id)
-			var own := _pad_dist(at, id)
-			for a in ASPECTS.size():
-				var v := View.new(at, ASPECTS[a])
-				var tag := "%s %.2f %s %s" % [case[0], snappedf(own, 0.05), ASPECT_NAMES[a], id]
-				var obstacles := _world_obstacles(v, at, rows, badges, [_pads(id)[0], _pads(id)[1]], false)
-				var blocks: Array = []
-				for i in 2:
-					var p: BranchPad = _pads(id)[i]
-					var reach := at.distance_to(_pad_pos(id, i))
-					if reach > Balance.ui.branch_pad_near_m:  # out of reach: ring and glyph, no cost
-						if p.stage != BranchPad.FAR or p.cost_label.visible or not p.icon.visible:
-							findings.append("%s pad %d: %.2f m away it shows stage %d, cost %s: not ring and glyph only" % [tag, i, reach, p.stage, p.cost_label.visible])
-						far_seen += 1
+	var statics := _static_obstacles(rows, badges)
+	var res := _near_scan(MapLayout.spots_for_tier(3), range(ASPECTS.size()), statics, rows, badges, true)
+	_dump("NEAR per pad (points measured, smallest gap in px to each obstacle class; negative = overlap)", res.report)
+	var lines: Array = []
+	var hero_lines: Array = []
+	for k in res.findings:
+		var line := "%s  [%d times, worst overlap %.0f x %.0f px, hero at %s]" % [k, res.findings[k][0], res.findings[k][1], res.findings[k][2], res.findings[k][3]]
+		(hero_lines if String(k).ends_with("overlaps the hero") else lines).append(line)
+	lines.sort()
+	hero_lines.sort()
+	_dump("NEAR scan findings (not the hero)", lines)
+	_dump("NEAR scan findings (the hero)", hero_lines)
+	gut.p("NEAR scan: %d..%d points per pad, %d ms" % [res.min_pts, res.max_pts, Time.get_ticks_msec() - t0])
+	for id in MapLayout.spots_for_tier(3):
+		for i in 2:
+			assert_true(res.seen_near.has("%s:%d" % [id, i]), "%s pad %d was measured in the near stage at least once" % [id, i])
+		if res.both_possible.has(id):
+			assert_true(res.both_seen.has(id), "%s: both pads can be in reach, so a both-in-reach view was measured" % id)
+	assert_eq(lines, [], "an empty expected set: no pinned view, no exemption")
+	assert_eq(hero_lines, [], "an empty expected set: the block never covers the hero")
+
+## The scan behind the test above (also used by tools/probes): {findings, report, seen_near, both_possible, both_seen, min_pts, max_pts}. `aspect_ids`:
+## indices into ASPECTS. `oracle`: compare the cached obstacle list with `_world_obstacles` at the first view of every pad.
+func _near_scan(spots: Array, aspect_ids: Array, statics: Array, rows: Array, badges: Array, oracle: bool, step_spots := []) -> Dictionary:
+	var all_pads: Array = []
+	for id in MapLayout.spots_for_tier(3):
+		all_pads.append_array(_pads(id))
+	var res := {"findings": {}, "report": [], "seen_near": {}, "both_possible": {}, "both_seen": {}, "min_pts": 100000, "max_pts": 0, "min_gap": INF}
+	var findings: Dictionary = res.findings
+	var near_m: float = Balance.ui.branch_pad_near_m
+	var leave_m: float = Balance.ui.branch_pad_leave_m
+	for id in spots:
+		for i in 2:
+			var p: BranchPad = _pads(id)[i]
+			var sib: BranchPad = _pads(id)[1 - i]
+			var c := _pad_pos(id, i)
+			var gaps := {}  # class -> smallest gap (px) of an item to it
+			var hero_far := 0.0  # the farthest hero (m from the pad's centre) that an item of the block overlaps
+			var hero_at_far := Vector2.ZERO
+			var hero_what := ""
+			var pts := 0
+			var views := 0
+			var checked_oracle := not oracle
+			for xi in range(-9, 10):
+				for zi in range(-9, 10):
+					var at := c + Vector2(xi, zi) * 0.5
+					var d := at.distance_to(c)
+					if d > leave_m or not _reachable(at):
 						continue
-					if p.stage != BranchPad.NEAR:
-						findings.append("%s pad %d: %.2f m away, stage %d, not NEAR" % [tag, i, reach, p.stage])
+					if d <= near_m and at.distance_to(_pad_pos(id, 1 - i)) <= near_m:
+						res.both_possible[id] = true
+					# arrive: from far away inside the reach, or (the keep band) from inside it, walking out along the line from the pad
+					_near_step(Vector2(15.0, 8.0), step_spots)
+					if d > near_m:
+						var dir := (at - c).normalized()
+						var r := 3.0
+						while r < d - 0.001:
+							_near_step(c + dir * r, step_spots)
+							r += 0.25
+					_near_step(at, step_spots)
+					if BranchPad.focus_spot() == id and d <= near_m and p.stage != BranchPad.NEAR:
+						_add_finding(findings, "%s pad %d at %s: %.2f m away in the focus spot, stage %d, not NEAR" % [id, i, at, d, p.stage], Vector2.ZERO)
+					if p.stage != BranchPad.NEAR or not p.cost_label.visible:
 						continue
-					var items := _pad_items(p, v)
-					if items.map(func(it): return it[1]) != [p.icon, p.cost_label]:
-						findings.append("%s pad %d: shows %s, not a glyph and a cost" % [tag, i, items.map(func(it): return it[0])])
-						continue
-					var block: Rect2 = (items[0][2] as Rect2).merge(items[1][2])
-					blocks.append(block)
-					if not v.screen().encloses(block):
-						var s := v.screen()
-						findings.append("%s pad %d: the block %s clips the screen by %.0f px" % [tag, i, block, maxf(maxf(s.position.x - block.position.x, block.end.x - s.end.x), maxf(s.position.y - block.position.y, block.end.y - s.end.y))])
-					var h: float = (items[0][2] as Rect2).size.y / 1.14
-					if h < Balance.ui.branch_pad_icon_min_px:
-						findings.append("%s pad %d: glyph %.1f px under its floor" % [tag, i, h])
-					var em := _px_h(p.cost_label.global_position, float(p.cost_label.font_size) * p.cost_label.pixel_size, v)
-					if em < Balance.ui.branch_pad_label_min_px:
-						findings.append("%s pad %d: cost %.1f px under its floor" % [tag, i, em])
-					for it in items:
-						for o in obstacles:
-							if (it[2] as Rect2).intersects(o[1]):
-								findings.append("%s pad %d: the %s overlaps %s by %s" % [tag, i, String(it[0]).get_slice("/", 1), o[0], _fmt_overlap(it[2], o[1])])
-				if blocks.size() == 2 and (blocks[0] as Rect2).intersects(blocks[1]):
-					findings.append("%s: the two blocks overlap by %s" % [tag, _fmt_overlap(blocks[0], blocks[1])])
-	assert_eq(cases, 3 * spots.size())
-	_dump("NEAR, %d points x 3 aspects (%d pad views out of reach)" % [cases, far_seen], findings)
-	assert_eq(findings, [], "an empty expected set: no pinned view, no exemption")
+					res.seen_near["%s:%d" % [id, i]] = true
+					pts += 1
+					var sib_near := sib.stage == BranchPad.NEAR and sib.cost_label.visible
+					if sib_near:
+						res.both_seen[id] = true
+					for a in aspect_ids:
+						var v := View.new(at, ASPECTS[a])
+						var tag := "%s %s pad %d" % [ASPECT_NAMES[a], id, i]
+						var items := _pad_items(p, v)
+						if items.map(func(it): return it[1]) != [p.icon, p.cost_label]:
+							_add_finding(findings, "%s: shows %s, not a glyph and a cost" % [tag, items.map(func(it): return it[0])], Vector2.ZERO)
+							continue
+						views += 1
+						var obstacles := _near_obstacles(statics, v, at, c, p, all_pads, NEAR_CULL_M)
+						var block: Rect2 = (items[0][2] as Rect2).merge(items[1][2])
+						if not checked_oracle:
+							checked_oracle = true
+							_assert_cache_matches(obstacles, statics, v, at, c, p, rows, badges, all_pads, block)
+						if not v.screen().encloses(block):
+							var s := v.screen()
+							_add_finding(findings, "%s: the block is not fully on screen" % tag, Vector2(maxf(maxf(s.position.x - block.position.x, block.end.x - s.end.x), 0.0), 0.0))
+						if (items[0][2] as Rect2).size.y / 1.14 < Balance.ui.branch_pad_icon_min_px:
+							_add_finding(findings, "%s: the glyph is under its floor" % tag, Vector2.ZERO)
+						if _px_h(p.cost_label.global_position, float(p.cost_label.font_size) * p.cost_label.pixel_size, v) < Balance.ui.branch_pad_label_min_px:
+							_add_finding(findings, "%s: the cost is under its floor" % tag, Vector2.ZERO)
+						for it in items:
+							for o in obstacles:
+								var cls := _obstacle_class(String(o[0]))
+								gaps[cls] = minf(float(gaps.get(cls, INF)), _gap(it[2], o[1]))
+								if cls != "hero":
+									res.min_gap = minf(res.min_gap, _gap(it[2], o[1]))
+								if (it[2] as Rect2).intersects(o[1]):
+									var ov := (it[2] as Rect2).intersection(o[1])
+									_add_finding(findings, "%s: the %s overlaps %s" % [tag, String(it[0]).get_slice("/", 1), "the hero" if cls == "hero" else o[0]], ov.size, at)
+									if cls == "hero" and d > hero_far:
+										hero_far = d
+										hero_at_far = at - c
+										hero_what = "%s %s vs hero %s (%s)" % [String(it[0]).get_slice("/", 1), it[2], o[1], ASPECT_NAMES[a]]
+						if sib_near:
+							var sitems := _pad_items(sib, v)
+							var sblock: Rect2 = (sitems[0][2] as Rect2).merge(sitems[1][2])
+							gaps["sibling block"] = minf(float(gaps.get("sibling block", INF)), _gap(block, sblock))
+							if block.intersects(sblock):
+								_add_finding(findings, "%s: the two blocks overlap" % tag, block.intersection(sblock).size, at)
+			res.min_pts = mini(res.min_pts, pts)
+			res.max_pts = maxi(res.max_pts, pts)
+			var gl: Array = []
+			for k in gaps:
+				gl.append("%s %.0f" % [k, float(gaps[k])])
+			gl.sort()
+			res.report.append("%s pad %d: %d points, %d views; smallest gap px: %s; farthest hero overlap %.1f m at %s from the pad: %s" % [id, i, pts, views, ", ".join(gl), hero_far, hero_at_far, hero_what])
+	return res
+
+## A point the hero can stand on: off every solid by his radius + 0.05, on no pad, inside the map.
+func _reachable(at: Vector2) -> bool:
+	return at.x > -16.0 and at.x < 16.0 and at.y > -19.0 and at.y < 14.0 and _solid_dist(at) > MapLayout.HERO_RADIUS + 0.05 \
+			and _min_pad_dist(at) > MapLayout.BRANCH_PAD_RADIUS
+
+func _min_pad_dist(at: Vector2) -> float:
+	var best := INF
+	var table := MapLayout.branch_pads(TierEffects.retune_on(Balance.data.tiers))
+	for oid in table:
+		for pp in table[oid]:
+			best = minf(best, at.distance_to(pp))
+	return best
+
+## The hero is put at `at` and every pad runs its frame (the shared focus is recomputed): no physics frames, so a scan of thousands of points stays fast.
+func _near_step(at: Vector2, only_spots := []) -> void:
+	main.hero.global_position = MapLayout.to3(at)
+	BranchPad._cache_frame = -1
+	for id in (only_spots if not only_spots.is_empty() else MapLayout.spots_for_tier(3)):
+		for q: BranchPad in _pads(id):
+			q._physics_process(0.0)
+
+func _add_finding(findings: Dictionary, text: String, size: Vector2, hero := Vector2.INF) -> void:
+	if not findings.has(text):
+		findings[text] = [0, 0.0, 0.0, hero]
+	findings[text][0] += 1
+	if size.x * size.y >= maxf(findings[text][1] * findings[text][2], 0.0):
+		findings[text][3] = hero  # the hero point of the worst overlap
+	findings[text][1] = maxf(findings[text][1], size.x)
+	findings[text][2] = maxf(findings[text][2], size.y)
+
+static func _obstacle_class(what: String) -> String:
+	if what == "the hero":
+		return "hero"
+	if what.begins_with("the pips of"):
+		return "pips"
+	if what.begins_with("the MAX label"):
+		return "MAX labels"
+	if what.contains("close-up"):
+		return "close-up sign"
+	if what.contains("tier sign"):
+		return "tier sign"
+	if what.contains("HUD"):
+		return "HUD bar"
+	if what.ends_with("count row"):
+		return "count rows"
+	if what.contains("badge"):
+		return "lane badges"
+	if what.begins_with("the glyph of") or what.begins_with("the cost of"):
+		return "other pads"
+	if what.begins_with("the branch card"):
+		return "card"
+	return "station labels"
+
+## The obstacles that do not move with the hero, as [{name, at (a world point), quads: [[centre, size m]], screen (the HUD bar)}]. The quads come from
+## the real nodes (the billboards face the camera, whose basis is the same for every focus).
+func _static_obstacles(rows: Array, badges: Array) -> Array:
+	var basis := CameraMath.camera_transform(Vector2.ZERO, Balance.ui).basis
+	var out: Array = []
+	for id in main.world.build_spots:
+		var sp: BuildSpot = main.world.build_spots[id]
+		var pips := sp.global_position + Vector3(0, sp._pip_y(Balance.data.build.max_level), 0)
+		out.append({"name": "the pips of " + id, "at": pips, "quads": [[pips, Vector2(1.1, 0.4)]]})
+		if sp.label.visible:
+			out.append({"name": "the MAX label of " + id, "at": sp.label.global_position, "quads": [_label_quad(sp.label, basis)]})
+	var sw := _font_w(tr("Close up"), 36) + 0.08
+	out.append({"name": "the close-up sign's label", "at": MapLayout.to3(MapLayout.SIGN, 1.95), "quads": [[MapLayout.to3(MapLayout.SIGN, 1.95), Vector2(sw, 0.36 * 1.3)]]})
+	var ts: TierSign = main.world.tier_sign
+	if ts != null and ts.label.visible:
+		out.append({"name": "the tier sign's label", "at": ts.label.global_position, "quads": [_label_quad(ts.label, basis)]})
+	out.append({"name": "the HUD's top bar", "at": Vector3.INF, "quads": []})
+	for l in get_tree().get_nodes_in_group(&"world_labels"):
+		var lab := l as Label3D
+		if lab == null or lab.text == "" or not lab.is_visible_in_tree() or (ts != null and lab == ts.label):
+			continue
+		var skip_it := lab.get_parent().name == "CloseUpSign"
+		var anc: Node = lab.get_parent()
+		while anc != null and not skip_it:
+			skip_it = anc is TelegraphMarker or anc is BranchPad
+			anc = anc.get_parent()
+		if skip_it:
+			continue
+		var idx := 0
+		for lsib in lab.get_parent().get_children():
+			if lsib == lab:
+				break
+			idx += int(lsib is Label3D)
+		out.append({"name": "the %s label #%d" % [lab.get_parent().name, idx], "at": lab.global_position, "quads": [_label_quad(lab, basis)]})
+	for row in rows:
+		out.append({"name": "the %s count row" % row[0], "at": (row[1][0] as Array)[0], "quads": row[1]})
+	for b in badges:
+		var ic: MeshInstance3D = (b[1] as LaneCharacterMarker).icon
+		var bb := ic.mesh.get_aabb()
+		var cc := ic.global_position + basis.x * (bb.get_center().x * ic.scale.x) + basis.y * (bb.get_center().y * ic.scale.y)
+		out.append({"name": b[0], "at": cc, "quads": [[cc, Vector2(bb.size.x, bb.size.y) * ic.scale.x]]})
+	return out
+
+func _label_quad(l: Label3D, basis: Basis) -> Array:
+	var b := BranchPad.text_box(l)
+	var c := l.global_position
+	if l.horizontal_alignment == HORIZONTAL_ALIGNMENT_LEFT:
+		c += basis.x * b.x * 0.5
+	return [c, b]
+
+## [[what, rect]] for one view of a pad at `c` with the hero at `at`: the cached obstacles within reach of the pad (a block is under 2 m wide, so
+## anything over NEAR_CULL_M metres away cannot touch it), the hero, and the other pads' glyphs and costs as they show now.
+const NEAR_CULL_M := 12.0
+func _near_obstacles(statics: Array, v: View, at: Vector2, c: Vector2, p: BranchPad, all_pads: Array, cull: float) -> Array:
+	var out: Array = [["the hero", _hero_rect(at, v)]]
+	for o in statics:
+		if o.name == "the HUD's top bar":
+			out.append([o.name, _hud_rect(v)])
+			continue
+		var ap: Vector3 = o.at
+		if Vector2(ap.x - c.x, ap.z - c.y).length() > cull:
+			continue
+		var r := Rect2()
+		var first := true
+		for q in o.quads:
+			var qr := v.quad(q[0], q[1])
+			r = qr if first else r.merge(qr)
+			first = false
+		out.append([o.name, r])
+	for q: BranchPad in all_pads:
+		if q == p or not q.body.visible:
+			continue
+		if q.icon.visible:
+			out.append(["the glyph of " + String(q.name), _node_rect(q.icon, v)])
+		if q.cost_label.visible and q.cost_label.text != "":
+			out.append(["the cost of " + String(q.name), _node_rect(q.cost_label, v)])
+	return out
+
+## The cached list gives the same obstacles and rects as `_world_obstacles` (the other tests' list) for this view, exactly (the pad's own items and the
+## other pads aside: both lists hold the other pads'), and everything the culling dropped is far from the block.
+func _assert_cache_matches(culled: Array, statics: Array, v: View, at: Vector2, c: Vector2, p: BranchPad, rows: Array, badges: Array, all_pads: Array, block: Rect2) -> void:
+	var full := _near_obstacles(statics, v, at, c, p, all_pads, 1.0e9)
+	var want: Array = []
+	for o in _world_obstacles(v, at, rows, badges, [p], false):
+		want.append("%s %s" % [o[0], o[1]])
+	var got: Array = []
+	for o in full:
+		got.append("%s %s" % [o[0], o[1]])
+	want.sort()
+	got.sort()
+	assert_eq(got, want, "the cached obstacles are the full list's")
+	for o in full:
+		if not culled.any(func(k): return k[0] == o[0] and k[1] == o[1]):
+			assert_gt(_gap(block, o[1]), 50.0, "%s was culled and is far from the block" % o[0])
 
 ## The lane-character badges against the pads: from the 18 pad views (the stood glyph and preview, and every glyph that shows) and from each
 ## lane's attack zone (the pads' glyphs and costs as they show there). The north badge met fence_n's glyph in 36 own-zone views.
@@ -1733,15 +1981,16 @@ func test_flag_on_no_lane_badge_overlaps_a_pad_item_from_the_pad_views_or_the_zo
 	_dump("badges vs pads", findings)
 	assert_eq(findings, [], "an empty expected set")
 
-## The hero standing on a pad that is NOT armed (placed there, or the pad appeared under him): the card stays hidden, so the world still says what the
-## pad is. The rule: the pad keeps its NEAR content, the glyph and the cost (beside the hero, not on him), and shows no preview. The sibling stays quiet.
-func test_flag_on_an_unarmed_pad_keeps_its_glyph_and_cost_in_the_world_and_the_card_stays_hidden() -> void:
+## The hero standing on a pad that is NOT armed (placed there, or the pad appeared under him): the card stays hidden; the world shows the ring and the
+## glyph at the ON place, NO cost and NO preview (it cannot be paid yet). The same empty expected set as the ON stage, 18 pads x 3 aspects. A pad
+## processes before its own zone, so a walk-in shows one tick of UNARMED: no cost node is visible then either. Mutation: the cost shown while unarmed.
+func test_flag_on_an_unarmed_pad_shows_ring_and_glyph_only_with_the_same_zero_overlaps_as_the_on_stage() -> void:
 	await _start_on()
 	_all_max()
 	var rows := _all_rows([_plan_boss_on("west"), _plan_boss_on("north"), _plan_boss_on("east"), _plan_boss_on("sw")])
 	var badges := _badge_nodes()
 	var findings: Array = []
-	var table := {}
+	var views := 0
 	for id in MapLayout.spots_for_tier(3):
 		for i in 2:
 			main.hero.teleport(Vector2(15.0, 8.0))
@@ -1754,41 +2003,33 @@ func test_flag_on_an_unarmed_pad_keeps_its_glyph_and_cost_in_the_world_and_the_c
 			assert_false(p.zone.armed, "%s pad %d: setup, the pad is not armed" % [id, i])
 			assert_false(main.hud.branch_card.visible, "%s pad %d: so the card is hidden" % [id, i])
 			assert_eq(p.stage, BranchPad.UNARMED, "%s pad %d" % [id, i])
+			assert_true(p.marker.visible and p.icon.visible, "ring and glyph")
+			assert_false(p.cost_label.visible, "%s pad %d: an unarmed pad shows no cost" % [id, i])
 			assert_false(p.preview.visible, "no preview while unarmed")
 			assert_false(p.name_label.visible or p.effect_label.visible or (p.warn_label != null and p.warn_label.visible), "no name, effect or warning")
 			assert_eq((_pads(id)[1 - i] as BranchPad).stage, BranchPad.SIBLING_QUIET)
 			for a in ASPECTS.size():
-				var v := View.new(_pad_pos(id, i), ASPECTS[a])
-				var tag := "%s %s pad %d" % [ASPECT_NAMES[a], id, i]
-				var items := _pad_items(p, v)
-				if items.map(func(it): return it[1]) != [p.icon, p.cost_label]:
-					findings.append("%s: shows %s, not a glyph and a cost" % [tag, items.map(func(it): return it[0])])
-					continue
-				assert_eq(p.cost_label.text, str(_cost(id)), "the cost the pad asks")
-				var obstacles := _world_obstacles(v, _pad_pos(id, i), rows, badges, [p, _pads(id)[1 - i]], true)
-				for it in items:
-					if not v.screen().encloses(it[2]):
-						findings.append("%s: the %s is not fully on screen" % [tag, String(it[0]).get_slice("/", 1)])
-					for o in obstacles:
-						if (it[2] as Rect2).intersects(o[1]):
-							# asserted: the hero stays visible, and nothing sits under the HUD's top bar or the card (cheap to guarantee). The other
-							# obstacles are counted in the table below (for the author's review queue): the state is transient (a placed hero, a
-							# pad that appears under him) and ends the moment he steps out and in.
-							var what: String = String(o[0])
-							if what == "the hero" or what.begins_with("the HUD") or what.begins_with("the branch card"):
-								findings.append("%s: the %s overlaps %s by %s" % [tag, String(it[0]).get_slice("/", 1), what, _fmt_overlap(it[2], o[1])])
-							else:
-								var kind := what.get_slice(" of ", 0) if what.begins_with("the pips of") or what.begins_with("the glyph of") or what.begins_with("the cost of") else what.get_slice(" (other", 0)
-								var key := "%s hits %s" % [String(it[0]).get_slice("/", 1), kind]
-								table[key] = int(table.get(key, 0)) + 1
-	var table_lines: Array = []
-	for k in table:
-		table_lines.append("%-34s %3d of 162 (54 pad views x 3 aspects)" % [k, table[k]])
-	table_lines.sort()
-	_dump("UNARMED, 54 views: hero, HUD bar, card and screen (asserted)", findings)
-	_dump("UNARMED, 54 views: what the glyph or cost hits besides (reported for the review queue, not asserted)", table_lines)
-	assert_eq(findings, [], "the unarmed glyph and cost never cover the hero, the HUD bar or the card, and stay on screen")
-	# leaving and walking back in arms the pad: the card shows and the world drops the cost
+				findings.append_array(_on_findings(id, i, ASPECTS[a], rows, badges, Vector2.INF, false))
+				views += 1
+	assert_eq(views, 54)
+	_dump("UNARMED, 54 views", findings)
+	assert_eq(findings, [], "an empty expected set: the same as the ON stage")
+	# the walk-in tick: the pad has run, its zone has not (so it is not armed yet): the stage is UNARMED, with no cost node visible
+	for id in ["tower_e", "fence_sw"]:
+		var p: BranchPad = _pads(id)[0]
+		main.hero.teleport(_pad_pos(id, 0) + Vector2(0, 2.0))
+		await _settle()
+		main.hero.global_position = MapLayout.to3(_pad_pos(id, 0) + Vector2(0, 0.5))
+		BranchPad._cache_frame = -1
+		p._physics_process(0.0)
+		assert_eq(p.stage, BranchPad.UNARMED, "%s: the walk-in tick, before the zone arms" % id)
+		assert_false(p.cost_label.visible, "%s: no cost node in the walk-in tick" % id)
+		for pad_id in MapLayout.spots_for_tier(3):
+			for q: BranchPad in _pads(pad_id):
+				assert_false(q.stage == BranchPad.UNARMED and q.cost_label.visible, "an unarmed pad never shows a cost")
+		await _settle()
+		assert_eq(p.stage, BranchPad.ON, "%s: the next ticks arm it" % id)
+	# leaving and walking back in arms the pad: the card shows
 	await _walk_onto("tower_e", 0)
 	assert_true(main.hud.branch_card.visible)
 	assert_eq((_pads("tower_e")[0] as BranchPad).stage, BranchPad.ON)

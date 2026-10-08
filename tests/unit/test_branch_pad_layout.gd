@@ -185,7 +185,7 @@ func test_pad_sides_as_the_camera_sees_them() -> void:
 
 # --- E6 (spec 5.3, D-284.5, D-286): the pads the retune moves --------------------------------------------------------------------
 # MapLayout.branch_pads(true) is BRANCH_PADS with the spots of BRANCH_PADS_RETUNE replaced. Every pad of it passes the rules above, and the
-# moved ones also the front lot's kerb, props and the south-west lane's edge stones (laid out with today's pads); the flag-off table is untouched.
+# moved ones also the front lot's kerb, props and the south-west lane's edge stones (laid out with the moved pads, since round 2); the flag-off table is untouched.
 
 func _retune_pad_list() -> Array:
 	var out: Array = []

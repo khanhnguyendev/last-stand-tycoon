@@ -21,8 +21,10 @@ extends Node3D
 ##   ON    (the hero stands on an ARMED pad: he walked in, the card shows): the ring, the glyph alone (no cost, no name, no preview line, no
 ##         warning) and the preview shape. The sibling stays quiet.
 ##   UNARMED (the hero stands on a pad that is not armed: he was placed there, or the pad appeared under him; the card stays hidden until he
-##         leaves and re-enters): the world must still say what the pad is, so the pad keeps its NEAR content, the glyph and the cost, laid out
-##         beside the hero (above his head or below the pad, like the ON glyph) instead of on him; no preview. The sibling stays quiet.
+##         leaves and re-enters): ring and glyph at the ON glyph's place, NO cost and NO preview (it cannot be paid yet: one step out shows the
+##         near cost, stepping back in arms it and the card shows). The sibling stays quiet.
+##   While a pad is ON or UNARMED its glyph follows the HERO (above his head, or below his feet for the pads in ON_ROW_NORTH_RETUNE), by the same
+##         screen offset it has above the pad's centre; the preview shape stays at the building. One position write per physics frame, visual only.
 ##   NEAR  is per PAD: the focus spot's pad shows its cost only while the hero is within branch_pad_near_m of that pad (branch_pad_leave_m once
 ##         shown); the spot's other pad, if farther, stays FAR (ring and glyph). With the flag off the whole spot goes NEAR together, as before.
 ##   FAR / QUIET are the same as with the flag off. With the flag off every stage is exactly as before.
@@ -59,6 +61,17 @@ const ON_MODES := {
 ## E6 (flag on): where the lone ON glyph (and the UNARMED glyph-and-cost row) stands: "spot:index" -> true above the hero's head, false below
 ## the pad. Searched with the zero-overlap test (tests/unit/test_branch_pads.gd); a pad not listed stands above.
 const ON_ROW_NORTH_RETUNE := {"tower_nw:0": false, "tower_ne:1": false}
+## E6 (flag on): where the glyph of a STOOD pad (ON or UNARMED) stands relative to its default place above the hero's head (or below the pad):
+## "spot:index" -> Vector2(right, up) in metres ON THE SCREEN. Searched with the edge-point cases of the stood-pad zero test.
+const ON_SHIFT_RETUNE := {"fence_w:1": Vector2(-0.1, 0.3), "fence_e:0": Vector2(0.0, 0.3), "tower_e:1": Vector2(-0.5, 0.0)}
+## E6 (flag on): where a pad's NEAR block (glyph over cost) stands relative to the pad: "spot:index" -> Vector2(right, up) in metres ON THE SCREEN. Searched with
+## the per-pad near-stage scan of tests/unit/test_branch_pads.gd (every reachable view of the pad, zero overlaps); a pad not listed stands on its centre.
+const NEAR_SHIFT_RETUNE := {
+	"tower_nw:0": Vector2(0.8, 0.4), "tower_ne:0": Vector2(0.0, -0.2), "tower_ne:1": Vector2(-0.4, 0.2), "tower_sw:0": Vector2(-0.8, 0.0),
+	"tower_sw:1": Vector2(0.6, 0.0), "tower_e:0": Vector2(0.5, 0.0), "tower_e:1": Vector2(-0.5, 0.4), "fence_n:0": Vector2(0.1, 0.0),
+	"fence_n:1": Vector2(-0.1, -0.1), "fence_w:0": Vector2(0.0, 0.5), "fence_w:1": Vector2(-0.2, 0.3), "fence_e:0": Vector2(0.3, 0.3),
+	"fence_e:1": Vector2(0.0, 0.1),
+}
 
 ## The texts, through tr() when shown: [name, preview line]. The Volley's line is built from the balance count.
 const TEXTS := {
@@ -98,6 +111,10 @@ var stage := FAR
 ## Where the ON clusters stand (ON_MODES); call _layout_items() and re-apply the stage after changing them.
 var row_north := false
 var name_south := false
+## E6: the NEAR block's shift (NEAR_SHIFT_RETUNE), metres on the screen (right, up); call _layout_items() and re-apply the stage after changing it.
+var near_shift := Vector2.ZERO
+## E6: the stood glyph's shift (ON_SHIFT_RETUNE), metres on the screen (right, up).
+var on_shift := Vector2.ZERO
 ## E6: the retune flag as read when the pad was made (TierEffects.retune_on): the pad table, the labels and the stages follow it.
 var retune := false
 var _fx: FlyFx
@@ -118,6 +135,8 @@ static var _shown_pads: Array = []
 static var _cache_frame := -1
 static var _focus_spot := ""
 static var _on_pad: BranchPad = null
+## The hero's ground position as read by the last update_focus (E6: the glyph of a stood pad follows him).
+static var _hero_at := Vector3.ZERO
 ## Reused every frame (no allocation in update_focus): spot -> smallest distance to one of its pads; the spots of the tier, refreshed
 ## when the tier changes.
 static var _nearest := {}
@@ -141,6 +160,7 @@ static func update_focus(tree: SceneTree) -> void:
 		return
 	var hx := hero.global_position.x
 	var hz := hero.global_position.z
+	_hero_at = hero.global_position
 	for k in _nearest:  # overwrite, never clear and re-insert: a spot with no shown pad now keeps INF
 		_nearest[k] = INF
 	var best_on := INF
@@ -298,6 +318,8 @@ func _build_items() -> void:
 	name_south = mode[1]
 	if retune:
 		row_north = bool(ON_ROW_NORTH_RETUNE.get("%s:%d" % [spot_id, index], true))
+		near_shift = NEAR_SHIFT_RETUNE.get("%s:%d" % [spot_id, index], Vector2.ZERO)
+		on_shift = ON_SHIFT_RETUNE.get("%s:%d" % [spot_id, index], Vector2.ZERO)
 	_layout_items()
 	cost_label.text = ""
 
@@ -308,8 +330,8 @@ func _layout_items() -> void:
 	# NEAR: the glyph with the cost centred under it; the block (at most 1.25 m wide) centred on the pad
 	var block_h := ibox.y + STACK_GAP_M + cbox.y
 	_pos[NEAR] = {
-		icon: _at(block_h * 0.5 - ibox.y * 0.5, true),
-		cost_label: _at(block_h * 0.5 - cbox.y * 0.5, false),
+		icon: _at(block_h * 0.5 - ibox.y * 0.5 + near_shift.y, true) + Vector3(near_shift.x, 0.0, 0.0),
+		cost_label: _at(block_h * 0.5 - cbox.y * 0.5 - near_shift.y, false) + Vector3(near_shift.x, 0.0, 0.0),
 	}
 	if retune:
 		_layout_retune(ibox, cbox)
@@ -325,15 +347,13 @@ func _layout_items() -> void:
 	m[name_north] = _place_text(on, effect_label, m[name_north], name_north)
 	_pos[ON] = on
 
-## E6: the ON glyph alone, centred, above the hero's head or below the pad (`row_north`); the UNARMED block (glyph over its cost, the NEAR block's
-## order) at the same edge. Above the head starts higher than the flag-off stack (RETUNE_NORTH_BASE_M): the test's hero box is taller on screen.
-func _layout_retune(ibox: Vector2, cbox: Vector2) -> void:
+## E6: the ON glyph alone, centred, above the hero's head or below the pad (`row_north`); the UNARMED glyph stands at the same place (no cost).
+## Above the head starts higher than the flag-off stack (RETUNE_NORTH_BASE_M): the test's hero box is taller on screen. The offset is from the
+## pad's centre; while shown on a stood pad the glyph keeps it from the HERO (_follow_hero).
+func _layout_retune(ibox: Vector2, _cbox: Vector2) -> void:
 	var m := RETUNE_NORTH_BASE_M if row_north else SOUTH_BASE_M
-	_pos[ON] = {icon: _at(m + ibox.y * 0.5, row_north)}
-	if row_north:  # the cost nearest the pad, the glyph above it
-		_pos[UNARMED] = {cost_label: _at(m + cbox.y * 0.5, true), icon: _at(m + cbox.y + STACK_GAP_M + ibox.y * 0.5, true)}
-	else:  # the glyph nearest the pad, the cost below it
-		_pos[UNARMED] = {icon: _at(m + ibox.y * 0.5, false), cost_label: _at(m + ibox.y + STACK_GAP_M + cbox.y * 0.5, false)}
+	_pos[ON] = {icon: _at(m + ibox.y * 0.5 + (on_shift.y if row_north else -on_shift.y), row_north) + Vector3(on_shift.x, 0.0, 0.0)}
+	_pos[UNARMED] = _pos[ON]
 
 ## The local position of an item whose centre stands `c` metres ON THE SCREEN above (north) or below (south) the pad: above it is a
 ## height (a billboard over the hero), below it is a point on the ground south of the pad (the camera looks down at 55 degrees).
@@ -421,7 +441,7 @@ const HINT_Y := 0.35
 const HINT_AT := {"tower_w": Vector2(0.0, -1.5), "tower_sw": Vector2(-1.0, 0.0), "tower_e": Vector2(0.0, 0.25), "fence_sw": Vector2(0.25, 0.0)}
 ## E6 (flag on): the same offsets today (the pad search of Task 14 kept them: no preview needed to move). A key is a spot ("tower_e") or one pad
 ## ("tower_e:1", which wins); the zero-overlap test (tests/unit/test_branch_pads.gd) is the oracle for any change.
-const HINT_AT_RETUNE := {"tower_w": Vector2(0.0, -1.5), "tower_sw": Vector2(-1.0, 0.0), "tower_e": Vector2(0.0, 0.25), "fence_sw": Vector2(0.25, 0.0)}
+const HINT_AT_RETUNE := {"tower_w": Vector2(0.0, -1.5), "tower_sw": Vector2(-1.0, 0.0), "tower_e": Vector2(0.0, 0.25), "fence_sw": Vector2(0.25, 0.0), "tower_nw:1": Vector2(-0.5, 0.0), "tower_w:1": Vector2(-0.5, -1.5)}
 
 ## A glyph and, if `mult` is not empty, its multiplier beside it, in front of the building.
 func _hint(kind: StringName, mult: String) -> void:
@@ -488,6 +508,7 @@ func _physics_process(_delta: float) -> void:
 	var want := _stage_now()
 	if want != stage:
 		_apply_stage(want)
+	_follow_hero()
 
 func _stage_now() -> int:
 	if _on_pad == self:
@@ -523,8 +544,8 @@ func _apply_stage(st: int) -> void:
 	else:
 		icon.material_override = BranchIcons.material()
 		icon.scale = Vector3.ONE * ui.branch_pad_icon_m
-	cost_label.visible = st == NEAR or st == UNARMED or (st == ON and not retune)
-	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if (st == NEAR or st == UNARMED) else HORIZONTAL_ALIGNMENT_LEFT
+	cost_label.visible = st == NEAR or (st == ON and not retune)  # E6: an unarmed pad cannot be paid yet: no cost
+	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if st == NEAR else HORIZONTAL_ALIGNMENT_LEFT
 	var on := st == ON
 	var texts := on and not retune  # E6: the name, the preview line and the warning are the card's, not the world's
 	name_label.visible = texts
@@ -536,6 +557,15 @@ func _apply_stage(st: int) -> void:
 	if _pos.has(st):
 		for n in _pos[st]:
 			(n as Node3D).position = _pos[st][n]
+	_follow_hero()
+
+## E6 (flag on): on a stood pad (ON or UNARMED) the glyph keeps its offset from the hero, not from the pad's centre: a hero standing at the pad's
+## edge has the glyph above his head, not on it. Visual only.
+func _follow_hero() -> void:
+	if not retune or (stage != ON and stage != UNARMED):
+		return
+	var off: Vector3 = _pos[ON][icon]
+	icon.global_position = Vector3(_hero_at.x, global_position.y, _hero_at.z) + off
 
 func _on_tick() -> void:
 	if not is_shown():

@@ -394,8 +394,9 @@ func _foci() -> Array:
 		out.append(MapLayout.zone_rect(lane).get_center())
 	for id in MapLayout.spots_for_tier(3):
 		out.append(MapLayout.spot_position(id))
-	for id in MapLayout.BRANCH_PADS:
-		for pad in MapLayout.BRANCH_PADS[id]:
+	var pads := MapLayout.branch_pads(TierEffects.retune_on(Balance.data.tiers))
+	for id in pads:
+		for pad in pads[id]:
 			out.append(pad)
 	return out
 
