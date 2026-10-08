@@ -6,6 +6,8 @@ extends GutTest
 const ASPECTS := [9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0]
 const ASPECT_NAMES := ["9:21", "9:16", "16:9"]
 const HINT_DIR := "user://test_branch_hint"
+## D-294.8: at least this many base px (720 x 1280; the views are in base px at every aspect, like the size floors) between a pad's items and every other label.
+const MIN_GAP_PX := 8.0
 ## The seven buildings that stand at the tier-3 dawn (tower_sw and fence_sw are bought afterwards).
 const SEVEN := ["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e", "tower_w", "tower_e"]
 
@@ -14,6 +16,8 @@ var pc: PhaseController
 var pile_sparkles := 0
 var _fx_log: Array = []
 var _boxes: Array = []
+## The smallest gap (px) found per pad, stage and place of the hero by `_on_findings`: printed by the stood-pad tests.
+var _stage_gaps := {}
 
 func before_each() -> void:
 	BranchPad.reset_focus()
@@ -23,6 +27,7 @@ func before_each() -> void:
 	pile_sparkles = 0
 	_fx_log = []
 	_boxes = []
+	_stage_gaps = {}
 
 func after_each() -> void:
 	if EventBus.fx_requested.is_connected(_on_fx):
@@ -1573,8 +1578,17 @@ func _on_findings(id: String, i: int, aspect: float, rows: Array, badges: Array,
 		var r: Rect2 = it[1]
 		if not v.screen().encloses(r):
 			bad.append("%s: the %s %s is not fully on screen" % [tag, it[0], r])
-		for h in _hits(r, obstacles):
-			bad.append("%s: the %s %s overlaps %s %s by %s" % [tag, it[0], r, h[0], h[1], _fmt_overlap(r, h[1])])
+		for o in obstacles:
+			var cls := _obstacle_class(String(o[0]))
+			if cls == "hero":
+				continue  # D-294.8: drawn in front of every pad label (test_flag_on_the_hero_is_drawn_in_front_of_every_pad_label)
+			var g := _gap(r, o[1])
+			var key := "%s %s pad %d (%s)" % ["ON" if armed else "UNARMED", id, i, "edge" if hero_at.distance_to(_pad_pos(id, i)) > 0.01 else "centre"]
+			if cls != "HUD bar" and cls != "card":
+				_stage_gaps[key] = minf(float(_stage_gaps.get(key, INF)), g)
+			var need := 0.0 if cls == "HUD bar" or cls == "card" else MIN_GAP_PX  # the HUD bar and the card keep the zero-overlap rule
+			if g < need or (need == 0.0 and r.intersects(o[1])):
+				bad.append("%s: the %s %s is %.0f px from %s %s (under %.0f)" % [tag, it[0], r, g, o[0], o[1], need])
 	if items.size() == 2 and (items[0][1] as Rect2).intersects(items[1][1]):
 		bad.append("%s: the glyph overlaps the preview by %s" % [tag, _fmt_overlap(items[0][1], items[1][1])])
 	if not mine.is_empty():
@@ -1611,6 +1625,16 @@ func test_flag_on_the_card_is_in_the_armed_pads_obstacle_list_and_a_rect_on_it_i
 	assert_eq(_hits(Rect2(card.position - Vector2(0, 300), Vector2(20, 20)), armed).filter(func(o): return String(o[0]).begins_with("the branch card")), [], "a rect well above it does not")
 	var unarmed_free := _world_obstacles(v, _pad_pos("fence_n", 1), [], [], [], false).map(func(o): return String(o[0]))
 	assert_false("the branch card (inset 0)" in unarmed_free, "the near stage has no card")
+
+func _dump_gaps(title: String) -> void:
+	var lines: Array = []
+	var worst := INF
+	for k in _stage_gaps:
+		lines.append("%s: smallest gap %.0f px" % [k, _stage_gaps[k]])
+		worst = minf(worst, float(_stage_gaps[k]))
+	lines.sort()
+	gut.p("%s: smallest of all %.0f px" % [title, worst])
+	_dump(title, lines)
 
 func _dump(title: String, lines: Array) -> void:
 	gut.p("%s: %d findings" % [title, lines.size()])
@@ -1658,6 +1682,7 @@ func test_flag_on_the_stood_pad_shows_zero_overlaps_at_the_centre_and_four_edge_
 			assert_gte(edges, 3, "%s pad %d: at least three edge points were measured" % [id, i])
 			edge_min = mini(edge_min, edges)
 	gut.p("ON: %d views (centre and edge points), at least %d edge points per pad" % [views, edge_min])
+	_dump_gaps("ON gaps")
 	_dump("ON, centre and edge points", findings)
 	assert_eq(findings, [], "an empty expected set: no pinned view, no exemption")
 
@@ -1680,22 +1705,17 @@ func test_flag_on_the_near_stage_shows_zero_overlaps_for_every_pad_over_its_reac
 	var res := _near_scan(MapLayout.spots_for_tier(3), range(ASPECTS.size()), statics, rows, badges, true)
 	_dump("NEAR per pad (points measured, smallest gap in px to each obstacle class; negative = overlap)", res.report)
 	var lines: Array = []
-	var hero_lines: Array = []
 	for k in res.findings:
-		var line := "%s  [%d times, worst overlap %.0f x %.0f px, hero at %s]" % [k, res.findings[k][0], res.findings[k][1], res.findings[k][2], res.findings[k][3]]
-		(hero_lines if String(k).ends_with("overlaps the hero") else lines).append(line)
+		lines.append("%s  [%d times, worst shortfall %.0f px, hero at %s]" % [k, res.findings[k][0], res.findings[k][1], res.findings[k][3]])
 	lines.sort()
-	hero_lines.sort()
-	_dump("NEAR scan findings (not the hero)", lines)
-	_dump("NEAR scan findings (the hero)", hero_lines)
+	_dump("NEAR scan findings", lines)
 	gut.p("NEAR scan: %d..%d points per pad, %d ms" % [res.min_pts, res.max_pts, Time.get_ticks_msec() - t0])
 	for id in MapLayout.spots_for_tier(3):
 		for i in 2:
 			assert_true(res.seen_near.has("%s:%d" % [id, i]), "%s pad %d was measured in the near stage at least once" % [id, i])
 		if res.both_possible.has(id):
 			assert_true(res.both_seen.has(id), "%s: both pads can be in reach, so a both-in-reach view was measured" % id)
-	assert_eq(lines, [], "an empty expected set: no pinned view, no exemption")
-	assert_eq(hero_lines, [], "an empty expected set: the block never covers the hero")
+	assert_eq(lines, [], "an empty expected set: no pinned view, no exemption (the hero is drawn in front: test_flag_on_the_hero_is_drawn_in_front_of_every_pad_label)")
 
 ## The scan behind the test above (also used by tools/probes): {findings, report, seen_near, both_possible, both_seen, min_pts, max_pts}. `aspect_ids`:
 ## indices into ASPECTS. `oracle`: compare the cached obstacle list with `_world_obstacles` at the first view of every pad.
@@ -1713,9 +1733,6 @@ func _near_scan(spots: Array, aspect_ids: Array, statics: Array, rows: Array, ba
 			var sib: BranchPad = _pads(id)[1 - i]
 			var c := _pad_pos(id, i)
 			var gaps := {}  # class -> smallest gap (px) of an item to it
-			var hero_far := 0.0  # the farthest hero (m from the pad's centre) that an item of the block overlaps
-			var hero_at_far := Vector2.ZERO
-			var hero_what := ""
 			var pts := 0
 			var views := 0
 			var checked_oracle := not oracle
@@ -1768,30 +1785,62 @@ func _near_scan(spots: Array, aspect_ids: Array, statics: Array, rows: Array, ba
 						for it in items:
 							for o in obstacles:
 								var cls := _obstacle_class(String(o[0]))
-								gaps[cls] = minf(float(gaps.get(cls, INF)), _gap(it[2], o[1]))
-								if cls != "hero":
-									res.min_gap = minf(res.min_gap, _gap(it[2], o[1]))
-								if (it[2] as Rect2).intersects(o[1]):
-									var ov := (it[2] as Rect2).intersection(o[1])
-									_add_finding(findings, "%s: the %s overlaps %s" % [tag, String(it[0]).get_slice("/", 1), "the hero" if cls == "hero" else o[0]], ov.size, at)
-									if cls == "hero" and d > hero_far:
-										hero_far = d
-										hero_at_far = at - c
-										hero_what = "%s %s vs hero %s (%s)" % [String(it[0]).get_slice("/", 1), it[2], o[1], ASPECT_NAMES[a]]
+								if cls == "hero":
+									continue  # D-294.8: the hero is drawn in front of every pad label (the render check and the priorities below), not a rect rule
+								var g := _gap(it[2], o[1])
+								gaps[cls] = minf(float(gaps.get(cls, INF)), g)
+								res.min_gap = minf(res.min_gap, g)
+								if g < MIN_GAP_PX:
+									_add_finding(findings, "%s: the %s is under %.0f px from %s" % [tag, String(it[0]).get_slice("/", 1), MIN_GAP_PX, o[0]], Vector2(MIN_GAP_PX - g, MIN_GAP_PX - g), at)
+						_check_tether(p, v, at, block, obstacles, findings, tag)
 						if sib_near:
 							var sitems := _pad_items(sib, v)
 							var sblock: Rect2 = (sitems[0][2] as Rect2).merge(sitems[1][2])
-							gaps["sibling block"] = minf(float(gaps.get("sibling block", INF)), _gap(block, sblock))
-							if block.intersects(sblock):
-								_add_finding(findings, "%s: the two blocks overlap" % tag, block.intersection(sblock).size, at)
+							var bg := _gap(block, sblock)
+							gaps["sibling block"] = minf(float(gaps.get("sibling block", INF)), bg)
+							res.min_gap = minf(res.min_gap, bg)
+							if bg < MIN_GAP_PX:
+								_add_finding(findings, "%s: the two blocks are under %.0f px apart" % [tag, MIN_GAP_PX], Vector2(MIN_GAP_PX - bg, MIN_GAP_PX - bg), at)
 			res.min_pts = mini(res.min_pts, pts)
 			res.max_pts = maxi(res.max_pts, pts)
 			var gl: Array = []
 			for k in gaps:
 				gl.append("%s %.0f" % [k, float(gaps[k])])
 			gl.sort()
-			res.report.append("%s pad %d: %d points, %d views; smallest gap px: %s; farthest hero overlap %.1f m at %s from the pad: %s" % [id, i, pts, views, ", ".join(gl), hero_far, hero_at_far, hero_what])
+			res.report.append("%s pad %d: %d points, %d views; smallest gap px: %s" % [id, i, pts, views, ", ".join(gl)])
 	return res
+
+## D-294.8: a cost reads as its pad's. A NEAR block within BranchPad.TETHER_FROM_M (0.5 m) of its pad has no tether; a block beyond it has one that is shown
+## with the cost, whose ring end lies within 0.15 m of the pad's ring and its block end within 0.15 m of the block's edge, and that stays MIN_GAP_PX from every obstacle.
+func _check_tether(p: BranchPad, v: View, at: Vector2, block: Rect2, obstacles: Array, findings: Dictionary, tag: String) -> void:
+	if p.near_shift.length() <= BranchPad.TETHER_FROM_M + 0.001:
+		if p.tether != null and p.tether.visible:
+			_add_finding(findings, "%s: a tether on a block within 0.5 m of its pad" % tag, Vector2.ONE, at)
+		return
+	if p.tether == null or not p.tether.visible or p.tether_ends.size() != 2:
+		_add_finding(findings, "%s: the block stands %.2f m from its pad and shows no tether" % [tag, p.near_shift.length()], Vector2.ONE, at)
+		return
+	var ppm := v.px_per_m(p.global_position)
+	var a := v.pt(p.global_position + p.tether_ends[0])
+	var b := v.pt(p.global_position + p.tether_ends[1])
+	var ring := PackedVector2Array()
+	for k in 48:
+		var ang := TAU * float(k) / 48.0
+		ring.append(v.pt(p.global_position + Vector3(cos(ang), 0.0, sin(ang)) * MapLayout.BRANCH_PAD_RADIUS))
+	var ring_d := 0.0 if Geometry2D.is_point_in_polygon(a, ring) else INF
+	if ring_d != 0.0:
+		for k in 48:
+			ring_d = minf(ring_d, Geometry2D.get_closest_point_to_segment(a, ring[k], ring[(k + 1) % 48]).distance_to(a))
+	var bq := Vector2(clampf(b.x, block.position.x, block.end.x), clampf(b.y, block.position.y, block.end.y))
+	if ring_d > 0.15 * ppm:
+		_add_finding(findings, "%s: the tether's ring end is %.0f px from the ring (over 0.15 m)" % [tag, ring_d], Vector2(ring_d, ring_d), at)
+	if b.distance_to(bq) > 0.15 * ppm:
+		_add_finding(findings, "%s: the tether's block end is %.0f px from the block (over 0.15 m)" % [tag, b.distance_to(bq)], Vector2(b.distance_to(bq), 1.0), at)
+	for k in 13:
+		var q := a.lerp(b, float(k) / 12.0)
+		for o in obstacles:
+			if _obstacle_class(String(o[0])) != "hero" and (o[1] as Rect2).grow(MIN_GAP_PX).has_point(q):
+				_add_finding(findings, "%s: the tether is within %.0f px of %s" % [tag, MIN_GAP_PX, o[0]], Vector2.ONE, at)
 
 ## A point the hero can stand on: off every solid by his radius + 0.05, on no pad, inside the map.
 func _reachable(at: Vector2) -> bool:
@@ -1961,8 +2010,8 @@ func test_flag_on_no_lane_badge_overlaps_a_pad_item_from_the_pad_views_or_the_zo
 				for it in items:
 					for b in badges:
 						var br := _badge_rect(b[1], v)
-						if (it[2] as Rect2).intersects(br):
-							findings.append("%s %s pad %d: %s overlaps %s by %s" % [ASPECT_NAMES[a], id, i, it[0], b[0], _fmt_overlap(it[2], br)])
+						if _gap(it[2], br) < MIN_GAP_PX:
+							findings.append("%s %s pad %d: %s is %.0f px from %s (under %.0f)" % [ASPECT_NAMES[a], id, i, it[0], _gap(it[2], br), b[0], MIN_GAP_PX])
 	for lane in MapLayout.lanes_for_tier(3):
 		var zone := MapLayout.zone_rect(lane).get_center()
 		main.hero.teleport(Vector2(15.0, 8.0))
@@ -1976,10 +2025,84 @@ func test_flag_on_no_lane_badge_overlaps_a_pad_item_from_the_pad_views_or_the_zo
 					for it in _pad_items(q, v):
 						for b in badges:
 							var br := _badge_rect(b[1], v)
-							if (it[2] as Rect2).intersects(br):
-								findings.append("%s zone %s: %s overlaps %s by %s" % [ASPECT_NAMES[a], lane, it[0], b[0], _fmt_overlap(it[2], br)])
+							if _gap(it[2], br) < MIN_GAP_PX:
+								findings.append("%s zone %s: %s is %.0f px from %s (under %.0f)" % [ASPECT_NAMES[a], lane, it[0], _gap(it[2], br), b[0], MIN_GAP_PX])
 	_dump("badges vs pads", findings)
 	assert_eq(findings, [], "an empty expected set")
+
+## D-294.8: the hero is drawn in front of every pad label. Structure (what guarantees it in the render; tools/check_hero_front.gd renders it): the hero's
+## surfaces are in the transparent pass (alpha, depth pre-pass) at HERO_PRIORITY, every pad label (cost, name, effect, warning, refund, preview text, tether)
+## and glyph (no depth test: they draw in the transparent pass too) is at LABEL_PRIORITY, which draws earlier. Other world labels (priority 0) stay over him.
+func _hero_surfaces() -> Array:
+	var out: Array = []
+	for mi in main.hero.visual.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		for s in m.mesh.get_surface_count():
+			out.append(m.get_active_material(s))
+	return out
+
+func test_flag_on_the_hero_is_drawn_in_front_of_every_pad_label() -> void:
+	await _start_on()
+	_all_max()
+	await _settle()
+	var surfaces := _hero_surfaces()
+	assert_gt(surfaces.size(), 0, "the hero has surfaces")
+	for m in surfaces:
+		var b := m as BaseMaterial3D
+		assert_eq(b.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS, "the hero is in the transparent pass, depth-tested")
+		assert_eq(b.render_priority, BranchPad.HERO_PRIORITY)
+	assert_lt(BranchPad.LABEL_PRIORITY, BranchPad.HERO_PRIORITY, "the labels draw before him")
+	assert_lt(BranchPad.HERO_PRIORITY, 0, "and every other world label (priority 0) after him, as today")
+	var labels := 0
+	for id in MapLayout.spots_for_tier(3):
+		for p: BranchPad in _pads(id):
+			for l in [p.cost_label, p.name_label, p.effect_label, p.warn_label, p.refund_label, p.hint_label]:
+				if l == null:
+					continue
+				labels += 1
+				assert_eq((l as Label3D).render_priority, BranchPad.LABEL_PRIORITY, "%s %s" % [p.name, (l as Node).name])
+			for g in [p.icon, p.warn_icon]:
+				if g != null:
+					var gm := (g as MeshInstance3D).material_override as BaseMaterial3D
+					if gm.no_depth_test:  # a FAR glyph is depth-tested: opaque, the hero covers it by depth
+						assert_eq(gm.render_priority, BranchPad.LABEL_PRIORITY, "%s glyph: no depth test puts it in the transparent pass, so it draws before the hero by priority" % p.name)
+			for g in p.hint_icons:
+				assert_eq(((g as MeshInstance3D).material_override as BaseMaterial3D).render_priority, BranchPad.LABEL_PRIORITY, "%s preview glyph" % p.name)
+			if p.tether != null:
+				assert_eq((p.tether.material_override as BaseMaterial3D).render_priority, BranchPad.LABEL_PRIORITY)
+	assert_gte(labels, 18 * 4)
+	main.hero.teleport(_near_hero_at("tower_e", 3.0, "home"))  # a NEAR glyph has no depth test: its material carries the priority
+	await _settle()
+	var near_glyphs := 0
+	for p: BranchPad in _pads("tower_e"):
+		if p.stage == BranchPad.NEAR:
+			near_glyphs += 1
+			assert_true((p.icon.material_override as BaseMaterial3D).no_depth_test)
+			assert_eq((p.icon.material_override as BaseMaterial3D).render_priority, BranchPad.LABEL_PRIORITY, "a NEAR glyph draws before the hero")
+	assert_gt(near_glyphs, 0)
+	for l in get_tree().get_nodes_in_group(&"world_labels"):
+		var anc: Node = l
+		var pad_label := false
+		while anc != null:
+			pad_label = pad_label or anc is BranchPad
+			anc = anc.get_parent()
+		if not pad_label:
+			assert_eq((l as Label3D).render_priority, 0, "a station label stays at priority 0, over the hero as today")
+
+## With the flag off nothing of the hero changes: opaque, priority 0.
+func test_flag_off_the_hero_and_the_pad_labels_keep_their_render_state() -> void:
+	await _start()
+	_all_max()
+	await _settle()
+	for m in _hero_surfaces():
+		assert_eq((m as BaseMaterial3D).transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)
+		assert_eq((m as BaseMaterial3D).render_priority, 0)
+	for id in MapLayout.spots_for_tier(3):
+		for p: BranchPad in _pads(id):
+			assert_eq(p.cost_label.render_priority, 0)
+			assert_null(p.tether)
 
 ## The hero standing on a pad that is NOT armed (placed there, or the pad appeared under him): the card stays hidden; the world shows the ring and the
 ## glyph at the ON place, NO cost and NO preview (it cannot be paid yet). The same empty expected set as the ON stage, 18 pads x 3 aspects. A pad
@@ -2013,6 +2136,7 @@ func test_flag_on_an_unarmed_pad_shows_ring_and_glyph_only_with_the_same_zero_ov
 				views += 1
 	assert_eq(views, 54)
 	_dump("UNARMED, 54 views", findings)
+	_dump_gaps("UNARMED gaps")
 	assert_eq(findings, [], "an empty expected set: the same as the ON stage")
 	# the walk-in tick: the pad has run, its zone has not (so it is not armed yet): the stage is UNARMED, with no cost node visible
 	for id in ["tower_e", "fence_sw"]:

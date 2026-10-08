@@ -92,7 +92,7 @@ const BRANCH_PADS_RETUNE := {
 	"tower_w": [Vector2(-10.7, 2.4), Vector2(-8.7, 0.8)],
 	"tower_sw": [Vector2(-7.8, 3.1), Vector2(-5.3, 3.9)],
 	"fence_e": [Vector2(6.1, -6.1), Vector2(9.5, -3.8)],
-	"fence_w": [Vector2(-9.6, -3.9), Vector2(-6.1, -6.1)],
+	"fence_w": [Vector2(-9.6, -4.0), Vector2(-6.2, -6.2)],
 	"fence_sw": [Vector2(-5.6, 7.8), Vector2(-1.0, 10.5)],
 }
 

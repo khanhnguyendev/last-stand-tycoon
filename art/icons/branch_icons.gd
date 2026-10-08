@@ -153,6 +153,16 @@ static func ring_mesh(colour: StringName, inner: float, disc_alpha: float) -> Ar
 	_cache[key] = m
 	return m
 
+## E6 (D-294.8): the glyph material of a pad that shows labels, with a render priority: a material without the depth test draws in the transparent pass, where
+## the hero's own priority decides, so the glyph is drawn BEFORE him (a lower number draws earlier). Cached per priority.
+static func front_material(priority: int) -> StandardMaterial3D:
+	var key := "front_%d" % priority
+	if not _cache.has(key):
+		var m := LaneIcons.material().duplicate() as StandardMaterial3D
+		m.render_priority = priority
+		_cache[key] = m
+	return _cache[key]
+
 ## The glyph material of a FAR pad: the billboard material with the depth test ON, so buildings hide the glyph.
 static func far_material() -> StandardMaterial3D:
 	if _far_mat == null:
