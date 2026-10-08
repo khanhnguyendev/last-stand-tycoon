@@ -2870,3 +2870,21 @@ specialists.
    cap with zero retry nights; no first tier-3 night below 25%. Then try restoring the pressure ramp (D-281.1) on
    the tuned values.
 
+**D-284 Branch card in the HUD (follow-up slice, brainstorm question 3; author, 2026-10-08).**
+
+1. **Content:** branch icon, name, the specialty line with its lane-character icon (D-283), cost and payment
+   progress, and for fences the "lost if broken" icon line. Every string through `tr()`.
+2. **Behaviour:** the card appears when the hero enters an armed branch pad and hides on exit or on completion. It
+   never intercepts input (mouse filter ignore): a joystick touch may start anywhere, including over the card.
+   Test: a drag that starts on the card moves the hero.
+3. **Layout:** bottom of the screen, inside the safe area (home indicator), never covering the hero at any focus
+   inside the camera clamp: a projection test with the hero on each of the 9 spots' pads. Readable at about 40%
+   scale.
+4. **World side:** only the pad ring, the icon, the near-stage cost and the preview shape (range ring, "x3" and so
+   on) stay in the world.
+5. **Overlaps:** the near-stage overlaps are fixed by moving pads. The overlap test asserts ZERO overlaps for both
+   the near stage and the on-pad stage, replacing the pinned counts, and includes the "Close up" label, level pips,
+   station labels and the count rows.
+6. **Scope:** branch pads only in this slice. REVIEW_QUEUE idea: use the same card for all build and upgrade pads,
+   with the overlap count it would remove.
+
