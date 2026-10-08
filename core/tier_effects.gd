@@ -48,3 +48,7 @@ static func brute_counts(day: int, tier: int, tier_day: int, wave_index: int, wa
 		return {"main": tb.brute_cap_main[tier], "side": tb.brute_cap_side[tier] if has_side else 0}
 	var carrying := mini(d + 1, wave_count)
 	return {"main": tb.brute_cap_main[tier] if wave_index >= wave_count - carrying else 0, "side": 0}
+
+## E6 (D-286): is the tier-3 retune on? The ONLY way production code reads the flag; false for a null balance.
+static func retune_on(tb: TierBalance) -> bool:
+	return tb != null and tb.retune_enabled

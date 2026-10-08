@@ -48,6 +48,8 @@ func setup(main: Main) -> void:
 		if scenes.has_fresh_start_key(raw):
 			main.debug_fresh_start = true
 		var flags := UrlFlags.parse(raw)
+		if retune_arg(flags):
+			Balance.data.tiers.retune_enabled = true  # ?retune=1 (E6, D-286): before Main._boot (deferred) creates or loads the game
 		var auto := autoplay_args(flags)  # ?autoplay=1: the hero plays itself (recordings); ?autoplay=tier&policy=..: also buys tiers and branches
 		if not auto.is_empty():
 			_attach_autoplay.call_deferred(auto[0], auto[1])
@@ -60,6 +62,10 @@ func setup(main: Main) -> void:
 ## re-enters PhaseController while _enter_night is still emitting phase_changed.
 func _on_first_phase(_phase: int, _day: int) -> void:
 	_apply_scene.call_deferred()
+
+## E6 (D-286): does the URL ask for the tier-3 retune? Only retune=1.
+static func retune_arg(flags: Dictionary) -> bool:
+	return flags.get("retune", "") == "1"
 
 ## The autoplay script and policy a parsed URL asks for: [] for none, else [script path, policy].
 static func autoplay_args(flags: Dictionary) -> Array:
