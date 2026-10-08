@@ -7,9 +7,11 @@ extends GutTest
 const ASPECTS := [9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0]
 const ASPECT_NAMES := ["9:21", "9:16", "16:9"]
 ## Hand-written from LaneCharacter.for_run (the draw is pinned forever): seed -> [siege lane, hare lane].
-const CHARACTERS := {1: ["east", "west"], 3: ["sw", "west"], 4: ["west", "north"], 7: ["north", "sw"], 14: ["north", "east"], 18: ["west", "east"]}
-## The seeds the placement tests cover: every lane as siege and as hare (14 and 18 put the hare on the east lane).
-const PLACEMENT_SEEDS := [1, 3, 4, 7, 14, 18]
+const CHARACTERS := {1: ["east", "west"], 3: ["sw", "west"], 4: ["west", "north"], 7: ["north", "sw"], 14: ["north", "east"], 18: ["west", "east"],
+	2: ["east", "north"], 9: ["north", "west"], 12: ["sw", "north"]}
+## The seeds the placement tests cover: every lane as siege and as hare (14 and 18 put the hare on the east lane), and the north badge on both
+## sides: 9 = north siege + west hare (mirrored to +4.0), 4 = north hare + west siege (+4.0), 2 and 12 = north hare + east / sw siege (-4.0).
+const PLACEMENT_SEEDS := [1, 3, 4, 7, 14, 18, 2, 9, 12]
 const LANES := ["west", "north", "east", "sw"]
 
 var main: Main
@@ -41,14 +43,27 @@ func _start(seed: int, tier := 3, flag := true) -> void:
 func _marker(lane: String) -> TelegraphMarker:
 	return main.world.telegraph_markers[lane]
 
-## {lane: icon kind} of every badge showing now.
+## {lane: icon kind} of every badge the run has (its lane is not neutral). The cover rule may hide one for a moment: tests read is_visible_in_tree().
 func _badges() -> Dictionary:
 	var out := {}
 	for lane in main.world.telegraph_markers:
 		var b: LaneCharacterMarker = _marker(lane).badge
-		if b != null and b.shown_kind() != &"" and b.is_visible_in_tree():
+		if b != null and b.shown_kind() != &"":
 			out[lane] = b.shown_kind()
 	return out
+
+## True when the badge's OWN rule says something covers it from the viewport's camera and the hero node now.
+func _covered_now(b: LaneCharacterMarker) -> bool:
+	var cam := b.get_viewport().get_camera_3d()
+	return b.covers(cam.global_transform, func(w: Vector3) -> Vector2:
+		return Vector2(INF, INF) if cam.is_position_behind(w) else cam.unproject_position(w), main.hero.global_position, b.get_viewport().get_visible_rect())
+
+## Puts the hero at `f`, snaps the camera and waits for the cover timer (period 15 frames at 4 Hz, lane phase up to 0.75 of it): 30 frames.
+func _stand_at(f: Vector2) -> void:
+	main.hero.teleport(f)
+	main.camera_rig.snap()
+	for i in 30:
+		await get_tree().physics_frame
 
 ## Names of every LaneCharacterMarker in the world that is NOT the `badge` of the current marker of its lane (an orphan: its marker was
 ## freed or rebuilt and the badge stayed behind). Call after a process_frame so queued frees have happened.
@@ -101,12 +116,18 @@ func test_flag_on_at_tier_3_shows_exactly_two_badges_on_the_right_lanes_for_seed
 func test_the_badge_shows_by_day_and_by_night() -> void:
 	await _start(3)
 	assert_eq(_badges(), _expect(3), "day")
+	for lane in _badges():
+		await _stand_at(_zone_focus(lane))
+		assert_true(_marker(lane).badge.is_visible_in_tree(), "day: the %s badge is drawn from its own zone" % lane)
 	main.phase_controller.debug_skip_to_night()
 	await get_tree().physics_frame
 	assert_eq(main.phase_controller.phase, Phase.NIGHT)
 	assert_eq(_badges(), _expect(3), "night: the count row hides, the badge does not")
 	for lane in LANES:
 		assert_false(_marker(lane).visible, "the flag of %s hides by night (the badge is not its child)" % lane)
+	for lane in _badges():
+		await _stand_at(_zone_focus(lane))
+		assert_true(_marker(lane).badge.is_visible_in_tree(), "night: the %s badge is drawn from its own zone" % lane)
 	main.phase_controller.debug_skip_to_day()
 	await get_tree().physics_frame
 	assert_eq(_badges(), _expect(3), "day again")
@@ -297,13 +318,16 @@ func test_the_badge_does_not_hide_with_the_count_row_under_the_hud_bar() -> void
 		m.refresh()
 	main.hero.teleport(MapLayout.HOME)
 	main.camera_rig.snap()
-	for i in 3:
-		await get_tree().physics_frame
-	await get_tree().process_frame
+	for i in 30:
+		await get_tree().physics_frame  # the last cover evaluation was before the teleport
 	assert_false(_marker("north").row.visible, "the north count row is hidden under the bar from HOME at 9:16")
 	assert_false(_marker("east").row.visible, "so is the east row")
 	assert_eq(_badges(), {"north": &"siege", "sw": &"hare"}, "but both badges stay")
-	assert_true(_marker("north").badge.is_visible_in_tree())
+	var nb: LaneCharacterMarker = _marker("north").badge
+	var covered := _covered_now(nb)
+	assert_eq(nb.is_visible_in_tree(), not covered, "the badge is drawn exactly when its own rule says nothing covers it")
+	assert_false(covered, "from HOME at 9:16 the hero stands at the screen centre and the badge is up under the bar: no hero, label or pip covers it")
+	assert_true(nb.is_visible_in_tree(), "so it IS drawn while its count row is hidden under the bar")
 
 # --- no overlap ---------------------------------------------------------------------------------------------------------
 
@@ -364,6 +388,8 @@ func _spot_rects(v: View) -> Array:
 
 func _foci() -> Array:
 	var out: Array = [MapLayout.HOME, MapLayout.SIGN]
+	for id in MapLayout.STATION_STAND:
+		out.append(MapLayout.STATION_STAND[id])
 	for lane in MapLayout.lanes_for_tier(3):
 		out.append(MapLayout.zone_rect(lane).get_center())
 	for id in MapLayout.spots_for_tier(3):
@@ -456,10 +482,16 @@ func test_the_badge_clears_the_count_row_the_tier_sign_the_spot_labels_and_the_h
 	assert_gt(res.views, 0)
 	gut.p("%d badge views from the four attack zones; smallest gap from a badge to a count row: %.1f base px" % [res.views, res.gap])
 
-## Not asserted: the same measure from every other camera focus the game reaches (HOME, the sign, the spots and the pads), reported.
-func test_report_the_badge_overlaps_from_the_other_foci() -> void:
+## From every camera focus the game reaches (HOME, the sign, the station stand points, the zones, the spots and the pads) the badge clears the
+## count rows and the tier sign (the table of the other categories is printed; the cover rule's own assertion is below).
+func test_from_every_focus_the_badge_clears_the_count_rows_and_the_tier_sign() -> void:
 	var res: Dictionary = await _overlaps(_foci())
 	var by := _print_table("all %d foci" % _foci().size(), res.views, res.overlaps)
+	var shown := 0
+	for t in res.overlaps:
+		if (t.cat == "count row" or t.cat == "tier sign") and shown < 4:
+			gut.p("  " + t.text)
+			shown += 1
 	assert_eq(by["count row"] + by["tier sign"], 0, "from every focus the badge clears the count rows and the tier sign")
 	assert_gt(res.views, 0)
 
@@ -631,7 +663,7 @@ func _inset_bar(inset: float, vp: Vector2) -> float:
 	TelegraphMarker._bar_stamp = -1  # the cache would hold the last value for a second
 	return TelegraphMarker.bar_px(vp)
 
-func test_with_a_notch_inset_at_9_19_5_the_shown_badges_are_not_under_the_bar_from_home_and_each_zone() -> void:
+func test_with_a_notch_inset_at_9_19_5_the_shown_badges_are_not_under_the_bar_from_each_zone() -> void:
 	var vp := Vector2(720, 1560)
 	var aspect := vp.x / vp.y
 	var worst := {}
@@ -655,30 +687,45 @@ func test_with_a_notch_inset_at_9_19_5_the_shown_badges_are_not_under_the_bar_fr
 			main.queue_free()
 			await get_tree().process_frame
 
-# --- the lane strip (report only) -------------------------------------------------------------------------------------------
+# --- the road: the drawn surface and the enemies' bodies --------------------------------------------------------------------
 
-## A brute's height for the obstacle prism (the hero's, 1.8 m: the brute is the tallest enemy and is not taller than the hero).
-const STRIP_HEIGHT := 1.8
+## The drawn road is LaneStrip.WIDTH wide (half 1.5 m); the kerb stones stand at 1.75 m from the centre line and are LaneStrip.STONE_RADIUS (0.4 m) big,
+## so the drawn surface reaches 2.15 m (the test below measures the stones of every lane).
+const SURFACE_HALF := LaneStrip.WIDTH * 0.5 + 0.25 + LaneStrip.STONE_RADIUS
+## The enemies' volume: a body at the limit of the lateral spread. 0.975 m is the half-width of the broadest body, the brute (art/boar/boar_mesh.gd);
+## 1.5 m high models the tall bodies the lane carries (the boss kinds are taller, but a boss walks the lane's centre line, spread 0).
+const BODY_EXTRA := 0.975
+const BODY_HEIGHT := 1.5
+## The badge's rect, grown by this (base px), must still meet neither obstacle.
+const CLEAR_PX := 4.0
 
-## The projected rects of the lane's strip: one oriented prism per path segment, half-width = the enemies' lateral spread, ground to STRIP_HEIGHT.
-func _strip_rects(lane: String, v: View) -> Array:
+## The projected rects of the lane's road: one oriented prism per 1 m path piece (a long diagonal's bounding box would cover the grass
+## beside it), half-width `half` on the ground plane, up to `height` (0 = a flat quad on the ground).
+func _road_rects(lane: String, v: View, half: float, height: float) -> Array:
 	var path: Array = MapLayout.lane_path(lane)
-	var half: float = Balance.data.enemy.lateral_spread
 	var out: Array = []
 	for i in path.size() - 1:
 		var a0: Vector2 = path[i]
 		var b0: Vector2 = path[i + 1]
 		var n := (b0 - a0).normalized().orthogonal() * half
-		var pieces := maxi(1, ceili(a0.distance_to(b0) / 1.0))  # 1 m pieces: a long diagonal's bounding box would cover the grass beside it
+		var pieces := maxi(1, ceili(a0.distance_to(b0) / 1.0))
 		for k in pieces:
 			var a := a0.lerp(b0, float(k) / float(pieces))
 			var b := a0.lerp(b0, float(k + 1) / float(pieces))
 			var pts: Array = []
 			for p in [a + n, a - n, b + n, b - n]:
 				pts.append(Vector3(p.x, 0.0, p.y))
-				pts.append(Vector3(p.x, STRIP_HEIGHT, p.y))
+				if height > 0.0:
+					pts.append(Vector3(p.x, height, p.y))
 			out.append(v.bounds(pts))
 	return out
+
+## Smallest separation (base px, negative = overlap) between `r` and any of `rects`.
+func _gap(r: Rect2, rects: Array) -> float:
+	var gap := INF
+	for sr in rects:
+		gap = minf(gap, maxf(maxf(sr.position.x - r.end.x, r.position.x - sr.end.x), maxf(sr.position.y - r.end.y, r.position.y - sr.end.y)))
+	return gap
 
 ## Distance (m) from a ground point to the lane's centre line.
 func _centre_distance(lane: String, p: Vector2) -> float:
@@ -688,40 +735,272 @@ func _centre_distance(lane: String, p: Vector2) -> float:
 		best = minf(best, Geometry2D.get_closest_point_to_segment(p, path[i], path[i + 1]).distance_to(p))
 	return best
 
-## D-292.3: the badge is off the road. From each lane's zone view at three aspects, the badge's rect meets none of its lane's strip prisms, nor
-## (for the other lanes shown) any lane's strip.
-func test_the_badge_is_off_every_lane_strip_from_each_zone() -> void:
-	gut.p("seed lane  kind  | centre-line distance (m) | nearest strip gap in px at 9:21 / 9:16 / 16:9 (negative = overlap)")
+func test_the_kerb_stones_stay_inside_the_surface_quad() -> void:
+	var worst := 0.0
+	for lane in LANES:
+		for xf in LaneStrip.edge_transforms(MapLayout.lane_path(lane)):
+			worst = maxf(worst, _centre_distance(lane, Vector2(xf.origin.x, xf.origin.z)) + LaneStrip.STONE_RADIUS)
+	gut.p("kerb stones: the outer reach (centre line to a stone's far edge, nearest lane path) is at most %.3f m; the surface quad's half-width is %.3f m" % [worst, SURFACE_HALF])
+	assert_lte(worst, SURFACE_HALF + 0.001, "a stone sticks out of the surface quad")
+	assert_gt(worst, 2.0, "stones were found")
+
+## D-292.3: from its own lane's zone at 9:21, 9:16 and 16:9 every seed's badge, grown CLEAR_PX, meets neither the DRAWN road (surface + kerb, on the
+## ground) nor the enemies' volume (spread + a brute's half-width, 1.5 m high) of ANY lane. Prints the smallest gaps.
+func test_the_badge_clears_the_drawn_road_and_the_enemy_bodies_from_its_own_zone() -> void:
+	var worst := {}  # "lane aspect" -> [surface gap, body gap]
 	for s in PLACEMENT_SEEDS:
 		await _start(s)
 		for lane in _badges():
 			var b: LaneCharacterMarker = _marker(lane).badge
-			var cells: Array = []
 			for aspect_i in ASPECTS.size():
 				var v := View.new(_zone_focus(lane), ASPECTS[aspect_i])
 				var r: Rect2 = _badge_rect(lane, v)
-				var gap := INF
+				var surf := INF
+				var body := INF
 				for other in LANES:
-					for sr in _strip_rects(other, v):
-						if r.intersects(sr):
-							assert_eq(r.intersection(sr).get_area(), 0.0, "seed %d %s %s: the badge %s is on the %s strip %s" % [s, lane, ASPECT_NAMES[aspect_i], r, other, sr])
-						gap = minf(gap, maxf(maxf(sr.position.x - r.end.x, r.position.x - sr.end.x), maxf(sr.position.y - r.end.y, r.position.y - sr.end.y)))
-				assert_gte(gap, 0.0, "seed %d %s %s: the badge is separated from the strip by %.1f px" % [s, lane, ASPECT_NAMES[aspect_i], gap])
-				cells.append("%.0f" % gap)
-			gut.p("%d %-5s %-5s | %.2f | %s" % [s, lane, _badges()[lane], _centre_distance(lane, Vector2(b.global_position.x, b.global_position.z)), " / ".join(cells)])
+					surf = minf(surf, _gap(r, _road_rects(other, v, SURFACE_HALF, 0.0)))
+					body = minf(body, _gap(r, _road_rects(other, v, Balance.data.enemy.lateral_spread + BODY_EXTRA, BODY_HEIGHT)))
+				assert_gte(surf, CLEAR_PX, "seed %d %s %s (%.2f m from the centre line): the badge %s is %.1f px from the drawn road, needs %.0f" % [s, lane, ASPECT_NAMES[aspect_i], _centre_distance(lane, Vector2(b.global_position.x, b.global_position.z)), r, surf, CLEAR_PX])
+				assert_gte(body, CLEAR_PX, "seed %d %s %s: the badge %s is %.1f px from the enemies' volume, needs %.0f" % [s, lane, ASPECT_NAMES[aspect_i], r, body, CLEAR_PX])
+				var key := "%s %s" % [lane, ASPECT_NAMES[aspect_i]]
+				var w: Array = worst.get(key, [INF, INF])
+				worst[key] = [minf(w[0], surf), minf(w[1], body)]
 		main.queue_free()
 		await get_tree().process_frame
+	gut.p("smallest gap (base px) from a badge, seen from its own zone, to the drawn road (surface + kerb) | to the enemies' volume:")
+	for key in worst:
+		gut.p("  %-9s %6.1f | %6.1f" % [key, worst[key][0], worst[key][1]])
 
-## D-292.3: below its lane's count row (nearer the camera) for the three northern lanes; the sw row stands at the foot of the map where
-## "below" would leave the screen, so its badge is level with the row, to its left.
-func test_the_badge_is_below_its_count_row_on_the_northern_lanes() -> void:
+## D-292.3: every badge, the south-west one too, stands BELOW its lane's count row (nearer the camera).
+func test_every_badge_is_below_its_count_row() -> void:
 	for s in PLACEMENT_SEEDS:
 		await _start(s)
 		for lane in _badges():
 			var mk := _marker(lane)
-			if lane == "sw":
-				assert_almost_eq(mk.badge.global_position.z, mk.row_anchor().z, 1e-4)
-			else:
-				assert_gt(mk.badge.global_position.z, mk.row_anchor().z + 1.0, "seed %d %s: the badge is toward the camera of its row" % [s, lane])
+			assert_gt(mk.badge.global_position.z, mk.row_anchor().z + 0.5, "seed %d %s: the badge (z %.2f) is toward the camera of its row (z %.2f)" % [s, lane, mk.badge.global_position.z, mk.row_anchor().z])
+		main.queue_free()
+		await get_tree().process_frame
+
+func test_an_unknown_lane_is_not_placed_on_the_row_anchor() -> void:
+	for lane in LANES:
+		assert_ne(LaneCharacterMarker.place(lane, Vector3(1, 1, 1)), Vector3(1, 1, 1), "%s has an offset" % lane)
+	var src := FileAccess.get_file_as_string("res://world/lanes/lane_character_marker.gd")
+	assert_true("unknown lane" in src and "assert(offsets.has(lane)" in src, "an unknown lane asserts (a Dictionary.get default would put it on the anchor)")
+	assert_false(", _align" in src or "_align := 0" in src, "the unused align parameter is gone")
+
+# --- west + north ----------------------------------------------------------------------------------------------------------------
+
+## Seed 4 is west + north (siege west, hare north), seed 14 is north + east, seed 7 north + sw: from the north zone at 9:16 the two badges are
+## at least 300 base px apart, and the north badge goes to the side away from the other one.
+func test_the_north_badge_keeps_away_from_the_other_badge_of_its_run() -> void:
+	for case in [[4, "west", 1.0], [9, "west", 1.0], [14, "east", -1.0], [2, "east", -1.0], [7, "sw", -1.0], [12, "sw", -1.0]]:
+		await _start(case[0])
+		var v := View.new(_zone_focus("north"), ASPECTS[1])
+		var rn: Rect2 = _badge_rect("north", v)
+		var ro: Rect2 = _badge_rect(case[1], v)
+		var apart := rn.get_center().distance_to(ro.get_center()) if v.screen().intersects(ro) else INF
+		gut.p("seed %d north + %s: north badge x %.1f m, %.0f base px from the other badge (centres, from the north zone at 9:16)" % [case[0], case[1], _marker("north").badge.global_position.x, apart])
+		assert_gte(apart, 300.0, "seed %d: the north badge is %.0f px from the %s badge" % [case[0], apart, case[1]])
+		assert_gt(_marker("north").badge.global_position.x * case[2], 0.0, "seed %d: the north badge sits on the side away from the %s one" % [case[0], case[1]])
+		main.queue_free()
+		await get_tree().process_frame
+
+# --- the cover rule (E6 fix round 3) -------------------------------------------------------------------------------------------
+
+## Puts every standing spot and both stations at `level` (what the game would show on that day).
+func _set_levels(level: int) -> void:
+	for id in GameState.buildings:
+		GameState.buildings[id].level = level
+		GameState.buildings[id].paid = 0
+		EventBus.building_changed.emit(StringName(id), level, 0)
+	for sid in StationEffects.IDS:
+		GameState.debug_set_station_level(sid, mini(level, Balance.data.stations.max_level))
+
+## The things a badge must not cover, as the test models them from the game's own numbers (not from the badge's code): the hero's body at
+## `f`, each visible spot's cost / MAX label at the spot's own label height, its pips as the LevelPips row lays them out, every visible
+## station label.
+func _cover_obstacles(v: View, f: Vector2) -> Array:
+	var out: Array = [["hero", v.box(AABB(Vector3(f.x - 0.4, 0.0, f.y - 0.05), Vector3(0.8, 1.8, 0.1)))]]
+	var max_level: int = Balance.data.build.max_level
+	for id in main.world.build_spots:
+		var sp: BuildSpot = main.world.build_spots[id]
+		if sp.label.is_visible_in_tree() and sp.label.text != "":
+			out.append([id + " label", v.quad(sp.global_position + Vector3(0, sp._label_y(sp.level), 0), BranchPad.text_box(sp.label))])
+		for i in sp.level:
+			out.append([id + " pip %d" % i, v.quad(sp.global_position + Vector3((i - (max_level - 1) * 0.5) * LevelPips.SPACING, sp._pip_y(sp.level), 0), Vector2.ONE * LevelStar.SIZE)])
+	for n in get_tree().get_nodes_in_group(&"world_labels"):
+		var l := n as Label3D
+		if l == null or not l.is_visible_in_tree() or l.text == "":
+			continue
+		var p := l.get_parent()
+		if p is UpgradePad or p is Counter or p is Freezer or p is GoldPile or p is CloseUpSign:
+			out.append([String(p.name) + " label", _label_rect(l, v)])
+		if p is UpgradePad:
+			var up := p as UpgradePad
+			for i in GameState.station_level(up.station_id):
+				out.append([String(p.name) + " pip %d" % i, v.quad(up.global_position + Vector3((i - (Balance.data.stations.max_level - 1) * 0.5) * LevelPips.SPACING, UpgradePad.PIP_Y, 0), Vector2.ONE * LevelStar.SIZE)])
+	return out
+
+func _focus_class(f: Vector2, own: String) -> String:
+	if f == _zone_focus(own):
+		return "own zone"
+	for lane in MapLayout.lanes_for_tier(3):
+		if f == _zone_focus(lane):
+			return "other zone"
+	if f == MapLayout.HOME:
+		return "HOME"
+	if f == MapLayout.SIGN:
+		return "sign"
+	for id in MapLayout.STATION_STAND:
+		if f == MapLayout.STATION_STAND[id]:
+			return "station stand"
+	for id in MapLayout.spots_for_tier(3):
+		if f == MapLayout.spot_position(id):
+			return "tower spot" if id.begins_with("tower") else "fence spot"
+	return "pad"
+
+## ZERO overlap wherever the badge is shown. Over every focus the game reaches (the four zones, HOME, the sign, the station stand points,
+## the nine spots, the pads), three aspects, every seed and every level the spots and stations can stand at: after the cover rule has run
+## once for that view (the rule needs no frames: `evaluate` is what the timer calls), the badge is hidden or its rect meets no hero body,
+## spot label, pip or station label; and from its OWN lane's zone it is drawn. Prints how often each class of focus hides it.
+func test_the_badge_is_hidden_or_clear_of_the_hero_the_labels_and_the_pips_from_every_focus_and_drawn_from_its_own_zone() -> void:
+	var table := {}  # focus class -> [views, hidden]
+	var matrix := {}  # "badge lane from zone of lane" -> [views, hidden]
+	var foci := _foci()
+	for s in PLACEMENT_SEEDS:
+		await _start(s)
+		for level in range(0, int(Balance.data.build.max_level) + 1):
+			_set_levels(level)
+			await get_tree().physics_frame
+			for aspect_i in ASPECTS.size():
+				for f in foci:
+					var v := View.new(f, ASPECTS[aspect_i])
+					var obstacles := _cover_obstacles(v, f)
+					for lane in _badges():
+						var b: LaneCharacterMarker = _marker(lane).badge
+						var r: Rect2 = _badge_rect(lane, v)
+						b.evaluate(v.xf, Callable(v, "pt"), Vector3(f.x, 0.0, f.y))
+						var cls := _focus_class(f, lane)
+						var row: Array = table.get(cls, [0, 0])
+						row[0] += 1
+						row[1] += 0 if b.visible else 1
+						table[cls] = row
+						for z in MapLayout.lanes_for_tier(3):
+							if f == _zone_focus(z):
+								var m: Array = matrix.get("%s from %s" % [lane, z], [0, 0])
+								m[0] += 1
+								m[1] += 0 if b.visible else 1
+								matrix["%s from %s" % [lane, z]] = m
+						if cls == "own zone":
+							assert_true(b.visible, "seed %d level %d %s: the %s badge is hidden from its own zone" % [s, level, ASPECT_NAMES[aspect_i], lane])
+						if b.visible and v.screen().intersects(r):
+							for e in obstacles:
+								if r.intersects(e[1]):
+									fail_test("seed %d level %d %s focus %s: the %s badge %s is drawn over %s %s" % [s, level, ASPECT_NAMES[aspect_i], f, lane, r, e[0], e[1]])
+		main.queue_free()
+		await get_tree().process_frame
+	gut.p("how often the cover rule hides a badge, by class of camera focus (all seeds, levels 0..3, three aspects):")
+	for cls in table:
+		gut.p("  %-14s %5d views, %5d hidden (%.1f%%)" % [cls, table[cls][0], table[cls][1], 100.0 * table[cls][1] / maxf(table[cls][0], 1)])
+	var other: Array = table.get("other zone", [1, 0])
+	assert_lte(float(other[1]) / float(other[0]), 0.20, "a rule that hides a badge from more than a fifth of the other lanes' zone views over-hides")
+	gut.p("a badge seen from the zone of each lane (hidden / views):")
+	for k in matrix:
+		gut.p("  %-22s %4d / %4d" % [k, matrix[k][1], matrix[k][0]])
+
+## Real frames, a real viewport at 9:16: the hero stands on the badge's ground point (its body covers the icon): within 20 physics frames
+## (the timer's period is 15) the badge is hidden; the hero walks to the lane's zone and it is drawn again. The rule runs at most
+## label_dim_hz times a second, not every frame.
+func test_the_cover_rule_runs_on_a_timer_hides_over_the_hero_and_shows_again_when_clear() -> void:
+	SafeArea.override_for_tests = {"top": 0.0, "bottom": 0.0, "left": 0.0, "right": 0.0}
+	Balance.data.tiers.retune_enabled = true
+	var vp := SubViewport.new()
+	vp.size = Vector2i(720, 1280)
+	add_child_autofree(vp)
+	main = Main.create()
+	vp.add_child(main)
+	main.hero.input.player_control = false
+	main.phase_controller.start_new_game(4)  # siege west, hare north
+	main.phase_controller.debug_skip_to_day()
+	GameState.debug_set_tier(3, 5)
+	for i in 3:
+		await get_tree().physics_frame
+	var b: LaneCharacterMarker = _marker("west").badge
+	assert_not_null(b)
+	var ground := Vector2(b.global_position.x, b.global_position.z)
+	main.hero.teleport(ground)
+	main.camera_rig.snap()
+	for i in 20:
+		await get_tree().physics_frame
+	assert_true(b.is_covered(), "the hero stands on the badge: it is hidden")
+	assert_false(b.visible)
+	var before := b.ticks
+	for i in 60:
+		await get_tree().physics_frame
+	assert_lte(b.ticks - before, int(ceilf(Balance.ui.label_dim_hz)) + 1, "at most label_dim_hz evaluations a second, not one per frame (%d in 60 frames)" % (b.ticks - before))
+	assert_gt(b.ticks - before, 0, "but it does run")
+	main.hero.teleport(_zone_focus("west"))
+	main.camera_rig.snap()
+	for i in 20:
+		await get_tree().physics_frame
+	assert_false(b.is_covered(), "the hero left: the badge is drawn again")
+	assert_true(b.visible)
+
+# --- the hold for the dawn reveal, the timers, the share of hiding ------------------------------------------------------------------
+
+## Mutation: tick() or evaluate() ignores `held` -> the badge re-shows from its own zone within 20 frames.
+func test_a_held_badge_stays_hidden_and_shows_again_within_20_frames_of_the_release() -> void:
+	await _start(4)  # siege west, hare north
+	var b: LaneCharacterMarker = _marker("west").badge
+	await _stand_at(_zone_focus("west"))
+	assert_true(b.is_visible_in_tree(), "from its own zone nothing covers it")
+	b.hold(true)
+	assert_false(b.visible)
+	assert_false(b.is_covered(), "a held badge is held, not covered")
+	for i in 60:
+		await get_tree().physics_frame
+	assert_false(b.visible, "held for 60 frames from its own zone, where nothing covers it")
+	_marker("west").refresh()
+	assert_false(b.visible, "a refresh during the hold keeps it hidden")
+	GameState.debug_set_tier(3, 6)
+	await get_tree().physics_frame
+	assert_false(b.visible, "so does a tier event")
+	b.hold(false)
+	for i in 20:
+		await get_tree().physics_frame
+	assert_true(b.visible, "released: it shows again within 20 frames")
+	assert_false(b.held)
+
+func test_badges_made_by_a_new_game_or_a_tier_rebuild_are_not_held() -> void:
+	await _start(3)  # siege sw, hare west
+	for lane in _badges():
+		_marker(lane).badge.hold(true)
+	GameState.debug_set_tier(2, 5)  # the sw marker and its badge go
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	GameState.debug_set_tier(3, 5)  # rebuilt
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	assert_not_null(_marker("sw").badge)
+	assert_false(_marker("sw").badge.held, "a rebuilt badge is not held")
+	assert_true(_marker("sw").badge.visible)
+	GameState.new_game(7)
+	GameState.debug_set_tier(3, 5)
+	await get_tree().physics_frame
+	for lane in _badges():
+		assert_false(_marker(lane).badge.held, "%s: a badge of a new run is not held" % lane)
+
+func test_the_two_badges_of_a_run_do_not_evaluate_in_the_same_physics_frame() -> void:
+	for s in PLACEMENT_SEEDS:
+		await _start(s)
+		await _stand_at(_zone_focus("north"))
+		var frames := {}
+		for lane in _badges():
+			frames[lane] = _marker(lane).badge.last_tick_frame
+		var seen := {}
+		for lane in frames:
+			assert_gt(int(frames[lane]), 0, "seed %d %s has evaluated" % [s, lane])
+			assert_false(seen.has(frames[lane]), "seed %d: two badges evaluated in physics frame %d" % [s, frames[lane]])
+			seen[frames[lane]] = true
 		main.queue_free()
 		await get_tree().process_frame

@@ -1,13 +1,14 @@
 extends SceneTree
 ## E6 Task 10: the lane-character marker. Run WITH rendering:
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_lane_character.gd -- --out=docs/review/media/e6/interface
-## Flag on, tier 3. For seeds 1, 3, 4, 7 (siege east, sw, west, north) the hero stands at the siege lane's attack zone by day
+## Flag on, tier 3. For seeds 1, 3, 4, 7, 14 (siege east, sw, west, north, north) the hero stands at the siege lane's attack zone by day
 ## (marker_<lane>_siege) and at the hare lane's zone (marker_<lane>_hare; a second seed on the same hare lane gets _s<seed>).
-## Also marker_night (seed 3, sw zone, night), marker_home (seed 7, from HOME), icons (the two icons, 4x, side by side), and
+## marker_pair_s4 / marker_pair_s14: the north zone of the west + north and the north + east runs (E6 fix round 3: the two badges must not be
+## taken for one lane's pair). Also marker_night (seed 3, sw zone, night), marker_home (seed 7, from HOME), icons (the two icons, 4x, side by side), and
 ## grayscale copies (_gray) of the icon sheet and of one marker shot. Every file has a _40 copy (40%).
 
 var _out := "docs/review/media/e6/interface"
-const SEEDS := [1, 3, 4, 7]
+const SEEDS := [1, 3, 4, 7, 14]
 var _seen := {}
 
 func _initialize() -> void:
@@ -53,12 +54,18 @@ func _run() -> void:
 		root.add_child(cam)
 		var ch: Dictionary = character.for_run(s)
 		print("seed ", s, " ", ch)
-		await _grab(main, cam, camera_math, bal, "marker_%s_siege" % ch.siege, layout.zone_rect(ch.siege).get_center())
+		var siege_name := "marker_%s_siege" % ch.siege
+		if _seen.has(siege_name):
+			siege_name += "_s%d" % s
+		_seen[siege_name] = true
+		await _grab(main, cam, camera_math, bal, siege_name, layout.zone_rect(ch.siege).get_center())
 		var hare_name := "marker_%s_hare" % ch.hare
 		if _seen.has(hare_name):
 			hare_name += "_s%d" % s
 		_seen[hare_name] = true
 		await _grab(main, cam, camera_math, bal, hare_name, layout.zone_rect(ch.hare).get_center())
+		if s == 4 or s == 14:
+			await _grab(main, cam, camera_math, bal, "marker_pair_s%d" % s, layout.zone_rect("north").get_center())
 		if s == 3:
 			main.phase_controller.debug_skip_to_night()
 			main.world.wave_director.stop()

@@ -9,6 +9,7 @@ static func make(parent: Node3D, count: int, y: float) -> Array:
 	for i in count:
 		var pip := MeshInstance3D.new()
 		pip.name = "Pip%d" % i
+		pip.add_to_group(&"level_pips")  # the lane badge's cover rule reads them (visual only)
 		pip.mesh = LevelStar.mesh()
 		pip.material_override = LevelStar.material()
 		pip.rotation.x = deg_to_rad(Balance.ui.camera_pitch)  # the star faces the camera

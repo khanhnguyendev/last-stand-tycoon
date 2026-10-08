@@ -102,7 +102,7 @@ func _refresh_badge() -> void:
 		badge = LaneCharacterMarker.new()
 		get_parent().add_child(badge)
 		badge.setup(lane_id)
-	badge.refresh(character, row_anchor(), row_align())
+	badge.refresh(character, row_anchor())
 
 func refresh() -> void:
 	_refresh_badge()
