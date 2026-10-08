@@ -1,0 +1,37 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+WARNING: BotBase stuck at (-6.187262, -3.85042) -> zone_west
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+WARNING: BotBase stuck at (-6.187262, -3.85042) -> zone_west
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+WARNING: BotBase stuck at (-6.187262, -3.85042) -> zone_west
+     at: push_warning (core/variant/variant_utility.cpp:1033)
+     GDScript backtrace (most recent call first):
+         [0] _check_stuck (res://actors/bots/bot_base.gd:92)
+         [1] _steer (res://actors/bots/bot_base.gd:74)
+         [2] _physics_process (res://actors/bots/bot_base.gd:47)
+real play: Baron night close-up day 18; tier-3 cap night day 27 (cap first reached day 22)
+FIXTURE tier3_baron_full v=6 day=18 tier=2 tier_day=13 gold=31 phase=NIGHT boss=true pressure=10 | tower_nw:3 tower_ne:3 fence_w:3 fence_n:3 fence_e:3 tower_w:3 tower_e:3 | real play (TierBot, seed 20260930, threat) at the close-up of the Baron night; resume NIGHT
+wrote /Users/ryan/ws/1.GAME/wt/e5-p10-t23/export/fixtures/tier3_baron_full.save.json
+FIXTURE tier3_baron_no_yard v=6 day=18 tier=2 tier_day=13 gold=31 phase=NIGHT boss=true pressure=10 | tower_nw:3 tower_ne:3 fence_w:3 fence_n:3 fence_e:3 | (1) with tower_w and tower_e at level 0
+wrote /Users/ryan/ws/1.GAME/wt/e5-p10-t23/export/fixtures/tier3_baron_no_yard.save.json
+FIXTURE tier3_baron_alone v=6 day=16 tier=2 tier_day=13 gold=47 phase=NIGHT boss=true pressure=10 |  | constructed: (1) with no building, card or guard; every wave empty, the Baron on the last
+wrote /Users/ryan/ws/1.GAME/wt/e5-p10-t23/export/fixtures/tier3_baron_alone.save.json
+FIXTURE tier3_night1 v=6 day=17 tier=3 tier_day=17 gold=497 phase=DAY boss=false pressure=12 | tower_nw:3 tower_ne:3 fence_w:3 fence_n:3 fence_e:3 tower_w:3 tower_e:3 | constructed: (1) one dawn later, tier 3, resume DAY; gold 47 + 150 Baron steaks x 3; tower_sw and fence_sw unbuilt; no branches
+wrote /Users/ryan/ws/1.GAME/wt/e5-p10-t23/export/fixtures/tier3_night1.save.json
+FIXTURE tier3_cap_all_a v=6 day=27 tier=3 tier_day=19 gold=4699 phase=NIGHT boss=false pressure=15 | tower_nw:3/longbow tower_ne:3/longbow fence_w:3/stone fence_n:3/stone fence_e:3/stone tower_w:3/longbow tower_e:3/longbow tower_sw:3/longbow fence_sw:3/stone | real play (TierBot, seed 20260930) at the close-up of cap night day 27 (pressure 15); branches set by TierBot.branch_choices(all_a, tonight's plan)
+wrote /Users/ryan/ws/1.GAME/wt/e5-p10-t23/export/fixtures/tier3_cap_all_a.save.json
+FIXTURE tier3_cap_all_b v=6 day=27 tier=3 tier_day=19 gold=4699 phase=NIGHT boss=false pressure=15 | tower_nw:3/volley tower_ne:3/volley fence_w:3/spike fence_n:3/spike fence_e:3/spike tower_w:3/volley tower_e:3/volley tower_sw:3/volley fence_sw:3/spike | real play (TierBot, seed 20260930) at the close-up of cap night day 27 (pressure 15); branches set by TierBot.branch_choices(all_b, tonight's plan)
+wrote /Users/ryan/ws/1.GAME/wt/e5-p10-t23/export/fixtures/tier3_cap_all_b.save.json
+FIXTURE tier3_cap_mixed v=6 day=27 tier=3 tier_day=19 gold=4699 phase=NIGHT boss=false pressure=15 | tower_nw:3/longbow tower_ne:3/longbow fence_w:3/spike fence_n:3/spike fence_e:3/spike tower_w:3/longbow tower_e:3/longbow tower_sw:3/longbow fence_sw:3/spike | real play (TierBot, seed 20260930) at the close-up of cap night day 27 (pressure 15); branches set by TierBot.branch_choices(mixed, tonight's plan)
+wrote /Users/ryan/ws/1.GAME/wt/e5-p10-t23/export/fixtures/tier3_cap_mixed.save.json
+FIXTURE tier3_cap_threat v=6 day=27 tier=3 tier_day=19 gold=4699 phase=NIGHT boss=false pressure=15 | tower_nw:3/longbow tower_ne:3/longbow fence_w:3/stone fence_n:3/stone fence_e:3/stone tower_w:3/longbow tower_e:3/longbow tower_sw:3/longbow fence_sw:3/stone | real play (TierBot, seed 20260930) at the close-up of cap night day 27 (pressure 15); branches set by TierBot.branch_choices(threat, tonight's plan)
+wrote /Users/ryan/ws/1.GAME/wt/e5-p10-t23/export/fixtures/tier3_cap_threat.save.json

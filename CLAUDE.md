@@ -28,9 +28,10 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - Tick budget update (deliberate, D-247): `TICK_BUDGET_UPDATE=1 ./run_tests.sh sim` or `sim-tiers`; commit the diff of `tests/sim_ticks.golden.json`
 - Sweep: `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/sweep.gd`
 - Upgrader sweep (E1): the same command with `-- --bot=upgrader`; writes `tests/sim/out/sweep_upgrader.csv`
-- Tier sweep (E5): the same command with `-- --bot=tier --days=20`; writes `tests/sim/out/sweep_tier.csv`; prints a `TIER` line
+- Tier sweep (E5): the same command with `-- --bot=tier --days=30 [--policy=all_a|all_b|mixed|threat|volley_stone] [--tier3=off] [--cols=extra] [--out=<file name>]`; writes `tests/sim/out/sweep_tier.csv`; prints `TIER`, `TIER3`, `TIER3_GATE`, `LADDER` (row-numbered days), `UNSPENT_TARGET: PASS|FAIL|N/A` and `FENCE_TAX: yes|no`; in-memory overrides for studies: `--tier3-cap=`, `--brute-caps=<main>,<side>`, `--brute-hp=`, `--fence-mult=`
 - Tier-2 cap margin study (E5, D-276): `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_margin.gd` (ten seeds; `-- --tier-cap=<n>` measures another cap in memory; a report, not a CI test)
-- Tier fixtures (E5): `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/make_save.gd -- --fixture=tier` (deterministic; writes five files under `export/fixtures/`)
+- Policy ranking (E5 tier 3, D-280): `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_policies.gd` (15 real 32-day runs, up to 3 processes, about 16 min; prints the ranking, the tower x fence table, `DOMINANT_BRANCH`, `DOMINANT_BRANCH_2x2`, `THREAT_BEST`; a report, not a CI test)
+- Tier fixtures (E5): `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/make_save.gd -- --fixture=tier` (deterministic; writes five files under `export/fixtures/`); tier-3 fixtures (D-280, schema 6, captured from real bot play, about 155 s): the same command with `--fixture=tier3`
 - Web export: see `export/README.md`
 - S4 shots: `tools/shots.sh <out_dir>` (rendered 720x1280 + 40% copies); determinism: `tools/baseline_diff.sh` (must print `baseline identical`) and `tools/baseline_rows.sh 7` (must print `rows 1-7 identical`: the tier-1 identity, D-237)
 - Night-3 perf (iOS Simulator, profile build): `export/perf_night3.sh <web_profile_dir> <out_dir>`; read the frozen `PERF phase=NIGHT` line; the gate is the median of 3 runs (D-199)

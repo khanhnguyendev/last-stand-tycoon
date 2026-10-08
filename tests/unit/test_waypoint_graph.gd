@@ -55,3 +55,29 @@ func test_tier_3_graph_extends_without_touching_the_default() -> void:
 		assert_eq(t3.position_of(n), g.position_of(n), "%s keeps its position" % n)
 	for n in ["tower_sw", "fence_sw", "tier_sign_3", "pad_tower_sw_a", "pad_fence_sw_b", "pad_fence_n_a", "pad_tower_e_b"]:
 		assert_gt(t3.shortest("home", n).size(), 0, "unreachable: " + n)
+
+## Task 22: the graph the tier bot walks. Mutations: tier 1 gaining tier_sign_3 (routes of tier-1 runs could change), tier 2 without the
+## front-lot sign, tier 3 without zone_sw, or a zone_sw edge through the diner, counter or freezer.
+func test_the_bot_graph_follows_the_tier() -> void:
+	var one := WaypointGraph.create_for_bot(1)
+	var base := WaypointGraph.create_for_tier(2)
+	assert_eq(one.nodes, base.nodes, "tier 1 is the tier-2 graph it always had")
+	assert_eq(one.edges, base.edges)
+	var two := WaypointGraph.create_for_bot(2)
+	assert_eq(two.position_of("tier_sign_3"), MapLayout.tier_sign(3))
+	assert_false(two.nodes.has("zone_sw"))
+	assert_false(two.shortest("home", "tier_sign_3").is_empty())
+	assert_true(two.nodes.has("tier_sign"), "the west sign stays")
+	var three := WaypointGraph.create_for_bot(3)
+	assert_eq(three.position_of("zone_sw"), MapLayout.lane_end("sw"))
+	for n in ["tower_sw", "fence_sw", "tier_sign_3", "pad_tower_sw_a", "pad_fence_sw_b"]:
+		assert_false(three.shortest("zone_sw", n).is_empty(), n)
+	var bodies := [Rect2(-4, -4, 8, 8), Rect2(MapLayout.COUNTER - MapLayout.COUNTER_SIZE / 2, MapLayout.COUNTER_SIZE),
+		Rect2(MapLayout.FREEZER - MapLayout.FREEZER_SIZE / 2, MapLayout.FREEZER_SIZE)]
+	for e in [["sw", "zone_sw"], ["fence_sw", "zone_sw"], ["sw", "tier_sign_3"]]:
+		var pa: Vector2 = three.position_of(e[0])
+		var pb: Vector2 = three.position_of(e[1])
+		assert_true(e[1] in three.edges[e[0]], "edge %s-%s exists" % e)
+		for k in 101:
+			for body in bodies:
+				assert_true(Geometry.dist_point_rect(pa.lerp(pb, k / 100.0), body) >= MapLayout.HERO_RADIUS - 0.01, "edge %s-%s hits a collider" % e)

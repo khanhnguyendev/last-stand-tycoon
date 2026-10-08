@@ -992,15 +992,6 @@ const OPEN_VIEWS := {
 		"tower_e:0|effect|the Pad_freezer label #1": Vector2(70, 37),
 	},
 }
-## The NEAR findings that remain, pinned exactly per aspect: "spot|what|obstacle" -> max (w, h) in px rounded up (the overflow past the screen
-## edge for a block). The tower pads stand 2 m apart on the map, so their two NEAR blocks overlap a little on screen; fence_sw's far pad (the
-## hero 3 m from the other) clips the left edge of the two portrait views. Both need a map or layout change: open, reported.
-## The NEAR findings that remain, pinned exactly per aspect: "spot|what|obstacle" -> max (w, h) in px rounded up (the overflow past the screen
-## edge for a block). The tower pads stand 2 m apart on the map, so their two NEAR blocks overlap a little on screen; fence_sw's far pad (the
-## hero 3 m from the other) clips the left edge of the two portrait views. Both need a map or layout change: open, reported.
-## Spots with no spot of ground due south of their southern pad that a hero can stand on within the focus range: the diner's collision box is there
-## (and the neighbouring spots' pads when turned aside). The south approach asserts that this list is exact.
-const SOUTH_UNREACHABLE := ["tower_nw", "tower_ne"]
 ## The NEAR findings that remain, pinned exactly per aspect, per approach and distance: "approach dist|spot|what|obstacle" -> (w, h) in px rounded up
 ## (the overflow past the screen edge for a block). The tower pads stand 2 m apart on the map, so their two NEAR blocks overlap a little on
 ## screen; fence_sw's far pad (the hero 3 m from the other) clips the left edge of the two portrait views. Both need a map or layout change:
@@ -1165,19 +1156,19 @@ func _near_hero_at(id: String, dist: float, approach: String) -> Vector2:
 ## The NEAR stage, measured like the stood pad, from ground a hero can stand on (every point is further from every real solid than his
 ## 0.4 m radius, and the hero is asserted to be AT the point after settling: a collision push-out fails). Two approaches per spot, each
 ## from branch_pad_near_m - 0.05 (3.45 m) of the spot's NEAREST pad (the sibling may be further: pads stand up to 5 m apart; only the
-## nearest pad has to be within the 3.5 m that wakes the focus): "home" (towards HOME, also at 3.0 m) and "south" (due south of the
-## southern pad, the worst direction for size). The floors must hold UP TO branch_pad_near_m (3.5 m); the 3.5 to 4.5 m hysteresis band
+## nearest pad has to be within the 3.5 m that wakes the focus): "home" (towards HOME, also at 3.0 m) and "worst" (the grid scan for the
+## reachable point where the block is smallest on screen, every other spot's nearest pad further by the 0.02 m margin). The floors must hold UP TO branch_pad_near_m (3.5 m); the 3.5 to 4.5 m hysteresis band
 ## (the focus is kept while the hero walks away) is exempt: the glyph and the cost may be smaller there than the floors.
 ## Hard asserts: the focus, the stage, each pad yields exactly a glyph and a cost, the glyph and cost floors, each item within ATTACH_NEAR_M of
 ## its pad. The screen edge and the two-blocks rule are findings pinned per aspect in NEAR_OPEN_VIEWS, keyed by approach and distance.
 ## Mutation: a hero point inside the diner (or within 0.4 m of any solid) fails the position assert; a cost pixel size under its floor at
-## the south approach fails the cost floor; a focus that never reaches the spot fails the focus line; an item moved away from its pad fails
+## the worst approach fails the cost floor; a focus that never reaches the spot fails the focus line; an item moved away from its pad fails
 ## the attachment.
 func test_near_stage_meets_the_floors_on_screen_and_beside_its_pad_at_every_spot() -> void:
 	await _start()
 	_all_max()
 	var ui := Balance.ui
-	var worst := {"icon": INF, "cost": INF, "icon_at": "", "cost_at": "", "attach": 0.0, "width": 0.0}
+	var worst := {"icon": INF, "cost": INF, "icon_at": "", "cost_at": "", "attach": 0.0, "width": 0.0, "width000": 0.0}
 	var found := {}
 	for an in ASPECT_NAMES:
 		found[an] = {}
@@ -1231,6 +1222,10 @@ func test_near_stage_meets_the_floors_on_screen_and_beside_its_pad_at_every_spot
 							var em := _px_h(n.global_position, float(p.cost_label.font_size) * p.cost_label.pixel_size, v)
 							case_cost = minf(case_cost, em)
 							worst.width = maxf(worst.width, maxf(BranchPad.glyph_box(p.icon).x, BranchPad.text_box(p.cost_label).x))
+							var shown := p.cost_label.text
+							p.cost_label.text = "000"  # the box the block is laid out with, whatever the cost reads now
+							worst.width000 = maxf(worst.width000, maxf(BranchPad.glyph_box(p.icon).x, BranchPad.text_box(p.cost_label).x))
+							p.cost_label.text = shown
 							if em < worst.cost:
 								worst.cost = em
 								worst.cost_at = "%s %s pad %d at %s" % [tag, id, i, ASPECT_NAMES[a]]
@@ -1251,6 +1246,7 @@ func test_near_stage_meets_the_floors_on_screen_and_beside_its_pad_at_every_spot
 			case_lines.append("CASE %s %s at (%.3f, %.3f) own %.3f m: cost %.2f px, glyph %.2f px" % [id, approach, at.x, at.y, own, case_cost, case_icon])
 	assert_eq(cases_run, 3 * 9)
 	assert_lte(worst.width, 1.25, "the NEAR block is at most 1.25 m wide at every measured point")
+	assert_lte(worst.width000, 1.25, "the NEAR block, laid out with the cost text \"000\", is at most 1.25 m wide")
 	var lines: Array = []
 	for an in ASPECT_NAMES:
 		var got: Dictionary = found[an]

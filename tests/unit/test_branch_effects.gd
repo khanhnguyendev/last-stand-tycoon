@@ -3,6 +3,8 @@ extends GutTest
 ## Literals: unbranched levels 8/7.0, 12/7.5, 18/8.0 at 0.5 s; Longbow 120 per 3.0 s at 9.98 m; Volley 3 x 10 per 0.5 s at 8.0 m.
 ## Spike scale (wave balance: hp_growth 0.15): hp_mult(12) = 1 + 0.15 x 11 = 2.65, hp_mult(15) = 1 + 0.15 x 14 = 3.1,
 ## so the scale at pressure 15 is 3.1 / 2.65 = 1.169811; thorns 6 x = 7.0189, pass 10 x = 11.6981.
+## Since D-280 the tier-3 cap is 12, so the LIVE scale is 1.0 (hp_mult(12) / hp_mult(12)); the pressure-15 case is in-memory only
+## (the cap is raised in the test), kept because it covers the formula.
 
 const TOWER := "tower_nw"
 const FENCE := "fence_n"
@@ -284,9 +286,17 @@ func test_spike_scale_reads_the_first_wave_of_a_real_plan() -> void:
 	GameState.debug_set_tier(3, 17)
 	_branch(FENCE, &"spike")
 	assert_eq(GameState.lane_plan.size(), 3)
-	assert_almost_eq(float(GameState.lane_plan[2].hp_mult), 4.857, 0.001)
-	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 3.1, 0.001)
-	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 7.019, 0.001, "first wave, not the last (would be 10.99)")
+	# Pressure is capped at 12 (the ruling; it was 15), so the plan's first wave is the base plan's: thorns 6.0.
+	assert_almost_eq(float(GameState.lane_plan[2].hp_mult), 3.445, 0.001)
+	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 2.65, 0.001)
+	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0, 0.001, "first wave, not the last (would be 6 x 3.445 / 2.65 = 7.80)")
+	# With cap = base a real plan scales by 1.0, which cannot tell "first wave" from "last wave" or "plan ignored". Re-run the old case with
+	# the cap raised in memory (15, the value before the ruling): the plan's waves differ again and the scale reads the first one.
+	Balance.data.tiers.tier_cap[3] = 15
+	GameState.debug_set_tier(3, 17)
+	assert_almost_eq(float(GameState.lane_plan[2].hp_mult), 4.857, 0.001, "cap 15: the last wave")
+	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 3.1, 0.001, "cap 15: the first wave")
+	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 7.019, 0.001, "cap 15: first wave, not the last (would be 10.99)")
 
 func test_spike_scale_is_one_without_a_plan() -> void:
 	_branch(FENCE, &"spike")

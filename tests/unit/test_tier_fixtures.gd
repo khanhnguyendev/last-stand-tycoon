@@ -48,6 +48,17 @@ func test_every_fixture_decodes_at_the_current_schema() -> void:
 		assert_eq(int(r.state.run_seed), 20260930, stem)
 		assert_eq([int(r.state.gold_pile), int(r.state.carried_steaks), r.state.card_offer], [0, 0, []], stem)
 
+const T3_STEMS := ["tier3_baron_full", "tier3_baron_no_yard", "tier3_baron_alone", "tier3_night1", "tier3_cap_all_a", "tier3_cap_all_b", "tier3_cap_mixed", "tier3_cap_threat"]
+
+func test_every_tier3_fixture_decodes_at_the_current_schema_with_a_valid_checksum() -> void:
+	for stem in T3_STEMS:
+		var text := FileAccess.get_file_as_string("res://export/fixtures/%s.save.json" % stem)
+		assert_ne(text, "", "%s exists" % stem)
+		var r: Dictionary = SaveCodec.decode(text, GameState.SCHEMA_VERSION, Balance.data)
+		assert_true(r.ok, "%s: %s" % [stem, r.get("reason", "")])
+		assert_eq(int(r.state.v), 6, "%s: schema 6" % stem)
+		assert_eq(int(r.state.run_seed), 20260930, stem)
+
 func test_boss_night_tier1() -> void:
 	var r: Dictionary = _decode("boss_night_tier1")
 	assert_true(r.ok, r.reason)

@@ -1,0 +1,91 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+---  GUT  ---
+[1m[INFO]:  [0musing [/Users/ryan/Library/Application Support/Godot/app_userdata/Last Stand Tycoon] for temporary output.
+Godot version:  4.7.2
+GUT version:  9.7.1
+[4m
+
+res://tests/sim_tier/test_tier3_sims.gd
+[0m* test_2_the_baron_night_with_the_full_tier2_build_is_held_with_0_retries
+    Baron night, full build: { "day": 18, "failed": false, "cleared": true, "diner_frac": 0.52, "kills": 73 }; diner HP left 300.0; MARGIN sim 2 diner fraction (minimum during the night) 0.5200
+      wall time 1.9 s
+* test_3_the_baron_night_without_the_yard_towers_is_lost
+    MARGIN sim 3: the Baron had 129.7 of 1292.5 HP left at the last hit on the diner (-1 = never alive)
+    Baron night, no yard towers: { "day": 18, "failed": true, "cleared": false, "diner_frac": 0.0, "kills": 60 }; diner HP left 0.0; boss kills 0
+      wall time 1.7 s
+* test_4_the_hero_at_the_zone_reaches_the_baron_before_it_reaches_the_zone
+    MARGIN sim 4: 7.87 s (bar 5 s)
+    lane east: Baron spawned at 25.0 s, caught at 28.10 s, in the zone at 35.97 s (margin 7.87 s)
+      wall time 0.4 s
+* test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries
+    MARGIN sim 5: minimum diner fraction 0.9567
+    first tier-3 night: new spots built to [3, 3] in a 20 s day; { "day": 17, "failed": false, "cleared": true, "diner_frac": 0.95666666666667, "kills": 79 }; diner HP left 300.0; pool growth []
+      wall time 2.5 s
+* test_6_every_branch_policy_holds_the_tier3_cap_with_0_retries
+    tier-3 cap, dawn diner HP (fraction of max; the ordering is not asserted): all_a: { "day": 24, "failed": false, "cleared": true, "diner_frac": 0.76333333333333, "kills": 81 } dawn HP 229.0 of 300 = 0.763 | all_b: { "day": 24, "failed": false, "cleared": true, "diner_frac": 0.77, "kills": 81 } dawn HP 231.0 of 300 = 0.770 | mixed: { "day": 24, "failed": false, "cleared": true, "diner_frac": 0.52, "kills": 81 } dawn HP 156.0 of 300 = 0.520 | threat: { "day": 24, "failed": false, "cleared": true, "diner_frac": 0.73666666666667, "kills": 81 } dawn HP 221.0 of 300 = 0.737
+    plan composition (lane -> kinds): { "west": { "boar": 6, "hare": 4, "brute": 1, "boss": 0 }, "north": { "boar": 8, "hare": 5, "brute": 0, "boss": 0 }, "east": { "boar": 15, "hare": 8, "brute": 0, "boss": 0 }, "sw": { "boar": 20, "hare": 12, "brute": 2, "boss": 0 } }
+      wall time 9.0 s
+* test_7_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again_within_5_s
+    forced knockout at 17.1 s; knockouts { &"tank": [17.066666666667] }; revives { &"tank": [20.0500000000001] }; enemies in the SW zone at the first revive: 5
+    MARGIN sim 7: watched 13.15 s after the first revive (bar 5 s); 5 enemies in the SW zone at the revive
+      wall time 0.6 s
+* test_8a_tier1_and_tier2_plans_and_the_sweep_row_inputs_are_unchanged
+      wall time 0.0 s
+* test_8b_the_tier2_fixture_night_ends_as_recorded
+    tier-2 night 1: { "day": 13, "failed": false, "cleared": true, "diner_frac": 0.39666666666667, "kills": 63 }; ticks 5888; diner HP 119.0000
+      wall time 1.5 s
+[1m8/8 passed.
+[0m[4m
+
+res://tests/sim_tier/test_tier_sims.gd
+[0m* test_1_the_tier_bot_wins_the_boss_night_within_the_allowed_retries
+    boss night won after 1 retries (max 2); diner_frac 0.193; night seconds 108.0; mercy on the winning attempt 0.85
+      wall time 3.1 s
+* test_2_the_boss_alone_needs_at_least_boss_min_hold_s_to_fell_the_diner
+    boss alone (HP 1520): last wave at 25.0 s, first hit at 41.7 s (16.7 s later), diner fell at 60.7 s, hold 19.0 s (min 15.0)
+      wall time 0.4 s
+* test_3_the_tier_bot_holds_the_first_tier2_night
+    tier-2 night 1: { "day": 13, "failed": false, "cleared": true, "diner_frac": 0.39666666666667, "kills": 63 }; hares killed 9
+      wall time 1.5 s
+* test_4_a_full_tier2_build_clears_the_cap_with_0_retries_on_three_seeds
+    tier-2 cap: seed 20260930: { "day": 16, "failed": false, "cleared": true, "diner_frac": 0.62333333333333, "kills": 72 }; night seconds 93.0 | seed 1: { "day": 16, "failed": false, "cleared": true, "diner_frac": 0.68333333333333, "kills": 72 }; night seconds 92.8 | seed 2: { "day": 16, "failed": false, "cleared": true, "diner_frac": 1.0, "kills": 72 }; night seconds 92.2
+      wall time 4.6 s
+[1m4/4 passed.
+[0m
+
+
+
+[33m==============================================
+[0m[33m= Run Summary
+[0m[33m==============================================
+[0m
+Totals
+------
+Scripts               2
+Tests                12
+Passing Tests        12
+Asserts            2659
+Time              27.299s
+
+
+[32m---- All tests passed! ----
+[0m
+TICKS res://tests/sim_tier/test_tier3_sims.gd::test_2_the_baron_night_with_the_full_tier2_build_is_held_with_0_retries actual=5893 expected=5893
+TICKS res://tests/sim_tier/test_tier3_sims.gd::test_3_the_baron_night_without_the_yard_towers_is_lost actual=6023 expected=6023
+TICKS res://tests/sim_tier/test_tier3_sims.gd::test_4_the_hero_at_the_zone_reaches_the_baron_before_it_reaches_the_zone actual=2158 expected=2158
+TICKS res://tests/sim_tier/test_tier3_sims.gd::test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries actual=7927 expected=7927
+TICKS res://tests/sim_tier/test_tier3_sims.gd::test_6_every_branch_policy_holds_the_tier3_cap_with_0_retries actual=31985 expected=31985
+TICKS res://tests/sim_tier/test_tier3_sims.gd::test_7_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again_within_5_s actual=1992 expected=1992
+TICKS res://tests/sim_tier/test_tier3_sims.gd::test_8a_tier1_and_tier2_plans_and_the_sweep_row_inputs_are_unchanged actual=10 expected=10
+TICKS res://tests/sim_tier/test_tier3_sims.gd::test_8b_the_tier2_fixture_night_ends_as_recorded actual=5889 expected=5889
+TICKS res://tests/sim_tier/test_tier_sims.gd::test_1_the_tier_bot_wins_the_boss_night_within_the_allowed_retries actual=12739 expected=12739
+TICKS res://tests/sim_tier/test_tier_sims.gd::test_2_the_boss_alone_needs_at_least_boss_min_hold_s_to_fell_the_diner actual=3643 expected=3643
+TICKS res://tests/sim_tier/test_tier_sims.gd::test_3_the_tier_bot_holds_the_first_tier2_night actual=5889 expected=5889
+TICKS res://tests/sim_tier/test_tier_sims.gd::test_4_a_full_tier2_build_clears_the_cap_with_0_retries_on_three_seeds actual=16680 expected=16680
+TICK BUDGET: OK 12 sims within +20% of the expected ticks
+WARNING: 42 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 14 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)
+SIM SUITE sim-tiers: 28s (warn 60s, fail 150s)

@@ -22,7 +22,8 @@ func think(delta: float) -> void:
 		_decide_timer = 0.0
 		day_think(delta)
 
-## Goals dropped because this bot's graph has no node for them (tier 3 only; a later task removes the skips and asserts 0).
+## Goals dropped because this bot's graph has no node for them (tier 3 only; the TierBot's graph has them all, so it stays 0 there), plus a
+## TierBot branch pad it waited on past its cap.
 var skipped_goals := 0
 
 func _night(delta: float) -> void:

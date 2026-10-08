@@ -1,0 +1,8 @@
+tier-3 cap nights (84 enemies): 31
+retry nights 20 mean max-lane load 39.0 mean fences lost 1.25 mean branches bought 1.45 mean frac 0.41
+no-retry nights 11 mean max-lane load 34.7 mean fences lost 2.18 mean branches bought 2.55 mean frac 0.31
+cap nights with >=1 fence lost: 31 of 31 ; >=2: 15
+branches bought per cap night: mean 1.84, range 0..4
+fence lost counts over cap nights {'fence_sw': 19, 'fence_w': 5, 'fence_n': 19, 'fence_e': 6}
+max-lane load >=40: 13 nights, retry rate 0.77; <40: 18 nights, retry rate 0.56
+brute kills per night mean 9.5

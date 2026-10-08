@@ -48,8 +48,9 @@ func setup(main: Main) -> void:
 		if scenes.has_fresh_start_key(raw):
 			main.debug_fresh_start = true
 		var flags := UrlFlags.parse(raw)
-		if flags.get("autoplay", "") == "1":
-			_attach_autoplay.call_deferred()  # ?autoplay=1: the hero plays itself (recordings)
+		var auto := autoplay_args(flags)  # ?autoplay=1: the hero plays itself (recordings); ?autoplay=tier&policy=..: also buys tiers and branches
+		if not auto.is_empty():
+			_attach_autoplay.call_deferred(auto[0], auto[1])
 		if flags.get("nooverlay", "") == "1":
 			_label.visible = false  # ?nooverlay=1: hide the debug readout and button for recordings
 			fade_button.visible = false
@@ -60,9 +61,20 @@ func setup(main: Main) -> void:
 func _on_first_phase(_phase: int, _day: int) -> void:
 	_apply_scene.call_deferred()
 
-func _attach_autoplay() -> void:
-	var bot: BotBase = load("res://ui/debug/autoplay.gd").new()
+## The autoplay script and policy a parsed URL asks for: [] for none, else [script path, policy].
+static func autoplay_args(flags: Dictionary) -> Array:
+	match flags.get("autoplay", ""):
+		"1":
+			return ["res://ui/debug/autoplay.gd", ""]
+		"tier":
+			return ["res://ui/debug/autoplay_tier.gd", str(flags.get("policy", "threat"))]
+	return []
+
+func _attach_autoplay(script_path := "res://ui/debug/autoplay.gd", policy := "") -> void:
+	var bot: BotBase = load(script_path).new()
 	bot.name = "Autoplay"
+	if policy != "" and "policy" in bot:
+		bot.policy = policy if policy in TierBot.POLICIES or policy in TierBot.REPORT_POLICIES else "threat"
 	_main.add_child(bot)
 	bot.setup(_main)
 

@@ -2731,7 +2731,7 @@ cost-entry switch and the debug-only tier forcing.
   a pending or skipped test. The hull margin for pads north of a tower is 6.5 px (8 asked, 6.8 reachable). The stood
   stack may reach 3.2 screen-metres from its pad. The near-stage size floors hold up to 3.5 m; the 3.5 to 4.5 m band
   is exempt. To meet the 28 px cost floor at 3.45 m the cost text size went from 0.0123 to 0.0132 (worst reachable view 28.46 px, at `fence_e`), and the near
-  block's width cap from 1.2 to 1.25 m (the floor outranks the width heuristic). Pinned today: 10 on-pad findings
+  block's width cap from 1.2 to 1.25 m (the floor outranks the width heuristic). Pinned today: 12 on-pad findings
   (station labels count as obstacles) and the near-stage ones, measured only from ground the hero can reach, from
   HOME's side and from due south. The kerb hash in tests is taken on positions quantized to 0.1 mm: raw float
   bytes differ between macOS and the Linux runner. The near-stage test scans each spot's worst
@@ -2750,3 +2750,45 @@ cost-entry switch and the debug-only tier forcing.
   switch that shares the origin zeroes a partial tier-3 payment and rejects a tier-3 save.
 - **Warm-up grid:** 5 columns, centred rows, checked against the portrait projection (an 8-column grid passed the
   headless test but left the boar, knife, arrow and steak draws outside a phone's frustum).
+
+**D-280 Tier-3 balance from real play (phase 5).**
+
+- **Finding:** with the approved values (tier-3 pressure 12 to 15, brutes on both lanes) the tier bot, playing three
+  real 32-day runs (seeds 20260930, 1, 2), needed one or two retries on 20 of 31 cap nights; held nights ended as
+  low as 1% diner HP; a fence fell on every cap night. The Baron night held with 0 retries on all three seeds.
+- **Tuning** (in-memory sweep overrides; raw output in `docs/review/media/e5t3/balance/`). Round 1: cap 14 / 13 /
+  12, brutes on the main lane only, brute fence damage halved, combinations: pressure is the main lever, fewer
+  brutes second, fence damage least; none reached 0 retries. Round 2 at cap 12: main-lane brutes 0 retry nights of
+  40; fence damage 2.0 or brute HP 180: 1 of 40.
+- **Ruling:** `tier_cap[3]` 15 -> 12 and `brute_cap_side[3]` 1 -> 0. Tier 3 no longer ramps in pressure (base 12 =
+  cap 12); its escalation is the brute ramp (3 days) and the fourth lane. After the change: 0 retry nights of 40;
+  median held diner 79% to 94% per seed; two early nights on seed 1 held at 4% and 1% while the build was being
+  completed; from the 5th tier-3 night on the lowest is 42%. The steak pool is 396 (was 440).
+- **Fixtures come from real play.** A fixture constructed from the tier-2 save's day-13 gear, stamped as a later
+  day, made the Baron night look lost. Fixtures 1, 2 and 5 are captured from the tier bot's own run.
+- **Sims:** sim 5 starts at the DAY before the first tier-3 night (the real flow has a day; started at NIGHT with
+  the south-west spots empty the night is lost in 33 s). Sim 6 asserts in CI that each of the four policies holds
+  the cap night; the "threat is at least as good as every other policy" ordering moves to the multi-seed policy
+  report, because one night cannot rank policies (the same night held in a play-through and was lost from a
+  fixture). Sim 8 proves identity at planner level; the full rows stay with `tools/baseline_rows.sh 7`.
+- **Bot:** it buys tier 3 only after every other purchase (tier 2 on day 13 or 14, tier 3 on day 18 to 22). The
+  policy "mixed" (undefined in the spec) is towers Longbow, fences Spike fence.
+- **Reports (Task 24):** policy ranking and the ladder line are report scripts, not CI. A fifth, report-only policy
+  `volley_stone` completes the tower x fence table. Results: Volley + Stone 87.2 points, Volley + Spike 76.7,
+  threat-matched 75.4, Longbow + Stone 67.2, Longbow + Spike 55.8; `DOMINANT_BRANCH_2x2: yes` (gap 31.4, threshold
+  15); `THREAT_BEST: tie`. Ladder: the front lot is paid in sweep row 16 to 20, everything is bought 5 to 8 tier-3
+  days later, `UNSPENT_TARGET: PASS`, `FENCE_TAX: yes` (31% to 35% of income). Per spec 9.2 these go to the review
+  queue; the branch values are NOT retuned in this slice (tier 3 holds with 0 retries; which branch should win is
+  the author's design call).
+- **Deviation from D-274.4 (recorded for the author):** the approved CI assertion "threat-matched diner HP is at
+  least every other policy's on the CI seed" was NOT built. On the CI cap night threat is third (0.737 against
+  Volley + Spike 0.770 and Longbow + Stone 0.763), although that fixture gives threat the ideal branches for that
+  night's plan, which real play cannot have (branches are permanent). The ordering lives in the multi-seed report
+  (`THREAT_BEST: tie`).
+- **"Holds with 0 retries" depends on the policy:** 0 of 40 tier-3 nights for threat, Volley + Spike and Volley +
+  Stone; 1 of 40 for Longbow + Stone; 6 of 40 for Longbow + Spike. The carried rule "each policy holds the cap with
+  no retries" (D-263.5) therefore fails for the Longbow pairs in real play; sim 6 proves it on one night only.
+- **Both weak branches were tuned for pressure 15:** Longbow's 120 per 3.0 s and Spike's growth with the night's HP
+  multiplier. At pressure 12 neither reason applies. Retuning them is the follow-up the checkpoint pack recommends.
+- **Evidence:** per-night raw data of the applied setting is in `docs/review/media/e5t3/balance/applied/`; the
+  policy runs in `policies/`. `policies.txt` first cited an amended work-in-progress commit with identical code.
