@@ -73,7 +73,7 @@ func _run() -> void:
 	quit(0)
 
 func _card(main, camera_math, layout, name: String, spot: String, idx: int) -> void:
-	var p: Vector2 = (layout.BRANCH_PADS[spot] as Array)[idx]
+	var p: Vector2 = layout.branch_pad(spot, idx, true)  # the flag is on here: a moved pad (E6 Task 14)
 	main.hero.teleport(p + Vector2(0, 2.0))
 	for i in 5:
 		await physics_frame

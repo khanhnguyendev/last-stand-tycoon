@@ -82,6 +82,36 @@ const BRANCH_PADS := {
 	"tower_e": [Vector2(6.6, 2.1), Vector2(7.5, 0.0)],
 }
 
+## E6 (spec 5.3, D-284.5, D-286): the pads the retune MOVES, so that no two near-stage blocks touch, none clips the screen and the stood
+## pad's world items clear every label (tests/unit/test_branch_pads.gd, test_branch_pad_layout.gd; tools/probe_t3_layout.gd with the flag on).
+## ONLY the spots whose pads move are listed; branch_pads(true) falls back to BRANCH_PADS for the rest. Read pads ONLY through branch_pads().
+const BRANCH_PADS_RETUNE := {
+	"tower_nw": [Vector2(-4.0, -7.4), Vector2(-3.0, -5.2)],
+	"tower_ne": [Vector2(3.2, -5.1), Vector2(4.0, -7.5)],
+	"tower_e": [Vector2(6.6, 2.6), Vector2(7.5, 0.0)],
+	"tower_w": [Vector2(-10.7, 2.4), Vector2(-8.7, 0.8)],
+	"tower_sw": [Vector2(-7.7, 3.1), Vector2(-5.4, 4.0)],
+	"fence_e": [Vector2(6.1, -6.1), Vector2(9.5, -3.8)],
+	"fence_w": [Vector2(-9.6, -3.9), Vector2(-6.1, -6.1)],
+	"fence_sw": [Vector2(-5.6, 7.8), Vector2(-1.0, 10.5)],
+}
+
+## The pad centres of every tier-3 spot: the retune's table where it moves a spot, today's BRANCH_PADS elsewhere. `retune` is
+## TierEffects.retune_on(Balance.data.tiers); false returns BRANCH_PADS itself, so the off state is byte-identical.
+static func branch_pads(retune: bool) -> Dictionary:
+	if not retune:
+		return BRANCH_PADS
+	var out := BRANCH_PADS.duplicate()
+	for id in BRANCH_PADS_RETUNE:
+		out[id] = BRANCH_PADS_RETUNE[id]
+	return out
+
+## The centre of pad `index` (0 or 1) of `spot_id`.
+static func branch_pad(spot_id: String, index: int, retune: bool) -> Vector2:
+	if retune and BRANCH_PADS_RETUNE.has(spot_id):
+		return (BRANCH_PADS_RETUNE[spot_id] as Array)[index]
+	return (BRANCH_PADS[spot_id] as Array)[index]
+
 static func spots_for_tier(tier: int) -> Array[String]:
 	var out: Array[String] = []
 	out.assign(SPOT_IDS)

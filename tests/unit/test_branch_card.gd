@@ -84,7 +84,7 @@ func _max_all() -> void:
 	await get_tree().physics_frame
 
 func _pad_pos(id: String, i: int) -> Vector2:
-	return (MapLayout.BRANCH_PADS[id] as Array)[i]
+	return MapLayout.branch_pad(id, i, TierEffects.retune_on(Balance.data.tiers))  # E6 Task 14: a pad the retune moves stands at its new place
 
 ## Walks in from outside (armed), then lets the pad and the card update.
 func _stand_on(id: String, i: int) -> void:
