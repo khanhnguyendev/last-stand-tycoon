@@ -2792,3 +2792,39 @@ cost-entry switch and the debug-only tier forcing.
   multiplier. At pressure 12 neither reason applies. Retuning them is the follow-up the checkpoint pack recommends.
 - **Evidence:** per-night raw data of the applied setting is in `docs/review/media/e5t3/balance/applied/`; the
   policy runs in `policies/`. `policies.txt` first cited an amended work-in-progress commit with identical code.
+
+**D-281 Author's checkpoint answers for E5 tier 3 (2026-10-08). PR #60 merged.**
+
+1. **Tier-3 difficulty** (cap 12, brutes on the main lane only, no ramp) stays as the INTERIM setting. Revisit after
+   the branch retune: restore a modest ramp (12 to 13 or 14) if the retuned branches allow it with zero retry
+   nights for the threat-matched policy.
+2. **Branch retune** is a follow-up slice: retune Longbow and Spike fence for the pressures the game reaches.
+   Targets on the multi-seed report: every policy holds the tier-3 cap with zero retry nights; the spread between
+   the best and worst fixed policy is at most 15 points of diner HP; the branch identity test (D-272) still holds.
+3. **Fence tax** must be at most 30% (median, at the cap) after the retune, through fence HP, Stone wall values or
+   branch costs. Fences stay a recurring sink (it partly answers the gold pile-up after the ladder). Reported in
+   the follow-up.
+4. **Pad-label overlaps** are accepted for the merge; fixing all 12 is in the follow-up's scope (the art and
+   readability bar). Each fix is verified at about 40% screenshot scale. The pinned test changes from "overlap
+   pinned" to "no overlap".
+5. **The telegraph does not pay off.** Root cause (author): branches are permanent but lane threats change every
+   night, so one night's telegraph cannot inform a permanent choice. Design fix to brainstorm, tier 3 only (the
+   tier-1/2 identity is kept): each lane gets a persistent threat bias per run, seeded from `run_seed` (for
+   example the SW road lane favours brutes and one northern lane favours hares), applied through the lane-plan
+   weights, and shown as a lasting lane-character marker beside tonight's counts. Target: threat-matched beats the
+   best fixed policy by at least 5 points on the multi-seed report. A simpler fix may be proposed in the brainstorm.
+6. **The dropped CI assertion** (D-274.4) is accepted: one night cannot rank policies. **New rule:** if an approved
+   assertion turns out to be unbuildable or wrong during implementation, escalate at that moment with the
+   evidence. Never record it only at the checkpoint.
+
+Also in the follow-up:
+- **Worst frame 110 ms:** it always lands 0.1 to 0.2 s into the measured window. First decide whether it is a
+  measurement artifact (window start, warm-up) or real (for example first-use shader compiles on the Compatibility
+  renderer). If real, fix it with warm-up. Measure the boot warm-up cost too.
+- **Early tier-3 nights** (held at 1% and 4% on one seed): the retune checks include first tier-3 nights from real
+  bot play, not fixtures. Target: no first tier-3 night below 25% diner HP across the report's seeds.
+- **Fixtures:** replace the three constructed fixtures (sims 4, 5, 7) with fixtures recorded from real play where
+  feasible.
+- **Process:** the follow-up is its own slice with the full flow (brainstorm with the author, spec, plan, build,
+  checkpoint).
+
