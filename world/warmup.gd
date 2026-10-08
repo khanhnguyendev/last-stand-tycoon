@@ -70,6 +70,8 @@ func run(main: Main, resume_phase := "") -> void:
 	_prebuild_tier_caches()
 	for n in branch_pad_visuals():
 		_place(n)
+	for n in lane_character_visuals():
+		_place(n)
 	if not MapLayout.yards_for_tier(TierEffects.top_tier(Balance.data.tiers)).is_empty():
 		_place(YardStones.build_sample())  # the kerb's mesh and material are first drawn at the tier-2 reveal
 	for _i in FRAMES:
@@ -102,6 +104,20 @@ static func branch_pad_visuals() -> Array[Node3D]:
 			g.mesh = BranchIcons.mesh(kind)
 			g.material_override = mat
 			out.append(g)
+	return out
+
+## E6 Task 10: the lane-character badge's two icon meshes with their billboard material (first drawn at the tier-3 dawn). Nothing with
+## the retune flag off (the flag-off warm-up is exactly today's); the flag is only meaningful for a build with tier 3.
+static func lane_character_visuals() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	if not TierEffects.retune_on(Balance.data.tiers):
+		return out
+	for kind in LaneCharacterIcons.KINDS:
+		var g := MeshInstance3D.new()
+		g.mesh = LaneCharacterIcons.mesh(kind)
+		g.material_override = LaneCharacterIcons.material()
+		g.scale = Vector3.ONE * LaneCharacterMarker.BADGE_M * 0.5
+		out.append(g)
 	return out
 
 ## E5 Task 12: each tier-up would build that tier's terrain mesh (10.5k vertices, in GDScript) and re-merge the props
