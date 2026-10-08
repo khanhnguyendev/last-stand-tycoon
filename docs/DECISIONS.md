@@ -3016,3 +3016,23 @@ escalation rule (D-281.6). Additions:
    commit) is pasted into EVERY phase PR body of this slice beside the existing baseline outputs. A phase PR without
    it is not self-mergeable under D-137. The baseline is recorded from today's main before phase 1.
 
+**D-291 Design section 5 approved: delivery (author, 2026-10-08).** The author does not read the spec before the plan
+and the build; stop at the phase-4 checkpoint (`docs/review/E6_RETUNE.md`) or earlier only for an escalation or a
+standing stop condition.
+
+Accepted as presented: the single flag `Balance.data.tiers.retune_enabled` with new values beside the old ones and
+one accessor; `?retune=1` in the debug overlay; a test that no production file can set the flag; the slice is E6 with
+branches `e6/p<N>-<slug>`; phases 0 setup, A worst frame, 1 lane character, 2 specialists, 3 interface, 4 proof
+(checkpoint), 5 flip, 6 cleanup; every phase PR body carries the three baseline outputs; tuning edits to `balance/`
+by the main session, one commit per round with its report output; the checkpoint pack's contents; the lighter build
+process of the last slice; the escalation rule. Additions:
+
+1. **Cleanup (phase 6):** remove `tools/baseline_t3_off.sh` and its pinned off-state files together with the flag;
+   re-record the tier-3 baseline as the new truth under a new tool name, with its output in the cleanup PR; keep
+   every flag-on test (they become the normal tests); update REVIEW_QUEUE, DECISIONS (mark D-286's flag as retired)
+   and the spec's results section.
+2. **Flip PR (phase 5):** includes the Pages deploy check and one post-deploy smoke run on the live main build
+   (simulator plus emulated Pixel), confirming that the tier-3 dawn shows the lane-character step on a migrated v6
+   save.
+3. **Phase A goes first** and merges on its own as soon as it is green; it does not wait for the other phases.
+
