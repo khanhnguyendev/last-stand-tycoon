@@ -8,19 +8,18 @@ extends Node3D
 ## TelegraphMarker owns one per lane, created the first time the lane has a character (so with the flag off no node exists),
 ## and adds it to its own parent: the marker's flag hides by night and by threat, the badge must not.
 
-## The badge's height and width in the world (m): about 1.5 times the count row's icons so it is the first thing read.
+## PLACEMENT CONSTANTS (the main session may move them to balance/ui_tuning.gd). D-292.3: the badge sits BELOW its lane's count row (nearer the
+## camera, so lower on screen) and OFF the road surface (its rect meets no strip prism: half-width = the enemies' lateral spread, ground to 1.8 m,
+## from the lane's own attack-zone view at three aspects). Offsets are metres from the lane's row anchor (TelegraphMarker.ROW_ANCHORS, height 1.0)
+## as Vector2(x, z); +z is toward the camera. Found by scanning every offset against tests/unit/test_lane_marker.gd for six seeds. West and east
+## are on the DINER side of their road: the far side is off screen at 9:21 or on the road itself (a scan found no valid offset out there).
+## North: left of the fence_n label under its centred row. South-west: beside its row (below it would leave the screen).
+## The badge's height and width in the world (m).
 const BADGE_M := 1.7
-## Placement rule (`place`), in metres from the lane's count-row anchor (TelegraphMarker.ROW_ANCHORS, height 1.0), found by scanning the
-## tier-3 views with tests/unit/test_lane_marker.gd:
-##  - west and east: BELOW_M toward the camera (+z) and INWARD_M toward where the row grows, so on screen it is under the row's first icon.
-##    Below the row it is lower on screen than the row, so the HUD's top bar never reaches it from a view in which the row is in view.
-##  - north: BELOW_M toward the camera and NORTH_SIDE_M to the side (-x), clear of the fence_n cost label that stands under the centred row.
-##  - south-west (its row sits at the foot of the map, a badge below it would leave the screen): SW_SIDE_M beside the row's first icon
-##    (outer side, -x), at the row's own depth.
-const BELOW_M := 5.2
-const INWARD_M := 0.45
-const NORTH_SIDE_M := -2.8
-const SW_SIDE_M := -1.7
+const WEST_OFFSET := Vector2(3.9, 4.0)
+const EAST_OFFSET := Vector2(-3.9, 4.0)
+const NORTH_OFFSET := Vector2(-2.8, 5.2)
+const SW_OFFSET := Vector2(-1.7, 0.0)
 
 var lane_id := ""
 var icon: MeshInstance3D
@@ -41,12 +40,9 @@ func setup(id: String) -> void:
 
 ## The centre of the badge for lane `lane` whose row is anchored at `anchor` and grows toward `align` (TelegraphMarker.row_align():
 ## -1 toward +x, +1 toward -x, 0 centred), at the anchor's height.
-static func place(lane: String, anchor: Vector3, align: int) -> Vector3:
-	if lane == "sw":
-		return Vector3(anchor.x + SW_SIDE_M, anchor.y, anchor.z)
-	if lane == "north":
-		return Vector3(anchor.x + NORTH_SIDE_M, anchor.y, anchor.z + BELOW_M)
-	return Vector3(anchor.x - float(align) * INWARD_M, anchor.y, anchor.z + BELOW_M)
+static func place(lane: String, anchor: Vector3, _align := 0) -> Vector3:
+	var o: Vector2 = {"west": WEST_OFFSET, "east": EAST_OFFSET, "north": NORTH_OFFSET, "sw": SW_OFFSET}.get(lane, Vector2.ZERO)
+	return Vector3(anchor.x + o.x, anchor.y, anchor.z + o.y)
 
 ## `character` is GameState.lane_character(); `anchor` and `align` are the lane's row anchor and growth side.
 func refresh(character: Dictionary, anchor: Vector3, align: int) -> void:

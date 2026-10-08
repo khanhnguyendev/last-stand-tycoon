@@ -7,7 +7,9 @@ extends GutTest
 const ASPECTS := [9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0]
 const ASPECT_NAMES := ["9:21", "9:16", "16:9"]
 ## Hand-written from LaneCharacter.for_run (the draw is pinned forever): seed -> [siege lane, hare lane].
-const CHARACTERS := {1: ["east", "west"], 3: ["sw", "west"], 4: ["west", "north"], 7: ["north", "sw"]}
+const CHARACTERS := {1: ["east", "west"], 3: ["sw", "west"], 4: ["west", "north"], 7: ["north", "sw"], 14: ["north", "east"], 18: ["west", "east"]}
+## The seeds the placement tests cover: every lane as siege and as hare (14 and 18 put the hare on the east lane).
+const PLACEMENT_SEEDS := [1, 3, 4, 7, 14, 18]
 const LANES := ["west", "north", "east", "sw"]
 
 var main: Main
@@ -85,7 +87,7 @@ func test_flag_on_at_tiers_1_and_2_shows_no_badge() -> void:
 	assert_eq(_badges(), {}, "tier 2: a badge drawn before the lane character exists")
 
 func test_flag_on_at_tier_3_shows_exactly_two_badges_on_the_right_lanes_for_seeds_covering_every_lane() -> void:
-	for s in [1, 3, 4, 7]:
+	for s in PLACEMENT_SEEDS:
 		await _start(s)
 		var badges := _badges()
 		assert_eq(badges, _expect(s), "seed %d: siege %s hare %s" % [s, CHARACTERS[s][0], CHARACTERS[s][1]])
@@ -236,7 +238,7 @@ func _under_bar(r: Rect2, v: View) -> bool:
 
 func test_from_each_lanes_attack_zone_its_badge_is_fully_on_screen_and_clear_of_the_hud_bar() -> void:
 	var worst_top := INF
-	for s in [1, 3, 4, 7]:
+	for s in PLACEMENT_SEEDS:
 		await _start(s)
 		for aspect_i in ASPECTS.size():
 			for lane in _badges():
@@ -251,7 +253,7 @@ func test_from_each_lanes_attack_zone_its_badge_is_fully_on_screen_and_clear_of_
 
 func test_from_home_the_badge_visibility_per_lane_is_reported_honestly() -> void:
 	var lines: Array = []
-	for s in [1, 3, 4, 7]:
+	for s in PLACEMENT_SEEDS:
 		await _start(s)
 		for lane in _badges():
 			var cells: Array = []
@@ -272,27 +274,7 @@ func test_from_home_the_badge_visibility_per_lane_is_reported_honestly() -> void
 	gut.p("HOME visibility of each lane's badge (computed from the real nodes):")
 	for l in lines:
 		gut.p("  " + l)
-	assert_eq(lines.size(), 8, "two badges for each of four seeds")
-
-## From HOME the three northern count rows are under the HUD's top bar at 9:16 (the game hides them). A badge placed level with its row, or
-## not far enough below it, would be under the bar there too: the badge sits low enough that its top edge clears the bar.
-func test_where_the_northern_rows_hide_from_home_the_badges_top_edge_clears_the_bar() -> void:
-	var checked := 0
-	for s in [1, 3, 4, 7]:
-		await _start(s)
-		_set_plan(_plan_boss_on("east"))
-		var v := View.new(MapLayout.HOME, 720.0 / 1280.0)
-		for lane in ["west", "north", "east"]:
-			var row: Variant = _row_rect(_marker(lane), v)
-			assert_true(_under_bar(row, v), "%s: the row is under the bar from HOME at 9:16 (the premise)" % lane)
-			var r: Variant = _badge_rect(lane, v)
-			if r == null:
-				continue
-			checked += 1
-			assert_false(_under_bar(r, v), "seed %d %s: the badge's top %.0f px is under the bar (%.0f) where the row hides" % [s, lane, r.position.y + v.half_h(), Balance.ui.hud_top_bar_px])
-		main.queue_free()
-		await get_tree().process_frame
-	assert_eq(checked, 6, "six northern-lane badges over the four seeds (seed 1: east, west; 3: west; 4: west, north; 7: north)")
+	assert_eq(lines.size(), 2 * PLACEMENT_SEEDS.size(), "two badges for each seed")
 
 ## Real viewport: from HOME at 9:16 the three northern count rows hide under the bar; the badge must stay (a badge that copies the
 ## row's HUD rule fails here on the north lane, seed 7).
@@ -418,11 +400,11 @@ func _print_table(title: String, views: int, overlaps: Array) -> Dictionary:
 		gut.p("    %-12s %d" % [k, by[k]])
 	return by
 
-func _overlaps(foci: Array) -> Dictionary:
+func _overlaps(foci: Array, own_zone_only := false) -> Dictionary:
 	var out := []
 	var gap := INF
 	var views := 0
-	for s in [1, 3, 4, 7]:
+	for s in PLACEMENT_SEEDS:
 		await _start(s)
 		for boss in LANES:
 			_set_plan(_plan_boss_on(boss))
@@ -439,6 +421,8 @@ func _overlaps(foci: Array) -> Dictionary:
 							if pad.icon != null:
 								others.append(["pad glyph %s" % pad.name, v.quad(pad.icon.global_position, BranchPad.glyph_box(pad.icon))])
 					for lane in _badges():
+						if own_zone_only and f != _zone_focus(lane):
+							continue
 						var r: Rect2 = _badge_rect(lane, v)
 						if not v.screen().intersects(r):
 							continue  # off screen from this focus: nothing to clear
@@ -457,11 +441,14 @@ func _overlaps(foci: Array) -> Dictionary:
 		await get_tree().process_frame
 	return {"overlaps": out, "gap": gap, "views": views}
 
+## D-292.3: from ITS OWN lane's attack zone (where the player walks toward the lane and chooses) the badge meets no count row, tier sign, spot
+## label, pip or hero body. Pads are excluded (a later task moves them and owns that test). The badge seen from the OTHER lanes' zones and every
+## other focus is in the report-only table below.
 func test_the_badge_clears_the_count_row_the_tier_sign_the_spot_labels_and_the_hero_from_each_lanes_zone() -> void:
 	var foci: Array = []
 	for lane in MapLayout.lanes_for_tier(3):
 		foci.append(_zone_focus(lane))
-	var res: Dictionary = await _overlaps(foci)
+	var res: Dictionary = await _overlaps(foci, true)
 	for t in res.overlaps:
 		if t.cat != "pad":  # the pads move in Task 14: their overlaps are in the table, not asserted
 			fail_test(t.text)
@@ -651,7 +638,7 @@ func test_with_a_notch_inset_at_9_19_5_the_shown_badges_are_not_under_the_bar_fr
 	for inset in [87.0, 108.0]:
 		var bar := _inset_bar(inset, vp)
 		assert_almost_eq(bar, inset + Balance.ui.hud_top_bar_px, 0.01, "the game's bar is inset + the HUD bar")
-		for s in [1, 3, 4, 7]:
+		for s in PLACEMENT_SEEDS:
 			await _start(s)
 			for lane in _badges():
 				for focus_name in ["HOME", "zone"]:
@@ -663,10 +650,8 @@ func test_with_a_notch_inset_at_9_19_5_the_shown_badges_are_not_under_the_bar_fr
 					var top := r.position.y + v.half_h()
 					worst[inset] = minf(worst.get(inset, INF), top) if focus_name == "zone" else worst.get(inset, INF)
 					gut.p("inset %.0f bar %.0f seed %d %-5s %-4s top %.0f %s" % [inset, bar, s, lane, focus_name, top, "UNDER THE BAR" if top < bar else "clear"])
-					if focus_name == "zone":
+					if focus_name == "zone":  # HOME is informational (D-292.3: the badge need not be visible from HOME)
 						assert_gte(top, bar, "inset %.0f seed %d %s zone: the badge's top %.0f is under the bar %.0f" % [inset, s, lane, top, bar])
-					else:
-						assert_gte(top, bar, "inset %.0f seed %d %s HOME: the badge's top %.0f is under the bar %.0f" % [inset, s, lane, top, bar])
 			main.queue_free()
 			await get_tree().process_frame
 
@@ -681,14 +666,18 @@ func _strip_rects(lane: String, v: View) -> Array:
 	var half: float = Balance.data.enemy.lateral_spread
 	var out: Array = []
 	for i in path.size() - 1:
-		var a: Vector2 = path[i]
-		var b: Vector2 = path[i + 1]
-		var n := (b - a).normalized().orthogonal() * half
-		var pts: Array = []
-		for p in [a + n, a - n, b + n, b - n]:
-			pts.append(Vector3(p.x, 0.0, p.y))
-			pts.append(Vector3(p.x, STRIP_HEIGHT, p.y))
-		out.append(v.bounds(pts))
+		var a0: Vector2 = path[i]
+		var b0: Vector2 = path[i + 1]
+		var n := (b0 - a0).normalized().orthogonal() * half
+		var pieces := maxi(1, ceili(a0.distance_to(b0) / 1.0))  # 1 m pieces: a long diagonal's bounding box would cover the grass beside it
+		for k in pieces:
+			var a := a0.lerp(b0, float(k) / float(pieces))
+			var b := a0.lerp(b0, float(k + 1) / float(pieces))
+			var pts: Array = []
+			for p in [a + n, a - n, b + n, b - n]:
+				pts.append(Vector3(p.x, 0.0, p.y))
+				pts.append(Vector3(p.x, STRIP_HEIGHT, p.y))
+			out.append(v.bounds(pts))
 	return out
 
 ## Distance (m) from a ground point to the lane's centre line.
@@ -699,10 +688,11 @@ func _centre_distance(lane: String, p: Vector2) -> float:
 		best = minf(best, Geometry2D.get_closest_point_to_segment(p, path[i], path[i + 1]).distance_to(p))
 	return best
 
-## Not asserted: per lane and aspect, from the lane's zone view, how much of the badge lies over its own lane's strip today.
-func test_report_how_much_of_each_badge_overlaps_its_own_lane_strip() -> void:
-	gut.p("seed lane  kind  | centre-line distance (m) | overlap with the strip prism: px^2 (share of the badge) at 9:21 / 9:16 / 16:9")
-	for s in [1, 3, 4, 7]:
+## D-292.3: the badge is off the road. From each lane's zone view at three aspects, the badge's rect meets none of its lane's strip prisms, nor
+## (for the other lanes shown) any lane's strip.
+func test_the_badge_is_off_every_lane_strip_from_each_zone() -> void:
+	gut.p("seed lane  kind  | centre-line distance (m) | nearest strip gap in px at 9:21 / 9:16 / 16:9 (negative = overlap)")
+	for s in PLACEMENT_SEEDS:
 		await _start(s)
 		for lane in _badges():
 			var b: LaneCharacterMarker = _marker(lane).badge
@@ -710,12 +700,28 @@ func test_report_how_much_of_each_badge_overlaps_its_own_lane_strip() -> void:
 			for aspect_i in ASPECTS.size():
 				var v := View.new(_zone_focus(lane), ASPECTS[aspect_i])
 				var r: Rect2 = _badge_rect(lane, v)
-				var area := 0.0
-				for sr in _strip_rects(lane, v):
-					area += r.intersection(sr).get_area()
-				area = minf(area, r.get_area())
-				cells.append("%.0f (%.0f%%)" % [area, 100.0 * area / r.get_area()])
+				var gap := INF
+				for other in LANES:
+					for sr in _strip_rects(other, v):
+						if r.intersects(sr):
+							assert_eq(r.intersection(sr).get_area(), 0.0, "seed %d %s %s: the badge %s is on the %s strip %s" % [s, lane, ASPECT_NAMES[aspect_i], r, other, sr])
+						gap = minf(gap, maxf(maxf(sr.position.x - r.end.x, r.position.x - sr.end.x), maxf(sr.position.y - r.end.y, r.position.y - sr.end.y)))
+				assert_gte(gap, 0.0, "seed %d %s %s: the badge is separated from the strip by %.1f px" % [s, lane, ASPECT_NAMES[aspect_i], gap])
+				cells.append("%.0f" % gap)
 			gut.p("%d %-5s %-5s | %.2f | %s" % [s, lane, _badges()[lane], _centre_distance(lane, Vector2(b.global_position.x, b.global_position.z)), " / ".join(cells)])
 		main.queue_free()
 		await get_tree().process_frame
-	assert_true(true)
+
+## D-292.3: below its lane's count row (nearer the camera) for the three northern lanes; the sw row stands at the foot of the map where
+## "below" would leave the screen, so its badge is level with the row, to its left.
+func test_the_badge_is_below_its_count_row_on_the_northern_lanes() -> void:
+	for s in PLACEMENT_SEEDS:
+		await _start(s)
+		for lane in _badges():
+			var mk := _marker(lane)
+			if lane == "sw":
+				assert_almost_eq(mk.badge.global_position.z, mk.row_anchor().z, 1e-4)
+			else:
+				assert_gt(mk.badge.global_position.z, mk.row_anchor().z + 1.0, "seed %d %s: the badge is toward the camera of its row" % [s, lane])
+		main.queue_free()
+		await get_tree().process_frame
