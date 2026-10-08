@@ -268,12 +268,25 @@ func _on_wave_incoming(w: int, main_lane: StringName, side_lane: StringName) -> 
 	_arrow_lane.main = String(main_lane)
 	_arrow_lane.side = String(side_lane)
 	arrows.main.visible = _arrow_lane.main != ""
-	arrows.side.visible = _arrow_lane.side != ""
+	arrows.side.visible = _arrow_lane.side != "" and _side_lane_in_use(w, _arrow_lane.side)
 	_arrow_lane.extra = _third_lane(w, _arrow_lane.main, _arrow_lane.side)
 	arrows.extra.visible = _arrow_lane.extra != ""
 	_mark_brute_arrows(w)
 	_place_arrows()
 	_punch_arrows()
+
+## E6 Task 12: whether the side arrow shows. A plain two-lane wave keeps today's rule (a side lane is named: it shows). The
+## active-lane rule applies only when the wave carries `extra` groups, or its side group was emptied (side_count 0 and no
+## brute_side, which the planner never produces without the lane character): the side arrow then shows only if
+## LaneCharacter.active_lanes(wave) holds the lane, so it never points at an empty lane.
+func _side_lane_in_use(w: int, side_lane: String) -> bool:
+	if w < 0 or w >= GameState.lane_plan.size():
+		return true
+	var wave: Dictionary = GameState.lane_plan[w]
+	var emptied := int(wave.get("side_count", 1)) == 0 and int(wave.get("brute_side", 0)) == 0
+	if wave.get("extra", []).is_empty() and not emptied:
+		return true
+	return LaneCharacter.active_lanes(wave).has(side_lane)
 
 ## E6 Task 12: the third active lane of wave w (an extra group's lane that is neither the main nor the side lane), or "".
 func _third_lane(w: int, main_lane: String, side_lane: String) -> String:
@@ -472,16 +485,21 @@ func _place_arrows() -> void:
 		if _camera.is_position_behind(world_pos):
 			p = rect.get_center() - (p - rect.get_center())
 		var inside := rect.has_point(p)
-		var e := EdgeClamp.clamp_to_rect(p, rect)
-		var pos := _hover_point(p, rect) if inside else (e.position as Vector2)
-		var rot: float = 0.0 if inside else e.rotation
-		# Footprints are taken at the punch's peak scale, so the pop never makes two arrows touch and the rule does not flicker with the tween.
-		var scl := _rest_scale(key).y * Balance.ui.arrow_punch_scale
-		# Only a wave with a third lane is separated: a two-lane wave keeps exactly the places it always had.
-		var s := _separate(pos, rot, inside, rect, arrow.heavy, scl, placed) if three_lanes else {"position": pos, "rotation": rot}
-		arrow.position = (s.position as Vector2) - root.position
-		arrow.rotation = s.rotation
-		placed.append(arrow_footprint(s.position, s.rotation, scl, arrow.heavy))
+		if inside:
+			arrow.position = _hover_point(p, rect) - root.position
+			arrow.rotation = 0.0
+		else:
+			var e := EdgeClamp.clamp_to_rect(p, rect)
+			arrow.position = (e.position as Vector2) - root.position
+			arrow.rotation = e.rotation
+		if three_lanes:
+			# Only a wave with a third lane is separated: a two-lane wave keeps exactly the places it always had.
+			# Footprints are taken at the punch's peak scale, so the pop never makes two arrows touch and the rule does not flicker with the tween.
+			var scl := _rest_scale(key).y * Balance.ui.arrow_punch_scale
+			var s := _separate(arrow.position + root.position, arrow.rotation, inside, rect, arrow.heavy, scl, placed)
+			arrow.position = (s.position as Vector2) - root.position
+			arrow.rotation = s.rotation
+			placed.append(arrow_footprint(s.position, s.rotation, scl, arrow.heavy))
 
 ## Where an arrow covers on screen (global px): the square around its drawn disc (the arrow's width, turned about `pos`,
 ## scaled), plus its brute mark. A disc, not the turned square: the glyph does not fill the square's corners, and
