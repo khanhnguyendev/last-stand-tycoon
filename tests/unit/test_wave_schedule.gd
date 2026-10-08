@@ -114,6 +114,22 @@ func test_brutes_shift_with_the_boss_lead() -> void:
 	assert_eq(s.map(func(e): return e.kind), [&"boss", &"boar", &"boar", &"brute"])
 	assert_almost_eq(float(s[3].t), tb.boss_lead + 2.0 * wb.spawn_interval, 1e-6)
 
+## A hand-written boss wave with an extra group: every entry after the boss is shifted by boss_lead (tier 1 has a boss), the
+## extra group included, so it starts at boss_lead + side_group_delay. The boss itself is at 0.
+## Mutation: the extra group is scheduled without the boss lead (it would start at side_group_delay).
+func test_an_extra_group_on_a_boss_wave_starts_at_boss_lead_plus_the_side_delay() -> void:
+	var tb := Balance.data.tiers
+	var w := _extra_wave()
+	w["boss"] = true
+	var s := WaveSchedule.build(w, wb, tb, 1)
+	assert_eq(s[0].kind, &"boss")
+	assert_almost_eq(float(s[0].t), 0.0, 1e-6)
+	assert_gt(tb.boss_lead, 0.0, "setup: the lead is not zero")
+	var ex: Array = s.filter(func(e): return e.get("extra", false))
+	assert_eq(ex.size(), 4)
+	for i in 4:
+		assert_almost_eq(float(ex[i].t), tb.boss_lead + wb.side_group_delay + i * wb.spawn_interval, 1e-6, "extra %d" % i)
+
 ## The full order by hand (spawn_interval 0.8, side_group_delay 4.0): five main boars at 0, 0.8, 1.6, 2.4, 3.2; the main brute at
 ## 5 x 0.8 = 4.0, the same moment as the side boar (4.0 + 0), the main one first; the side brute at 4.0 + 1 x 0.8 = 4.8.
 func test_the_full_spawn_order_with_a_brute_on_each_lane() -> void:

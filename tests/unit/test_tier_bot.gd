@@ -478,7 +478,8 @@ func test_with_the_flag_off_the_bot_still_reads_the_nights_plan() -> void:
 	GameState.lane_plan = [_wave("west", 3)]
 	assert_eq(bot.next_purchase(), "pad_tower_nw_a", "Longbow")
 
-## `unbranched` (report-only) buys no branch and is not a skipped goal. Mutations: it buying any branch; an unbought branch counted as skipped.
+## `unbranched` (report-only) buys no branch and is not a skipped goal. Mutations: it buying any branch; an unbought branch counted as skipped;
+## idle_goal changing (the concrete goal is pinned).
 func test_unbranched_never_buys_a_branch_and_skips_nothing() -> void:
 	assert_true("unbranched" in TierBot.REPORT_POLICIES)
 	assert_false("unbranched" in TierBot.POLICIES, "fixtures and the CI sim loop over POLICIES")
@@ -490,8 +491,24 @@ func test_unbranched_never_buys_a_branch_and_skips_nothing() -> void:
 		assert_eq(bot.next_purchase(), "", "everything max, 5000 gold, nothing else to build (flag %s)" % flag)
 		assert_eq(bot.skipped_goals, 0)
 		assert_eq(TierBot.branch_choices("unbranched", MapLayout.spots_for_tier(3), GameState.lane_plan), {})
-		assert_ne(bot.idle_goal(), "", "its idle logic still has something to do")
+		assert_eq(bot.idle_goal(), "pad_freezer", "tier 3, everything max, 5000 gold: the cheapest station level (the upgrader's idle goal)")
 		Balance.reset()
+
+## `unbranched` skips only the branch pads. Mutation: the policy short-circuits next_purchase (no yard tower) or idle_goal (no sign).
+func test_unbranched_still_buys_a_level_0_yard_tower() -> void:
+	var bot := _one_branch_bot()
+	bot.policy = "unbranched"
+	GameState.buildings["tower_w"].level = 0  # test-only setup: one yard tower still to build
+	assert_eq(bot.next_purchase(), "tower_w")
+
+func test_unbranched_still_seeks_the_tier_3_sign_at_tier_2() -> void:
+	GameState.new_game(1)
+	GameState.debug_set_tier(2, 1)
+	GameState.add_gold(5000)
+	var bot := TierBot.new()
+	autofree(bot)
+	bot.policy = "unbranched"
+	assert_eq(bot.idle_goal(), "tier_sign_3")
 
 ## An unknown policy still fails loudly (the assert), so a typo never silently becomes a policy.
 func test_an_unknown_policy_still_fails_loudly() -> void:

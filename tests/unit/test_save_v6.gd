@@ -4,7 +4,7 @@ extends GutTest
 
 const FIXTURE_DIR := "res://tests/fixtures/v5/"
 const V5_WAVE_KEYS := ["boss", "fast_main", "fast_side", "hp_mult", "main", "main_count", "side", "side_count"]
-const V5_STATE_KEYS := ["boss_pending", "buildings", "card_offer", "cards", "carried_steaks", "counter_steaks", "day",
+const V7_STATE_KEYS := ["boss_pending", "buildings", "card_offer", "cards", "carried_steaks", "counter_steaks", "day",
 	"diner_hp", "freezer_steaks", "gold", "gold_pile", "guards", "lane_character", "lane_plan", "night_fails", "resume_phase", "run_seed",
 	"stations", "tier", "tier_day", "tier_paid", "v"]
 
@@ -123,7 +123,7 @@ func _is_older_step_addition(line: String, from_v: int) -> bool:
 	return false
 
 ## Schema 7 (E6) adds one more field to what this chain produces: an empty `lane_character`; it is the only addition allowed besides the v6 ones.
-func test_every_fixture_migrates_to_v6_changing_only_the_two_building_fields() -> void:
+func test_every_old_fixture_migrates_to_v7_adding_only_the_branch_fields_and_an_empty_lane_character() -> void:
 	assert_eq(GameState.SCHEMA_VERSION, 7)
 	for f in _fixture_files():
 		var old := _v5_state(f)
@@ -303,12 +303,12 @@ func test_at_tier_3_every_wave_carries_both_brute_keys() -> void:
 
 # --- the tier-1/2 shape is unchanged ---------------------------------------------------------------------------
 
-func test_a_new_game_at_tier_1_has_the_v5_keys_and_the_two_building_fields() -> void:
+func test_a_new_game_at_tier_1_has_the_v7_keys_and_the_two_building_fields() -> void:
 	GameState.new_game(7)
 	var d := GameState.to_dict()
 	var keys: Array = d.keys()
 	keys.sort()
-	assert_eq(keys, V5_STATE_KEYS)
+	assert_eq(keys, V7_STATE_KEYS)
 	for id in d.buildings:
 		var bk: Array = d.buildings[id].keys()
 		bk.sort()

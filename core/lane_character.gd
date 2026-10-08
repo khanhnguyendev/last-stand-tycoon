@@ -31,13 +31,6 @@ static func lane_type(character: Dictionary, lane: String) -> StringName:
 		return HARE
 	return NEUTRAL
 
-## The types of the lanes a building covers, in order.
-static func spot_types(character: Dictionary, lanes: Array) -> Array:
-	var out: Array = []
-	for lane in lanes:
-		out.append(lane_type(character, String(lane)))
-	return out
-
 ## E6 (spec 3.2, D-287): the plan step. Pure and deterministic: no random draws, `plan` is not mutated (a deep copy is
 ## returned; an empty character returns an equal copy). Per wave, in this order:
 ##  a. BRUTES. B = brute_main + brute_side (unchanged). Siege lane = main: all on main. = side: all on side. Neither:

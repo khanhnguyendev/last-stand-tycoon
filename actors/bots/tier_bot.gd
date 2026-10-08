@@ -7,7 +7,8 @@ extends UpgraderBot
 
 ## E5 tier 3 (Task 22): how it chooses a branch for each max-level building (spec 9.4, D-263.5): all_a (Longbow, Stone wall), all_b (Volley,
 ## Spike fence), mixed (towers A, fences B: the spec names the policy but not its mix; this is the fixed one), volley_stone (towers Volley, fences Stone wall) and threat (Stone wall and
-## Longbow on a lane with a brute in tonight's plan, Spike fence and Volley elsewhere).
+## Longbow on a lane with a brute in tonight's plan, Spike fence and Volley elsewhere). With a non-empty lane character (tier 3, retune on) `threat`
+## follows the character instead of tonight's plan (see `branch_choices`); `unbranched` is in REPORT_POLICIES below.
 const POLICIES: Array[String] = ["all_a", "all_b", "mixed", "threat"]
 ## Report-only policy (Task 24 fix round: the 2 x 2 table of tower x fence). Kept out of POLICIES, which the fixtures (make_save) and sim 6 iterate over.
 ## `unbranched` (E6, D-283) buys no branch at all: the report's floor. It still buys everything else, and is not a skipped goal.

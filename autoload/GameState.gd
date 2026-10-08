@@ -35,6 +35,7 @@ var load_warnings: Array[String] = []
 func new_game(seed: int = 0) -> void:
 	run_seed = seed if seed != 0 else Rng.new_run_seed()
 	resume_phase = "NIGHT"
+	load_warnings = []
 	day = 1
 	gold = 0
 	gold_pile = 0

@@ -115,8 +115,10 @@ func test_production_stream_identity_pins() -> void:
 			var got := [int(rng.randi()), int(rng.randi()), int(rng.randi())]
 			assert_eq(got, PINNED_PROD_STREAMS[n][d], "%s day %d first three" % [n, d])
 
-func test_lane_character_is_a_new_distinct_stream() -> void:
-	assert_false(PINNED_PROD_STREAMS.has(&"lane_character"), "new name, not a pre-existing one")
-	var mine := Rng.stream(GOLDEN_RUN_SEED, 0, &"lane_character").randi()
-	for n in PINNED_PROD_STREAMS:
-		assert_ne(mine, Rng.stream(GOLDEN_RUN_SEED, 0, n).randi(), "day-0 first value vs %s" % n)
+## The new E6 stream, pinned by literals (seed from the FNV-1a of "20260930:0:lane_character", then its first three randi()).
+## Saves depend on it forever. Mutation: the stream renamed, moved to another day, or derived differently.
+func test_lane_character_stream_is_pinned() -> void:
+	assert_false(PINNED_PROD_STREAMS.has(&"lane_character"), "new name, not one of the pre-existing streams")
+	assert_eq(Rng.derive_seed(GOLDEN_RUN_SEED, 0, &"lane_character"), 2971160035)
+	var rng := Rng.stream(GOLDEN_RUN_SEED, 0, &"lane_character")
+	assert_eq([int(rng.randi()), int(rng.randi()), int(rng.randi())], [3561404524, 1919775873, 3074756434])
