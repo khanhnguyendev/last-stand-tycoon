@@ -6,7 +6,7 @@ const FORMAT := 1
 const RESUME_PHASES := ["NIGHT", "DAY", "CARD_PICK"]
 const STATE_KEYS := ["v", "resume_phase", "run_seed", "day", "gold", "gold_pile", "freezer_steaks",
 	"counter_steaks", "carried_steaks", "diner_hp", "buildings", "lane_plan", "cards", "card_offer", "guards",
-	"night_fails", "stations", "tier", "tier_day", "tier_paid", "boss_pending"]
+	"night_fails", "stations", "tier", "tier_day", "tier_paid", "boss_pending", "lane_character"]
 ## from_version (int) -> Callable(state: Dictionary) -> Dictionary. A test hook: an entry here overrides the
 ## built-in step of the same version (_built_in). Tests may clear it freely.
 static var MIGRATIONS := {}
@@ -46,6 +46,10 @@ static func _built_in(from_v: int, state: Dictionary) -> Variant:
 						bs[id].branch = ""
 						bs[id].branch_paid = {}
 			state.v = 6
+			return state
+		6:  # E6: the lane character. A v6 save has none ({}); GameState derives it from run_seed on load when it applies.
+			state.lane_character = {}
+			state.v = 7
 			return state
 	return null
 
@@ -115,6 +119,17 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 		return "range"
 	if typeof(s.boss_pending) != TYPE_BOOL:
 		return "type boss_pending"
+	if typeof(s.lane_character) != TYPE_DICTIONARY:
+		return "type lane_character"
+	if not s.lane_character.is_empty():
+		var tier3_lanes := LanePlanner.lanes_for_tier(3)
+		if s.lane_character.size() != 2 or not s.lane_character.has_all(["siege", "hare"]):
+			return "lane_character fields"
+		for k in ["siege", "hare"]:
+			if typeof(s.lane_character[k]) != TYPE_STRING or not String(s.lane_character[k]) in tier3_lanes:
+				return "lane_character " + k
+		if s.lane_character.siege == s.lane_character.hare:
+			return "lane_character same lane"
 	var tier := int(s.tier)
 	if tier < 1 or tier > bd.tiers.max_tier:
 		return "range tier"
@@ -200,6 +215,12 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 			return "lane fast"
 		if typeof(w.boss) != TYPE_BOOL:
 			return "lane fields"
+		if w.has("lane_cap_guard") and typeof(w.lane_cap_guard) != TYPE_BOOL:
+			return "lane lane_cap_guard"
+		if w.has("extra"):
+			var why := _validate_extra(w.extra, lanes, known_tier)
+			if why != "":
+				return why
 	for i in s.lane_plan.size() - 1:
 		if bool(s.lane_plan[i].boss):
 			return "lane boss"
@@ -231,6 +252,23 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 				return "maxed offer"
 	return ""
 
+
+## The extra groups of one saved wave (E6, wave.extra = [{lane, count, fast}]): only at tier 3+, each lane one of the tier's
+## lanes, whole count >= 0, whole 0 <= fast <= count.
+static func _validate_extra(extra: Variant, lanes: Array, known_tier: int) -> String:
+	if typeof(extra) != TYPE_ARRAY or known_tier < 3:
+		return "lane extra"
+	for e in extra:
+		if typeof(e) != TYPE_DICTIONARY or not e.has_all(["lane", "count", "fast"]):
+			return "lane extra"
+		if typeof(e.lane) != TYPE_STRING or not String(e.lane) in lanes:
+			return "lane extra lane"
+		for f in ["count", "fast"]:
+			if not typeof(e[f]) in [TYPE_INT, TYPE_FLOAT] or float(e[f]) < 0.0 or float(e[f]) != floorf(float(e[f])):
+				return "lane extra " + f
+		if int(e.fast) > int(e.count):
+			return "lane extra fast"
+	return ""
 
 ## The branch fields of one saved building (E5 tier 3). The caller has checked both keys exist.
 static func _validate_branch(id: String, b: Dictionary, level: int, known_tier: int, bd: BalanceData) -> String:

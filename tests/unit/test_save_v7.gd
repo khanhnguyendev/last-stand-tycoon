@@ -1,0 +1,341 @@
+extends GutTest
+## E6 task 5 (spec 3.4, D-282, D-286.4, D-287): schema 7 stores the lane character; on load a tier-3 game with the retune flag
+## on RE-DERIVES the night plan (extra groups hold, rules are today's); with the flag off the load path is what it was.
+
+const V6_FIXTURE := "res://tests/fixtures/v6_tier3_cap_threat.save.json"
+
+## Read from the committed v6 file itself (python json, not from any code of this task): the plan it stores, wave for wave,
+## as [main, side, main_count, side_count, hp_mult, fast_main, fast_side, brute_main, brute_side].
+const V6_PLAN := [
+	["west", "east", 10, 9, 2.65, 4, 3, 1, 0],
+	["sw", "north", 16, 13, 2.65, 6, 5, 1, 0],
+	["sw", "east", 16, 14, 3.445, 6, 5, 1, 0],
+]
+## Its key state fields.
+const V6_STATE := {"resume_phase": "NIGHT", "run_seed": 20260930, "day": 24, "gold": 1769, "gold_pile": 0, "freezer_steaks": 0,
+	"counter_steaks": 0, "carried_steaks": 0, "diner_hp": 300.0, "night_fails": 0, "tier": 3, "tier_day": 19, "tier_paid": 0, "boss_pending": false}
+
+func before_each() -> void:
+	Balance.reset()
+	SaveCodec.MIGRATIONS.clear()
+	GameState.new_game(20261007)
+
+func after_each() -> void:
+	Balance.reset()
+	GameState.new_game(1)
+
+func _flag(on: bool) -> void:
+	Balance.data.tiers.retune_enabled = on
+
+func _tier3_day(seed: int, d: int) -> void:
+	GameState.new_game(seed)
+	GameState.debug_set_tier(3, 17)
+	GameState.day = d - 1
+	GameState.advance_day()
+
+func _has_extra(plan: Array) -> bool:
+	for w in plan:
+		if w.has("extra") and not w.extra.is_empty():
+			return true
+	return false
+
+## A (seed, day) whose flag-on tier-3 plan has an extra group (flag must be on). The scan result is asserted by the callers.
+func _find_extra_night() -> Array:
+	for seed in range(1, 80):
+		for d in range(17, 31):
+			_tier3_day(seed, d)
+			if _has_extra(GameState.lane_plan):
+				return [seed, d]
+	return []
+
+func _decode(s: Dictionary) -> Dictionary:
+	return SaveCodec.decode(SaveCodec.encode(s, "t", 0), GameState.SCHEMA_VERSION, Balance.data)
+
+func _roundtrip() -> Dictionary:
+	var r := _decode(GameState.to_dict())
+	assert_true(r.ok, r.reason)
+	return r
+
+func _sizes(plan: Array) -> Array:
+	return plan.map(func(w): return WaveSchedule.build(w, Balance.data.wave, Balance.data.tiers, 3).size())
+
+func _v6_state() -> Dictionary:
+	var env = SaveCodec._parse(FileAccess.get_file_as_string(V6_FIXTURE))
+	return SaveCodec._parse(env.state_json)
+
+func _plan_rows(plan: Array) -> Array:
+	return plan.map(func(w): return [w.main, w.side, w.main_count, w.side_count, w.hp_mult, w.fast_main, w.fast_side, w.brute_main, w.brute_side])
+
+# --- schema and migration -------------------------------------------------------------------------------
+
+func test_schema_is_7() -> void:
+	assert_eq(GameState.SCHEMA_VERSION, 7)
+	assert_eq(int(GameState.to_dict().v), 7)
+
+## Mutation: the migration does not add the field (decode would reject the save as "missing lane_character").
+func test_the_real_v6_fixture_migrates_to_v7_adding_only_an_empty_lane_character() -> void:
+	var old := _v6_state()
+	assert_eq(int(old.v), 6, "setup: the fixture really is schema 6")
+	assert_false(old.has("lane_character"))
+	var r := SaveCodec.decode(FileAccess.get_file_as_string(V6_FIXTURE), GameState.SCHEMA_VERSION, Balance.data)
+	assert_true(r.ok, r.reason)
+	assert_eq(int(r.state.v), 7)
+	assert_eq(r.state.lane_character, {})
+	var want: Dictionary = old.duplicate(true)
+	want.v = 7
+	want.lane_character = {}
+	assert_eq(JSON.stringify(r.state, "", true, true), JSON.stringify(want, "", true, true), "nothing else changed")
+
+func test_the_original_v6_fixture_is_the_export_one() -> void:
+	assert_eq(FileAccess.get_file_as_string(V6_FIXTURE), FileAccess.get_file_as_string("res://export/fixtures/tier3_cap_threat.save.json"))
+
+# --- round trips ----------------------------------------------------------------------------------------
+
+func test_v7_round_trip_at_tiers_1_2_3_flag_off_and_on() -> void:
+	for on in [false, true]:
+		for t in [1, 2, 3]:
+			_flag(on)
+			GameState.new_game(20260930)
+			GameState.day = 20
+			if t > 1:
+				GameState.debug_set_tier(t, 17)
+			var tag := "tier %d flag %s" % [t, str(on)]
+			var s := GameState.to_dict()
+			var want: Dictionary = LaneCharacter.for_run(20260930) if (on and t == 3) else {}
+			assert_eq(s.lane_character, want, tag + ": stored character")
+			var r := _decode(s)
+			assert_true(r.ok, tag + ": " + r.reason)
+			var plan_before: Array = GameState.lane_plan.duplicate(true)
+			GameState.new_game(5)
+			GameState.from_dict(r.state)
+			assert_eq(GameState.lane_plan, plan_before, tag + ": plan")
+			assert_eq(GameState.lane_character(), want, tag)
+			assert_eq(GameState.load_warnings, [], tag + ": no warning")
+			assert_eq(_decode(GameState.to_dict()).state, r.state, tag + ": to_dict equal after a codec pass")
+
+# --- the real v6 save -------------------------------------------------------------------------------------
+
+func _load_v6() -> void:
+	var r := SaveCodec.decode(FileAccess.get_file_as_string(V6_FIXTURE), GameState.SCHEMA_VERSION, Balance.data)
+	assert_true(r.ok, r.reason)
+	GameState.new_game(7)
+	GameState.from_dict(r.state)
+
+## Flag off: the loaded game is what v6 loading gave (the plan and fields are the file's own).
+func test_v6_fixture_flag_off_loads_exactly_the_stored_plan() -> void:
+	_flag(false)
+	_load_v6()
+	for k in V6_STATE:
+		assert_eq(GameState.get(k), V6_STATE[k], k)
+	assert_eq(_plan_rows(GameState.lane_plan), V6_PLAN)
+	for w in GameState.lane_plan:
+		assert_false(w.has("extra"))
+	assert_eq(GameState.lane_character(), {})
+	assert_eq(GameState.load_warnings, [])
+	# the pin has teeth: under apply the plan WOULD differ for this save (so an apply on the off path fails the line above)
+	var applied := LaneCharacter.apply(LanePlanner.plan(20260930, 24, Balance.data.wave, 3, 19, Balance.data.tiers), LaneCharacter.for_run(20260930), Balance.data.tiers)
+	assert_ne(_plan_rows(applied), V6_PLAN)
+	var applied_stored := LaneCharacter.apply(GameState.lane_plan, LaneCharacter.for_run(20260930), Balance.data.tiers)
+	assert_ne(applied_stored, GameState.lane_plan, "apply would change the stored plan")
+
+## Flag on: the character comes from run_seed (same on two loads) and the plan is re-derived.
+## Mutation: the re-derive removed (the stored plan kept) or the plan taken without apply.
+func test_v6_fixture_flag_on_derives_character_and_plan() -> void:
+	_flag(true)
+	_load_v6()
+	var tb := Balance.data.tiers
+	var c := LaneCharacter.for_run(20260930)
+	assert_eq(GameState.lane_character(), c)
+	var want := LaneCharacter.apply(LanePlanner.plan(20260930, 24, Balance.data.wave, 3, 19, tb), c, tb)
+	assert_eq(GameState.lane_plan, want)
+	assert_ne(_plan_rows(GameState.lane_plan), V6_PLAN, "the stored (old-rules) plan was replaced")
+	assert_eq(GameState.load_warnings, [], "no stored character: nothing to warn about")
+	var first: Array = GameState.lane_plan.duplicate(true)
+	_load_v6()
+	assert_eq(GameState.lane_character(), c, "same on a second load")
+	assert_eq(GameState.lane_plan, first)
+	assert_eq(GameState.to_dict().lane_character, c, "and it is written back")
+
+# --- the mismatch -----------------------------------------------------------------------------------------
+
+## Mutation: the stored character wins (the plan would be built for it), or no warning, or two warnings.
+func test_a_stored_character_that_differs_is_replaced_with_one_warning() -> void:
+	_flag(true)
+	var derived := LaneCharacter.for_run(20260930)
+	var lanes := LanePlanner.lanes_for_tier(3)
+	var other_siege: String = lanes[(lanes.find(derived.siege) + 1) % 4]
+	var other_hare: String = lanes.filter(func(l): return l != other_siege and l != derived.hare)[0]
+	var bad := {"siege": other_siege, "hare": other_hare}
+	assert_ne(bad, derived, "setup")
+	var s := _v6_state()
+	s.v = 7
+	s.lane_character = bad
+	var r := _decode(s)
+	assert_true(r.ok, r.reason)
+	GameState.new_game(7)
+	GameState.from_dict(r.state)
+	assert_eq(GameState.lane_character(), derived)
+	assert_eq(GameState.to_dict().lane_character, derived, "the derived one is what the next save holds")
+	assert_eq(GameState.load_warnings.size(), 1)
+	assert_string_contains(GameState.load_warnings[0], other_siege)
+	var tb := Balance.data.tiers
+	assert_eq(GameState.lane_plan, LaneCharacter.apply(LanePlanner.plan(20260930, 24, Balance.data.wave, 3, 19, tb), derived, tb))
+	# a matching stored character: no warning; a later load clears the old warning
+	s.lane_character = derived
+	GameState.from_dict(_decode(s).state)
+	assert_eq(GameState.load_warnings, [])
+
+# --- extra groups survive ---------------------------------------------------------------------------------
+
+## Mutation: from_dict drops wave.extra (the old load path): the plan and the schedule sizes shrink.
+func test_a_night_with_an_extra_group_survives_to_dict_from_dict() -> void:
+	_flag(true)
+	var found := _find_extra_night()
+	assert_false(found.is_empty(), "the scan found a night with an extra group")
+	var plan: Array = GameState.lane_plan.duplicate(true)
+	var sizes := _sizes(plan)
+	var r := _roundtrip()
+	GameState.new_game(5)
+	GameState.from_dict(r.state)
+	assert_eq(GameState.lane_plan, plan)
+	assert_eq(_sizes(GameState.lane_plan), sizes)
+	assert_true(_has_extra(GameState.lane_plan))
+
+## The same for a plan that was stored WITHOUT the extra group (a stale plan): the re-derive restores it.
+func test_a_stored_plan_without_its_extra_group_gets_it_back_on_load() -> void:
+	_flag(true)
+	assert_false(_find_extra_night().is_empty())
+	var plan: Array = GameState.lane_plan.duplicate(true)
+	var s := GameState.to_dict()
+	for w in s.lane_plan:
+		w.erase("extra")
+	GameState.new_game(5)
+	GameState.from_dict(_decode(s).state)
+	assert_eq(GameState.lane_plan, plan)
+
+## Mutation: apply is called on the loaded plan in addition to the derived one is idempotent; a second apply must not change it.
+func test_loading_twice_changes_nothing() -> void:
+	_flag(true)
+	assert_false(_find_extra_night().is_empty())
+	var s: Dictionary = _roundtrip().state
+	GameState.from_dict(s)
+	var once: Array = GameState.lane_plan.duplicate(true)
+	GameState.from_dict(GameState.to_dict())
+	assert_eq(GameState.lane_plan, once)
+
+# --- flag off identity of the load path ---------------------------------------------------------------------
+
+func test_flag_off_v7_save_loads_the_stored_plan_wave_for_wave() -> void:
+	_flag(false)
+	_tier3_day(20260930, 24)
+	GameState.lane_plan[0].main = "sw"  # a plan the rules would change: brutes off the siege lane
+	GameState.lane_plan[0].brute_main = 2
+	GameState.lane_plan[0].brute_side = 1
+	var stored: Array = GameState.lane_plan.duplicate(true)
+	var changed := LaneCharacter.apply(stored, LaneCharacter.for_run(20260930), Balance.data.tiers)
+	assert_ne(changed, stored, "setup: apply would change this plan")
+	var r := _roundtrip()
+	assert_eq(r.state.lane_character, {})
+	GameState.new_game(5)
+	GameState.from_dict(r.state)
+	assert_eq(GameState.lane_plan, stored)
+	assert_eq(GameState.load_warnings, [])
+
+# --- a snapshot made flag-off, restored flag-on ---------------------------------------------------------------
+
+## D-286.4, asserted not hidden: the replay uses the NEW plan.
+func test_a_night_start_snapshot_made_flag_off_replays_with_the_new_plan() -> void:
+	_flag(false)
+	_tier3_day(20260930, 24)
+	var snap := GameState.to_dict()
+	snap.resume_phase = "NIGHT"
+	var old_plan: Array = snap.lane_plan.duplicate(true)
+	_flag(true)
+	GameState.new_game(5)
+	GameState.from_dict(_decode(snap).state)
+	var tb := Balance.data.tiers
+	var want := LaneCharacter.apply(LanePlanner.plan(20260930, 24, Balance.data.wave, 3, 17, tb), LaneCharacter.for_run(20260930), tb)
+	assert_ne(old_plan, want, "setup: the rules differ for this night")
+	assert_eq(GameState.lane_plan, want)
+	assert_ne(GameState.lane_plan, old_plan)
+	assert_eq(GameState.load_warnings, [])
+
+# --- the in-session retry --------------------------------------------------------------------------------------
+
+## Mutation: the retry goes through the old load path (extra group dropped): fewer scheduled enemies on the second attempt.
+func test_the_retry_of_a_failed_night_replays_the_same_plan() -> void:
+	_flag(true)
+	var main := Main.create()
+	add_child_autofree(main)
+	var pc: PhaseController = main.phase_controller
+	main.hero.input.player_control = false
+	pc.start_new_game(99)
+	assert_false(_find_extra_night().is_empty(), "the scan found a night with an extra group")
+	var first: Array = GameState.lane_plan.duplicate(true)
+	var total: int = _sizes(first).reduce(func(a, b): return a + b, 0)
+	pc.snapshot = GameState.to_dict()
+	pc.snapshot.resume_phase = "NIGHT"
+	GameState.damage_diner(100000.0)
+	assert_true(pc.failing)
+	for i in int(ceil(Balance.ui.banner_time * Engine.physics_ticks_per_second)) + 3:
+		await get_tree().physics_frame
+	assert_false(pc.failing)
+	assert_eq(GameState.lane_plan, first, "the retry's plan equals the first attempt's")
+	assert_eq(_sizes(GameState.lane_plan).reduce(func(a, b): return a + b, 0), total)
+	assert_true(_has_extra(GameState.lane_plan))
+
+# --- codec validation -----------------------------------------------------------------------------------------
+
+func _t3_state_with(extra: Variant) -> Dictionary:
+	_flag(true)
+	_tier3_day(20260930, 24)
+	var s := GameState.to_dict()
+	for w in s.lane_plan:
+		w.erase("extra")
+	s.lane_plan[0]["extra"] = extra
+	return s
+
+func test_a_valid_extra_group_passes() -> void:
+	var s := _t3_state_with([{"lane": "east", "count": 5, "fast": 5}])
+	assert_eq(SaveCodec.validate(s, Balance.data), "")
+	s = _t3_state_with([])
+	assert_eq(SaveCodec.validate(s, Balance.data), "")
+	s.lane_plan[0]["lane_cap_guard"] = true
+	assert_eq(SaveCodec.validate(s, Balance.data), "")
+
+func test_malformed_extra_groups_are_rejected() -> void:
+	var bad := {
+		"not an array": {"lane": "east", "count": 1, "fast": 1},
+		"entry not a dict": [3],
+		"missing fast": [{"lane": "east", "count": 1}],
+		"unknown lane": [{"lane": "up", "count": 1, "fast": 1}],
+		"lane not a string": [{"lane": 4, "count": 1, "fast": 1}],
+		"negative count": [{"lane": "east", "count": -1, "fast": 0}],
+		"fractional count": [{"lane": "east", "count": 1.5, "fast": 0}],
+		"count not a number": [{"lane": "east", "count": "3", "fast": 0}],
+		"fast above count": [{"lane": "east", "count": 2, "fast": 3}],
+		"negative fast": [{"lane": "east", "count": 2, "fast": -1}],
+	}
+	for name in bad:
+		var s := _t3_state_with(bad[name])
+		assert_ne(SaveCodec.validate(s, Balance.data), "", name)
+		assert_false(_decode(s).ok, name)
+
+func test_extra_below_tier_3_and_a_non_bool_guard_are_rejected() -> void:
+	GameState.new_game(3)
+	var s := GameState.to_dict()
+	s.lane_plan[0]["extra"] = [{"lane": "north", "count": 1, "fast": 1}]
+	assert_ne(SaveCodec.validate(s, Balance.data), "", "extra on a tier-1 plan")
+	var t := _t3_state_with([])
+	t.lane_plan[0]["lane_cap_guard"] = 1
+	assert_ne(SaveCodec.validate(t, Balance.data), "", "lane_cap_guard must be a bool")
+
+func test_malformed_lane_character_is_rejected() -> void:
+	var s := _t3_state_with([])
+	for bad in ["x", {"siege": "north"}, {"siege": "north", "hare": "up"}, {"siege": "north", "hare": 3}, {"siege": "north", "hare": "east", "x": 1}, {"siege": "north", "hare": "north"}]:
+		s.lane_character = bad
+		assert_ne(SaveCodec.validate(s, Balance.data), "", str(bad))
+	s.lane_character = {"siege": "north", "hare": "east"}
+	assert_eq(SaveCodec.validate(s, Balance.data), "")
+	s.erase("lane_character")
+	assert_ne(SaveCodec.validate(s, Balance.data), "", "a v7 save must carry the field")
