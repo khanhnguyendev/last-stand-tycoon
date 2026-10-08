@@ -563,6 +563,197 @@ func test_the_sw_arrow_does_not_appear_below_tier_3() -> void:
 	await get_tree().process_frame
 	assert_eq(hud.arrows.main.position, before, "not placed: no lane to point at")
 
+# --- E6 Task 12 (spec 5.5, D-287.3): the third arrow, and the brute mark on the lane that carries brutes ---
+
+const LANES4 := ["west", "north", "east", "sw"]
+## A wave of three active lanes: main, side, and an extra hare group on `e` (brutes on top of the groups).
+func _w3(m: String, s: String, e: String, bm := 0, bs := 0, side_count := 3) -> Dictionary:
+	var w := _w(m, s, bm, bs)
+	w["side_count"] = side_count
+	w["extra"] = [{"lane": e, "count": 2, "fast": 2}]
+	return w
+
+func _night3(plan: Array) -> void:
+	GameState.lane_plan = plan
+	EventBus.phase_changed.emit(Phase.NIGHT, 5)
+
+## An arrow's footprint in global px, independent of Hud: the square around its disc (44 px wide, centre 2 px along its own axis), plus its mark.
+func _footprint(a: HudArrow) -> Rect2:
+	var h: float = Balance.ui.arrow_px * 0.5 * a.scale.x
+	var c: Vector2 = a.position + hud.root.global_position + Vector2(0, 2).rotated(a.rotation) * a.scale.x
+	var r := Rect2(c - Vector2.ONE * h, Vector2.ONE * h * 2.0)
+	if a.heavy:
+		var m := hud.icons.heavy_rect(a)
+		r = r.merge(Rect2(m.position + hud.root.global_position, m.size))
+	return r
+
+func _visible_arrows() -> Array:
+	return ["main", "side", "extra"].filter(func(k): return hud.arrows[k].visible)
+
+func test_a_wave_with_a_third_lane_shows_three_arrows_each_pointing_at_its_lane() -> void:
+	_sized(SIZES["9:16"])
+	_hero_at(MapLayout.HOME)
+	await get_tree().process_frame
+	_night3([_w3("west", "east", "north")])
+	EventBus.wave_incoming.emit(0, &"west", &"east")
+	await get_tree().process_frame
+	assert_eq(_visible_arrows(), ["main", "side", "extra"], "three arrows")
+	assert_almost_eq(hud.arrows.extra.scale.x, Balance.ui.arrow_side_scale, 0.31, "the extra arrow is drawn at the side scale")
+	var c := hud.arrow_rect().get_center()
+	var cam := main.camera_rig.camera
+	var lanes := {"main": "west", "side": "east", "extra": "north"}
+	for k in lanes:
+		var a: HudArrow = hud.arrows[k]
+		var g: Vector2 = a.position + hud.root.position
+		var want: Vector2 = cam.unproject_position(main.world.lanes[lanes[k]].entrance_position()) - c
+		var tip := Vector2(-sin(a.rotation), cos(a.rotation))
+		if a.rotation != 0.0:
+			assert_lt(absf(angle_difference(tip.angle(), want.angle())), 0.7, "%s arrow points toward %s (at %s)" % [k, lanes[k], g])
+		else:
+			assert_lt(g.distance_to(cam.unproject_position(main.world.lanes[lanes[k]].entrance_position())), Balance.ui.arrow_hover_px + 60.0, "%s arrow hovers by its lane" % k)
+
+func test_three_arrows_never_overlap_the_bar_the_gear_or_each_other_at_every_triple_aspect_and_hero_place() -> void:
+	var triples := 0
+	var checked := 0
+	for name in SIZES:
+		var vp: Vector2 = Vector2(SIZES[name])
+		_sized(SIZES[name])
+		assert_true(hud.reserved_rect.is_valid(), "the gear rect is known")
+		var places: Array = [["HOME", MapLayout.HOME]]
+		for l in LANES4:
+			places.append(["the %s zone" % l, MapLayout.zone_rect(l).get_center()])
+		# the map's two far north corners: the lane entrances bunch up on screen there, and the separation rule is needed
+		places.append(["the north-west corner", Vector2(-21, -21)])
+		places.append(["the north-east corner", Vector2(21, -21)])
+		for where in places:
+			_hero_at(where[1])
+			await get_tree().process_frame
+			for m in LANES4:
+				for s in LANES4:
+					for e in LANES4:
+						if m == s or m == e or s == e:
+							continue
+						_night3([_w3(m, s, e)])
+						EventBus.wave_incoming.emit(0, StringName(m), StringName(s))
+						hud._place_arrows()
+						var what := "%s %s main %s side %s extra %s" % [name, where[0], m, s, e]
+						assert_eq(_visible_arrows().size(), 3, what + ": three arrows")
+						var gear: Rect2 = hud.reserved_rect.call()
+						var rects := {}
+						for k in _visible_arrows():
+							rects[k] = _footprint(hud.arrows[k])
+						for k in rects:
+							var r: Rect2 = rects[k]
+							assert_true(Rect2(Vector2.ZERO, vp).encloses(r), "%s: %s arrow on screen %s" % [what, k, r])
+							assert_gte(hud.arrows[k].position.y + hud.root.position.y - Hud.arrow_extent(), Balance.ui.hud_top_bar_px, "%s: %s arrow not under the top bar" % [what, k])
+							assert_false(r.intersects(gear), "%s: %s arrow clear of the gear: fp %s gear %s rot %s rect %s" % [what, k, r, gear, hud.arrows[k].rotation, hud.arrow_rect()])
+						for pair in [["main", "side"], ["main", "extra"], ["side", "extra"]]:
+							assert_false((rects[pair[0]] as Rect2).grow(4.0).intersects((rects[pair[1]] as Rect2).grow(4.0)), "%s: %s and %s arrows apart" % [what, pair[0], pair[1]])
+						checked += 1
+		triples += 1
+	assert_eq(triples, 3)
+	assert_eq(checked, 3 * 7 * 24)
+
+## Where the HUD's plain edge placement puts the arrow of `lane` (no separation).
+func _plain_point(lane: String) -> Vector2:
+	var cam := main.camera_rig.camera
+	var rect := hud.arrow_rect()
+	var p := cam.unproject_position(main.world.lanes[lane].entrance_position())
+	return (_hover_or_edge(p, rect))
+
+func _hover_or_edge(p: Vector2, rect: Rect2) -> Vector2:
+	return hud._hover_point(p, rect) if rect.has_point(p) else (EdgeClamp.clamp_to_rect(p, rect).position as Vector2)
+
+func test_the_separation_rule_keeps_main_in_place_and_slides_the_later_arrow_along_the_edge() -> void:
+	# From the north-west corner at 9:16, north (main) and east (side) would land on the same spot of the top edge.
+	_sized(SIZES["9:16"])
+	_hero_at(Vector2(-21, -21))
+	await get_tree().process_frame
+	var own := {"north": _plain_point("north"), "east": _plain_point("east"), "west": _plain_point("west")}
+	assert_lt(own.north.distance_to(own.east), Balance.ui.arrow_px * Balance.ui.arrow_punch_scale, "setup: the plain places touch %s %s" % [own.north, own.east])
+	# two lanes: today's places exactly, touching or not
+	_night3([_w("north", "east")])
+	EventBus.wave_incoming.emit(0, &"north", &"east")
+	hud._place_arrows()
+	assert_eq(hud.arrows.main.position + hud.root.position, own.north, "two lanes: main as ever")
+	assert_eq(hud.arrows.side.position + hud.root.position, own.east, "two lanes: side as ever")
+	# three lanes: main stays, side slides
+	_night3([_w3("north", "east", "sw")])
+	EventBus.wave_incoming.emit(0, &"north", &"east")
+	hud._place_arrows()
+	assert_eq(hud.arrows.main.position + hud.root.position, own.north, "three lanes: main keeps its place")
+	var side: Vector2 = hud.arrows.side.position + hud.root.position
+	assert_gt(side.distance_to(own.east), 1.0, "the side arrow slid off its plain place")
+	assert_lt(side.distance_to(own.east), 160.0, "and only by a short way")
+	assert_true(hud.arrow_rect().grow(1.0).has_point(side), "still on the arrow rect")
+	assert_false(_footprint(hud.arrows.main).grow(4.0).intersects(_footprint(hud.arrows.side).grow(4.0)), "apart")
+	# the third arrow slides for both earlier ones
+	_night3([_w3("west", "north", "east")])
+	EventBus.wave_incoming.emit(0, &"west", &"north")
+	hud._place_arrows()
+	assert_eq(hud.arrows.main.position + hud.root.position, own.west)
+	assert_false(_footprint(hud.arrows.side).grow(4.0).intersects(_footprint(hud.arrows.extra).grow(4.0)), "side and extra apart")
+	assert_gt((hud.arrows.extra.position + hud.root.position).distance_to(own.east), 1.0, "the extra arrow slid")
+
+func test_the_brute_mark_sits_on_the_side_arrow_only_when_only_the_side_lane_has_brutes() -> void:
+	_night3([_w3("west", "east", "north", 0, 2)])
+	EventBus.wave_incoming.emit(0, &"west", &"east")
+	assert_eq(_visible_arrows().size(), 3)
+	assert_false(hud.arrows.main.heavy, "main has no brute")
+	assert_true(hud.arrows.side.heavy, "east carries the brutes")
+	assert_false(hud.arrows.extra.heavy, "the extra lane has none")
+
+func test_a_wave_whose_main_lane_is_the_brute_lane_marks_only_main() -> void:
+	_night3([_w3("sw", "east", "north", 3, 0)])
+	EventBus.wave_incoming.emit(0, &"sw", &"east")
+	assert_true(hud.arrows.main.heavy)
+	assert_false(hud.arrows.side.heavy)
+	assert_false(hud.arrows.extra.heavy)
+
+func test_a_later_wave_tonight_that_brings_the_brutes_marks_the_extra_arrow_now() -> void:
+	_night3([_w3("west", "east", "north"), _w("west", "north", 0, 1), _w("east", "west")])
+	EventBus.wave_incoming.emit(0, &"west", &"east")
+	assert_false(hud.arrows.main.heavy)
+	assert_false(hud.arrows.side.heavy)
+	assert_true(hud.arrows.extra.heavy, "north's brutes come in wave 2")
+	EventBus.wave_incoming.emit(2, &"east", &"west")
+	assert_false(hud.arrows.extra.heavy, "no third lane: hidden and unmarked")
+	assert_false(hud.arrows.main.heavy, "east never has one")
+
+func test_a_side_group_with_only_brutes_still_shows_its_arrow_with_the_mark() -> void:
+	var w := _w3("west", "east", "north", 0, 2, 0)
+	assert_eq(w.side_count, 0)
+	_night3([w])
+	EventBus.wave_incoming.emit(0, &"west", &"east")
+	assert_true(hud.arrows.side.visible)
+	assert_true(hud.arrows.side.heavy)
+	assert_false(hud.arrows.main.heavy)
+	assert_false(hud.arrows.extra.heavy)
+
+func test_the_third_arrow_hides_on_spawned_out_and_when_the_next_wave_has_no_third_lane() -> void:
+	_night3([_w3("west", "east", "north"), _w("west", "east"), _w3("east", "west", "sw")])
+	EventBus.wave_incoming.emit(0, &"west", &"east")
+	assert_true(hud.arrows.extra.visible)
+	EventBus.wave_spawned_out.emit(0)
+	assert_false(hud.arrows.extra.visible, "spawned out")
+	EventBus.wave_incoming.emit(0, &"west", &"east")
+	EventBus.wave_incoming.emit(1, &"west", &"east")
+	assert_false(hud.arrows.extra.visible, "wave 1 has two lanes")
+	EventBus.wave_incoming.emit(2, &"east", &"west")
+	assert_true(hud.arrows.extra.visible)
+	EventBus.phase_changed.emit(Phase.DAWN, 5)
+	assert_false(hud.arrows.extra.visible, "by day")
+
+func test_a_wave_without_extra_never_shows_the_third_arrow() -> void:
+	_night3([_w("west", "east"), _w("north", "west", 1, 0), _w("east", "")])
+	for w in 3:
+		EventBus.wave_incoming.emit(w, StringName(GameState.lane_plan[w].main), StringName(GameState.lane_plan[w].side))
+		assert_false(hud.arrows.extra.visible, "wave %d" % w)
+	EventBus.wave_incoming.emit(1, &"west", &"east")  # and a lane that no wave names
+	assert_false(hud.arrows.extra.visible)
+	EventBus.wave_incoming.emit(9, &"west", &"east")  # out of the plan
+	assert_false(hud.arrows.extra.visible)
+
 func after_each() -> void:
 	Balance.reset()
 	GameState.new_game(1)
