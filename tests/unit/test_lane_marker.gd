@@ -48,6 +48,17 @@ func _badges() -> Dictionary:
 			out[lane] = b.shown_kind()
 	return out
 
+## Names of every LaneCharacterMarker in the world that is NOT the `badge` of the current marker of its lane (an orphan: its marker was
+## freed or rebuilt and the badge stayed behind). Call after a process_frame so queued frees have happened.
+func _orphans() -> Array:
+	var out := []
+	for c in main.world.get_children():
+		if c is LaneCharacterMarker:
+			var mk: TelegraphMarker = main.world.telegraph_markers.get(c.lane_id)
+			if mk == null or mk.badge != c:
+				out.append(String(c.name))
+	return out
+
 func _expect(seed: int) -> Dictionary:
 	var c: Array = CHARACTERS[seed]
 	return {c[0]: &"siege", c[1]: &"hare"}
@@ -110,7 +121,41 @@ func test_a_new_game_with_another_seed_moves_the_badges_to_that_runs_lanes() -> 
 	GameState.new_game(4)
 	GameState.debug_set_tier(3, 5)
 	await get_tree().physics_frame
-	assert_eq(_badges(), _expect(4), "seed 4: siege west, hare north (an old badge left on seed 7's lanes fails here)")
+	assert_eq(_badges(), _expect(4), "seed 4: siege west, hare north")
+	await get_tree().process_frame
+	assert_eq(_orphans(), [], "no badge outlives its marker (the sw badge of the tier-3 run before is gone with its marker)")
+	var n := 0
+	for c in main.world.get_children():
+		if c is LaneCharacterMarker and c.shown_kind() != &"":
+			n += 1
+	assert_eq(n, 2, "exactly the two badges of this run show (a lane that turned neutral keeps a hidden node)")
+
+## Mutation: TelegraphMarker._exit_tree does not free the badge: the sw badge stays when the tier drops and its marker is removed.
+func test_no_badge_is_orphaned_after_a_tier_change_that_rebuilds_markers_and_after_a_load() -> void:
+	await _start(3)  # siege sw, hare west
+	assert_eq(_badges(), _expect(3))
+	assert_not_null(_marker("sw").badge)
+	GameState.debug_set_tier(2, 5)  # the sw lane and its marker go
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	assert_false(main.world.telegraph_markers.has("sw"), "the sw marker is gone at tier 2")
+	assert_eq(_orphans(), [], "tier change: the sw badge went with its marker")
+	GameState.debug_set_tier(3, 5)  # rebuilt
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	assert_eq(_badges(), _expect(3))
+	assert_eq(_orphans(), [], "tier change back up: one badge per marker")
+	var snap := GameState.to_dict()
+	GameState.new_game(1)
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	assert_eq(_orphans(), [], "a fresh tier-1 run")
+	GameState.from_dict(snap)
+	EventBus.state_restored.emit()
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	assert_eq(_badges(), _expect(3))
+	assert_eq(_orphans(), [], "after a load")
 
 func test_after_a_save_and_load_at_tier_3_the_badges_are_right() -> void:
 	await _start(3)
@@ -348,6 +393,31 @@ func _foci() -> Array:
 
 ## The count of rects (count rows of every lane, the tier sign, cost labels and pips, the hero) the badge of each lane overlaps while on
 ## screen, over `foci`. Returns {overlaps: [text], gap: smallest base-px gap to a count row, views: n}.
+func _category(what: String) -> String:
+	if what == "tier sign" or what == "hero":
+		return what
+	if what.begins_with("pad glyph"):
+		return "pad"
+	if what.contains("pips"):
+		return "pips"
+	if what.begins_with("fence"):
+		return "fence label"
+	return "tower label"
+
+## "category: count" table text of an overlaps list, every category listed (0 included).
+func _table(overlaps: Array) -> Dictionary:
+	var by := {"count row": 0, "tier sign": 0, "tower label": 0, "fence label": 0, "pips": 0, "hero": 0, "pad": 0}
+	for t in overlaps:
+		by[t.cat] += 1
+	return by
+
+func _print_table(title: String, views: int, overlaps: Array) -> Dictionary:
+	var by := _table(overlaps)
+	gut.p("%s: %d badge views, %d overlaps" % [title, views, overlaps.size()])
+	for k in by:
+		gut.p("    %-12s %d" % [k, by[k]])
+	return by
+
 func _overlaps(foci: Array) -> Dictionary:
 	var out := []
 	var gap := INF
@@ -364,6 +434,10 @@ func _overlaps(foci: Array) -> Dictionary:
 					if ts != null and ts.label.visible:
 						others.append(["tier sign", _label_rect(ts.label, v)])
 					others.append(["hero", v.box(AABB(Vector3(f.x - 0.4, 0.0, f.y - 0.05), Vector3(0.8, 1.8, 0.1)))])
+					for pid in main.world.branch_pads:
+						for pad in main.world.branch_pads[pid]:
+							if pad.icon != null:
+								others.append(["pad glyph %s" % pad.name, v.quad(pad.icon.global_position, BranchPad.glyph_box(pad.icon))])
 					for lane in _badges():
 						var r: Rect2 = _badge_rect(lane, v)
 						if not v.screen().intersects(r):
@@ -374,11 +448,11 @@ func _overlaps(foci: Array) -> Dictionary:
 							if rr != null:
 								var row: Rect2 = rr
 								if r.intersects(row):
-									out.append("seed %d boss %s %s focus %s: the %s badge %s overlaps the %s row %s" % [s, boss, ASPECT_NAMES[aspect_i], f, lane, r, lane2, row])
+									out.append({"cat": "count row", "text": "seed %d boss %s %s focus %s: the %s badge %s overlaps the %s row %s" % [s, boss, ASPECT_NAMES[aspect_i], f, lane, r, lane2, row]})
 								gap = minf(gap, maxf(maxf(row.position.x - r.end.x, r.position.x - row.end.x), maxf(row.position.y - r.end.y, r.position.y - row.end.y)))
 						for e in others:
 							if r.intersects(e[1]):
-								out.append("seed %d boss %s %s focus %s: the %s badge %s overlaps %s %s" % [s, boss, ASPECT_NAMES[aspect_i], f, lane, r, e[0], e[1]])
+								out.append({"cat": _category(e[0]), "text": "seed %d boss %s %s focus %s: the %s badge %s overlaps %s %s" % [s, boss, ASPECT_NAMES[aspect_i], f, lane, r, e[0], e[1]]})
 		main.queue_free()
 		await get_tree().process_frame
 	return {"overlaps": out, "gap": gap, "views": views}
@@ -389,20 +463,17 @@ func test_the_badge_clears_the_count_row_the_tier_sign_the_spot_labels_and_the_h
 		foci.append(_zone_focus(lane))
 	var res: Dictionary = await _overlaps(foci)
 	for t in res.overlaps:
-		fail_test(t)
+		if t.cat != "pad":  # the pads move in Task 14: their overlaps are in the table, not asserted
+			fail_test(t.text)
+	_print_table("zone views", res.views, res.overlaps)
 	assert_gt(res.views, 0)
 	gut.p("%d badge views from the four attack zones; smallest gap from a badge to a count row: %.1f base px" % [res.views, res.gap])
 
 ## Not asserted: the same measure from every other camera focus the game reaches (HOME, the sign, the spots and the pads), reported.
 func test_report_the_badge_overlaps_from_the_other_foci() -> void:
 	var res: Dictionary = await _overlaps(_foci())
-	gut.p("from all %d foci: %d badge views, %d overlap a row, label, pip, sign or hero (first: %s)" % [_foci().size(), res.views, res.overlaps.size(), res.overlaps[0] if not res.overlaps.is_empty() else "none"])
-	var by := {}
-	for t in res.overlaps:
-		var k: String = t.split(" overlaps ")[1].split(" [")[0]
-		k = k.split(" L")[0]
-		by[k] = int(by.get(k, 0)) + 1
-	gut.p("  by what they overlap: %s" % [by])
+	var by := _print_table("all %d foci" % _foci().size(), res.views, res.overlaps)
+	assert_eq(by["count row"] + by["tier sign"], 0, "from every focus the badge clears the count rows and the tier sign")
 	assert_gt(res.views, 0)
 
 # --- an extra hare group still shows its count row ------------------------------------------------------------------------
@@ -562,3 +633,89 @@ func test_the_warmup_with_the_flag_off_draws_no_badge_icon() -> void:
 	add_child_autofree(main)
 	main.hero.input.player_control = false
 	assert_eq(Warmup.lane_character_visuals().size(), 0, "flag off: the warm-up is exactly today's")
+
+
+# --- the safe-area inset (D: SafeArea may push the HUD bar down) ----------------------------------------------------------
+## Real devices with a notch: a 9:19.5 phone (720 x 1560 base) with a top inset of 87 or 108 base px. No inset is asserted at 9:16: it is
+## not a real notch device. The bar is the GAME's own TelegraphMarker.bar_px(viewport size) = inset + hud_top_bar_px.
+
+func _inset_bar(inset: float, vp: Vector2) -> float:
+	SafeArea.override_for_tests = {"top": inset, "bottom": 0.0, "left": 0.0, "right": 0.0}
+	TelegraphMarker._bar_stamp = -1  # the cache would hold the last value for a second
+	return TelegraphMarker.bar_px(vp)
+
+func test_with_a_notch_inset_at_9_19_5_the_shown_badges_are_not_under_the_bar_from_home_and_each_zone() -> void:
+	var vp := Vector2(720, 1560)
+	var aspect := vp.x / vp.y
+	var worst := {}
+	for inset in [87.0, 108.0]:
+		var bar := _inset_bar(inset, vp)
+		assert_almost_eq(bar, inset + Balance.ui.hud_top_bar_px, 0.01, "the game's bar is inset + the HUD bar")
+		for s in [1, 3, 4, 7]:
+			await _start(s)
+			for lane in _badges():
+				for focus_name in ["HOME", "zone"]:
+					var f: Vector2 = MapLayout.HOME if focus_name == "HOME" else _zone_focus(lane)
+					var v := View.new(f, aspect)
+					var r: Rect2 = _badge_rect(lane, v)
+					if not v.screen().intersects(r):
+						continue  # off screen: not under the bar
+					var top := r.position.y + v.half_h()
+					worst[inset] = minf(worst.get(inset, INF), top) if focus_name == "zone" else worst.get(inset, INF)
+					gut.p("inset %.0f bar %.0f seed %d %-5s %-4s top %.0f %s" % [inset, bar, s, lane, focus_name, top, "UNDER THE BAR" if top < bar else "clear"])
+					if focus_name == "zone":
+						assert_gte(top, bar, "inset %.0f seed %d %s zone: the badge's top %.0f is under the bar %.0f" % [inset, s, lane, top, bar])
+					else:
+						assert_gte(top, bar, "inset %.0f seed %d %s HOME: the badge's top %.0f is under the bar %.0f" % [inset, s, lane, top, bar])
+			main.queue_free()
+			await get_tree().process_frame
+
+# --- the lane strip (report only) -------------------------------------------------------------------------------------------
+
+## A brute's height for the obstacle prism (the hero's, 1.8 m: the brute is the tallest enemy and is not taller than the hero).
+const STRIP_HEIGHT := 1.8
+
+## The projected rects of the lane's strip: one oriented prism per path segment, half-width = the enemies' lateral spread, ground to STRIP_HEIGHT.
+func _strip_rects(lane: String, v: View) -> Array:
+	var path: Array = MapLayout.lane_path(lane)
+	var half: float = Balance.data.enemy.lateral_spread
+	var out: Array = []
+	for i in path.size() - 1:
+		var a: Vector2 = path[i]
+		var b: Vector2 = path[i + 1]
+		var n := (b - a).normalized().orthogonal() * half
+		var pts: Array = []
+		for p in [a + n, a - n, b + n, b - n]:
+			pts.append(Vector3(p.x, 0.0, p.y))
+			pts.append(Vector3(p.x, STRIP_HEIGHT, p.y))
+		out.append(v.bounds(pts))
+	return out
+
+## Distance (m) from a ground point to the lane's centre line.
+func _centre_distance(lane: String, p: Vector2) -> float:
+	var path: Array = MapLayout.lane_path(lane)
+	var best := INF
+	for i in path.size() - 1:
+		best = minf(best, Geometry2D.get_closest_point_to_segment(p, path[i], path[i + 1]).distance_to(p))
+	return best
+
+## Not asserted: per lane and aspect, from the lane's zone view, how much of the badge lies over its own lane's strip today.
+func test_report_how_much_of_each_badge_overlaps_its_own_lane_strip() -> void:
+	gut.p("seed lane  kind  | centre-line distance (m) | overlap with the strip prism: px^2 (share of the badge) at 9:21 / 9:16 / 16:9")
+	for s in [1, 3, 4, 7]:
+		await _start(s)
+		for lane in _badges():
+			var b: LaneCharacterMarker = _marker(lane).badge
+			var cells: Array = []
+			for aspect_i in ASPECTS.size():
+				var v := View.new(_zone_focus(lane), ASPECTS[aspect_i])
+				var r: Rect2 = _badge_rect(lane, v)
+				var area := 0.0
+				for sr in _strip_rects(lane, v):
+					area += r.intersection(sr).get_area()
+				area = minf(area, r.get_area())
+				cells.append("%.0f (%.0f%%)" % [area, 100.0 * area / r.get_area()])
+			gut.p("%d %-5s %-5s | %.2f | %s" % [s, lane, _badges()[lane], _centre_distance(lane, Vector2(b.global_position.x, b.global_position.z)), " / ".join(cells)])
+		main.queue_free()
+		await get_tree().process_frame
+	assert_true(true)
