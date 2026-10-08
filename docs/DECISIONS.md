@@ -2971,3 +2971,26 @@ once; escalate if the 15-point spread and the 5-point lead conflict). Refinement
 3. **The bench runs at pressure 12 AND at the final cap** (13 or 14 too if the ramp returns). With the flag off it
    pins today's values.
 
+**D-289 Design section 3 approved: readability (author, 2026-10-08).**
+
+Accepted as presented: the lasting lane-character marker at each entrance (siege icon, hare icon, nothing on neutral
+lanes; day and night from the tier-3 dawn; not hidden by the HUD bar); the branch card's rows (icon and name;
+specialty in at most 3 words with its character icon: Longbow "breaks brutes", Stone wall "holds brutes", Volley
+"hits 3 targets", Spike fence "hurts hares"; the guarded lane(s) with their character icon; cost with the payment
+bar; for fences "lost if broken"), 640 x 170 px, 24 px above the bottom safe inset, input ignored; the reveal step
+(markers pop, a 2 s flavour banner, six steps ending at 2.35 s, tap-to-skip applies all); the one-time banner at the
+first dawn for saves already at tier 3 when the flag flips; the third arrow and the brute mark only on the siege
+lane's arrow; the near-stage pad moves; zero overlaps in both stages; the 40% checks; the REVIEW_QUEUE card idea.
+Additions:
+
+1. **Flag scope (D-286):** the pad moves for `tower_e`, `tower_ne`, `tower_nw` and `fence_sw` and the removal of the
+   world-side labels also sit behind the flag. With the flag off, pad positions and world labels stay exactly as on
+   today's main, so the tier-3 off-state identity (fixture night, tier-bot day walking) holds. The zero-overlap
+   target applies with the flag on; with it off the test keeps today's pinned counts until the flip.
+2. **Icons** differ by SHAPE, not only colour (colour-blind safety); checked in grayscale at 40% scale.
+3. **Text length:** every card row and banner goes through `tr()` and must survive longer translations: a
+   pseudo-locale test (strings about 40% longer, plus a Vietnamese sample with diacritics): rows shrink or wrap
+   inside the 640 x 170 card without overflow or overlap; the font renders the Vietnamese sample (D-079).
+4. **Flavour banners** are at most 6 words (readable in 2 s at phone size) and go to REVIEW_QUEUE for the author's
+   tone check.
+
