@@ -446,7 +446,16 @@ func advance_day() -> void:
 
 func _plan_today() -> Array:
 	var p := LanePlanner.plan(run_seed, day, Balance.data.wave, tier, tier_day, Balance.data.tiers)
+	var character := lane_character()
+	if not character.is_empty():  # E6 (D-287): the single place a fresh plan meets the lane character; flag off = the old code
+		p = LaneCharacter.apply(p, character, Balance.data.tiers)
 	return _with_tonights_boss(p) if boss_pending else p
+
+## E6 (D-282): the run's lane character ({"siege", "hare"}), or {} below tier 3 or with the retune flag off.
+func lane_character() -> Dictionary:
+	if tier >= 3 and TierEffects.retune_on(Balance.data.tiers):
+		return LaneCharacter.for_run(run_seed)
+	return {}
 
 ## Marks the last wave as the boss wave, unless this tier has no boss to send (the top tier: a pending boss there is a clamped save).
 func _with_tonights_boss(p: Array) -> Array:
