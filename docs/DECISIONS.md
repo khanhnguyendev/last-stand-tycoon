@@ -3099,3 +3099,41 @@ Result at the applied values (production path, equal to the in-memory candidate)
 multiplier of 0.33 would pass; by fence-fall time Stone passes today: 68.5 s against 30.2 s) and "Stone keeps the
 most fence HP" (the fence is destroyed in every siege configuration).
 
+**D-294 Author's answers to escalations 5 to 8, the fade hitch and a perf regression (2026-10-08).**
+
+5. **Banner timing (changes D-289):** both lane-character lines show AFTER the card pick, 2 s each. The badges still
+   pop in the reveal, with the sound and no text. Reason: a banner sent at the reveal's lane-character step (1.30 s)
+   cannot get 2 s before the pick opens at 3.0 s (the siege line had 0.4 s at full opacity, the hare line 0.05 s).
+6. **Fence specialist on the siege lane (refines D-288):** the deciding measure is how long the fence STANDS (fence
+   survival time), with diner HP lost as the tie-breaker. The FLOOR check (no branch worse than unbranched) keeps
+   diner HP lost as primary. The identity rule becomes "Stone wall's fence stands longest against brutes".
+7. **Fast bench subset in the unit suite:** all three lane types, LAST wave only, 8.7 s. The full three-wave bench is
+   its own CI job.
+8. **The hero and a pad's near-stage cost:** the hero is drawn IN FRONT. The test asserts that no pad label is ever
+   drawn over the hero, replacing "zero overlap with the hero". Also (visual quality is the bar):
+   - minimum clearance between world labels: at least 8 px at 720 x 1280, asserted in the overlap test;
+   - a cost must read as its pad's: offset at most 0.5 m from its pad; where geometry forces more, a subtle tether (a
+     thin line or a small pointer) from the cost to its pad; the two towers verified at 40% scale; before/after
+     shots in REVIEW_QUEUE. Then Task 14's branch merges once everything is green.
+
+**Diner-fade hitch (117 ms, render side):** run the planned test (pre-draw the faded diner for one invisible frame at
+night start, under the banner) and check whether the frame recurs at every fade start. Gone, or only under the
+banner: keep it. Persists or recurs: PRE-APPROVED: switch to a dithered (screen-door) fade with no blending; accept it
+if the 40% screenshot shows the hero and monsters clearly through the diner; before/after shots in REVIEW_QUEUE.
+Options go to the author only if the dithered fade fails visually or does not remove the frame.
+
+**Perf regression (raised by the author; the main session had not flagged it):** the gate reading shows 50.5 fps and
+78 draw calls on a night entered by play, against 58.8 fps / 48 draw calls at the E5 T3 checkpoint and 58.9 / 50 on
+a resumed night. About 30 extra draw calls and 8 fps: a regression, separate from the fade hitch.
+- Find the source: the same night entered by play with the flag off and on, and against the resumed night. Suspects:
+  day objects still drawn at night (pad icons and rings, cost labels, tethers, count rows), new badges and markers,
+  the third arrow, Label3D instances (one draw call each).
+- Fix: night-only content is drawn at night; day-only nodes are hidden or disabled, not just transparent; batch or
+  merge where possible.
+- Target: at least 58 fps average and draw calls back near the E5 T3 level on the gate reading.
+- A draw-call budget check joins the perf procedure: warn above the E5 T3 count + 10.
+- The finding goes to the author only if the target cannot be met without a visual change.
+
+**Process (also in CLAUDE.md):** before every perf run, check that no stray Godot or Simulator processes from earlier
+tasks are running, and kill them. Implementers stop every process they start before reporting done.
+
