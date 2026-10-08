@@ -34,6 +34,7 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - Tier fixtures (E5): `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/make_save.gd -- --fixture=tier` (deterministic; writes five files under `export/fixtures/`); tier-3 fixtures (D-280, schema 6, captured from real bot play, about 155 s): the same command with `--fixture=tier3`
 - Web export: see `export/README.md`
 - S4 shots: `tools/shots.sh <out_dir>` (rendered 720x1280 + 40% copies); determinism: `tools/baseline_diff.sh` (must print `baseline identical`) and `tools/baseline_rows.sh 7` (must print `rows 1-7 identical`: the tier-1 identity, D-237)
+- Tier-3 off-state identity (E6, D-286, until the flag is removed): `tools/baseline_t3_off.sh` (about 4 min; must print `tier-3 off identical <commit>`); its output goes into every E6 phase PR body beside the two baseline outputs
 - Night-3 perf (iOS Simulator, profile build): `export/perf_night3.sh <web_profile_dir> <out_dir>`; read the frozen `PERF phase=NIGHT` line; the gate is the median of 3 runs (D-199)
 
 ## Architecture

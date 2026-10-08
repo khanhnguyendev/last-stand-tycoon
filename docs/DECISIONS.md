@@ -2792,3 +2792,247 @@ cost-entry switch and the debug-only tier forcing.
   multiplier. At pressure 12 neither reason applies. Retuning them is the follow-up the checkpoint pack recommends.
 - **Evidence:** per-night raw data of the applied setting is in `docs/review/media/e5t3/balance/applied/`; the
   policy runs in `policies/`. `policies.txt` first cited an amended work-in-progress commit with identical code.
+
+**D-281 Author's checkpoint answers for E5 tier 3 (2026-10-08). PR #60 merged.**
+
+1. **Tier-3 difficulty** (cap 12, brutes on the main lane only, no ramp) stays as the INTERIM setting. Revisit after
+   the branch retune: restore a modest ramp (12 to 13 or 14) if the retuned branches allow it with zero retry
+   nights for the threat-matched policy.
+2. **Branch retune** is a follow-up slice: retune Longbow and Spike fence for the pressures the game reaches.
+   Targets on the multi-seed report: every policy holds the tier-3 cap with zero retry nights; the spread between
+   the best and worst fixed policy is at most 15 points of diner HP; the branch identity test (D-272) still holds.
+3. **Fence tax** must be at most 30% (median, at the cap) after the retune, through fence HP, Stone wall values or
+   branch costs. Fences stay a recurring sink (it partly answers the gold pile-up after the ladder). Reported in
+   the follow-up.
+4. **Pad-label overlaps** are accepted for the merge; fixing all 12 is in the follow-up's scope (the art and
+   readability bar). Each fix is verified at about 40% screenshot scale. The pinned test changes from "overlap
+   pinned" to "no overlap".
+5. **The telegraph does not pay off.** Root cause (author): branches are permanent but lane threats change every
+   night, so one night's telegraph cannot inform a permanent choice. Design fix to brainstorm, tier 3 only (the
+   tier-1/2 identity is kept): each lane gets a persistent threat bias per run, seeded from `run_seed` (for
+   example the SW road lane favours brutes and one northern lane favours hares), applied through the lane-plan
+   weights, and shown as a lasting lane-character marker beside tonight's counts. Target: threat-matched beats the
+   best fixed policy by at least 5 points on the multi-seed report. A simpler fix may be proposed in the brainstorm.
+6. **The dropped CI assertion** (D-274.4) is accepted: one night cannot rank policies. **New rule:** if an approved
+   assertion turns out to be unbuildable or wrong during implementation, escalate at that moment with the
+   evidence. Never record it only at the checkpoint.
+
+Also in the follow-up:
+- **Worst frame 110 ms:** it always lands 0.1 to 0.2 s into the measured window. First decide whether it is a
+  measurement artifact (window start, warm-up) or real (for example first-use shader compiles on the Compatibility
+  renderer). If real, fix it with warm-up. Measure the boot warm-up cost too.
+- **Early tier-3 nights** (held at 1% and 4% on one seed): the retune checks include first tier-3 nights from real
+  bot play, not fixtures. Target: no first tier-3 night below 25% diner HP across the report's seeds.
+- **Fixtures:** replace the three constructed fixtures (sims 4, 5, 7) with fixtures recorded from real play where
+  feasible.
+- **Process:** the follow-up is its own slice with the full flow (brainstorm with the author, spec, plan, build,
+  checkpoint).
+
+**D-282 Lane character (follow-up slice, brainstorm question 1; author, 2026-10-08).** Brutes are pinned, hares lean.
+
+1. **Siege lane:** exactly ONE at tier 3, drawn per run from all four lanes ("one or two" stays a lever for later
+   tiers, not this slice). Brutes spawn ONLY on the siege lane, whichever lane is tonight's main or side. This
+   replaces the interim "brutes on the main lane only" rule (D-281.1). Brute counts per wave stay as tuned; only
+   their lane is fixed. When the brute curve gives a wave brutes and the siege lane is neither its main nor its
+   side lane, the siege lane carries them as an extra group. Tested.
+2. **Hare lane:** one OTHER lane takes about 70% of the hares (a Balance value); the rest spread by the existing
+   draw.
+3. **Randomness:** a new named stream `lane_character`, derived from `run_seed` only. No other stream shifts; the
+   tier-1/2 identity and sweep rows 1 to 7 stay byte-identical.
+4. **Existing saves:** a live tier-3 save without a lane character gets one derived from its `run_seed` on load
+   (deterministic, the same on every load). Schema bump, with a migration test from a real v6 fixture.
+5. **Readability:** a lasting lane-character marker (siege and hare icons) at each lane entrance from the tier-3
+   dawn on, beside tonight's counts; revealed as one step of the tier-3 dawn reveal with a short flavour line (for
+   example "Heavy tracks on the west road..."); checked at about 40% screenshot scale.
+6. **Targets for the retune report** (they replace the "fixed policy" framing of D-281.2 where they differ):
+   threat-matched beats the best fixed policy by at least 5 points of diner HP on the multi-seed report; every
+   policy, fixed or matched, still holds the cap with zero retry nights, so a wrong choice costs margin, not the
+   run (the non-punishing pillar). If both cannot hold, escalate with the data; neither is relaxed silently.
+
+**D-283 Branch retune direction (follow-up slice, brainstorm question 2; author, 2026-10-08).** Sharpen the
+specialists.
+
+1. **Kind-specific strengths, all in Balance:** Longbow gets a bonus damage multiplier against brutes (and against
+   the boss only if the tier-2 to tier-3 boss flow needs it: decided from data and logged). Stone wall keeps its
+   brute damage reduction. Spike fence gets higher pass damage on hares, still scaled with the night's HP
+   multiplier (D-272). Volley keeps its general multi-target role unless the data demands otherwise.
+2. **"Paying never makes it worse" floor** (replaces the vaguer off-lane floor). For each lane type (siege lane,
+   hare lane, neutral lane), measured by a fixed micro-sim of that lane's realistic wave mix: every branch is at
+   least as good as the unbranched level 3 on every lane type; a specialist clearly beats the other branch on its
+   own lane type. Built as a unit / micro-sim test so tuning cannot break it silently. The D-272 identity test moves
+   to these lane-type measures and keeps "unbranched is never the best at any named measure".
+3. **Readability:** pad previews and labels show the specialty in at most 3 words with the lane-character icon (for
+   example a siege icon plus "bonus vs brutes"), so the marker-to-choice mapping is visible at the moment of
+   purchase. Checked at about 40% scale.
+4. **Side effect to verify:** a Longbow on the siege lane kills brutes sooner, so fewer fences fall. The fence tax
+   (target at most 30%, D-281.3) is reported with and without that effect.
+5. **Report targets** stay as D-281 / D-282: threat-matched at least best fixed + 5 points; every policy holds the
+   cap with zero retry nights; no first tier-3 night below 25%. Then try restoring the pressure ramp (D-281.1) on
+   the tuned values.
+
+**D-284 Branch card in the HUD (follow-up slice, brainstorm question 3; author, 2026-10-08).**
+
+1. **Content:** branch icon, name, the specialty line with its lane-character icon (D-283), cost and payment
+   progress, and for fences the "lost if broken" icon line. Every string through `tr()`.
+2. **Behaviour:** the card appears when the hero enters an armed branch pad and hides on exit or on completion. It
+   never intercepts input (mouse filter ignore): a joystick touch may start anywhere, including over the card.
+   Test: a drag that starts on the card moves the hero.
+3. **Layout:** bottom of the screen, inside the safe area (home indicator), never covering the hero at any focus
+   inside the camera clamp: a projection test with the hero on each of the 9 spots' pads. Readable at about 40%
+   scale.
+4. **World side:** only the pad ring, the icon, the near-stage cost and the preview shape (range ring, "x3" and so
+   on) stay in the world.
+5. **Overlaps:** the near-stage overlaps are fixed by moving pads. The overlap test asserts ZERO overlaps for both
+   the near stage and the on-pad stage, replacing the pinned counts, and includes the "Close up" label, level pips,
+   station labels and the count rows.
+6. **Scope:** branch pads only in this slice. REVIEW_QUEUE idea: use the same card for all build and upgrade pads,
+   with the overlap count it would remove.
+
+**D-285 How the retune report judges its targets (follow-up slice, brainstorm question 4; author, 2026-10-08).**
+
+- **Seeds:** eight final-report seeds, two per siege lane, plus four tuning seeds, one per siege lane. The two sets
+  are DISJOINT (12 unique seeds). Tuning never looks at the final eight until the final report (hold-out against
+  overfitting).
+- **Selection (against cherry-picking):** deterministic. Scan upward from a fixed start value and take the first
+  seeds whose lane character gives each siege lane, the tuning set first, then the final set. The report prints the
+  rule and the seeds.
+- **Pass rules of the final report:**
+  - threat-matched: mean lead over the best fixed policy at least 5 points AND ahead on at least 6 of 8 seeds;
+  - per siege lane: the mean lead is not negative on any lane; if it is, escalate with the data even if the overall
+    target passes (reading must pay on every lane);
+  - on the same 8 seeds: zero retry nights for every policy (unbranched included, as the floor); no first tier-3
+    night below 25%; fence tax at most 30% median at the cap; fixed-policy spread at most 15 points.
+- **Output:** each target per seed and per siege lane, plus the verdict.
+- **Running:** policies in parallel where the machine allows (three at a time). Reports are scripts, not CI
+  (D-274.4).
+
+**D-286 How the follow-up slice reaches main (brainstorm question 5; author, 2026-10-08).** Phase by phase, behind
+one Balance switch.
+
+1. **One flag,** for example `Balance.tier3_retune_enabled`, false until the flip. Lane character, the specialist
+   values, the HUD card, the new markers and labels and the reveal step all read it. No other flags.
+2. **Off-state identity:** with the flag off, tier 3 behaves exactly as on today's main. A tier-3 fixture night is
+   recorded from current main BEFORE the first phase merges, and asserted byte-identical with the flag off after
+   every phase, alongside the tier-1/2 identity checks.
+3. **Debug only:** the debug build can toggle the flag at runtime for simulator checks; the release-export check
+   proves the toggle code is absent.
+4. **Saves across the flip:** a save made with the flag off loads correctly with it on (lane character derived from
+   `run_seed`, D-282); a night-start snapshot replays under the new rules, which is acceptable and documented (the
+   replay may differ). Both tested.
+5. **The flip is the checkpoint:** the final 8-seed report passes (D-285), the pack is ready, the author approves;
+   then the flag is flipped in a small PR.
+6. **Cleanup in the same slice,** right after the flip PR: a cleanup PR removes the flag, the off-state code paths
+   and the superseded values, keeping the tier-1/2 identity checks. Not "later".
+
+The independent parts (the worst-frame diagnosis with any warm-up fix; the real-play fixtures) merge on their own,
+early, with the usual gates.
+
+**D-287 Design section 1 approved: lane character and the night plan (author, 2026-10-08).**
+
+Accepted as presented: `LaneCharacter.for_run` / `apply` as pure core helpers; the stream
+`Rng.stream(run_seed, 0, "lane_character")` (siege lane from four, hare lane from the other three); the plan format
+with `extra` groups; truthful composition, threat and telegraph; the pool sized for the worst case; schema 7 with the
+v6 migration; the documented replay change; the character distribution test (200 seeds, each lane siege at least 30
+times). Refinements:
+
+1. **Extra hare group:** the moved hares are taken from the main and side hare counts PROPORTIONALLY (deterministic
+   largest-remainder rounding, never negative), not from the main group only. Per-wave totals of enemies, hares and
+   brutes stay exactly as today.
+2. **At most three active lanes per wave** at tier 3, never four; deterministic post-processing, no new draws:
+   a. if the wave has brutes and the siege lane is neither main nor side, the SIDE lane becomes the siege lane (the
+      side group moves there);
+   b. then, if the hare lane is neither main nor side, its share comes as an extra group;
+   c. hard cap of 3 active lanes: if it would be exceeded, that wave's hare share stays split between main and side,
+      and the report counts how often that happens;
+   d. extra groups use the side-group delay.
+   Tests: at most 3 active lanes on every wave over the 200-seed scan; every brute on the siege lane; wave totals
+   unchanged; the night-level hare-lane share reported per seed (target about 0.7; flagged below 0.6).
+3. **Arrows and telegraph:** a third active lane gets its own small arrow; the edge-arrow and HUD tests cover three
+   simultaneous arrows without overlap at 720 x 1280 and at the narrowest supported aspect.
+4. **Saves:** if the stored character differs from the one derived from `run_seed`, the derived one is used and a
+   warning is logged (debug overlay). Tested.
+
+**D-288 Design section 2 approved: the specialists (author, 2026-10-08).**
+
+Accepted as presented: Longbow gains `kind_mult {brute: x}` (start 2.0, range 1.5 to 3.0; no Baron bonus unless data
+demands it); Stone wall unchanged; Spike fence pass damage up (start 16, range 12 to 24), its HP-multiplier scaling
+kept; Volley unchanged unless data demands; the threat-matched table (siege-lane fence Stone, other fences Spike;
+towers covering the siege lane Longbow, also when they cover the hare lane too; other towers Volley; the bot reads
+the lane character, not tonight's plan); the tuning procedure (bench, 4 tuning seeds, at most 3 rounds, fence-tax
+levers in the order Longbow's saving / re-buy cost / fence HP, the ramp attempt at 13 then 14, the 8 hold-out seeds
+once; escalate if the 15-point spread and the 5-point lead conflict). Refinements:
+
+0. Rule 2c of D-287 is unreachable given 2a; it stays as an asserted guard with a reported count.
+1. **Bench measures per lane type:** siege lane: diner HP lost, then fence HP left. Hare lane: diner HP lost, then
+   hares reaching the diner's attack zone (fewer is better), then time to clear. Neutral lane: diner HP lost, then
+   time to clear. The floor uses the same order: a branch is "no worse than unbranched" only if it is no worse on
+   the primary measure AND, when tied there, no worse on that lane type's first tie-breaker.
+2. **The 15% specialist margin** applies on the first measure that separates the two branches, in that order.
+3. **The bench runs at pressure 12 AND at the final cap** (13 or 14 too if the ramp returns). With the flag off it
+   pins today's values.
+
+**D-289 Design section 3 approved: readability (author, 2026-10-08).**
+
+Accepted as presented: the lasting lane-character marker at each entrance (siege icon, hare icon, nothing on neutral
+lanes; day and night from the tier-3 dawn; not hidden by the HUD bar); the branch card's rows (icon and name;
+specialty in at most 3 words with its character icon: Longbow "breaks brutes", Stone wall "holds brutes", Volley
+"hits 3 targets", Spike fence "hurts hares"; the guarded lane(s) with their character icon; cost with the payment
+bar; for fences "lost if broken"), 640 x 170 px, 24 px above the bottom safe inset, input ignored; the reveal step
+(markers pop, a 2 s flavour banner, six steps ending at 2.35 s, tap-to-skip applies all); the one-time banner at the
+first dawn for saves already at tier 3 when the flag flips; the third arrow and the brute mark only on the siege
+lane's arrow; the near-stage pad moves; zero overlaps in both stages; the 40% checks; the REVIEW_QUEUE card idea.
+Additions:
+
+1. **Flag scope (D-286):** the pad moves for `tower_e`, `tower_ne`, `tower_nw` and `fence_sw` and the removal of the
+   world-side labels also sit behind the flag. With the flag off, pad positions and world labels stay exactly as on
+   today's main, so the tier-3 off-state identity (fixture night, tier-bot day walking) holds. The zero-overlap
+   target applies with the flag on; with it off the test keeps today's pinned counts until the flip.
+2. **Icons** differ by SHAPE, not only colour (colour-blind safety); checked in grayscale at 40% scale.
+3. **Text length:** every card row and banner goes through `tr()` and must survive longer translations: a
+   pseudo-locale test (strings about 40% longer, plus a Vietnamese sample with diacritics): rows shrink or wrap
+   inside the 640 x 170 card without overflow or overlap; the font renders the Vietnamese sample (D-079).
+4. **Flavour banners** are at most 6 words (readable in 2 s at phone size) and go to REVIEW_QUEUE for the author's
+   tone check.
+
+**D-290 Design section 4 approved: proof (author, 2026-10-08).**
+
+Accepted as presented: the report `tests/sim/report_retune.gd` (seed scan upward from 1: the first seed per siege
+lane is the tuning set of four, the next two per siege lane the final set of eight, all printed; six policies per
+seed: the four fixed pairs, threat-matched, unbranched; verdict lines `THREAT_LEAD`, `THREAT_LEAD_BY_LANE`,
+`RETRY_NIGHTS`, `FIRST_T3_NIGHT`, `FENCE_TAX` (with and without Longbow on the siege lane), `FIXED_SPREAD`,
+`HARE_SHARE`, `LANE_CAP_GUARD`, each per seed and per siege lane; the final set only with `--final`, recording its
+commit); the off-state baseline recorded from today's main and `tools/baseline_t3_off.sh`; the existing tier-3 sims
+running flag-off in CI with their exact pins; three flag-on CI sims on fixtures recorded from real play (sim 4 keeps
+a constructed night with real gear); the split into `sim-tiers-a` / `sim-tiers-b` with the required checks updated
+(D-274.4); the unit additions with the bench at about 10 s at most; the worst-frame diagnosis (window shifted by 1 s
+and 3 s; first-use draws into the warm-up if real; the boot warm-up's cost) as an early independent PR; the standing
+escalation rule (D-281.6). Additions:
+
+1. **Hold-out integrity:** if the `--final` run fails any target, escalate to the author with the data; no further
+   tuning against those 8 seeds. If more tuning follows, the next final run uses a NEW hold-out set: the next 2
+   seeds per siege lane from the same scan. The report prints which hold-out set it is (#1, #2, ...) and the
+   commit; earlier sets' results stay in the report history.
+2. **Off-state baseline visibility:** the output of `tools/baseline_t3_off.sh` ("tier-3 off identical", with the
+   commit) is pasted into EVERY phase PR body of this slice beside the existing baseline outputs. A phase PR without
+   it is not self-mergeable under D-137. The baseline is recorded from today's main before phase 1.
+
+**D-291 Design section 5 approved: delivery (author, 2026-10-08).** The author does not read the spec before the plan
+and the build; stop at the phase-4 checkpoint (`docs/review/E6_RETUNE.md`) or earlier only for an escalation or a
+standing stop condition.
+
+Accepted as presented: the single flag `Balance.data.tiers.retune_enabled` with new values beside the old ones and
+one accessor; `?retune=1` in the debug overlay; a test that no production file can set the flag; the slice is E6 with
+branches `e6/p<N>-<slug>`; phases 0 setup, A worst frame, 1 lane character, 2 specialists, 3 interface, 4 proof
+(checkpoint), 5 flip, 6 cleanup; every phase PR body carries the three baseline outputs; tuning edits to `balance/`
+by the main session, one commit per round with its report output; the checkpoint pack's contents; the lighter build
+process of the last slice; the escalation rule. Additions:
+
+1. **Cleanup (phase 6):** remove `tools/baseline_t3_off.sh` and its pinned off-state files together with the flag;
+   re-record the tier-3 baseline as the new truth under a new tool name, with its output in the cleanup PR; keep
+   every flag-on test (they become the normal tests); update REVIEW_QUEUE, DECISIONS (mark D-286's flag as retired)
+   and the spec's results section.
+2. **Flip PR (phase 5):** includes the Pages deploy check and one post-deploy smoke run on the live main build
+   (simulator plus emulated Pixel), confirming that the tier-3 dawn shows the lane-character step on a migrated v6
+   save.
+3. **Phase A goes first** and merges on its own as soon as it is green; it does not wait for the other phases.
+
