@@ -66,3 +66,8 @@ static func spike_scale(hp_mult_now: float, hp_mult_base: float) -> float:
 ## One place for this choice; gameplay passes WaveMath.hp_mult(now) as the first argument of spike_scale.
 static func spike_base_mult(wb: WaveBalance, tb: TierBalance, tier := 3) -> float:
 	return WaveMath.hp_mult(tb.tier_base[tier], 0, wb)
+
+## E6 (D-283, D-292): the firing interval of a tower with stats `st`. The retune value applies only to the balance's own Longbow
+## (a hand-built tower keeps its own number); with `retune_on` false it is `st.interval`, as before.
+static func tower_interval(st: TowerBranchStats, bb: BranchBalance, retune_on: bool) -> float:
+	return bb.longbow_interval_retune if retune_on and st == bb.longbow else st.interval

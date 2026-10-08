@@ -17,7 +17,13 @@ const FENCE_BRANCHES: Array[StringName] = [&"stone", &"spike"]
 ## Longbow damage x this by the kind of the monster it hits (an absent kind = 1.0; no entry for the Baron or the Boar King).
 @export var longbow_kind_mult_retune: Dictionary[StringName, float] = {&"brute": 2.0}
 ## Spike pass damage at scale 1.0 (old set: 10.0 on `spike`); tuning range 12 to 24. Its scaling and the thorns are unchanged.
-@export var spike_pass_damage_retune := 16.0
+## Tuning round 1 (D-292, author pre-authorized): the lane-type bench forced two values.
+##  - Longbow interval 2.4 s (old set: 3.0 on `longbow`). On the hare lane the Longbow lost 2313 diner HP against the unbranched
+##    tower's 1693 at every kind multiplier (2 to 4) and every damage (120 to 240); only the interval moves it. At 2.4 s: siege 412,
+##    hare 1387, neutral 202; 2.6 s fails the floor. Damage 120, range 9.98 and the brute multiplier 2.0 are unchanged.
+##  - Spike pass damage 24 (was 16 in the first retune set): hare 855 against the Stone wall's 1355.
+@export var longbow_interval_retune := 2.4
+@export var spike_pass_damage_retune := 24.0
 
 static func _tower(range_m: float, damage: float, interval: float, count: int) -> TowerBranchStats:
 	var s := TowerBranchStats.new()

@@ -94,7 +94,7 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	var bb: BranchBalance = Balance.data.branches
 	var saved := {
 		"mult": bb.longbow_kind_mult_retune.duplicate(), "pass": bb.spike_pass_damage_retune, "thorn": bb.spike.thorn_damage,
-		"dmg": bb.longbow.damage, "int": bb.longbow.interval, "rng": bb.longbow.attack_range,
+		"dmg": bb.longbow.damage, "int": bb.longbow_interval_retune, "rng": bb.longbow.attack_range,
 		"diner": Balance.data.build.diner_max_hp, "stone_mult": bb.stone.damage_taken_mult_by_kind.duplicate(), "stone_hp": bb.stone.hp,
 	}
 	if overrides.has("longbow_brute_mult"):
@@ -102,7 +102,7 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	if overrides.has("longbow_damage"):
 		bb.longbow.damage = float(overrides.longbow_damage)
 	if overrides.has("longbow_interval"):
-		bb.longbow.interval = float(overrides.longbow_interval)
+		bb.longbow_interval_retune = float(overrides.longbow_interval)
 	if overrides.has("longbow_range"):
 		bb.longbow.attack_range = float(overrides.longbow_range)
 	if overrides.has("spike_pass"):
@@ -188,7 +188,7 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	bb.spike_pass_damage_retune = saved["pass"]
 	bb.spike.thorn_damage = saved.thorn
 	bb.longbow.damage = saved.dmg
-	bb.longbow.interval = saved["int"]
+	bb.longbow_interval_retune = saved["int"]
 	bb.longbow.attack_range = saved.rng
 	bb.stone.damage_taken_mult_by_kind = saved.stone_mult
 	bb.stone.hp = saved.stone_hp
