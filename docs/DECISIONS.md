@@ -2828,3 +2828,24 @@ Also in the follow-up:
 - **Process:** the follow-up is its own slice with the full flow (brainstorm with the author, spec, plan, build,
   checkpoint).
 
+**D-282 Lane character (follow-up slice, brainstorm question 1; author, 2026-10-08).** Brutes are pinned, hares lean.
+
+1. **Siege lane:** exactly ONE at tier 3, drawn per run from all four lanes ("one or two" stays a lever for later
+   tiers, not this slice). Brutes spawn ONLY on the siege lane, whichever lane is tonight's main or side. This
+   replaces the interim "brutes on the main lane only" rule (D-281.1). Brute counts per wave stay as tuned; only
+   their lane is fixed. When the brute curve gives a wave brutes and the siege lane is neither its main nor its
+   side lane, the siege lane carries them as an extra group. Tested.
+2. **Hare lane:** one OTHER lane takes about 70% of the hares (a Balance value); the rest spread by the existing
+   draw.
+3. **Randomness:** a new named stream `lane_character`, derived from `run_seed` only. No other stream shifts; the
+   tier-1/2 identity and sweep rows 1 to 7 stay byte-identical.
+4. **Existing saves:** a live tier-3 save without a lane character gets one derived from its `run_seed` on load
+   (deterministic, the same on every load). Schema bump, with a migration test from a real v6 fixture.
+5. **Readability:** a lasting lane-character marker (siege and hare icons) at each lane entrance from the tier-3
+   dawn on, beside tonight's counts; revealed as one step of the tier-3 dawn reveal with a short flavour line (for
+   example "Heavy tracks on the west road..."); checked at about 40% screenshot scale.
+6. **Targets for the retune report** (they replace the "fixed policy" framing of D-281.2 where they differ):
+   threat-matched beats the best fixed policy by at least 5 points of diner HP on the multi-seed report; every
+   policy, fixed or matched, still holds the cap with zero retry nights, so a wrong choice costs margin, not the
+   run (the non-punishing pillar). If both cannot hold, escalate with the data; neither is relaxed silently.
+
