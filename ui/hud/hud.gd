@@ -14,6 +14,8 @@ var diner_bar: ProgressBar
 var icons: HudIcons
 var banner: Label
 var banner_panel: PanelContainer
+## E6 (spec 5.2): the branch card; hidden unless the run has a lane character and the hero stands on an armed branch pad.
+var branch_card: BranchCard
 var arrows := {}
 var _camera: Camera3D
 var _lanes := {}
@@ -133,6 +135,9 @@ func _ready() -> void:
 		root.add_child(p)
 		arrows[key] = p
 		icons.arrow_nodes.append(p)
+	branch_card = BranchCard.new()
+	branch_card.name = "BranchCard"
+	root.add_child(branch_card)
 	_set_moon_count(GameState.lane_plan.size())
 	EventBus.gold_changed.connect(_on_gold_changed)
 	EventBus.phase_changed.connect(_on_phase_changed)
