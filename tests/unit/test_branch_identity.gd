@@ -359,3 +359,54 @@ func test_tier_3_arrays_are_live_and_the_top_tier_is_3() -> void:
 		assert_ne(tb.boss_kind[t], &"", "boss_kind[%d] must name the boss that leaves tier %d (a new tier must add its boss)" % [t, t])
 	assert_eq(tb.boss_kind[last], &"", "no boss leaves the top tier: the last boss_kind entry is empty")
 	assert_eq(bd.guards.respawn_protect_s, 1.5)
+
+# ---- E6 Task 9 (spec 4.3, D-294.6, D-294.7): the identity restated on the lane-type bench's measures, flag ON ----------------------
+## Uses the bench's FAST subset (tests/unit/test_branch_bench.gd computes it; BranchBench.fast_results() caches it per process, so this adds
+## no runs when that file ran first): pressure 12, the LAST wave of each mix only, an invulnerable diner. A shorter night than the full
+## bench (tests/bench/test_branch_bench_full.gd runs the same rules over three waves). The assertions above (flag off, Balance only) are
+## untouched. The fast file's old combined identity test moved here, with the stands-longest and fewest-hares rules added.
+
+func _fast() -> Dictionary:
+	return await BranchBench.fast_results()
+
+func test_e6_identity_longbow_is_the_best_tower_state_against_the_siege_mix() -> void:
+	var f := await _fast()
+	var s: Dictionary = f[&"siege"]
+	var lb: float = s["longbow/-"].diner_lost
+	assert_lt(lb, float(s["-/-"].diner_lost) - BranchBench.SAME, "siege: Longbow %.1f loses less diner HP than unbranched %.1f | fails when: Longbow kind multiplier 1.0 and interval 3.0" % [lb, s["-/-"].diner_lost])
+	assert_lt(lb, float(s["volley/-"].diner_lost) - BranchBench.SAME, "siege: Longbow %.1f loses less than Volley %.1f" % [lb, s["volley/-"].diner_lost])
+
+func test_e6_identity_volley_is_the_best_tower_state_against_the_hare_mix() -> void:
+	var f := await _fast()
+	var h: Dictionary = f[&"hare"]
+	var vy: float = h["volley/-"].diner_lost
+	assert_lt(vy, float(h["-/-"].diner_lost) - BranchBench.SAME, "hare: Volley %.1f loses less than unbranched %.1f | fails when: Volley damage cut to 5" % [vy, h["-/-"].diner_lost])
+	assert_lt(vy, float(h["longbow/-"].diner_lost) - BranchBench.SAME, "hare: Volley %.1f loses less than Longbow %.1f" % [vy, h["longbow/-"].diner_lost])
+
+func test_e6_identity_stone_wall_fence_stands_longest_against_brutes() -> void:
+	var f := await _fast()
+	var s: Dictionary = f[&"siege"]
+	var st: float = s["-/stone"].fence_stands_s
+	assert_gt(st, float(s["-/-"].fence_stands_s), "siege: Stone's fence stands %s s, longer than unbranched %s s | fails when: Stone wall HP halved" % [st, s["-/-"].fence_stands_s])
+	assert_gt(st, float(s["-/spike"].fence_stands_s), "siege: Stone's fence stands %s s, longer than Spike's %s s" % [st, s["-/spike"].fence_stands_s])
+
+func test_e6_identity_spike_fence_lets_the_fewest_hares_reach_the_zone_on_the_hare_lane() -> void:
+	var f := await _fast()
+	var h: Dictionary = f[&"hare"]
+	var sp: int = h["-/spike"].hares_in_zone
+	assert_lt(sp, int(h["-/-"].hares_in_zone), "hare: Spike lets %d hares in, fewer than unbranched %d | fails when: Spike pass damage 10 at the old tuning" % [sp, h["-/-"].hares_in_zone])
+	assert_lt(sp, int(h["-/stone"].hares_in_zone), "hare: Spike lets %d hares in, fewer than Stone %d" % [sp, h["-/stone"].hares_in_zone])
+
+func test_e6_identity_unbranched_is_never_the_best_at_any_named_measure_on_any_lane_type() -> void:
+	var f := await _fast()
+	for lane in BranchBench.LANES:
+		var l: Dictionary = f[lane]
+		var base: Dictionary = l["-/-"]
+		var towers := minf(float(l["longbow/-"].diner_lost), float(l["volley/-"].diner_lost))
+		var fences := minf(float(l["-/stone"].diner_lost), float(l["-/spike"].diner_lost))
+		assert_lt(towers, float(base.diner_lost) - BranchBench.SAME, "%s: the unbranched tower is never best on diner HP lost (best branch %.1f vs %.1f)" % [lane, towers, base.diner_lost])
+		assert_lt(fences, float(base.diner_lost) - BranchBench.SAME, "%s: the unbranched fence is never best on diner HP lost (best branch %.1f vs %.1f)" % [lane, fences, base.diner_lost])
+	var s: Dictionary = f[&"siege"]
+	assert_gt(maxf(float(s["-/stone"].fence_stands_s), float(s["-/spike"].fence_stands_s)), float(s["-/-"].fence_stands_s), "siege: a branched fence stands longer than the unbranched one")
+	var h: Dictionary = f[&"hare"]
+	assert_lt(mini(int(h["-/stone"].hares_in_zone), int(h["-/spike"].hares_in_zone)), int(h["-/-"].hares_in_zone), "hare: a branched fence lets fewer hares in than the unbranched one")

@@ -245,8 +245,8 @@ func _evaluate(res: Dictionary, full: bool) -> Array:
 			out.append(_rule("ID hare: Spike lets fewest hares reach the zone", hr["-/spike"].hares_in_zone < hr["-/-"].hares_in_zone and hr["-/spike"].hares_in_zone < hr["-/stone"].hares_in_zone,
 				"Spike %d < unbranched %d and < Stone %d" % [hr["-/spike"].hares_in_zone, hr["-/-"].hares_in_zone, hr["-/stone"].hares_in_zone]))
 	if full:
-		out.append(_rule("ID siege: Stone keeps the most fence HP", sg["-/stone"].fence_hp_left > sg["-/-"].fence_hp_left + SAME and sg["-/stone"].fence_hp_left > sg["-/spike"].fence_hp_left + SAME,
-			"Stone %.1f > unbranched %.1f and > Spike %.1f" % [sg["-/stone"].fence_hp_left, sg["-/-"].fence_hp_left, sg["-/spike"].fence_hp_left]))
+		out.append(_rule("ID siege: Stone wall's fence stands longest (D-294.6)", sg["-/stone"].fence_stands_s > sg["-/-"].fence_stands_s and sg["-/stone"].fence_stands_s > sg["-/spike"].fence_stands_s,
+			"Stone %.2f s > unbranched %.2f s and > Spike %.2f s" % [sg["-/stone"].fence_stands_s, sg["-/-"].fence_stands_s, sg["-/spike"].fence_stands_s]))
 	for lane in res:
 		var b2: Dictionary = res[lane]["-/-"]
 		var tw := minf(res[lane]["longbow/-"].diner_lost, res[lane]["volley/-"].diner_lost)

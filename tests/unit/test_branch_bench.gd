@@ -1,79 +1,63 @@
 extends GutTest
-## E6 Task 8 (D-288, D-292.2): the FAST subset of the lane-type bench, in the unit suite. Flag on, pressure 12, each lane type, the PRIMARY
-## measure only (total diner HP lost with an invulnerable diner, see tests/support/branch_bench.gd). The full bench (tie-breakers, pairs,
-## the cap, the flag-off pins, the tables) is tests/bench/test_branch_bench_full.gd. Five configurations per lane type, 15 runs:
-## unbranched, Longbow, Volley (with an unbranched fence) and Stone, Spike (with an unbranched tower).
+## E6 Task 8/9 (D-288, D-292.2, D-294.6, D-294.7): the FAST subset of the lane-type bench, in the unit suite.
+## THIS IS A SHORTER NIGHT THAN THE FULL BENCH, kept as an early warning: flag on, pressure 12, all three lane types, the LAST wave of each
+## mix only (one wave instead of three), the five single-change configurations per lane type (15 runs): unbranched, Longbow, Volley (with an
+## unbranched fence) and Stone, Spike (with an unbranched tower). The full three-wave bench (tie-breakers, pairs, the cap, the flag-off pins,
+## the tables) is tests/bench/test_branch_bench_full.gd, the CI `bench` job. The rules live in tests/support/branch_bench.gd and are the same
+## code the full bench runs; only the length of the night differs. The results are cached per process (BranchBench.fast_results()) and the
+## identity test (test_branch_identity.gd) reuses them.
 ##
-## FLOOR: every branch loses no more diner HP than the unbranched building of its kind (tied within 0.001 counts as no worse).
-## SPECIALIST: on its own lane type the specialist's HP lost <= 0.85 x the other branch's (lower is better). Own lane types: Longbow over
-##   Volley and Stone over Spike on siege; Volley over Longbow and Spike over Stone on hare. A reference of 0 can never be beaten by 15%
-##   (nothing is below 0), so it fails; the test also requires the specialist to be strictly lower.
-## IDENTITY: Longbow loses the least of the three tower states on siege, Volley on hare (strictly less than both others); and on every
-##   lane type unbranched is never best: some branch of each building kind loses strictly less than the unbranched building.
+## FLOOR: every branch loses no more diner HP than the unbranched building of its kind (tied within 0.001 counts as no worse). Diner HP lost
+##   is primary on every lane type.
+## SPECIALIST: on its own lane type the specialist beats the other branch by 15% on the first measure of its order that separates them:
+##   Longbow over Volley (siege, diner HP lost), Volley over Longbow and Spike over Stone (hare, diner HP lost, then hares in the zone,
+##   then time to clear) and, D-294.6, Stone over Spike on siege by how long the fence STANDS (fence_fell_s, higher is better, a fence that
+##   never falls counts as INF = standing for the whole run; Stone >= 1.15 x Spike), diner HP lost breaking a tie.
+## The rule table (rule, the two numbers, the bound, PASS/FAIL) is printed once at the end of the file.
 
-const PRESSURE := 12
-const SAME := 0.001
-const CFG := {
-	&"base": [&"", &""], &"longbow": [&"longbow", &""], &"volley": [&"volley", &""], &"stone": [&"", &"stone"], &"spike": [&"", &"spike"],
-}
-
-var _lost := {}  ## lane -> config name -> diner HP lost
+var _rows: Array = []
 var _t0 := 0
+var _wall := 0.0
 
 func before_all() -> void:
 	_t0 = Time.get_ticks_msec()
-	Balance.reset()
-	Balance.data.tiers.retune_enabled = true
-	var runs := 0
-	for lane in [&"siege", &"hare", &"neutral"]:
-		_lost[lane] = {}
-		for name in CFG:
-			var cfg: Array = CFG[name]
-			var r: Dictionary = await BranchBench.run(lane, cfg[0], cfg[1], PRESSURE)
-			_lost[lane][name] = r.diner_lost
-			runs += 1
-			gut.p("  FAST %-8s %-8s diner lost %8.1f (%d ticks%s)" % [lane, name, r.diner_lost, r.ticks, ", TIMED OUT" if r.timed_out else ""])
-	Balance.reset()
-	gut.p("FAST SUBSET: %d runs in %.1f s" % [runs, (Time.get_ticks_msec() - _t0) / 1000.0])
+	await BranchBench.fast_results()
+	_wall = (Time.get_ticks_msec() - _t0) / 1000.0
+	var f := BranchBench.fast_cached()
+	for lane in f:
+		for name in f[lane]:
+			var r: Dictionary = f[lane][name]
+			gut.p("  FAST %-8s %-10s diner lost %8.1f  fence left %6.1f  stands %7.2f s  hares %2d  clear %6.2f s (%d ticks%s)" % [lane, name, r.diner_lost, r.fence_hp_left, r.fence_stands_s, r.hares_in_zone, r.clear_s, r.ticks, ", TIMED OUT" if r.timed_out else ""])
 
 func after_all() -> void:
 	Balance.reset()
+	gut.p("FAST SUBSET (last wave only, 15 runs) wall time of the runs %.1f s (0 when another file computed them first)" % _wall)
+	gut.p("FAST RULE TABLE: rule | the two numbers | bound | verdict")
+	for r in _rows:
+		gut.p("  %-52s %14s vs %-14s %-18s %s" % [r[0], r[1], r[2], r[3], "PASS" if r[4] else "FAIL"])
 
-func _hp(lane: StringName, name: StringName) -> float:
-	return float(_lost[lane][name])
+func _res(lane: StringName, name: String) -> Dictionary:
+	return BranchBench.fast_cached()[lane][name]
 
-func _no_worse(a: float, b: float) -> bool:
-	return a <= b + SAME
-
-func _beats_by_15(a: float, b: float) -> bool:
-	return a < b - SAME and a <= 0.85 * b
+func _row(rule: String, a: String, b: String, bound: String, ok: bool) -> void:
+	_rows.append([rule, a, b, bound, ok])
 
 func test_floor_every_branch_loses_no_more_than_the_unbranched_building() -> void:
-	for lane in _lost:
-		for name in [&"longbow", &"volley"]:
-			assert_true(_no_worse(_hp(lane, name), _hp(lane, &"base")), "FLOOR %s: %s %.1f vs unbranched %.1f | fails when: Longbow damage cut to 30, Volley damage cut to 2" % [lane, name, _hp(lane, name), _hp(lane, &"base")])
-		for name in [&"stone", &"spike"]:
-			assert_true(_no_worse(_hp(lane, name), _hp(lane, &"base")), "FLOOR %s: %s %.1f vs unbranched %.1f | fails when: Spike hp cut to 100, Stone hp cut to 100" % [lane, name, _hp(lane, name), _hp(lane, &"base")])
+	for lane in BranchBench.LANES:
+		var base := _res(lane, "-/-")
+		for cfg in BranchBench.FAST_CONFIGS.slice(1):
+			var r := _res(lane, BranchBench.cfg_name(cfg))
+			var ok := float(r.diner_lost) <= float(base.diner_lost) + BranchBench.SAME
+			_row("FLOOR %s %s" % [lane, BranchBench.cfg_name(cfg)], "%.1f" % r.diner_lost, "%.1f" % base.diner_lost, "<= unbranched", ok)
+			assert_true(ok, "FLOOR %s: %s %.1f vs unbranched %.1f | fails when: Longbow damage cut to 30, Volley damage cut to 2, Spike hp cut to 100, Stone hp cut to 100" % [lane, BranchBench.cfg_name(cfg), r.diner_lost, base.diner_lost])
+			# The full floor order (a tie on diner HP lost falls to the lane type's next measure).
+			var v := BranchBench.no_worse(r, base, lane)
+			assert_true(v.ok, "FLOOR %s: %s no worse than unbranched on the floor order: %s" % [lane, BranchBench.cfg_name(cfg), v.why])
 
 func test_specialist_margin_on_its_own_lane_type() -> void:
-	var rows := [
-		[&"siege", &"longbow", &"volley", "Longbow over Volley", "Longbow kind multiplier 1.0"],
-		[&"siege", &"stone", &"spike", "Stone over Spike", "Stone brute damage multiplier 1.0"],
-		[&"hare", &"volley", &"longbow", "Volley over Longbow", "Volley damage cut to 5"],
-		[&"hare", &"spike", &"stone", "Spike over Stone", "Spike pass damage 10"],
-	]
-	for r in rows:
-		var a := _hp(r[0], r[1])
-		var b := _hp(r[0], r[2])
-		assert_true(_beats_by_15(a, b), "SPECIALIST %s lane, %s: %.1f vs %.1f (needs <= %.1f) | fails when: %s" % [r[0], r[3], a, b, 0.85 * b, r[4]])
-
-func test_identity_longbow_on_siege_volley_on_hare_and_unbranched_never_best() -> void:
-	var s := [_hp(&"siege", &"base"), _hp(&"siege", &"longbow"), _hp(&"siege", &"volley")]
-	assert_true(s[1] < s[0] - SAME and s[1] < s[2] - SAME, "IDENTITY siege: Longbow %.1f must lose least (unbranched %.1f, Volley %.1f) | fails when: Longbow kind multiplier 1.0" % [s[1], s[0], s[2]])
-	var h := [_hp(&"hare", &"base"), _hp(&"hare", &"longbow"), _hp(&"hare", &"volley")]
-	assert_true(h[2] < h[0] - SAME and h[2] < h[1] - SAME, "IDENTITY hare: Volley %.1f must lose least (unbranched %.1f, Longbow %.1f) | fails when: Volley damage cut to 5" % [h[2], h[0], h[1]])
-	for lane in _lost:
-		var towers := minf(_hp(lane, &"longbow"), _hp(lane, &"volley"))
-		var fences := minf(_hp(lane, &"stone"), _hp(lane, &"spike"))
-		assert_lt(towers, _hp(lane, &"base") - SAME, "IDENTITY %s: unbranched tower is never the best (best branch %.1f vs %.1f)" % [lane, towers, _hp(lane, &"base")])
-		assert_lt(fences, _hp(lane, &"base") - SAME, "IDENTITY %s: unbranched fence is never the best (best branch %.1f vs %.1f)" % [lane, fences, _hp(lane, &"base")])
+	for row in BranchBench.SPECIALISTS:
+		var spec := _res(row[0], BranchBench.cfg_name(row[1]))
+		var ref := _res(row[0], BranchBench.cfg_name(row[2]))
+		var v := BranchBench.beats_by_margin(spec, ref, row[4])
+		_row("SPECIALIST %s: %s" % [row[0], row[3]], "%s %.2f" % [v.measure, v.a], "%.2f" % v.b, "%s %.2f" % ["<=" if v.measure != "fence_stands_s" and v.measure != "fence_hp_left" else ">=", v.bound], v.ok)
+		assert_true(v.ok, "SPECIALIST %s lane, %s by 15%%: %s | fails when: %s" % [row[0], row[3], v.why, row[5]])
