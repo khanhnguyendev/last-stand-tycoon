@@ -2906,3 +2906,24 @@ specialists.
 - **Running:** policies in parallel where the machine allows (three at a time). Reports are scripts, not CI
   (D-274.4).
 
+**D-286 How the follow-up slice reaches main (brainstorm question 5; author, 2026-10-08).** Phase by phase, behind
+one Balance switch.
+
+1. **One flag,** for example `Balance.tier3_retune_enabled`, false until the flip. Lane character, the specialist
+   values, the HUD card, the new markers and labels and the reveal step all read it. No other flags.
+2. **Off-state identity:** with the flag off, tier 3 behaves exactly as on today's main. A tier-3 fixture night is
+   recorded from current main BEFORE the first phase merges, and asserted byte-identical with the flag off after
+   every phase, alongside the tier-1/2 identity checks.
+3. **Debug only:** the debug build can toggle the flag at runtime for simulator checks; the release-export check
+   proves the toggle code is absent.
+4. **Saves across the flip:** a save made with the flag off loads correctly with it on (lane character derived from
+   `run_seed`, D-282); a night-start snapshot replays under the new rules, which is acceptable and documented (the
+   replay may differ). Both tested.
+5. **The flip is the checkpoint:** the final 8-seed report passes (D-285), the pack is ready, the author approves;
+   then the flag is flipped in a small PR.
+6. **Cleanup in the same slice,** right after the flip PR: a cleanup PR removes the flag, the off-state code paths
+   and the superseded values, keeping the tier-1/2 identity checks. Not "later".
+
+The independent parts (the worst-frame diagnosis with any warm-up fix; the real-play fixtures) merge on their own,
+early, with the usual gates.
+
