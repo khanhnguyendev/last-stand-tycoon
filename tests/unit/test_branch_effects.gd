@@ -462,6 +462,15 @@ func test_longbow_interval_is_a_snapshot_of_the_flag_at_build_time() -> void:
 	_branch(TOWER, &"longbow")
 	assert_eq(spot.attacker.interval, 2.4)
 	Balance.data.tiers.retune_enabled = false
-	assert_eq(spot.attacker.interval, 2.4, "not re-read each shot")
+	assert_eq(spot.attacker.interval, 2.4, "not re-read after the toggle")
+	_arm()
+	var t := _fake(5.0, 1)
+	_attack_once()
+	assert_eq(spot.attacker._cooldown, 2.4, "a shot after the toggle still cools down 2.4 s")
 	_branch("tower_ne", &"longbow")
 	assert_eq((main.world.build_spots["tower_ne"] as TowerSpot).attacker.interval, 3.0, "flag off at build: the old interval")
+
+## Mutation: the retune interval applies to any Longbow-looking stats object, not the balance's own.
+func test_retune_on_a_fresh_longbow_stats_object_keeps_3_0() -> void:
+	var bb := Balance.data.branches
+	assert_eq(BranchMath.tower_interval(BranchBalance._longbow(), bb, true), 3.0)

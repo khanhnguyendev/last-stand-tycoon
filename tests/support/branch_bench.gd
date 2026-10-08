@@ -86,7 +86,7 @@ static func plan_for(lane_type: StringName, pressure: int) -> Array:
 	return waves
 
 ## `overrides` (sensitivity tables only), applied in memory before the world exists and undone on return:
-## longbow_brute_mult, longbow_damage, longbow_interval, longbow_range, spike_pass, spike_thorn, stone_brute_mult, stone_hp (all floats), and
+## longbow_brute_mult, longbow_damage, longbow_interval (sets the RETUNE field: it does nothing with the flag off), longbow_range, spike_pass, spike_thorn, stone_brute_mult, stone_hp (all floats), and
 ## last_wave_only (bool: the director plays only the LAST wave of the mix; GameState.lane_plan keeps the full plan so Spike's scale is unchanged).
 ## `&""` as a branch = unbranched.
 static func run(lane_type: StringName, tower_branch: StringName, fence_branch: StringName, pressure: int, overrides := {}) -> Dictionary:

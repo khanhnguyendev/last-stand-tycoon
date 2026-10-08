@@ -87,8 +87,8 @@ func _references() -> void:
 		gut.p("REFERENCE %-7s unbranched: %s" % [lane, _fmt(await _run(lane, &"", &""))])
 		gut.p("REFERENCE %-7s Volley    : %s" % [lane, _fmt(await _run(lane, &"volley", &""))])
 		gut.p("REFERENCE %-7s Stone     : %s" % [lane, _fmt(await _run(lane, &"", &"stone"))])
-		gut.p("REFERENCE %-7s Longbow(today x2.0/120/3.0/9.98): %s" % [lane, _fmt(await _run(lane, &"longbow", &""))])
-		gut.p("REFERENCE %-7s Spike (today pass 16/thorn 6)   : %s" % [lane, _fmt(await _run(lane, &"", &"spike"))])
+		gut.p("REFERENCE %-7s Longbow(committed x%.1f/%.0f/%.1f/%.2f): %s" % [lane, float(Balance.data.branches.longbow_kind_mult_retune[&"brute"]), Balance.data.branches.longbow.damage, Balance.data.branches.longbow_interval_retune, Balance.data.branches.longbow.attack_range, _fmt(await _run(lane, &"longbow", &""))])
+		gut.p("REFERENCE %-7s Spike (committed pass %.0f/thorn %.0f)   : %s" % [lane, Balance.data.branches.spike_pass_damage_retune, Balance.data.branches.spike.thorn_damage, _fmt(await _run(lane, &"", &"spike"))])
 
 func _longbow_row(label: String, ov: Dictionary) -> void:
 	for lane in LANES:
@@ -116,13 +116,13 @@ func test_1_references() -> void:
 	pass_test("printed")
 
 func test_2_longbow_kind_multiplier() -> void:
-	gut.p("TABLE longbow kind multiplier (damage 120, interval 3.0, range 9.98)")
+	gut.p("TABLE longbow kind multiplier (damage 120, interval %.1f, range 9.98)" % Balance.data.branches.longbow_interval_retune)
 	for m in [2.0, 3.0, 4.0]:
 		await _longbow_row("mult x%.1f" % m, {} if is_equal_approx(m, 2.0) else {"longbow_brute_mult": m})
 	pass_test("printed")
 
 func test_3_longbow_damage_per_shot() -> void:
-	gut.p("TABLE longbow damage per shot (interval 3.0 s, mult x2.0)")
+	gut.p("TABLE longbow damage per shot (interval %.1f s, mult x2.0)" % Balance.data.branches.longbow_interval_retune)
 	for d in [120.0, 160.0, 200.0, 240.0]:
 		await _longbow_row("damage %.0f" % d, {} if is_equal_approx(d, 120.0) else {"longbow_damage": d})
 	pass_test("printed")
@@ -130,7 +130,7 @@ func test_3_longbow_damage_per_shot() -> void:
 func test_4_longbow_interval() -> void:
 	gut.p("TABLE longbow interval (damage 120, mult x2.0)")
 	for i in [3.0, 2.4, 1.8, 1.2]:
-		await _longbow_row("interval %.1f s" % i, {} if is_equal_approx(i, 3.0) else {"longbow_interval": i})
+		await _longbow_row("interval %.1f s" % i, {"longbow_interval": i})
 	pass_test("printed")
 
 func test_5_longbow_range() -> void:
@@ -142,11 +142,11 @@ func test_5_longbow_range() -> void:
 func test_6_spike_pass_damage() -> void:
 	gut.p("TABLE spike pass damage (thorns 6); hare HP 39.75 / 39.75 / 51.7: 40 kills waves 1-2 in the pass")
 	for d in [16.0, 24.0, 32.0, 40.0]:
-		await _spike_row("pass %.0f" % d, {} if is_equal_approx(d, 16.0) else {"spike_pass": d})
+		await _spike_row("pass %.0f" % d, {"spike_pass": d})
 	pass_test("printed")
 
 func test_7_spike_thorn_damage() -> void:
-	gut.p("TABLE spike thorn damage (pass 16); 3.0 is an extra row to see how much Spike's siege result moves")
+	gut.p("TABLE spike thorn damage (pass %.0f); 3.0 is an extra row to see how much Spike's siege result moves" % Balance.data.branches.spike_pass_damage_retune)
 	for t in [3.0, 6.0, 9.0, 12.0]:
 		await _spike_row("thorn %.0f" % t, {} if is_equal_approx(t, 6.0) else {"spike_thorn": t})
 	pass_test("printed")
