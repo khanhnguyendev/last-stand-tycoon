@@ -96,3 +96,27 @@ func test_streams_differ_by_name_day_and_seed() -> void:
 
 func test_new_run_seed_is_nonzero() -> void:
 	assert_ne(Rng.new_run_seed(), 0)
+
+## E6 task 2: stream identity. The first three randi() of EVERY stream used by production code (grep Rng.stream:
+## lane_plan, cards, spawns, drops, travelers), captured from the code BEFORE &"lane_character" was added.
+## A later change that shifts a stream fails here. Never regenerate silently.
+const PINNED_PROD_STREAMS := {
+	&"lane_plan": {1: [982263674, 3566436726, 4133231561], 3: [3238188479, 2011179619, 3794814636]},
+	&"cards": {1: [3017969449, 3113214463, 4065174797], 3: [2317415651, 3759696000, 1490404807]},
+	&"spawns": {1: [650738716, 3217271523, 1430698105], 3: [2893652679, 2732774452, 1079296089]},
+	&"drops": {1: [1157851790, 1041351977, 3806099412], 3: [2671218064, 1256413913, 2230018907]},
+	&"travelers": {1: [2326239200, 1697935363, 1249486560], 3: [1403444951, 801686502, 2188915574]},
+}
+
+func test_production_stream_identity_pins() -> void:
+	for n in PINNED_PROD_STREAMS:
+		for d in PINNED_PROD_STREAMS[n]:
+			var rng := Rng.stream(GOLDEN_RUN_SEED, d, n)
+			var got := [int(rng.randi()), int(rng.randi()), int(rng.randi())]
+			assert_eq(got, PINNED_PROD_STREAMS[n][d], "%s day %d first three" % [n, d])
+
+func test_lane_character_is_a_new_distinct_stream() -> void:
+	assert_false(PINNED_PROD_STREAMS.has(&"lane_character"), "new name, not a pre-existing one")
+	var mine := Rng.stream(GOLDEN_RUN_SEED, 0, &"lane_character").randi()
+	for n in PINNED_PROD_STREAMS:
+		assert_ne(mine, Rng.stream(GOLDEN_RUN_SEED, 0, n).randi(), "day-0 first value vs %s" % n)
