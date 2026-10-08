@@ -35,6 +35,8 @@ extends RefCounted
 ##  - clear_s       seconds from the tick of the first spawn until no monster is alive after the last wave spawned out.
 ##  - ticks         physics ticks simulated by the whole run, from the night's start (this includes the 5 s first-wave delay).
 ##  - kills         monsters killed (information).
+##  - fence_fell_s  seconds from the first spawn to the tick the fence's HP first reached 0; -1 if it never fell.
+##  - fence_absorbed the fence's HP lost over the run (start HP minus HP at the end; overkill is not counted).
 ## `timed_out` is true when MAX_TICKS passed before the night cleared (clear_s is then MAX_TICKS / 60; expected never).
 
 const SEED := 71
@@ -84,7 +86,8 @@ static func plan_for(lane_type: StringName, pressure: int) -> Array:
 	return waves
 
 ## `overrides` (sensitivity tables only), applied in memory before the world exists and undone on return:
-## longbow_brute_mult, longbow_damage, longbow_interval, longbow_range, spike_pass, spike_thorn (all floats).
+## longbow_brute_mult, longbow_damage, longbow_interval, longbow_range, spike_pass, spike_thorn, stone_brute_mult, stone_hp (all floats), and
+## last_wave_only (bool: the director plays only the LAST wave of the mix; GameState.lane_plan keeps the full plan so Spike's scale is unchanged).
 ## `&""` as a branch = unbranched.
 static func run(lane_type: StringName, tower_branch: StringName, fence_branch: StringName, pressure: int, overrides := {}) -> Dictionary:
 	var tree := Engine.get_main_loop() as SceneTree
@@ -92,7 +95,7 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	var saved := {
 		"mult": bb.longbow_kind_mult_retune.duplicate(), "pass": bb.spike_pass_damage_retune, "thorn": bb.spike.thorn_damage,
 		"dmg": bb.longbow.damage, "int": bb.longbow.interval, "rng": bb.longbow.attack_range,
-		"diner": Balance.data.build.diner_max_hp,
+		"diner": Balance.data.build.diner_max_hp, "stone_mult": bb.stone.damage_taken_mult_by_kind.duplicate(), "stone_hp": bb.stone.hp,
 	}
 	if overrides.has("longbow_brute_mult"):
 		bb.longbow_kind_mult_retune[&"brute"] = float(overrides.longbow_brute_mult)
@@ -106,6 +109,10 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 		bb.spike_pass_damage_retune = float(overrides.spike_pass)
 	if overrides.has("spike_thorn"):
 		bb.spike.thorn_damage = float(overrides.spike_thorn)
+	if overrides.has("stone_brute_mult"):
+		bb.stone.damage_taken_mult_by_kind[&"brute"] = float(overrides.stone_brute_mult)
+	if overrides.has("stone_hp"):
+		bb.stone.hp = float(overrides.stone_hp)
 	Balance.data.build.diner_max_hp = INVULNERABLE_HP
 	var plan := plan_for(lane_type, pressure)
 
@@ -132,6 +139,9 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	GameState.gold = 0
 	GameState.diner_hp = INVULNERABLE_HP
 	GameState.lane_plan = plan
+	var played: Array = [plan[plan.size() - 1]] if overrides.get("last_wave_only", false) else plan
+	var fence_start := float(GameState.buildings[FENCE_ID].hp)
+	var fence_fell_tick := -1
 	var wd: WaveDirector = main.phase_controller.wave_director
 	var zone := MapLayout.zone_rect(LANE).grow(0.05)
 	var seen := {}
@@ -144,7 +154,7 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	var ticks := 0
 	var first_spawn_tick := -1
 	var end_tick := -1
-	wd.start_night(plan)
+	wd.start_night(played)
 	while ticks < MAX_TICKS:
 		await tree.physics_frame
 		ticks += 1
@@ -155,7 +165,9 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 			var b: Boar = e
 			if b.kind == &"hare" and not seen.has(b.spawn_index) and zone.has_point(Vector2(b.global_position.x, b.global_position.z)):
 				seen[b.spawn_index] = true
-		if first_spawn_tick >= 0 and wd.wave_index == plan.size() - 1 and wd.state == WaveDirector.State.IDLE and alive.is_empty():
+		if first_spawn_tick >= 0 and fence_fell_tick < 0 and float(GameState.buildings[FENCE_ID].hp) <= 0.0:
+			fence_fell_tick = ticks
+		if first_spawn_tick >= 0 and wd.wave_index == played.size() - 1 and wd.state == WaveDirector.State.IDLE and alive.is_empty():
 			end_tick = ticks
 			break
 	var result := {
@@ -164,6 +176,8 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 		"hares_in_zone": seen.size(),
 		"clear_s": float(end_tick - first_spawn_tick) / 60.0 if end_tick >= 0 else float(MAX_TICKS) / 60.0,
 		"ticks": ticks, "kills": kills[0], "timed_out": end_tick < 0,
+		"fence_fell_s": float(fence_fell_tick - first_spawn_tick) / 60.0 if fence_fell_tick >= 0 else -1.0,
+		"fence_absorbed": fence_start - float(GameState.buildings[FENCE_ID].hp),
 	}
 	EventBus.diner_damaged.disconnect(on_hit)
 	EventBus.enemy_killed.disconnect(on_kill)
@@ -176,5 +190,7 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	bb.longbow.damage = saved.dmg
 	bb.longbow.interval = saved["int"]
 	bb.longbow.attack_range = saved.rng
+	bb.stone.damage_taken_mult_by_kind = saved.stone_mult
+	bb.stone.hp = saved.stone_hp
 	Balance.data.build.diner_max_hp = saved.diner
 	return result
