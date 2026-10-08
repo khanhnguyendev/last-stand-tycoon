@@ -35,3 +35,6 @@ extends Resource
 ## E6 (D-286): the one feature flag of the tier-3 retune. False until the final flip; removed at the E6 cleanup.
 ## Production code reads it only through TierEffects.retune_on(tb); only ui/debug, tests and tools assign it.
 @export var retune_enabled := false
+
+## E6 (D-282, D-287): the share of a tier-3 wave's hares that walk the run's hare lane (LaneCharacter.apply).
+@export var hare_lane_share := 0.7
