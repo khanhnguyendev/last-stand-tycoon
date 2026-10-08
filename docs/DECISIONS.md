@@ -2888,3 +2888,21 @@ specialists.
 6. **Scope:** branch pads only in this slice. REVIEW_QUEUE idea: use the same card for all build and upgrade pads,
    with the overlap count it would remove.
 
+**D-285 How the retune report judges its targets (follow-up slice, brainstorm question 4; author, 2026-10-08).**
+
+- **Seeds:** eight final-report seeds, two per siege lane, plus four tuning seeds, one per siege lane. The two sets
+  are DISJOINT (12 unique seeds). Tuning never looks at the final eight until the final report (hold-out against
+  overfitting).
+- **Selection (against cherry-picking):** deterministic. Scan upward from a fixed start value and take the first
+  seeds whose lane character gives each siege lane, the tuning set first, then the final set. The report prints the
+  rule and the seeds.
+- **Pass rules of the final report:**
+  - threat-matched: mean lead over the best fixed policy at least 5 points AND ahead on at least 6 of 8 seeds;
+  - per siege lane: the mean lead is not negative on any lane; if it is, escalate with the data even if the overall
+    target passes (reading must pay on every lane);
+  - on the same 8 seeds: zero retry nights for every policy (unbranched included, as the floor); no first tier-3
+    night below 25%; fence tax at most 30% median at the cap; fixed-policy spread at most 15 points.
+- **Output:** each target per seed and per siege lane, plus the verdict.
+- **Running:** policies in parallel where the machine allows (three at a time). Reports are scripts, not CI
+  (D-274.4).
+
