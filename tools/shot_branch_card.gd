@@ -1,0 +1,101 @@
+extends SceneTree
+## The branch card (E6 Task 13, spec 5.2). Run WITH rendering (not --headless):
+##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_branch_card.gd -- --out=docs/review/media/e6/interface
+## Seed 1 (SIEGE east, HARE west, north and south-west neutral), the retune flag on, tier 3 forced, all nine buildings at level 3.
+## The hero WALKS onto a pad (a teleport would leave the pad unarmed and the card hidden). Writes, each 720x1280 plus a _40 copy:
+##   card_longbow (tower_nw: west road with the hare icon, north path with none: a two-lane tower), card_volley (tower_w: hare lane),
+##   card_stone (fence_e: siege lane), card_spike (fence_n: neutral lane), card_partial (tower_ne Volley, 200 of 500 paid),
+##   card_vietnamese (fence_w Stone wall with the Vietnamese sample).
+## The world labels above the hero (name, effect, warning) are still there: a later task removes them behind the flag.
+
+var _out := "docs/review/media/e6/interface"
+
+func _initialize() -> void:
+	_run.call_deferred()
+
+func _run() -> void:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--out="):
+			_out = a.trim_prefix("--out=")
+	var bal = root.get_node("Balance")
+	var gs = root.get_node("GameState")
+	var camera_math = load("res://core/camera_math.gd")
+	var layout = load("res://core/map_layout.gd")
+	bal.reset()
+	bal.ui.shake_enabled = false
+	bal.data.tiers.retune_enabled = true
+	if bal.data.tiers.tier_costs.size() < 3:
+		bal.data.tiers.tier_costs.append(1500)  # the shot forces tier 3
+	var main = load("res://world/main.gd").create()
+	root.add_child(main)
+	main.focus_pause.free()
+	paused = false
+	main.phase_controller.start_new_game(1)
+	main.hero.input.player_control = false
+	for i in 90:
+		await physics_frame
+	var dbg = main.get_node_or_null("DebugOverlay")
+	if dbg != null:
+		dbg.visible = false
+	main.phase_controller.debug_skip_to_day()
+	for i in 60:
+		await physics_frame
+	main.world.wave_director.stop()
+	gs.debug_set_tier(3, 6)
+	for i in 30:
+		await physics_frame
+	gs.gold = 100000
+	for id in layout.spots_for_tier(3):
+		while gs.next_level_cost(id) >= 0:
+			gs.pay_into_spot(id, 100000)
+	gs.gold = 0
+	for i in 30:
+		await physics_frame
+	print("lane character: ", gs.lane_character())
+	await _card(main, camera_math, layout, "card_longbow", "tower_nw", 0)
+	await _card(main, camera_math, layout, "card_volley", "tower_w", 1)
+	await _card(main, camera_math, layout, "card_stone", "fence_e", 0)
+	await _card(main, camera_math, layout, "card_spike", "fence_n", 1)
+	gs.gold = 200
+	gs.pay_into_branch("tower_ne", &"volley", 200)
+	gs.gold = 0
+	await _card(main, camera_math, layout, "card_partial", "tower_ne", 1)
+	var vi := {"Stone wall": "Tường đá", "holds brutes": "chặn quái nặng", "west road": "đường phía tây", "lost if broken": "mất nếu bị phá"}
+	_card_script().text_filter = func(s: String) -> String: return vi.get(s, s)
+	await _card(main, camera_math, layout, "card_vietnamese", "fence_w", 0)
+	_card_script().text_filter = Callable()
+	quit(0)
+
+## Loaded at run time: naming BranchCard here would compile it before the autoloads exist.
+func _card_script():
+	return load("res://ui/hud/branch_card.gd")
+
+func _card(main, camera_math, layout, name: String, spot: String, idx: int) -> void:
+	var p: Vector2 = (layout.BRANCH_PADS[spot] as Array)[idx]
+	main.hero.teleport(p + Vector2(0, 2.0))
+	for i in 5:
+		await physics_frame
+	var step: float = main.hero.move_speed() / 60.0
+	for i in 600:
+		var d: Vector2 = p - main.hero.xz()
+		if d.length() < 0.02:
+			break
+		main.hero.input.set_move((d / step).limit_length(1.0))
+		await physics_frame
+	main.hero.input.set_move(Vector2.ZERO)
+	for i in 30:
+		await physics_frame
+	var card = main.hud.branch_card
+	if _card_script().text_filter.is_valid():
+		card.rebuild()
+	main.camera_rig.snap_to(camera_math.focus_for(p))
+	for i in 90:
+		await process_frame
+	print(name, ": card visible ", card.visible, " rect ", card.get_global_rect(), " armed ", main.hero.global_position)
+	var img := root.get_texture().get_image()
+	var dir := ProjectSettings.globalize_path("res://").path_join(_out)
+	DirAccess.make_dir_recursive_absolute(dir)
+	img.save_png(dir.path_join(name + ".png"))
+	var small := img.duplicate()
+	small.resize(288, 512, Image.INTERPOLATE_LANCZOS)
+	small.save_png(dir.path_join(name + "_40.png"))
