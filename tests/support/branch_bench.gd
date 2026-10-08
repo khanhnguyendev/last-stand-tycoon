@@ -1,8 +1,11 @@
 class_name BranchBench
 extends RefCounted
-## E6 Task 8 (spec 4.2, D-283, D-288): a micro-simulation of ONE lane at tier 3, for the rule "paying never makes it worse".
+## E6 Task 8 (spec 4.2, D-283, D-288, D-292): a micro-simulation of ONE lane at tier 3, for the rule "paying never makes it worse".
 ## Test support, not shipped. Everything fires through the REAL code: a real `Main`, the real `TowerSpot` / `Attacker` / `Projectile`,
 ## the real `FenceSpot`, `Boar` and `WaveDirector` (no arithmetic model of damage). Nothing in production is changed.
+##
+## WHAT IT IS NOT (D-292.1): it ranks branches RELATIVELY on one lane with one tower, one fence, no hero and no guards. It does not
+## predict a real night; the real-play report (tests/sim/report_retune.gd) judges real outcomes.
 ##
 ## Choices of the world (all of them, so a later reader can check the measure is not polluted):
 ##  - Tier 3 (`debug_set_tier(3, 1)`), the retune flag exactly as the CALLER left `Balance.data.tiers.retune_enabled`. Set it BEFORE
@@ -10,6 +13,10 @@ extends RefCounted
 ##    a fresh `Main` every call, so the flag in force at the start of the call is the flag of that run.
 ##  - ONE lane: `sw`, with `tower_sw` (the only tower that covers a single lane) and `fence_sw`, both bought to the top level through the
 ##    real payment API and then given the requested branch through `pay_into_branch`. Every other spot stays at level 0 (unbuilt).
+##  - INVULNERABLE DINER (D-292.1), without a production hook: before the world exists `Balance.data.build.diner_max_hp` is raised in
+##    memory to INVULNERABLE_HP (10 million; restored on return), so `new_game`/our reset give the diner that HP and the night can never
+##    end the run by felling it. The measure is the SUM of the `amount` of every `EventBus.diner_damaged` emission (the real damage the
+##    monsters dealt through `GameState.damage_diner`). All three waves always spawn and play out until no monster is alive.
 ##  - No hero influence: the hero is placed with the bus event `hero_place_requested` at (22, -22), the far north-east corner, 45 m from the
 ##    lane's spawn and 40 m from the diner. It is out of reach of every monster (attack range 4 m, monsters only walk the sw lane) and the steaks
 ##    drop on the sw lane, so it collects nothing; `player_control` is off so nothing moves it. No bot, no guards (GameState.guards is empty),
@@ -21,30 +28,33 @@ extends RefCounted
 ##    scaling by the night's HP multiplier (D-272.1) sees the same hp_mult the monsters have.
 ##  - Fixed run seed (71), day 1: the spawn offsets come from the real `spawns` stream, so two runs of one configuration are identical.
 ##
-## Measures (all read from GameState and the live monsters, each tick):
-##  - diner_lost    diner HP lost (the full diner_max_hp when the diner fell).
+## Measures (read each tick from the signal, GameState and the live monsters):
+##  - diner_lost    total diner HP lost over the whole run (sum of the diner_damaged amounts).
 ##  - fence_hp_left HP of fence_sw when the night ends (0 when it was destroyed).
 ##  - hares_in_zone distinct hares that were inside the sw attack zone (`MapLayout.zone_rect`, grown by 5 cm) at the end of any tick.
-##  - clear_s       seconds from the tick of the first spawn until no monster is alive after the last wave spawned out. If the diner
-##                  falls, the seconds from the first spawn to the tick it fell (the night is not cleared, so this is "time to defeat").
+##  - clear_s       seconds from the tick of the first spawn until no monster is alive after the last wave spawned out.
 ##  - ticks         physics ticks simulated by the whole run, from the night's start (this includes the 5 s first-wave delay).
+##  - kills         monsters killed (information).
+## `timed_out` is true when MAX_TICKS passed before the night cleared (clear_s is then MAX_TICKS / 60; expected never).
 
 const SEED := 71
 const PARK := Vector2(22, -22)
-const MAX_TICKS := 60 * 400
+const MAX_TICKS := 60 * 600
+const INVULNERABLE_HP := 1.0e7
 const LANE := "sw"
 const TOWER_ID := "tower_sw"
 const FENCE_ID := "fence_sw"
 
 ## The three waves of the lane type at `pressure`, from WaveMath / TierEffects, with the tier-3 hare share.
-## Per wave: {boars, hares, brutes, hp_mult}.##  - boars: the non-hare part of the wave's MAIN group (`WaveMath.split(...).main - fast_main`); the group count includes its hares.
+## Per wave: {boars, hares, brutes, hp_mult}.
+##  - boars: the non-hare part of the wave's MAIN group (`WaveMath.split(...).main - fast_main`); the group count includes its hares.
 ##  - hares: HARE lane: round(hare_lane_share x all the wave's hares). NEUTRAL and SIEGE lane: the MAIN group's share of the leftover:
 ##           round((H - round(share x H)) x fast_main / H), with H = fast_main + fast_side.
 ##  - brutes: SIEGE lane: brute_cap_main[3] on every wave (full ramp); 0 otherwise.
 static func mix(lane_type: StringName, pressure: int) -> Array:
 	var wb: WaveBalance = Balance.data.wave
 	var tb: TierBalance = Balance.data.tiers
-	var share := _hare_lane_share(tb)
+	var share: float = tb.hare_lane_share
 	var out: Array = []
 	for w in wb.base_counts.size():
 		var sp := WaveMath.split(pressure, w, wb)
@@ -64,12 +74,6 @@ static func mix(lane_type: StringName, pressure: int) -> Array:
 		})
 	return out
 
-## `hare_lane_share` is a Balance value from the lane-character task (spec 3.2b, 0.7). Until it exists on the TierBalance this reads the
-## spec's value, so the bench is not blocked by task order; once the field exists the real one is used.
-static func _hare_lane_share(tb: TierBalance) -> float:
-	var v: Variant = tb.get("hare_lane_share")
-	return float(v) if v != null else 0.7
-
 static func plan_for(lane_type: StringName, pressure: int) -> Array:
 	var waves: Array = []
 	for m in mix(lane_type, pressure):
@@ -79,17 +83,30 @@ static func plan_for(lane_type: StringName, pressure: int) -> Array:
 		})
 	return waves
 
-## `overrides` (sensitivity tables only): {"longbow_brute_mult": float, "spike_pass": float}, applied in memory before the world exists and
-## undone on return. `&""` as a branch = unbranched.
+## `overrides` (sensitivity tables only), applied in memory before the world exists and undone on return:
+## longbow_brute_mult, longbow_damage, longbow_interval, longbow_range, spike_pass, spike_thorn (all floats).
+## `&""` as a branch = unbranched.
 static func run(lane_type: StringName, tower_branch: StringName, fence_branch: StringName, pressure: int, overrides := {}) -> Dictionary:
 	var tree := Engine.get_main_loop() as SceneTree
 	var bb: BranchBalance = Balance.data.branches
-	var saved_lb: Dictionary = bb.longbow_kind_mult_retune.duplicate()
-	var saved_spike: float = bb.spike_pass_damage_retune
+	var saved := {
+		"mult": bb.longbow_kind_mult_retune.duplicate(), "pass": bb.spike_pass_damage_retune, "thorn": bb.spike.thorn_damage,
+		"dmg": bb.longbow.damage, "int": bb.longbow.interval, "rng": bb.longbow.attack_range,
+		"diner": Balance.data.build.diner_max_hp,
+	}
 	if overrides.has("longbow_brute_mult"):
 		bb.longbow_kind_mult_retune[&"brute"] = float(overrides.longbow_brute_mult)
+	if overrides.has("longbow_damage"):
+		bb.longbow.damage = float(overrides.longbow_damage)
+	if overrides.has("longbow_interval"):
+		bb.longbow.interval = float(overrides.longbow_interval)
+	if overrides.has("longbow_range"):
+		bb.longbow.attack_range = float(overrides.longbow_range)
 	if overrides.has("spike_pass"):
 		bb.spike_pass_damage_retune = float(overrides.spike_pass)
+	if overrides.has("spike_thorn"):
+		bb.spike.thorn_damage = float(overrides.spike_thorn)
+	Balance.data.build.diner_max_hp = INVULNERABLE_HP
 	var plan := plan_for(lane_type, pressure)
 
 	var main := Main.create()
@@ -113,19 +130,20 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	if fence_branch != &"":
 		GameState.pay_into_branch(FENCE_ID, fence_branch, 1000000)
 	GameState.gold = 0
-	GameState.diner_hp = Balance.data.build.diner_max_hp
+	GameState.diner_hp = INVULNERABLE_HP
 	GameState.lane_plan = plan
-	var diner_max: float = Balance.data.build.diner_max_hp
 	var wd: WaveDirector = main.phase_controller.wave_director
 	var zone := MapLayout.zone_rect(LANE).grow(0.05)
 	var seen := {}
+	var lost := [0.0]
+	var kills := [0]
+	var on_hit := func(amount: float, _hp_left: float): lost[0] += amount
+	var on_kill := func(_i: int, _l: StringName, _p: Vector3, _k: StringName): kills[0] += 1
+	EventBus.diner_damaged.connect(on_hit)
+	EventBus.enemy_killed.connect(on_kill)
 	var ticks := 0
 	var first_spawn_tick := -1
 	var end_tick := -1
-	var fell := false
-	var kills := [0]
-	var on_kill := func(_i: int, _l: StringName, _p: Vector3, _k: StringName): kills[0] += 1
-	EventBus.enemy_killed.connect(on_kill)
 	wd.start_night(plan)
 	while ticks < MAX_TICKS:
 		await tree.physics_frame
@@ -137,24 +155,26 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 			var b: Boar = e
 			if b.kind == &"hare" and not seen.has(b.spawn_index) and zone.has_point(Vector2(b.global_position.x, b.global_position.z)):
 				seen[b.spawn_index] = true
-		if GameState.diner_hp <= 0.0:
-			fell = true
-			end_tick = ticks
-			break
 		if first_spawn_tick >= 0 and wd.wave_index == plan.size() - 1 and wd.state == WaveDirector.State.IDLE and alive.is_empty():
 			end_tick = ticks
 			break
 	var result := {
-		"diner_lost": diner_max if fell else diner_max - GameState.diner_hp,
+		"diner_lost": lost[0],
 		"fence_hp_left": float(GameState.buildings[FENCE_ID].hp),
 		"hares_in_zone": seen.size(),
 		"clear_s": float(end_tick - first_spawn_tick) / 60.0 if end_tick >= 0 else float(MAX_TICKS) / 60.0,
-		"ticks": ticks, "kills": kills[0],
+		"ticks": ticks, "kills": kills[0], "timed_out": end_tick < 0,
 	}
+	EventBus.diner_damaged.disconnect(on_hit)
 	EventBus.enemy_killed.disconnect(on_kill)
 	wd.stop()
 	tree.root.remove_child(main)
 	main.free()
-	bb.longbow_kind_mult_retune = saved_lb
-	bb.spike_pass_damage_retune = saved_spike
+	bb.longbow_kind_mult_retune = saved.mult
+	bb.spike_pass_damage_retune = saved["pass"]
+	bb.spike.thorn_damage = saved.thorn
+	bb.longbow.damage = saved.dmg
+	bb.longbow.interval = saved["int"]
+	bb.longbow.attack_range = saved.rng
+	Balance.data.build.diner_max_hp = saved.diner
 	return result
