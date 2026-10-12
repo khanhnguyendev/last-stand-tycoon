@@ -1707,13 +1707,13 @@ func test_flag_on_the_near_stage_shows_zero_overlaps_for_every_pad_over_its_reac
 		lines.append("%s  [%d times, worst shortfall %.0f px, hero at %s]" % [k, res.findings[k][0], res.findings[k][1], res.findings[k][3]])
 	lines.sort()
 	_dump("NEAR scan findings", lines)
-	gut.p("NEAR scan: %d..%d points per pad, %d ms" % [res.min_pts, res.max_pts, Time.get_ticks_msec() - t0])
+	gut.p("NEAR scan: %d..%d points per pad, %d ms; smallest tether: %.1f px wide, %.1f px long" % [res.min_pts, res.max_pts, Time.get_ticks_msec() - t0, _tether_min[0], _tether_min[1]])
 	for id in MapLayout.spots_for_tier(3):
 		for i in 2:
 			assert_true(res.seen_near.has("%s:%d" % [id, i]), "%s pad %d was measured in the near stage at least once" % [id, i])
 		if res.both_possible.has(id):
 			assert_true(res.both_seen.has(id), "%s: both pads can be in reach, so a both-in-reach view was measured" % id)
-	assert_eq(lines, [], "an empty expected set: no pinned view, no exemption (the hero is drawn in front: test_flag_on_the_hero_is_drawn_in_front_of_every_pad_label)")
+	assert_eq(lines, [], "an empty expected set: no pinned view, no exemption (the hero is drawn in front: test_flag_on_the_hero_and_his_pile_write_depth_after_the_pad_labels_and_rings, tools/check_hero_front.gd)")
 
 ## The scan behind the test above (also used by tools/probes): {findings, report, seen_near, both_possible, both_seen, min_pts, max_pts}. `aspect_ids`:
 ## indices into ASPECTS. `oracle`: compare the cached obstacle list with `_world_obstacles` at the first view of every pad.
@@ -1823,8 +1823,13 @@ func _own_overlap_m(p: BranchPad) -> float:
 	return maxf(0.0, minf(half.x - absf(d.x), half.y - absf(d.y)))
 
 ## D-294.8: the glyph stays INSIDE its ring (all four corners of its box inside the ring's ellipse on the screen), and a cost reads as its pad's: a cost whose nearest edge is within
-## 0.5 m (screen metres) of its pad's centre needs nothing; one beyond it shows the NOTCH, a wedge from the cost toward the pad at least NOTCH_MIN_M (0.25 m is the rule,
-## measured here from the drawn points) long, whose tail touches the cost's box and which keeps MIN_GAP_PX from every obstacle (the hero excepted: he is drawn in front).
+## 0.5 m (screen metres) of its pad's centre needs nothing; one beyond it shows the TETHER, a light line with an ink edge from the cost's box to the RING's edge: its ring end lies
+## within 0.15 m of the ring's edge, its cost end touches the cost's label rect, it is at least TETHER_MIN_W_PX wide and TETHER_MIN_LEN_PX long at 720x1280, and it keeps MIN_GAP_PX from
+## every obstacle but the hero (drawn in front), its own ring and its own cost.
+const TETHER_MIN_W_PX := 7.5  # 3 px at the 40% scale
+const TETHER_MIN_LEN_PX := 20.0
+## The smallest tether measured in the last scan: [width px, length px] (reported by the near-stage test).
+var _tether_min := [INF, INF]
 func _check_notch(p: BranchPad, v: View, at: Vector2, obstacles: Array, findings: Dictionary, tag: String) -> void:
 	var ppm := v.px_per_m(p.global_position)
 	var centre := v.pt(p.global_position)
@@ -1846,26 +1851,39 @@ func _check_notch(p: BranchPad, v: View, at: Vector2, obstacles: Array, findings
 	var cpos := Vector2(rel.dot(xf.basis.x), rel.dot(xf.basis.y))
 	var cbox: Vector2 = p._cost_box()
 	var dist := Vector2(maxf(absf(cpos.x) - cbox.x * 0.5, 0.0), maxf(absf(cpos.y) - cbox.y * 0.5, 0.0)).length()
-	var shown: bool = p.tether != null and p.tether.visible and p.tether_ends.size() == 2
+	var shown: bool = p.tether != null and p.tether.visible and p.tether_ink.visible and p.tether_ends.size() == 2
 	if dist > BranchPad.NOTCH_FROM_M + 0.01 and not shown:
-		_add_finding(findings, "%s: the cost's nearest edge stands %.2f m from its pad and shows no notch" % [tag, dist], Vector2.ONE, at)
+		_add_finding(findings, "%s: the cost's nearest edge stands %.2f m from its pad and shows no tether" % [tag, dist], Vector2.ONE, at)
 	if not shown:
 		return
 	var tip := v.pt(p.global_position + p.tether_ends[0])
 	var tail := v.pt(p.global_position + p.tether_ends[1])
-	var len_m := tip.distance_to(tail) / ppm
-	if len_m < 0.25 or p.notch_len < 0.25:
-		_add_finding(findings, "%s: the notch is %.2f m long (under 0.25)" % [tag, len_m], Vector2.ONE, at)
+	var len_px := tip.distance_to(tail)
+	_tether_min[1] = minf(_tether_min[1], len_px)
+	if len_px < TETHER_MIN_LEN_PX:
+		_add_finding(findings, "%s: the tether is %.0f px long (under %.0f)" % [tag, len_px, TETHER_MIN_LEN_PX], Vector2.ONE, at)
+	var ink_v: PackedVector3Array = p.tether_ink.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var width_px := v.pt(p.global_position + ink_v[0]).distance_to(v.pt(p.global_position + ink_v[1]))
+	_tether_min[0] = minf(_tether_min[0], width_px)
+	if width_px < TETHER_MIN_W_PX:
+		_add_finding(findings, "%s: the tether is %.1f px wide (under %.1f)" % [tag, width_px, TETHER_MIN_W_PX], Vector2.ONE, at)
 	var tq := Vector2(clampf(tail.x, cr.position.x, cr.end.x), clampf(tail.y, cr.position.y, cr.end.y))
 	if tail.distance_to(tq) > 0.15 * ppm:
-		_add_finding(findings, "%s: the notch's tail is %.0f px from the cost" % [tag, tail.distance_to(tq)], Vector2.ONE, at)
+		_add_finding(findings, "%s: the tether's cost end is %.0f px from the cost" % [tag, tail.distance_to(tq)], Vector2.ONE, at)
+	var ring_gap := INF
+	for k in ring.size():
+		var a0 := ring[k]
+		var a1 := ring[(k + 1) % ring.size()]
+		ring_gap = minf(ring_gap, tip.distance_to(Geometry2D.get_closest_point_to_segment(tip, a0, a1)))
+	if ring_gap > 0.15 * ppm:
+		_add_finding(findings, "%s: the tether's ring end is %.0f px from the ring's edge (over 0.15 m)" % [tag, ring_gap], Vector2.ONE, at)
 	if tip.distance_to(centre) >= tail.distance_to(centre):
-		_add_finding(findings, "%s: the notch points away from the pad" % tag, Vector2.ONE, at)
+		_add_finding(findings, "%s: the tether points away from the pad" % tag, Vector2.ONE, at)
 	for k in 13:
 		var q := tip.lerp(tail, float(k) / 12.0)
 		for o in obstacles:
-			if _obstacle_class(String(o[0])) != "hero" and (o[1] as Rect2).grow(MIN_GAP_PX).has_point(q):
-				_add_finding(findings, "%s: the notch is within %.0f px of %s" % [tag, MIN_GAP_PX, o[0]], Vector2.ONE, at)
+			if _obstacle_class(String(o[0])) != "hero" and (o[1] as Rect2).grow(MIN_GAP_PX + width_px * 0.5).has_point(q):
+				_add_finding(findings, "%s: the tether is within %.0f px of %s" % [tag, MIN_GAP_PX, o[0]], Vector2.ONE, at)
 
 ## A point the hero can stand on: off every solid by his radius + 0.05, on no pad, inside the map.
 func _reachable(at: Vector2) -> bool:
@@ -2056,8 +2074,8 @@ func test_flag_on_no_lane_badge_overlaps_a_pad_item_from_the_pad_views_or_the_zo
 	assert_eq(findings, [], "an empty expected set")
 
 ## D-294.8: the hero is drawn in front of every pad label. Structure (what guarantees it in the render; tools/check_hero_front.gd renders it). The order is by
-## render priority in the transparent pass: pad ring and disc RING_PRIORITY (-6), pad labels, glyphs and tether LABEL_PRIORITY (-5), the hero and his carried
-## pile -1 and WRITING DEPTH (DEPTH_DRAW_ALWAYS: not a depth pre-pass, which some mobile GPUs skip in the Compatibility renderer, so everything drawn after him
+## render priority in the transparent pass: pad ring and disc RING_PRIORITY (-7), pad label OUTLINES (and the tether's ink edge) -6, pad label fills, glyphs and the
+## tether's light line LABEL_PRIORITY (-5), the hero and his carried pile -2 and WRITING DEPTH (DEPTH_DRAW_ALWAYS: not a depth pre-pass, which some mobile GPUs skip in the Compatibility renderer, so everything drawn after him
 ## would paint over him), everything else 0 and up. The hero owns his materials (HeroVisual.draw_after_labels); no pad touches them.
 func _hero_surfaces() -> Array:
 	var out: Array = []
@@ -2075,6 +2093,7 @@ func _pad_draws(p: BranchPad) -> Array:
 	for n in p.find_children("*", "", true, false):
 		if n is Label3D:
 			out.append([String(p.get_path_to(n)), (n as Label3D).render_priority, false])
+			out.append([String(p.get_path_to(n)) + " outline", (n as Label3D).outline_render_priority, false])
 		elif n is MeshInstance3D and (n as MeshInstance3D).material_override != null:
 			var mo := (n as MeshInstance3D).material_override
 			out.append([String(p.get_path_to(n)) + (" ring" if n is ProgressRing else ""), (mo as Material).render_priority, mo is BaseMaterial3D and (mo as BaseMaterial3D).no_depth_test])
@@ -2090,23 +2109,30 @@ func test_flag_on_the_hero_and_his_pile_write_depth_after_the_pad_labels_and_rin
 		var b := m as BaseMaterial3D
 		assert_eq(b.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA, "the hero is in the transparent pass, where the labels are")
 		assert_eq(b.depth_draw_mode, BaseMaterial3D.DEPTH_DRAW_ALWAYS, "and writes depth (a depth pre-pass is skipped by some mobile GPUs)")
-		assert_eq(b.render_priority, -1)
+		assert_eq(b.render_priority, -2)
 	var pile: MultiMeshInstance3D = main.hero.carry_stack.get_child(0)
 	var pm := pile.material_override as BaseMaterial3D
 	assert_not_null(pm, "the carried pile has its own material")
 	assert_eq(pm.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
 	assert_eq(pm.depth_draw_mode, BaseMaterial3D.DEPTH_DRAW_ALWAYS)
-	assert_eq(pm.render_priority, -1)
+	assert_eq(pm.render_priority, -2)
 	assert_eq(PileMesh.steak_mesh().surface_get_material(0).render_priority, 0, "the shared steak mesh (every other pile) is untouched")
-	assert_eq(BranchPad.RING_PRIORITY, -6)
+	assert_eq(BranchPad.RING_PRIORITY, -7)
+	assert_eq(BranchPad.OUTLINE_PRIORITY, -6)
 	assert_eq(BranchPad.LABEL_PRIORITY, -5)
+	assert_eq(Hero.DRAW_AFTER_LABELS_PRIORITY, -2)
 	var labels := 0
+	var outlines := 0
 	var depthless := 0
 	var rings := 0
 	for id in MapLayout.spots_for_tier(3):
 		for p: BranchPad in _pads(id):
 			for d in _pad_draws(p):
-				assert_lt(int(d[1]), -1, "%s %s: a pad node never draws at or after the hero" % [p.name, d[0]])
+				assert_lt(int(d[1]), Hero.DRAW_AFTER_LABELS_PRIORITY, "%s %s: a pad node never draws at or after the hero (nothing under a pad is at or above -2)" % [p.name, d[0]])
+				if String(d[0]).ends_with(" outline") or String(d[0]).ends_with("TetherInk"):
+					outlines += 1
+					assert_eq(int(d[1]), BranchPad.OUTLINE_PRIORITY, "%s %s: a label outline (and the tether's ink edge) draws below the label fills" % [p.name, d[0]])
+					continue
 				var is_ring := String(d[0]).ends_with(" ring") or String(d[0]).ends_with("Marker") or String(d[0]).contains("Range")
 				if is_ring:
 					rings += 1
@@ -2119,6 +2145,16 @@ func test_flag_on_the_hero_and_his_pile_write_depth_after_the_pad_labels_and_rin
 			assert_eq(p.marker.material_override.render_priority, BranchPad.RING_PRIORITY)
 			assert_eq(p.refund_label.render_priority, BranchPad.LABEL_PRIORITY)
 	assert_gte(labels, 18 * 6)
+	var pad_labels := 0
+	for id in MapLayout.spots_for_tier(3):
+		for p: BranchPad in _pads(id):
+			pad_labels += p.find_children("*", "Label3D", true, false).size()
+	assert_gt(pad_labels, 18 * 4)
+	var tether_inks := 0
+	for id in MapLayout.spots_for_tier(3):
+		for p: BranchPad in _pads(id):
+			tether_inks += 1 if p.tether_ink != null else 0
+	assert_eq(outlines, pad_labels + tether_inks, "every pad Label3D has its outline priority asserted (and every tether its ink edge)")
 	assert_gte(rings, 18)
 	assert_gt(depthless, 0, "some glyphs have no depth test")
 	main.hero.teleport(_near_hero_at("tower_e", 3.0, "home"))  # a NEAR glyph has no depth test: its material carries the priority
@@ -2139,18 +2175,54 @@ func test_flag_on_the_hero_and_his_pile_write_depth_after_the_pad_labels_and_rin
 		if not pad_label:
 			assert_eq((l as Label3D).render_priority, 0, "a station label stays at priority 0, over the hero as today")
 
-## The pad whose tether (notch) exists is covered too: a pad with a shifted cost has its notch at LABEL_PRIORITY.
-func test_flag_on_a_pad_with_a_notch_draws_it_with_the_labels() -> void:
+## Every pad whose cost stands beyond 0.5 m (its nearest edge from the pad's centre, measured on the real label) has a tether (a light line at LABEL_PRIORITY over its
+## ink edge at OUTLINE_PRIORITY, no depth test); every other pad, shifted or not, has none. Round 6 moved eight of the ten shifted costs to within 0.5 m (a row beside the
+## glyph); the two pads that keep a tether are pinned: no placement within 0.5 m clears the obstacles (the search is in the report). Mutation: a tether on a pad whose
+## cost stands within 0.5 m, or none on one beyond it.
+func test_flag_on_a_cost_beyond_half_a_metre_has_a_tether_drawn_with_the_labels_and_no_other_pad_has_one() -> void:
 	await _start_on()
-	var with_notch := 0
+	_all_max()
+	var with_tether: Array = []
+	var shifted := 0
+	var xf := CameraMath.camera_transform(Vector2.ZERO, Balance.ui)
 	for id in MapLayout.spots_for_tier(3):
-		for p: BranchPad in _pads(id):
-			if not p.tether_ends.is_empty():
-				with_notch += 1
+		for i in 2:
+			var p: BranchPad = _pads(id)[i]
+			var seen := false
+			for k in 24:  # a reachable point 2 m from the pad, in whatever direction shows its cost
+				var at := _pad_pos(id, i) + Vector2(2.0, 0.0).rotated(TAU * float(k) / 24.0)
+				if not _reachable(at):
+					continue
+				_near_step(Vector2(15.0, 8.0))
+				_near_step(at)
+				if p.stage == BranchPad.NEAR and p.cost_label.visible:
+					seen = true
+					break
+			assert_true(seen, "%s pad %d: shows its cost from a reachable point" % [id, i])
+			var key := "%s:%d" % [id, i]
+			shifted += 1 if BranchPad.COST_SHIFT_RETUNE.has(key) else 0
+			var rel := p.cost_label.global_position - p.global_position
+			var cpos := Vector2(rel.dot(xf.basis.x), rel.dot(xf.basis.y))
+			var cbox: Vector2 = p._cost_box()
+			var dist := Vector2(maxf(absf(cpos.x) - cbox.x * 0.5, 0.0), maxf(absf(cpos.y) - cbox.y * 0.5, 0.0)).length()
+			var has: bool = p.tether_ends.size() == 2
+			assert_eq(has, dist > BranchPad.NOTCH_FROM_M, "%s: the cost's nearest edge is %.2f m from the pad: a tether iff beyond %.1f m" % [key, dist, BranchPad.NOTCH_FROM_M])
+			assert_true(p.tether.visible == has and p.tether_ink.visible == has)
+			if has:
+				with_tether.append(key)
 				assert_eq((p.tether.material_override as BaseMaterial3D).render_priority, BranchPad.LABEL_PRIORITY)
+				assert_eq((p.tether_ink.material_override as BaseMaterial3D).render_priority, BranchPad.OUTLINE_PRIORITY)
 				assert_true((p.tether.material_override as BaseMaterial3D).no_depth_test)
-				assert_gte(p.notch_len, 0.25)
-	gut.p("pads with a notch: %d" % with_notch)
+				assert_true((p.tether_ink.material_override as BaseMaterial3D).no_depth_test)
+				assert_ne(p.tether.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR][0], p.tether_ink.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR][0], "a light line over a dark edge")
+				assert_gt(p.notch_len, 0.0)
+			else:
+				assert_null(p.tether.mesh)
+				assert_null(p.tether_ink.mesh)
+	assert_eq(shifted, BranchPad.COST_SHIFT_RETUNE.size(), "every shifted pad was measured in its near stage")
+	with_tether.sort()
+	assert_eq(with_tether, ["tower_e:0", "tower_nw:0"], "the tethered pads: every other shifted cost stands within 0.5 m")
+	gut.p("tethers: %s of %d shifted costs" % [with_tether, BranchPad.COST_SHIFT_RETUNE.size()])
 
 ## With the flag off nothing changes: the hero's materials are the untouched originals (opaque, priority 0), the pile has no override, the pads have no tether
 ## and every pad node draws at priority 0.
@@ -2158,7 +2230,6 @@ func test_flag_off_the_hero_and_the_pad_labels_keep_their_render_state() -> void
 	await _start()
 	_all_max()
 	await _settle()
-	var originals := {}
 	for mi in main.hero.visual.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		if m.mesh != null:
@@ -2174,7 +2245,7 @@ func test_flag_off_the_hero_and_the_pad_labels_keep_their_render_state() -> void
 			assert_eq(p.cost_label.render_priority, 0)
 			assert_null(p.tether)
 			for d in _pad_draws(p):
-				assert_eq(int(d[1]), 0, "%s %s" % [p.name, d[0]])
+				assert_eq(int(d[1]), -1 if String(d[0]).ends_with(" outline") else 0, "%s %s (a label's outline keeps the engine default, -1)" % [p.name, d[0]])
 			assert_eq(((p.zone.ring.material_override) as ShaderMaterial).render_priority, 0)
 
 ## The hero standing on a pad that is NOT armed (placed there, or the pad appeared under him): the card stays hidden; the world shows the ring and the
