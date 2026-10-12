@@ -49,6 +49,7 @@ static func _built_in(from_v: int, state: Dictionary) -> Variant:
 			return state
 		6:  # E6: the lane character. A v6 save has none ({}); GameState derives it from run_seed on load when it applies.
 			state.lane_character = {}
+			state.lane_character_shown = false
 			state.v = 7
 			return state
 	return null
@@ -130,6 +131,8 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 				return "lane_character " + k
 		if s.lane_character.siege == s.lane_character.hare:
 			return "lane_character same lane"
+	if s.has("lane_character_shown") and typeof(s.lane_character_shown) != TYPE_BOOL:  # optional in schema 7
+		return "type lane_character_shown"
 	var tier := int(s.tier)
 	if tier < 1 or tier > bd.tiers.max_tier:
 		return "range tier"

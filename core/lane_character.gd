@@ -8,6 +8,28 @@ const SIEGE := &"siege"
 const HARE := &"hare"
 const NEUTRAL := &"neutral"
 
+## E6 (D-289.4): the flavour banners, at most 6 words each, per lane and kind. Source strings (CardCatalog's pattern: a table, translated
+## on use). The author tone-checks them through docs/REVIEW_QUEUE.md.
+const FLAVOUR := {
+	"west": {SIEGE: "Heavy tracks on the west road...", HARE: "Quick paws in the west grass..."},
+	"north": {SIEGE: "Heavy tracks on the north path...", HARE: "Quick paws in the north grass..."},
+	"east": {SIEGE: "Heavy tracks on the east road...", HARE: "Quick paws in the east grass..."},
+	"sw": {SIEGE: "Heavy tracks on the south road...", HARE: "Quick paws in the south grass..."},
+}
+
+## The banner for `lane` and kind (&"siege" or &"hare"), translated; "" for any other pair.
+static func flavour(lane: String, type: StringName) -> String:
+	var row: Dictionary = FLAVOUR.get(lane, {})
+	if not row.has(type):
+		return ""
+	return TranslationServer.translate(row[type])
+
+## [siege line, hare line] for a lane character; [] for an empty one.
+static func flavour_lines(character: Dictionary) -> Array[String]:
+	if character.is_empty():
+		return []
+	return [flavour(String(character.siege), SIEGE), flavour(String(character.hare), HARE)]
+
 ## Returns {"siege": lane, "hare": lane}. The result is pinned forever by saves, so the draw is exactly:
 ##   var rng := Rng.stream(run_seed, 0, &"lane_character")
 ##   siege = lanes[rng.randi_range(0, 3)]            # lanes = LanePlanner.lanes_for_tier(3)

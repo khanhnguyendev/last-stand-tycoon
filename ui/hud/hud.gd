@@ -21,9 +21,17 @@ var _camera: Camera3D
 var _lanes := {}
 var _arrow_lane := {"main": "", "side": "", "extra": ""}
 var _filled := 0
-var _banner_queue: Array[String] = []
+## The banner rule (D-175, E6 BannerClock): the clock owns the queue and the seconds left; these names stay as views of it.
+var _banner_clock := BannerClock.new()
+var _banner_queue: Array[String]:
+	get:
+		return _banner_clock.queue
 ## Seconds left of the banner on screen; 0 when none is showing.
-var _banner_left := 0.0
+var _banner_left: float:
+	get:
+		return _banner_clock.left
+	set(v):
+		_banner_clock.left = v
 var _banner_tween: Tween
 ## Pixels the banner panel is currently shifted from its rest offsets by the slide-in (spec 5.3).
 var _banner_slide := 0.0
@@ -345,26 +353,25 @@ func _on_diner_damaged(_amount: float, hp_left: float) -> void:
 
 ## S3 (D-175): a new banner shortens the current one to banner_min_s, then plays in full.
 func _on_banner(text: String) -> void:
-	_banner_queue.append(text)
-	if _banner_left <= 0.0:
-		_show_next_banner()
-	else:
-		_banner_left = minf(_banner_left, Balance.ui.banner_min_s)
+	if _banner_clock.arrive(text, Balance.ui.banner_time, Balance.ui.banner_min_s):
+		_draw_banner()
 
 func _show_next_banner() -> void:
-	if _banner_queue.is_empty():
-		_banner_left = 0.0
+	if _banner_clock.show_next(Balance.ui.banner_time, Balance.ui.banner_min_s):
+		_draw_banner()
+	else:
 		banner.visible = false
 		banner_panel.visible = false
 		_banner_motion_stop()
-		return
-	banner.text = _banner_queue.pop_front()
+
+## Draws the clock's showing banner. A banner shown while others wait plays banner_min_s (the fail path: "The diner fell" ->
+## "The monsters return" -> flavor): the clock decided that.
+func _draw_banner() -> void:
+	banner.text = _banner_clock.current
 	banner.visible = true
 	banner_panel.visible = true
 	banner_panel.modulate.a = 1.0
 	_banner_motion_start()
-	# A banner shown while others wait plays banner_min_s (the fail path: "The diner fell" -> "The monsters return" -> flavor).
-	_banner_left = Balance.ui.banner_time if _banner_queue.is_empty() else minf(Balance.ui.banner_time, Balance.ui.banner_min_s)
 
 ## Slide-in (spec 5.3): the panel's offset_top/offset_bottom move together, so the label (not the panel, whose alpha
 ## _tick_banner owns) fades in. Shifts are applied as deltas over whatever rest offsets the panel has.
@@ -392,12 +399,17 @@ func _banner_set_slide(v: float) -> void:
 	_banner_slide = v
 
 func _tick_banner(delta: float) -> void:
-	if _banner_left <= 0.0:
+	if _banner_clock.left <= 0.0:
 		return
-	_banner_left -= delta
-	banner_panel.modulate.a = clampf(_banner_left / (Balance.ui.banner_time * 0.25), 0.0, 1.0)
-	if _banner_left <= 0.0:
-		_show_next_banner()
+	var ended := _banner_clock.advance(delta, Balance.ui.banner_time, Balance.ui.banner_min_s)
+	banner_panel.modulate.a = clampf(_banner_clock.left / (Balance.ui.banner_time * 0.25), 0.0, 1.0)
+	if ended:
+		if _banner_clock.current != "" and _banner_clock.left > 0.0:
+			_draw_banner()
+		else:
+			banner.visible = false
+			banner_panel.visible = false
+			_banner_motion_stop()
 
 func _process(delta: float) -> void:
 	_tick_banner(delta)

@@ -34,6 +34,7 @@ func _ready() -> void:
 	EventBus.diner_fell.connect(_on_diner_fell)
 	EventBus.closeup_requested.connect(close_up)
 	EventBus.card_chosen.connect(_on_card_chosen)
+	EventBus.banner_requested.connect(_on_any_banner)
 
 func start_new_game(seed: int = 0) -> void:
 	failing = false
@@ -61,6 +62,8 @@ func close_up() -> void:
 	_enter_night()
 
 func _enter_night() -> void:
+	_lane_inflight = ""
+	_lane_lines = []  # night starting before the pair went out: nothing at night, the flag stays false, the pair comes at the next dawn
 	traveler_spawner.stop()
 	phase = Phase.NIGHT
 	EventBus.phase_changed.emit(phase, GameState.day)
@@ -134,6 +137,7 @@ func _input(event: InputEvent) -> void:
 func _physics_process(delta: float) -> void:
 	if reveal_pending:
 		_reveal_age += delta
+	_tick_banner_clock(delta)
 
 ## Ends the reveal wait at once and opens the card pick (or, with no offer, the day): the pending reveal timer is spent, never left
 ## to open a second pick. No-op when no reveal is pending.
@@ -150,6 +154,8 @@ func _on_reveal_timer(id: int) -> void:
 	_card_pick(GameState.card_offer)  # the stashed offer; empty when none was drawn
 
 func _cancel_reveal() -> void:
+	_lane_lines = []
+	_lane_inflight = ""
 	reveal_pending = false
 	_reveal_id += 1
 
@@ -158,6 +164,7 @@ func _card_pick(offer: Array[StringName]) -> void:
 	if offer.is_empty():
 		dawn_substate = ""
 		EventBus.banner_requested.emit(tr("Dawn"))  # the pick overlay would hide it otherwise
+		_announce_lane_character()
 		_enter_day()
 		return
 	dawn_substate = "CARD_PICK"
@@ -169,7 +176,39 @@ func _on_card_chosen(id: StringName) -> void:
 	var level := GameState.pick_card(id)
 	dawn_substate = ""
 	EventBus.banner_requested.emit(CardCatalog.pick_banner(id, level))
+	_announce_lane_character()
 	_enter_day()
+
+## E6 (D-289, D-294.5): the lane character's two flavour lines come once, after the card pick, whether the run just reached tier 3 (the
+## reveal only pops the badges) or the save was already there. Scheduled, not sent: see _tick_banner_clock. Marked shown when the hare line has had its full time, uncut.
+func _announce_lane_character() -> void:
+	var lines := LaneCharacter.flavour_lines(GameState.lane_character())
+	if lines.is_empty() or GameState.lane_character_shown:
+		return
+	_lane_lines = lines.duplicate()
+
+## The banner rule is the HUD's own (BannerClock); this node advances a second instance per physics tick to know when the HUD is free and
+## whether a line it sent was cut. Our own lane lines pass through it too (they arrive on the bus like any banner).
+var _lane_lines: Array = []  ## [siege, hare] still to send, in order
+var _lane_inflight := ""  ## the line sent and not yet ended
+var _clock := BannerClock.new()
+
+func _on_any_banner(text: String) -> void:
+	_clock.arrive(text, Balance.ui.banner_time, Balance.ui.banner_min_s)
+
+func _tick_banner_clock(delta: float) -> void:
+	_clock.advance(delta, Balance.ui.banner_time, Balance.ui.banner_min_s)
+	if _clock.take_ended() and _lane_inflight != "" and _clock.ended == _lane_inflight:
+		var line := _lane_inflight
+		_lane_inflight = ""
+		if _clock.ended_cut:
+			_lane_lines.push_front(line)  # a cut line is not a shown line: it goes out again after the banner that cut it
+		elif _lane_lines.is_empty():
+			GameState.mark_lane_character_shown()  # the hare line has had its full time
+	if _lane_inflight != "" or _lane_lines.is_empty() or phase != Phase.DAY or not _clock.is_idle():
+		return
+	_lane_inflight = _lane_lines.pop_front()
+	EventBus.banner_requested.emit(_lane_inflight)  # _on_any_banner starts it in the clock
 
 func _on_diner_fell() -> void:
 	if phase != Phase.NIGHT or failing:
