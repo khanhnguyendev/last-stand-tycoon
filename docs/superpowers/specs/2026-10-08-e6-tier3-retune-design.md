@@ -119,6 +119,12 @@ lane; a group's hares never exceed its count.
 > D-292: the bench's diner is INVULNERABLE and the primary measure is the total diner HP lost. The bench ranks
 > branches relatively; it does not predict real nights (the report does). A fast subset (each lane type at pressure
 > 12, primary measure only, about 10 s) runs in the unit suite; the full bench is its own CI job with tick budgets.
+>
+> D-294.6, D-294.7: on the SIEGE lane a fence specialist (Stone wall against Spike fence) is judged by fence survival
+> time first, with diner HP lost as the tie-breaker; the floor keeps diner HP lost. At pressure 12 every siege fence
+> falls, so "fence HP left" cannot separate them. The fast subset is the three lane types on the LAST wave only
+> (8.9 s). The full bench is `./run_tests.sh bench` (CI job `bench`, 42 one-lane nights; wall limits 150 s warn and
+> 400 s fail, D-295; the tick budget is its gate).
 
 - `tests/support/branch_bench.gd`: a micro-sim of ONE lane (its fence, the tower covering it, no hero, no guards)
   against a fixed wave mix per lane type. Siege: boars with the full brute count. Hare: boars with 70% of the
@@ -140,8 +146,9 @@ lane; a group's hares never exceed its count.
 
 ### 4.3 Identity (D-272, restated)
 
-On the bench measures: Longbow is best against the siege mix; Volley against the hare mix; Stone wall keeps the most
-fence HP against brutes; Spike fence kills the most hares; unbranched is never the best at any named measure.
+On the bench measures: Longbow is best against the siege mix; Volley against the hare mix; Stone wall's fence
+stands longest against brutes (D-294.6; it replaces "keeps the most fence HP", which no siege fence does at pressure
+12); Spike fence lets the fewest hares reach the diner's zone; unbranched is never the best at any named measure.
 
 ### 4.4 Threat-matched
 
@@ -276,6 +283,7 @@ Each round is one commit by the main session with its report output beside it.
   night; the respawn sim.
 - The constructed fixtures of sims 5 and 7 are replaced by recordings. Sim 4 (the Baron alone) keeps a constructed
   night with gear from the real Baron-night capture.
+- The full lane-type bench is its own job, `bench`, a required check (D-292, D-295).
 - `sim-tiers` (55 s on the runner, warning at 60 s) is split into `sim-tiers-a` and `sim-tiers-b`; the required
   checks are updated (D-274.4).
 

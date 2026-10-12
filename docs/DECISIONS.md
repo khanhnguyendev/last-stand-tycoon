@@ -3137,3 +3137,11 @@ a resumed night. About 30 extra draw calls and 8 fps: a regression, separate fro
 **Process (also in CLAUDE.md):** before every perf run, check that no stray Godot or Simulator processes from earlier
 tasks are running, and kill them. Implementers stop every process they start before reporting done.
 
+**D-295 The bench suite's wall limits and required check (2026-10-13).** The full lane-type bench (`tests/bench`,
+`./run_tests.sh bench`, CI job `bench`) is 42 one-lane nights: about 75 s idle on the build machine, 111 s under
+load. D-247's 60 s warning and 150 s failure were set for the two sim suites and would make this job warn on every
+run, so the bench has its own wall limits: warn above 150 s, fail above 400 s. Its gate is the tick budget in
+`tests/sim_ticks.golden.json`, the same rule as the sims (more than 20% over, missing, or not run fails the job).
+`bench` joins `unit`, `sim`, `sim-tiers` and `deploy` as a required check on `main` (D-274.4 authorized updating the
+required checks when a suite is split or added; D-292 made the full bench a required CI job). This is a deviation
+from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the fast subset). No test was dropped.
