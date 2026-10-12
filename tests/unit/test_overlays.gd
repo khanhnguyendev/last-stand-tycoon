@@ -344,6 +344,7 @@ func test_perf_glyph_prime_is_the_default_and_perfglyph_0_turns_it_off() -> void
 	assert_eq(on._label.text, PerfOverlay.GLYPHS, "default: the glyph set is on screen for one frame")
 	on._tick(1.0 / 60.0, 1.0 / 60.0)
 	assert_ne(on._label.text, PerfOverlay.GLYPHS, "then the real text")
+	assert_eq(on._frozen_label.text, "", "the prime text on the frozen-line label is cleared on that next tick: it must not stay on screen through the measured window")
 	for ch in "0123456789.%":
 		assert_true(PerfOverlay.GLYPHS.contains(ch), "glyph " + ch)
 	UrlFlags.set_for_tests("perfglyph=0")
@@ -354,9 +355,15 @@ func test_perf_glyph_prime_is_the_default_and_perfglyph_0_turns_it_off() -> void
 
 func test_perf_priming_frame_is_still_counted() -> void:
 	var p := _perf()
+	UrlFlags.set_for_tests("perfglyph=0")
+	var q := _perf()
+	UrlFlags.set_for_tests("")
 	for i in 130:
 		p._tick(1.0 / 60.0, 1.0 / 60.0)
-	assert_gt(p._n, 0, "frames past the 2 s warm-up are counted exactly as before the prime existed")
+		q._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_gt(p._n, 0, "frames past the 2 s warm-up are counted")
+	assert_eq(p._n, q._n, "the same frame count as an overlay with perfglyph=0 (the old behaviour): the prime frame is counted")
+	assert_eq(p._since_reset, q._since_reset, "and the same elapsed window time")
 
 ## E6 A3 (D-294): the budget line. Fails when the limit moves (59 OK, 58 WARN), when WARN is not reported above it, or when the line is not in the frozen text.
 func test_draw_call_budget_line_is_ok_up_to_58_and_warns_above() -> void:

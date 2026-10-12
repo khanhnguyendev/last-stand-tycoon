@@ -134,14 +134,20 @@ func _on_own_roof(p: Vector3) -> bool:
 		origin = parent.global_position
 	return p.y >= MapLayout.DINER_HEIGHT and absf(p.x - origin.x) <= MapLayout.DINER_HALF and absf(p.z - origin.z) <= MapLayout.DINER_HALF
 
-## Drops the meshes and labels that left the tree (an art swap) so nothing keeps a stale entry.
+## Drops the meshes and labels that left the tree (an art swap) so nothing keeps a stale entry. A node that is still alive (the
+## world detaches the diner's art and puts it back later, swap_diner_art_keeping) gets its own materials / alpha back first: a dither copy
+## left on it would later be taken for its original material and the diner would stay dithered.
 func _forget_gone_nodes() -> void:
 	var parent := get_parent()
 	for mi in _meshes.keys():
 		if not is_instance_valid(mi) or parent == null or not parent.is_ancestor_of(mi):
+			if is_instance_valid(mi):
+				_restore_mesh(mi, _meshes[mi])
 			_meshes.erase(mi)
 	for l in _labels.keys():
 		if not is_instance_valid(l) or parent == null or not parent.is_ancestor_of(l):
+			if is_instance_valid(l):
+				_restore_label(l, _labels[l])
 			_labels.erase(l)
 
 ## The dither shaders (one per culling mode), built once.
@@ -181,6 +187,8 @@ static func _shader_for(cull: int) -> Shader:
 	return _shaders[mode]
 
 ## The dithered stand-in for `src`: the same albedo, texture, roughness and culling, drawn in the opaque pass.
+## It DROPS emission, the normal map, vertex colour as albedo, non-nearest filtering, alpha scissor and front-face culling;
+## tests/unit/test_occluder_fade.gd pins that no diner material (tiers 1 to 3) uses any of them, so a material change fails there.
 static func dither_copy(src: BaseMaterial3D) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = _shader_for(src.cull_mode)
@@ -226,8 +234,8 @@ func _apply() -> void:
 		l.modulate.a = _labels[l].a * _alpha
 		l.outline_modulate.a = _labels[l].outline_a * _alpha
 
-## One faded copy of a material the diner uses, for the boot warm-up (D-215): drawing it once compiles the transparent
-## pipeline before the first occlusion fade. Nothing is applied to the diner.
+## One faded copy of a material the diner uses, for the boot warm-up (D-215): drawing it once compiles the dither shader
+## program before the first occlusion fade. Nothing is applied to the diner.
 func fade_material_for_warmup() -> Material:
 	var src := StandardMaterial3D.new()
 	var parent := get_parent()
@@ -268,18 +276,22 @@ func _make_entry(mi: MeshInstance3D) -> Dictionary:
 		push_warning("OccluderFade: %s has no BaseMaterial3D to fade; it stays opaque" % mi.get_path())
 	return e
 
+func _restore_mesh(mi: MeshInstance3D, e: Dictionary) -> void:
+	if e.fade != null:
+		mi.material_override = e.override
+	for i in e.surfaces:
+		mi.set_surface_override_material(i, e.surfaces[i].prior)
+
+func _restore_label(l: Label3D, e: Dictionary) -> void:
+	l.modulate.a = e.a
+	l.outline_modulate.a = e.outline_a
+
 func _restore() -> void:
 	for mi in _meshes:
-		if not is_instance_valid(mi):
-			continue
-		var e: Dictionary = _meshes[mi]
-		if e.fade != null:
-			(mi as MeshInstance3D).material_override = e.override
-		for i in e.surfaces:
-			(mi as MeshInstance3D).set_surface_override_material(i, e.surfaces[i].prior)
+		if is_instance_valid(mi):
+			_restore_mesh(mi, _meshes[mi])
 	_meshes.clear()
 	for l in _labels:
 		if is_instance_valid(l):
-			(l as Label3D).modulate.a = _labels[l].a
-			(l as Label3D).outline_modulate.a = _labels[l].outline_a
+			_restore_label(l, _labels[l])
 	_labels.clear()

@@ -155,3 +155,20 @@ func test_every_fixture_survives_five_seconds_of_night() -> void:
 			assert_gt(main.phase_controller.wave_director.alive_count(), 0, "%s: monsters are out" % stem)
 		main.get_parent().remove_child(main)
 		main.free()
+
+## E6 A4: the day fixture the PLAY_ENTERED perf runs resume (`make_save.gd -- --fixture=tier3_cap_day`, written at the current schema).
+## It must decode, resume into the DAY, and differ from the night fixture it was made from in `resume_phase` only.
+## Fails when the file is stale (a schema the codec rejects), is a night, or drifts from tier3_cap_threat in any of the named fields.
+func test_tier3_cap_threat_day_decodes_resumes_in_the_day_and_matches_the_night_fixture() -> void:
+	var day := _decode("tier3_cap_threat_day")
+	var night := _decode("tier3_cap_threat")
+	var wrapper = JSON.parse_string(FileAccess.get_file_as_string("res://export/fixtures/tier3_cap_threat_day.save.json"))
+	var raw = JSON.parse_string(String(wrapper.state_json))
+	assert_eq(int(raw.v), GameState.SCHEMA_VERSION, "the file is written at the current schema (the documented command reproduces it)")
+	assert_true(day.ok, str(day.get("reason", "")))
+	assert_true(night.ok, str(night.get("reason", "")))
+	assert_eq(day.state.resume_phase, "DAY")
+	assert_eq(night.state.resume_phase, "NIGHT", "the source is the night fixture")
+	for f in ["run_seed", "day", "tier", "tier_day", "tier_paid", "gold", "gold_pile", "diner_hp", "buildings", "guards", "cards", "lane_plan", "stations", "counter_steaks", "freezer_steaks", "carried_steaks", "night_fails", "boss_pending"]:
+		assert_true(day.state.has(f), f)
+		assert_eq(day.state[f], night.state[f], "same %s as tier3_cap_threat" % f)

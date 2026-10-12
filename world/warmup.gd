@@ -60,7 +60,7 @@ func run(main: Main, resume_phase := "") -> void:
 		bar.material_override = mat
 		_place(bar)
 	for pal in [&"ink", &"guard_green"]:
-		_place(guard_bar_box(pal))
+		_place(Guard._bar_box(Vector3.ONE, pal))  # the guard's own builder (static): a SHADED material, the shader variant of the first hit on a guard (E6 A2)
 	for path in SCENES:
 		_place((load(path) as PackedScene).instantiate())
 	_place(_steak_field())
@@ -85,18 +85,6 @@ func run(main: Main, resume_phase := "") -> void:
 	if OS.is_debug_build() or OS.has_feature("profile_overlay"):
 		print("WARMUP built=%d track=%s" % [built_count, track])
 	finished.emit()
-
-## E6 A2: a guard's HP bar box, built as `Guard._bar_box` builds it (a SHADED StandardMaterial3D, shadows off). The boss bar's materials
-## above are unshaded, a different shader variant; the guard's bar is first drawn at the first hit on a guard (about night 20.7 s of the
-## tier-3 cap night: a 39 ms frame in every run, found by the `?perflog` frame log).
-static func guard_bar_box(palette_name: StringName) -> MeshInstance3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Palette.color(palette_name)
-	var mi := MeshInstance3D.new()
-	mi.mesh = BoxMesh.new()
-	mi.material_override = mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	return mi
 
 ## E5 tier 3 Task 17: the first-use visuals of the branch pads (drawn at the tier-3 dawn): the ground ring and its alpha material, the
 ## preview ring, and every glyph with both its materials (depth-tested for a far pad, not for the near and stood stages). Nothing

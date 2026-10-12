@@ -14,14 +14,14 @@
 #   `perfclose=${PERF_CLOSE:-8}` to QUERY: the perf overlay emits the close-up signal that many seconds into the day, so the night begins as in play
 #   (no resume load tail inside its window). The shot is taken after ${SHOT_WAIT:-100} s (default 125 s with PLAY_ENTERED).
 # PERF_SETTLE=<s> (optional, E6 A2, D-292; default off = the overlay's 2 s): the measured window opens <s> seconds after the phase change (adds `perfwarm=<s>` to QUERY;
-#   needs SHOT_WAIT >= load + <s> + 60). For a night RESUMED from a save: the first seconds hold the load freeze, its tail and the overlay's own first glyph draw.
+#   needs SHOT_WAIT >= load + <s> + 60). For a night RESUMED from a save: the first seconds hold the load freeze and its tail (the overlay's glyph prime is drawn in its first frame and cleared on the next, inside the warm-up).
 # SHOT_WAIT (optional) is the seconds between opening the night page and the screenshot (default 100).
 # DRAW_CALL_BUDGET (E6 A3, D-294): the frozen PERF line ends with `DRAW_CALL_BUDGET: OK|WARN <n> (budget 58)` (58 = the E5 T3 count 48 + 10; WARN never fails
 # the run). The budget describes the RESUMED night; a PLAY_ENTERED night frames the whole diner from HOME and reads about 30 higher (WARN is expected there).
 set -euo pipefail
 BUILD="$1"; OUT="$2"; PORT=8765
 if [ -n "${PLAY_ENTERED:-}" ]; then
-  NIGHT_ONLY=1; NIGHT_FIXTURE="${NIGHT_FIXTURE:-night3_start}_day"; SHOT_WAIT="${SHOT_WAIT:-125}"
+  NIGHT_ONLY=1; NIGHT_FIXTURE="${NIGHT_FIXTURE:-night3_start}_day"; SHOT_WAIT="${SHOT_WAIT:-$((125 + ${PERF_SETTLE:-0}))}"
   QUERY="${QUERY:+$QUERY&}perfclose=${PERF_CLOSE:-8}"
 fi
 if [ -n "${PERF_SETTLE:-}" ]; then
@@ -50,7 +50,13 @@ mkdir -p "$BUILD/fixtures" && cp "$(dirname "$0")"/fixtures/*.save.json "$BUILD/
 grep -q LST_BUILD "$BUILD/index.html" || sed -i '' 's#</head>#<script>window.LST_BUILD="local";</script></head>#' "$BUILD/index.html"
 if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then echo "port $PORT is busy" >&2; exit 1; fi
 python3 "$(dirname "$0")/serve_nocache.py" "$PORT" "$BUILD" >/dev/null 2>&1 & SRV=$!
-trap 'kill $SRV 2>/dev/null || true' EXIT
+# An interrupted run leaves nothing behind: the server, the background idle sampler (and its sleep) and Safari in the Simulator.
+cleanup() {
+  kill "$SRV" 2>/dev/null || true
+  if [ -n "${MID:-}" ]; then pkill -P "$MID" 2>/dev/null || true; kill "$MID" 2>/dev/null || true; fi
+  xcrun simctl terminate "${UDID:-booted}" com.apple.mobilesafari 2>/dev/null || true
+}
+trap cleanup EXIT
 UDID=$(xcrun simctl list devices available | grep -E 'iPhone [0-9]+ Pro \(' | head -1 | grep -oE '[0-9A-F-]{36}' || true)
 [ -n "$UDID" ] || { echo "no available 'iPhone <n> Pro' simulator (xcrun simctl list devices available)" >&2; exit 1; }
 xcrun simctl boot "$UDID" 2>/dev/null || true

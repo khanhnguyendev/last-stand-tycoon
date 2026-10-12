@@ -9,6 +9,9 @@ extends CanvasLayer
 ## screenshot taken after the phase ended still carries it.
 ## Frame time is measured from Time.get_ticks_usec() deltas; the engine's `delta` is tracked beside it
 ## (delta_worst_ms) because it is clamped.
+## Debug-only exception to "no system reaches into another system's nodes" (CLAUDE.md): this overlay exists in the `profile`
+## export only and reads the HUD (`hud`, `boot_fade`) and `OccluderFade` nodes of its parent to mark frame-log events (and,
+## with `perfnofade=1`, disables the fade for a measurement). It never writes game state and ships in no release build.
 
 const WINDOW_S := 60.0
 const WARMUP_S := 2.0
@@ -283,6 +286,8 @@ func _tick(raw: float, delta: float) -> void:
 		_label.text = GLYPHS  # drawn once; the next tick writes the real text
 		_frozen_label.text = GLYPHS
 	else:
+		if _frozen_label.text == GLYPHS:
+			_frozen_label.text = ""  # the prime text must not stay on screen (a second font size) through the measured window
 		_label.text = "fps %.0f  avg %.1f  worst %.0f ms  win %.0fs %s\nproc %.1f ms  phys %.1f ms  dc %.0f  slow %.1f%%" % [
 			Engine.get_frames_per_second(), avg_fps(), worst_ms(), _raw_sum, state,
 			_proc_sum / n, _phys_sum / n, _dc_sum / n, 100.0 * _slow / n]

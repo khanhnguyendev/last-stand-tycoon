@@ -4,7 +4,10 @@ extends SceneTree
 ## --save=<fixture>   resumed with resume_from (a NIGHT fixture enters the night at once; a DAY fixture needs --closeup)
 ## --closeup          emits closeup_requested (the night is then entered as in play)
 ## --hero=x,y         teleports the hero there and snaps the camera to its focus (default: where the save puts him)
-## --wait=<s>         seconds of physics frames before measuring (default 20)
+## --retune          sets Balance.data.tiers.retune_enabled = true before the game is created (the ?retune=1 equivalent; no schema change needed)
+## --forcefade       replaces the diner fade's targets by a point just north of the diner, so the camera at HOME sees it hidden and the dithered fade is active for the sample
+## --only             prints the whole-scene count only (no group table)
+## --wait=<s>         seconds of physics frames before measuring (default 20); use --fixed-fps 60 so a process frame is one physics tick and runs agree
 ## --list=1           also hides every child of every top-level node, one at a time (a long table)
 ## Prints "DC <label> <draw calls> (<delta against the whole scene>)" for the whole scene, then one line per group hidden alone, restored after.
 ## A group is a node (visible = false) or a node type (every Label3D, Sprite3D, MeshInstance3D, particles... under the game and the HUD).
@@ -28,6 +31,8 @@ func _run() -> void:
 	var bal = root.get_node("Balance")
 	bal.reset()
 	bal.ui.shake_enabled = false
+	if _args.has("retune"):
+		bal.data.tiers.retune_enabled = true
 	var main = load("res://world/main.gd").create()
 	root.add_child(main)
 	_main = main
@@ -57,10 +62,17 @@ func _run() -> void:
 		main.camera_rig.snap_to(load("res://core/camera_math.gd").focus_for(v))
 		for i in 60:
 			await physics_frame
+	if _args.has("forcefade"):
+		main.world.occluder_fade._targets = func(): return [Vector3(0.0, 1.0, -4.0)]
+		for i in 90:
+			await physics_frame
 	var h = main.hero.global_position
-	print("HERO %.1f %.1f phase=%s nodes=%d" % [h.x, h.z, str(main.phase_controller.phase), int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))])
+	print("HERO %.1f %.1f phase=%s nodes=%d faded=%s" % [h.x, h.z, str(main.phase_controller.phase), int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), str(main.world.occluder_fade.is_faded())])
 	var base: int = await _dc()
 	print("DC whole_scene %d" % base)
+	if _args.has("only"):
+		quit(0)
+		return
 	if _args.has("dump"):
 		var cam: Camera3D = root.get_viewport().get_camera_3d()
 		for n in main.find_children("*", "Label3D", true, false):

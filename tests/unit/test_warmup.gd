@@ -232,17 +232,13 @@ func test_warmup_draws_the_guard_hp_bar_variant() -> void:
 	assert_true(guard_mats.has(Palette.color(&"guard_green")), "the bar's fill")
 	await warmup.finished
 
-## The real guard's bar and the warm-up's box share every material feature that picks the shader.
-func test_warmup_guard_bar_matches_the_real_guards_bar() -> void:
-	var guard := Guard.new()  # _bar_box needs no setup
-	add_child_autofree(guard)
-	var real := guard._bar_box(Vector3.ONE, &"ink")
-	var warm := Warmup.guard_bar_box(&"ink")
+## The warm-up builds its guard bars with the guard's own static builder, so they share every material feature that picks the shader.
+## Fails if the builder starts to use an unshaded, blended or two-sided material (the warm-up would then compile the wrong variant).
+func test_warmup_guard_bar_is_the_real_guards_bar_builder() -> void:
+	var real := Guard._bar_box(Vector3.ONE, &"ink")
 	var a := real.material_override as StandardMaterial3D
-	var b := warm.material_override as StandardMaterial3D
-	assert_eq(b.shading_mode, a.shading_mode)
-	assert_eq(b.transparency, a.transparency)
-	assert_eq(b.cull_mode, a.cull_mode)
-	assert_eq(warm.cast_shadow, real.cast_shadow)
+	assert_eq(a.shading_mode, BaseMaterial3D.SHADING_MODE_PER_PIXEL)
+	assert_eq(a.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)
+	assert_eq(a.cull_mode, BaseMaterial3D.CULL_BACK)
+	assert_eq(real.cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
 	real.free()
-	warm.free()

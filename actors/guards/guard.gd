@@ -206,8 +206,8 @@ func _set_bar_visible(on: bool) -> void:
 	_bar.visible = on
 	_bar_back.visible = on
 
-## A palette-coloured box for the HP bar (art stays off the S1 Visuals helpers).
-func _bar_box(size: Vector3, palette_name: StringName) -> MeshInstance3D:
+## A palette-coloured box for the HP bar (art stays off the S1 Visuals helpers). Static and visual-only: the boot warm-up builds its bars with it.
+static func _bar_box(size: Vector3, palette_name: StringName) -> MeshInstance3D:
 	var m := BoxMesh.new()
 	m.size = size
 	var mat := StandardMaterial3D.new()
