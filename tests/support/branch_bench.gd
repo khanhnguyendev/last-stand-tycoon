@@ -113,13 +113,14 @@ static func beats_by_margin(spec: Dictionary, ref: Dictionary, order: Array) -> 
 	return {"ok": false, "measure": "none", "a": 0.0, "b": 0.0, "bound": 0.0, "why": "no measure separates the two"}
 
 ## The one-number mutation that turns each FLOOR row red, SEEN red in tests/unit/test_branch_bench.gd and tests/bench/test_branch_bench_full.gd
-## (E6 task 9 fix round; table in task-9-fix-report.md). The Spike row has none: no single-number mutation of Spike (hp 100 / 1 / 0, pass 0 / 4 / 10,
-## thorn 0, all three at once, or a stronger unbranched fence) was seen to make its diner HP lost worse than the unbranched fence.
+## (E6 task 9 fix round). The Spike row is a one-sided guard: Spike keeps the level-3 fence HP on purchase (GameState.pay_into_branch),
+## so no Spike number can make it worse than the unbranched fence; it goes red only if the purchase lowers the fence HP
+## (pinned by tests/unit/test_branch_state.gd).
 const FLOOR_FAILS_WHEN := {
 	"longbow/-": "Longbow damage 30 (longbow.damage = 30.0)",
 	"volley/-": "Volley damage 2 (volley.damage = 2.0)",
 	"-/stone": "Stone wall HP 100 (stone.hp = 100.0)",
-	"-/spike": "no single-number mutation known to turn the Spike floor row red (see task-9-fix-report.md)",
+	"-/spike": "one-sided guard: Spike keeps the level-3 fence HP, so only a purchase that lowers the fence HP turns it red",
 }
 ## The mutation that turns each IDENTITY rule red (seen red in the fast identity tests and the full bench).
 const IDENTITY_FAILS_WHEN := {

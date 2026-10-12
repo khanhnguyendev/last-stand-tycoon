@@ -134,7 +134,7 @@ func _check_identity(pressure: int) -> void:
 # ---- the wave mixes ------------------------------------------------------------------------------------------------------------
 
 func test_1_the_wave_mixes_at_pressure_12_are_the_real_formulas() -> void:
-	await wait_physics_frames(10)
+	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
 	for lane in LANES:
 		var parts: Array = []
 		for m in BranchBench.mix(lane, PRESSURE):
@@ -155,7 +155,7 @@ func test_1_the_wave_mixes_at_pressure_12_are_the_real_formulas() -> void:
 		assert_almost_eq(float(got[2].hp_mult), 3.445, 1e-6, "wave 2 hp_mult carries the 39/30 oversize")
 
 func test_2_the_bench_is_deterministic() -> void:
-	await wait_physics_frames(10)
+	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
 	Balance.data.tiers.retune_enabled = true
 	var a: Dictionary = await BranchBench.run(&"hare", &"volley", &"spike", PRESSURE)
 	var b: Dictionary = await BranchBench.run(&"hare", &"volley", &"spike", PRESSURE)
@@ -166,25 +166,25 @@ func test_2_the_bench_is_deterministic() -> void:
 # ---- flag ON -------------------------------------------------------------------------------------------------------------------
 
 func test_3_matrix_flag_on_pressure_12() -> void:
-	await wait_physics_frames(10)
+	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
 	await _print_matrix("FLAG ON", true, PRESSURE, CONFIGS)
 	var r: Dictionary = await _run(true, &"siege", &"", &"", PRESSURE)
 	assert_gt(int(r.ticks), 600, "the matrix really ran")
 
 func test_4_floor_pressure_12() -> void:
-	await wait_physics_frames(10)
+	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
 	await _check_floor(PRESSURE)
 
 func test_5_specialist_margin_pressure_12() -> void:
-	await wait_physics_frames(10)
+	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
 	await _check_specialists(PRESSURE)
 
 func test_6_identity_pressure_12() -> void:
-	await wait_physics_frames(10)
+	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
 	await _check_identity(PRESSURE)
 
 func test_7_the_rule_at_the_final_cap() -> void:
-	await wait_physics_frames(10)
+	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
 	var cap: int = Balance.data.tiers.tier_cap[3]
 	if cap == PRESSURE:
 		gut.p("CAP PASS skipped: tier_cap[3] is %d, the pressure the tests above already ran" % cap)
@@ -207,7 +207,7 @@ const OFF_PINS := {
 }
 
 func test_8_flag_off_rows_and_pins() -> void:
-	await wait_physics_frames(10)
+	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
 	await _print_matrix("FLAG OFF (unbranched and single changes)", false, PRESSURE, [[&"", &""]] + SINGLES)
 	for lane in [&"siege", &"hare"]:
 		for cfg in [[&"", &""]] + SINGLES:
