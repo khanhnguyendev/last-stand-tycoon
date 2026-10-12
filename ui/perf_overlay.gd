@@ -66,6 +66,9 @@ var _nofade := false
 const GLYPHS := "0123456789 .,:=@()+-%_/ abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 var _seen_fade := true
 var _fades: Array[Node] = []
+## Every fade START of the log's seconds ({"t", "dc": [draw calls of its first 3 frames]}), and the previous frame's state (E6 A2: does the frame recur?).
+var _fade_starts: Array[Dictionary] = []
+var _fade_was := false
 var _seen_banner := false
 var _seen_arrow := false
 
@@ -155,6 +158,8 @@ func _reset_window() -> void:
 	_first_seen.clear()
 	_seen_banner = false
 	_seen_arrow = false
+	_fade_starts.clear()
+	_fade_was = false
 
 ## First use of each event name inside the log's seconds: `name@t`.
 func _mark(name: String) -> void:
@@ -184,6 +189,13 @@ func _poll_visuals() -> void:
 	for f in _fades:
 		if is_instance_valid(f) and f.is_faded():
 			_mark("fade_" + String(f.get_parent().get_parent().name))
+	var any_faded := false
+	for f in _fades:
+		if is_instance_valid(f) and f.is_faded():
+			any_faded = true
+	if any_faded and not _fade_was:
+		_fade_starts.append({"t": _since_reset, "dc": []})
+	_fade_was = any_faded
 	var arrow_on: bool = h.arrows.main.visible
 	if arrow_on != _seen_arrow:
 		_seen_arrow = arrow_on
@@ -200,6 +212,10 @@ func _log_frame(raw: float) -> void:
 			Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0, Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), nodes - _prev_nodes, vmem - _prev_vmem]
 	_prev_nodes = nodes
 	_prev_vmem = vmem
+	var dcn := Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+	for st in _fade_starts:
+		if (st.dc as Array).size() < 3:
+			(st.dc as Array).append(int(dcn))
 	if ms < Balance.ui.boot_fade_stable_ms:
 		_stable_run += 1
 		if _stable_run >= Balance.ui.boot_fade_stable_frames and _stable_at < 0.0:
@@ -218,9 +234,16 @@ func _flush_log() -> void:
 		all.append("%.2f:%.0f" % [_log_t[i], _log_ms[i]])
 		if _log_ms[i] >= LOG_SHOW_MS:
 			slow.append("%.1f:%.0f%s" % [_log_t[i], _log_ms[i], _log_extra.get(i, "")])
+	var fades: PackedStringArray = []
+	for st in _fade_starts:
+		var worst := 0.0
+		for i in _log_t.size():
+			if _log_t[i] > float(st.t) and _log_t[i] <= float(st.t) + 0.3:
+				worst = maxf(worst, _log_ms[i])
+		fades.append("%.1f:%.0f%s" % [st.t, worst, str(st.dc).replace(" ", "")])
 	var head := "PERFLOG phase=%s day=%d phase_msec=%d stable_at=%.2f n=%d" % [_phase_name(), _day, _phase_msec, _stable_at, _log_t.size()]
 	print(head + " first=" + ",".join(_first) + " frames=" + ",".join(all))
-	_log_label.text = "%s\n>=%.0fms (t:ms): %s\nfirst: %s" % [head, LOG_SHOW_MS, " ".join(slow), " ".join(_first)]
+	_log_label.text = "%s\n>=%.0fms (t:ms): %s\nfade starts (t:worst ms within 0.3 s, dc of 3 frames): %s\nfirst: %s" % [head, LOG_SHOW_MS, " ".join(slow), " ".join(fades), " ".join(_first)]
 
 ## Counts one frame (seconds) into the window.
 func record(frame_seconds: float) -> void:

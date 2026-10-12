@@ -7,8 +7,11 @@ extends Node
 ## base boxes (D-164: he stands on them), but ARE tested against `roof_part_boxes` (the tier-3 camera ruling, D-279), the boxes of the parts that rise
 ## above the roof (the tier-3 storey and lanterns): when one stands between the camera and him the building fades.
 ## Visual only: runs in _process and never touches GameState.
-## A mesh with a material_override gets a transparent duplicate of it as its override; a mesh without one gets
-## transparent duplicates of its surface materials as surface overrides. At full opacity the originals are
+## A mesh with a material_override gets a dithered duplicate of it as its override; a mesh without one gets
+## dithered duplicates of its surface materials as surface overrides. E6 A2 (D-294): the duplicate is a ShaderMaterial that draws the same
+## albedo (colour x texture, nearest filter, roughness, metallic) in the OPAQUE pass and discards a screen-door (4x4 Bayer) share of the
+## pixels, `fade` = the share kept (1.0 opaque): no blending, no sorting, no transparent pass (the first blended draw of the merged diner was a
+## 113 to 148 ms frame in the iOS Simulator). BaseMaterial3D's alpha hash does nothing in the Compatibility renderer. At full opacity the originals are
 ## put back (the override, or null surface overrides), so nothing transparent is left behind.
 
 ## The merge of the occluder boxes (or of the parent's visuals when it provides none), plus any box passed to setup().
@@ -24,7 +27,7 @@ var _targets: Callable
 const ROOF_BODY_OFFSETS := [-0.7, 0.0, 1.0]
 var _alpha := 1.0
 var _warned := false
-## MeshInstance3D -> {"override": Material or null, "fade": BaseMaterial3D or null, "surfaces": {i: {"prior", "fade"}}}
+## MeshInstance3D -> {"override": Material or null, "fade": ShaderMaterial or null, "surfaces": {i: {"prior", "fade"}}}
 var _meshes := {}
 ## Label3D -> {"a": modulate.a, "outline_a": outline_modulate.a} while faded.
 var _labels := {}
@@ -141,6 +144,64 @@ func _forget_gone_nodes() -> void:
 		if not is_instance_valid(l) or parent == null or not parent.is_ancestor_of(l):
 			_labels.erase(l)
 
+## The dither shaders (one per culling mode), built once.
+static var _shaders := {}
+
+const _SHADER_CODE := """shader_type spatial;
+render_mode %s;
+uniform vec4 albedo : source_color = vec4(1.0);
+uniform sampler2D albedo_tex : source_color, filter_nearest, repeat_enable, hint_default_white;
+uniform vec3 uv_scale = vec3(1.0);
+uniform vec3 uv_offset = vec3(0.0);
+uniform float roughness = 1.0;
+uniform float metallic = 0.0;
+uniform float specular = 0.5;
+uniform float fade = 1.0;
+const float BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+void fragment() {
+	int x = int(mod(FRAGCOORD.x, 4.0));
+	int y = int(mod(FRAGCOORD.y, 4.0));
+	if (fade < 0.9999 && fade <= (BAYER[y * 4 + x] + 0.5) / 16.0) {
+		discard;
+	}
+	vec4 c = albedo * texture(albedo_tex, UV * uv_scale.xy + uv_offset.xy);
+	ALBEDO = c.rgb;
+	ROUGHNESS = roughness;
+	METALLIC = metallic;
+	SPECULAR = specular;
+}
+"""
+
+static func _shader_for(cull: int) -> Shader:
+	var mode := "cull_disabled" if cull == BaseMaterial3D.CULL_DISABLED else "cull_back"
+	if not _shaders.has(mode):
+		var sh := Shader.new()
+		sh.code = _SHADER_CODE % mode
+		_shaders[mode] = sh
+	return _shaders[mode]
+
+## The dithered stand-in for `src`: the same albedo, texture, roughness and culling, drawn in the opaque pass.
+static func dither_copy(src: BaseMaterial3D) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = _shader_for(src.cull_mode)
+	m.set_shader_parameter(&"albedo", src.albedo_color)
+	if src.albedo_texture != null:
+		m.set_shader_parameter(&"albedo_tex", src.albedo_texture)
+	m.set_shader_parameter(&"uv_scale", src.uv1_scale)
+	m.set_shader_parameter(&"uv_offset", src.uv1_offset)
+	m.set_shader_parameter(&"roughness", src.roughness)
+	m.set_shader_parameter(&"metallic", src.metallic)
+	m.set_shader_parameter(&"specular", src.metallic_specular)
+	m.set_shader_parameter(&"fade", 1.0)
+	return m
+
+## The share of pixels a faded copy keeps (1.0 = opaque).
+static func alpha_of(m: Material) -> float:
+	return float((m as ShaderMaterial).get_shader_parameter(&"fade"))
+
+static func set_alpha(m: Material, a: float) -> void:
+	(m as ShaderMaterial).set_shader_parameter(&"fade", a)
+
 func _apply() -> void:
 	if _alpha >= 1.0:
 		_alpha = 1.0
@@ -155,9 +216,9 @@ func _apply() -> void:
 			_meshes[mi] = _make_entry(mi)
 		var e: Dictionary = _meshes[mi]
 		if e.fade != null:
-			(e.fade as BaseMaterial3D).albedo_color.a = _alpha
+			set_alpha(e.fade, _alpha)
 		for i in e.surfaces:
-			(e.surfaces[i].fade as BaseMaterial3D).albedo_color.a = _alpha
+			set_alpha(e.surfaces[i].fade, _alpha)
 	for n in parent.find_children("*", "Label3D", true, false):
 		var l := n as Label3D
 		if not _labels.has(l):
@@ -180,13 +241,11 @@ func fade_material_for_warmup() -> Material:
 				src = base
 				break
 	var f := _fade_copy(src)
-	f.albedo_color.a = Balance.ui.occluder_alpha
+	set_alpha(f, Balance.ui.occluder_alpha)
 	return f
 
-func _fade_copy(src: BaseMaterial3D) -> BaseMaterial3D:
-	var f := src.duplicate() as BaseMaterial3D
-	f.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	return f
+func _fade_copy(src: BaseMaterial3D) -> Material:
+	return dither_copy(src)
 
 func _make_entry(mi: MeshInstance3D) -> Dictionary:
 	var e := {"override": null, "fade": null, "surfaces": {}}

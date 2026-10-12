@@ -832,10 +832,10 @@ func test_tier3_tall_vertices_lie_inside_its_occluder_boxes_and_the_fade_covers_
 	assert_gt(meshes.size(), 0)
 	for m in meshes:
 		for i in (m as MeshInstance3D).mesh.get_surface_count():
-			var mat := (m as MeshInstance3D).get_surface_override_material(i) as BaseMaterial3D
-			assert_not_null(mat, "%s surface %d is faded" % [m.name, i])
+			var mat := (m as MeshInstance3D).get_surface_override_material(i) as ShaderMaterial
+			assert_not_null(mat, "%s surface %d is faded (a dithered copy)" % [m.name, i])
 			if mat != null:
-				assert_almost_eq(mat.albedo_color.a, Balance.ui.occluder_alpha, 1e-3)
+				assert_almost_eq(OccluderFade.alpha_of(mat), Balance.ui.occluder_alpha, 1e-3)
 
 ## A fade over a diner art scene with a real camera, as the world wires it (art child of the Visual, OccluderFade beside it).
 func _fade_rig(scene_path: String) -> Dictionary:

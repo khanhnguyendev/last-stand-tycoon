@@ -73,11 +73,12 @@ func test_music_track_follows_the_resume_phase() -> void:
 	assert_eq(Warmup.music_for("DAY"), &"day")
 	assert_eq(Warmup.music_for("CARD_PICK"), &"day")
 
-func test_fade_material_is_a_transparent_copy() -> void:
+func test_fade_material_is_a_dithered_copy() -> void:
 	_main()
 	var m := main.world.occluder_fade.fade_material_for_warmup()
 	assert_not_null(m)
-	assert_eq((m as BaseMaterial3D).transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
+	assert_true(m is ShaderMaterial, "a dithered copy, drawn in the opaque pass")
+	assert_almost_eq(OccluderFade.alpha_of(m), Balance.ui.occluder_alpha, 1e-3)
 
 # --- BootFade (D-215 amendment) ---
 
