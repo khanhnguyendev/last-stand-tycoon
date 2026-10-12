@@ -198,7 +198,7 @@ func test_seed_scan_on_a_synthetic_lane_function() -> void:
 # rows: {seed, lane, policy, mean_frac, retry_nights, first_t3_frac, fence_median, income_at_cap, hare_share, guard_hits}
 func _row(seed: int, lane: String, policy: String, frac: float, extra := {}) -> Dictionary:
 	var r := {"seed": seed, "lane": lane, "policy": policy, "mean_frac": frac, "retry_nights": 0, "first_t3_frac": 0.5, "fence_median": 10, "income_at_cap": 100,
-		"hare_share": 0.7, "guard_hits": 0}
+		"hare_share": 0.7, "hare_share_min": 0.7, "guard_hits": 0}
 	r.merge(extra, true)
 	return r
 
@@ -236,7 +236,7 @@ func test_threat_lead_passes_at_exactly_five_points_and_fails_just_below() -> vo
 	assert_string_contains(SweepMath.threat_lead(_grid(0.50, 10.0)).lines[0], "THREAT_LEAD: PASS")
 
 ## Ahead on 6 of 8 passes, on 5 of 8 fails, with the mean lead kept at 10 in both cases. Mutation: counting ties as ahead.
-func test_threat_lead_needs_six_of_eight_seeds_ahead() -> void:
+func test_threat_lead_final_set_needs_six_of_eight_seeds_ahead() -> void:
 	var rows := _grid(0.50, 10.0)
 	var seeds := SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1)
 	# seeds 0 and 1 of the list: threat ties the fixed pairs (lead 0); seeds 2 and 3 get +20 so the mean stays 10.
@@ -244,11 +244,11 @@ func test_threat_lead_needs_six_of_eight_seeds_ahead() -> void:
 		_put(rows, "threat", seeds[i], {"mean_frac": 0.50})
 	for i in [2, 3]:
 		_put(rows, "threat", seeds[i], {"mean_frac": 0.70})
-	var six := SweepMath.threat_lead(rows)
+	var six := SweepMath.threat_lead(rows, true)
 	assert_true(six.ok, "ahead on 6 of 8 (the two ties are not ahead): %s" % six.lines[0])
 	_put(rows, "threat", seeds[4], {"mean_frac": 0.50})
 	_put(rows, "threat", seeds[5], {"mean_frac": 0.70})
-	var five := SweepMath.threat_lead(rows)
+	var five := SweepMath.threat_lead(rows, true)
 	assert_false(five.ok, "ahead on 5 of 8 fails even though the mean lead is %s" % five.lines[0])
 
 ## The best fixed pair is the one with the best MEAN over the seeds, one pair for every seed. Mutation: the best pair per seed (lead 0 here).
@@ -347,9 +347,13 @@ func test_fixed_spread_within_15_points() -> void:
 			r.mean_frac = 0.399
 	assert_false(SweepMath.fixed_spread(rows).ok, "15.1 is outside")
 	for r in rows:
-		if r.policy in ["threat", "unbranched"]:
+		if r.policy == "volley_stone":
+			r.mean_frac = 0.40  # back to the passing 15.0 state
+		elif r.policy == "threat":
 			r.mean_frac = 0.99
-	assert_false(SweepMath.fixed_spread(rows).ok, "threat and unbranched are not fixed pairs: the verdict does not move")
+		elif r.policy == "unbranched":
+			r.mean_frac = 0.01
+	assert_true(SweepMath.fixed_spread(rows).ok, "threat and unbranched are not fixed pairs: the passing verdict does not move")
 
 func test_hare_share_is_flagged_below_0_6_per_seed() -> void:
 	var rows := _grid()
@@ -390,37 +394,129 @@ func test_retune_run_stats_first_night_hare_share_and_guard() -> void:
 	assert_eq(none.t3_nights, 0)
 	assert_eq(none.first_t3_frac, -1.0)
 
+const DATE := "2026-10-13T10:00:00+02:00"
+
 func test_final_gate_refuses_hold_out_sets_without_final() -> void:
 	for set_id in ["1", "2"]:
-		var g := SweepMath.final_gate(set_id, false, "abc1234", {})
+		var g := SweepMath.final_gate(set_id, false, "abc1234", {"history": []}, DATE)
 		assert_false(g.allowed, "set %s without --final" % set_id)
 		assert_string_contains(g.lines[0], "REFUSED")
-		assert_eq(g.record, {}, "nothing recorded when refused")
-	var t := SweepMath.final_gate("tuning", false, "abc1234", {})
+		assert_eq(g.record, {"history": []}, "nothing recorded when refused")
+	var t := SweepMath.final_gate("tuning", false, "abc1234", {"history": []}, DATE)
 	assert_true(t.allowed, "the tuning set needs no flag")
-	assert_eq(t.record, {})
+	assert_eq(t.record, {"history": []})
 
-func test_final_gate_records_commit_and_set_number() -> void:
-	var g := SweepMath.final_gate("1", true, "abc1234", {})
+func test_final_gate_refuses_final_with_the_tuning_set() -> void:
+	var g := SweepMath.final_gate("tuning", true, "abc1234", {"history": []}, DATE)
+	assert_false(g.allowed, "--final without --set must not run the tuning set silently")
+	assert_string_contains(g.lines[0], "REFUSED")
+	assert_string_contains(g.lines[0], "--final")
+	assert_eq(g.record, {"history": []})
+
+func test_final_gate_refuses_a_dirty_tree_and_an_unknown_commit() -> void:
+	for c in ["abc1234-dirty", "unknown", ""]:
+		var g := SweepMath.final_gate("1", true, c, {"history": []}, DATE)
+		assert_false(g.allowed, "commit '%s'" % c)
+		assert_string_contains(g.lines[0], "REFUSED")
+		assert_eq(g.record, {"history": []}, "nothing recorded")
+	assert_true(SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE).allowed, "a clean commit is fine")
+
+func test_final_gate_records_set_commit_and_date_then_finish_marks_done_and_ok() -> void:
+	var g := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE)
 	assert_true(g.allowed)
 	assert_string_contains(g.lines[0], "FINAL set=#1 commit=abc1234")
-	assert_eq(g.record, {"1": [{"commit": "abc1234"}]})
-	var other := SweepMath.final_gate("2", true, "abc1234", g.record)
-	assert_eq(other.record, {"1": [{"commit": "abc1234"}], "2": [{"commit": "abc1234"}]}, "another set keeps the earlier record")
-	assert_eq(_line(other, "FINAL_REPEAT"), "", "set #2 was never run")
+	assert_eq(g.record, {"history": [{"set": "1", "commit": "abc1234", "date": DATE, "done": false, "ok": false}]}, "recorded at the start: done is false until the run ends")
+	var fin := SweepMath.final_finish(g.record, true)
+	assert_eq(fin.history[0].done, true)
+	assert_eq(fin.history[0].ok, true)
+	assert_eq(g.record.history[0].done, false, "the input record is not mutated")
+	var bad := SweepMath.final_finish(g.record, false)
+	assert_eq([bad.history[0].done, bad.history[0].ok], [true, false])
 
-## A second --final on set #1 at another commit must show in the output.
-func test_final_gate_shows_an_earlier_run_of_the_same_set_at_a_different_commit() -> void:
-	var first := SweepMath.final_gate("1", true, "abc1234", {})
-	var again := SweepMath.final_gate("1", true, "def5678", first.record)
+## A second --final on set #1 at another commit shows in the output; every earlier entry (any set) is printed.
+func test_final_gate_shows_every_earlier_entry_and_a_repeat_at_a_different_commit() -> void:
+	var first := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE)
+	var two := SweepMath.final_gate("2", true, "bbb2222", SweepMath.final_finish(first.record, false), DATE)
+	assert_eq(_line(two, "FINAL_REPEAT"), "", "set #2 was never run")
+	assert_string_contains(_line(two, "FINAL_EARLIER set=#1 commit=abc1234"), "ok=false")
+	var again := SweepMath.final_gate("1", true, "def5678", two.record, DATE)
 	assert_true(again.allowed)
-	assert_string_contains(_line(again, "FINAL_EARLIER set=#1 commit=abc1234"), "abc1234")
+	var earlier: Array = again.lines.filter(func(l): return String(l).begins_with("FINAL_EARLIER"))
+	assert_eq(earlier.size(), 2, "one line per earlier entry, both sets")
 	assert_string_contains(_line(again, "FINAL_REPEAT"), "abc1234")
 	assert_string_contains(_line(again, "FINAL_REPEAT"), "def5678")
-	assert_eq(again.record["1"], [{"commit": "abc1234"}, {"commit": "def5678"}])
-	var same := SweepMath.final_gate("1", true, "abc1234", first.record)
-	assert_ne(_line(same, "FINAL_EARLIER"), "", "the earlier record is printed also at the same commit")
-	assert_string_contains(_line(same, "FINAL_REPEAT"), "same commit", "a repeat at the same commit says so, still visible")
+	assert_eq(again.record.history.size(), 3)
+	var same := SweepMath.final_gate("1", true, "abc1234", first.record, DATE)
+	assert_string_contains(_line(same, "FINAL_REPEAT"), "same commit")
+
+func test_parse_record_accepts_empty_and_valid_text_and_rejects_a_broken_file() -> void:
+	assert_true(SweepMath.parse_record("").valid, "no file yet")
+	assert_eq(SweepMath.parse_record("").record, {"history": []})
+	var ok := SweepMath.parse_record('{"history": [{"set": "1", "commit": "abc", "date": "d", "done": true, "ok": true}]}')
+	assert_true(ok.valid)
+	assert_eq(ok.record.history.size(), 1)
+	for bad in ["{not json", "[1,2]", '{"history": 5}', '{"other": []}']:
+		assert_false(SweepMath.parse_record(bad).valid, bad)
+
+func test_a_child_log_with_a_script_error_or_a_bad_exit_is_a_failed_run() -> void:
+	var clean := "T3RUN x\nERROR: 8 resources still in use at exit (run with --verbose for details).\n"
+	assert_false(SweepMath.child_failed(0, clean), "a benign plain ERROR at the end is not a failure")
+	assert_true(SweepMath.child_failed(1, clean), "exit code 1")
+	assert_true(SweepMath.child_failed(0, "x\nSCRIPT ERROR: Parse Error: y\n"), "a SCRIPT ERROR line")
+
+func test_hare_share_ignores_rows_without_hares() -> void:
+	var rows := _grid()
+	for r in rows:
+		if r.seed == 13:
+			r.hare_share = 0.7 if r.policy in ["all_a", "threat"] else -1.0  # four runs had no hares: the mean over all six would be 0.7*2-4 over 6 = negative
+	var res := SweepMath.hare_share(rows)
+	assert_true(res.ok, "only the runs with hares count: mean 0.7")
+	assert_false("FLAGGED" in _line(res, "  seed 13"))
+	for r in rows:
+		if r.seed == 13:
+			r.hare_share = -1.0
+	assert_string_contains(_line(SweepMath.hare_share(rows), "  seed 13"), "n/a")
+
+func test_hare_share_min_is_printed_per_seed() -> void:
+	var rows := _grid()
+	for r in rows:
+		r.hare_share_min = 0.5
+		if r.seed == 14 and r.policy == "mixed":
+			r.hare_share_min = 0.31
+	var res := SweepMath.hare_share(rows)
+	assert_string_contains(_line(res, "  seed 14"), "min night 0.310")
+	assert_string_contains(_line(res, "  seed 13"), "min night 0.500")
+
+## The tuning set (4 seeds) is judged by the mean lead alone; "ahead on k of 4" is information.
+func test_threat_lead_on_the_tuning_set_needs_only_the_mean() -> void:
+	var rows: Array = []
+	var leads := [20.0, 20.0, 0.0, 0.0]  # mean 10, ahead on 2 of 4
+	var i := 0
+	for l in SweepMath.SIEGE_LANES:
+		var s: int = SweepMath.TUNING_SET[l][0]
+		for p in PAIRS:
+			rows.append(_row(s, l, p, 0.50))
+		rows.append(_row(s, l, "threat", 0.50 + leads[i] / 100.0))
+		rows.append(_row(s, l, "unbranched", 0.40))
+		i += 1
+	var res := SweepMath.threat_lead(rows)
+	assert_true(res.ok, res.lines[0])
+	assert_string_contains(res.lines[0], "ahead on 2 of 4")
+	assert_false(SweepMath.threat_lead(rows, true).ok, "the same rows as a final set: ahead on 2 of 4 fails the final rule")
+	rows[4].mean_frac = 0.52  # lane 1: lead 20 -> 2, lane 2: 20 -> 0: the mean falls to 0.5
+	rows[10].mean_frac = 0.50
+	rows[16].mean_frac = 0.50
+	assert_false(SweepMath.threat_lead(rows).ok, "mean lead below 5 fails on the tuning set too")
+
+## Information line: the lead against each seed's own best fixed pair (never the verdict).
+func test_threat_lead_prints_the_lead_against_each_seeds_own_best_pair_as_information() -> void:
+	var rows := _grid(0.50, 10.0)
+	var seeds := SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1)
+	_put(rows, "all_a", seeds[0], {"mean_frac": 0.62})  # leads -2 against it on seed 0
+	_put(rows, "all_b", seeds[1], {"mean_frac": 0.62})  # leads -2 against it on seed 1; all_a and all_b tie on the mean, all_a is first
+	var res := SweepMath.threat_lead(rows)
+	assert_string_contains(_line(res, "  info: lead against each seed's own best pair"), "+7.0", "(-2 -2 + 6 x 10) / 8")
+	assert_string_contains(_line(res, "THREAT_LEAD:"), "mean lead +8.5", "the verdict still uses the best pair by mean: (-2 + 7 x 10) / 8")
 
 func _expected() -> Array:
 	var out: Array = []

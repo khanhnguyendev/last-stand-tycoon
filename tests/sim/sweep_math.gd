@@ -278,32 +278,73 @@ static func seed_lane(set: Dictionary, seed: int) -> String:
 static func set_by_id(set_id: String) -> Dictionary:
 	return {"tuning": TUNING_SET, "1": HOLDOUT_SET_1, "2": HOLDOUT_SET_2}.get(set_id, {})
 
-## D-290: hold-out sets run only with --final, and every such run records its commit and set number. `record`: the earlier runs {set id: [{commit}]}
-## (tests/sim/out/retune_final.json). Returns {allowed, lines, record}: the header lines, and the record with this run appended. The tuning set needs no flag.
-static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary) -> Dictionary:
+## D-290: hold-out sets run only with --final, never on a dirty tree or an unknown commit (the recorded commit must identify the values), and `--final` with the tuning set
+## is refused (it would run without a FINAL line or a record). The record is {"history": [{set, commit, date, done, ok}]} (tests/sim/retune_final.json, committed with the
+## output); `date` is passed in (the commit's date from git: no clock in the maths). Returns {allowed, lines, record}: the header lines and the record with this run appended
+## (done=false, ok=false until final_finish). Every earlier entry is printed as FINAL_EARLIER; a repeat of the same set adds FINAL_REPEAT.
+static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary, date := "") -> Dictionary:
+	var refuse := func(msg: String) -> Dictionary:
+		return {"allowed": false, "lines": ["REFUSED: " + msg], "record": record}
 	if set_id == "tuning":
+		if final_flag:
+			return refuse.call("--final is for the hold-out sets (--set=1 or --set=2); the tuning set runs without it")
 		return {"allowed": true, "lines": [], "record": record}
 	if not set_id in ["1", "2"]:
-		return {"allowed": false, "lines": ["REFUSED: unknown set '%s' (tuning|1|2)" % set_id], "record": record}
+		return refuse.call("unknown set '%s' (tuning|1|2)" % set_id)
 	if not final_flag:
-		return {"allowed": false, "lines": ["REFUSED: hold-out set #%s runs only with --final (D-290); no run was started" % set_id], "record": record}
-	var lines: Array = ["FINAL set=#%s commit=%s" % [set_id, commit]]
-	var earlier: Array = record.get(set_id, [])
+		return refuse.call("hold-out set #%s runs only with --final (D-290); no run was started" % set_id)
+	if commit == "" or commit == "unknown" or commit.ends_with("-dirty"):
+		return refuse.call("a final run needs a clean tree at a known commit (got '%s'): the recorded commit must identify the values (D-290)" % commit)
+	var lines: Array = ["FINAL set=#%s commit=%s date=%s" % [set_id, commit, date]]
+	var history: Array = record.get("history", [])
 	var differs := ""
-	for e in earlier:
-		lines.append("FINAL_EARLIER set=#%s commit=%s" % [set_id, e.commit])
-		if String(e.commit) != commit:
-			differs = String(e.commit)
-	if not earlier.is_empty():
+	var same_set := false
+	for e in history:
+		lines.append("FINAL_EARLIER set=#%s commit=%s date=%s done=%s ok=%s" % [e.set, e.commit, e.get("date", ""), str(e.get("done", false)).to_lower(), str(e.get("ok", false)).to_lower()])
+		if String(e.set) == set_id:
+			same_set = true
+			if String(e.commit) != commit:
+				differs = String(e.commit)
+	if same_set:
 		if differs != "":
 			lines.append("FINAL_REPEAT: set #%s was already run at commit %s; this run is at commit %s. A failed target ends tuning against this set (D-290): the next final run uses the next hold-out set" % [set_id, differs, commit])
 		else:
 			lines.append("FINAL_REPEAT: set #%s was already run at the same commit %s" % [set_id, commit])
 	var out := record.duplicate(true)
-	var list: Array = out.get(set_id, [])
-	list.append({"commit": commit})
-	out[set_id] = list
+	var list: Array = out.get("history", [])
+	list.append({"set": set_id, "commit": commit, "date": date, "done": false, "ok": false})
+	out["history"] = list
 	return {"allowed": true, "lines": lines, "record": out}
+
+## The record with its last entry marked finished (`done` true, `ok` = every target passed). The input is not changed.
+static func final_finish(record: Dictionary, ok: bool) -> Dictionary:
+	var out := record.duplicate(true)
+	var list: Array = out.get("history", [])
+	if not list.is_empty():
+		list[list.size() - 1]["done"] = true
+		list[list.size() - 1]["ok"] = ok
+	return out
+
+## The record file's text -> {valid, record}. No text = a fresh record; text that is not {"history": [...]} is invalid (the report exits 2 and never overwrites the file).
+static func parse_record(text: String) -> Dictionary:
+	if text.strip_edges() == "":
+		return {"valid": true, "record": {"history": []}}
+	var j := JSON.new()
+	if j.parse(text) != OK:
+		return {"valid": false, "record": {}}
+	var v = j.data
+	if v is Dictionary and v.get("history") is Array:
+		return {"valid": true, "record": v}
+	return {"valid": false, "record": {}}
+
+## A child sweep run failed: a non-zero exit code, or a "SCRIPT ERROR" line in its log (a plain "ERROR:" line is not looked at: a benign one ends the log).
+static func child_failed(exit_code: int, log_text: String) -> bool:
+	if exit_code != 0:
+		return true
+	for line in log_text.split("\n"):
+		if line.begins_with("SCRIPT ERROR"):
+			return true
+	return false
 
 ## Per-run facts from the tier-3 nights of a retune-on sweep: `nights` rows {tier, frac, hare_share (-1 when the night has no hares), guard_hits}.
 ## first_t3_frac = the diner fraction of the first night that STARTED at tier >= 3 (-1 none); hare_share_mean / _min over the tier-3 nights that had hares (-1 none).
@@ -396,21 +437,32 @@ static func _lead_of(rows: Array, best: String) -> float:
 			leads.append(_pts(t[0]) - _pts(b[0]))
 	return _mean(leads)
 
-## THREAT_LEAD (D-285): the mean lead of threat over the best fixed pair (best by mean over all seeds, one pair for every seed) >= 5 points AND ahead (strictly) on at least
-## 6 of 8 seeds (scaled for another set size: ceil(6 n / 8), so 3 of 4 on the tuning set).
-static func threat_lead(rows: Array) -> Dictionary:
+## THREAT_LEAD (D-285): the mean lead of threat over the best fixed pair (best by mean over all seeds, one pair for every seed) >= 5 points. The FINAL set (`final`, 8 seeds)
+## also needs threat strictly ahead on at least 6 of the 8 seeds; on the tuning set "ahead on k of n" is printed as information only. The lead against each seed's own best
+## fixed pair is printed as information too (never the verdict).
+static func threat_lead(rows: Array, final := false) -> Dictionary:
 	var best := best_fixed(rows)
 	var seeds := _distinct(rows, "seed")
 	var ahead := 0
+	var own: Array = []
 	for s in seeds:
 		var sub := rows.filter(func(r): return r.seed == s)
 		if _lead_of(sub, best) > EPS:
 			ahead += 1
-	var need := (6 * seeds.size() + 7) / 8
+		var top := -INF
+		for p in FIXED_PAIRS:
+			var b := _of(sub, p)
+			if not b.is_empty():
+				top = maxf(top, _pts(b[0]))
+		var t := _of(sub, "threat")
+		if not t.is_empty() and top > -INF:
+			own.append(_pts(t[0]) - top)
 	var mean_lead := _lead_of(rows, best)
-	var ok := not best.is_empty() and _ge(mean_lead, 5.0) and ahead >= need
-	var head := "THREAT_LEAD: %s (mean lead %s points over %s, ahead on %d of %d seeds; needs >= 5.0 and >= %d)" % ["PASS" if ok else "FAIL", _num(mean_lead, "%+.1f"), best, ahead, seeds.size(), need]
-	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return _lead_of(sub, best), "%+.1f")}
+	var ok := not best.is_empty() and _ge(mean_lead, 5.0) and (not final or ahead >= 6)
+	var rule := "needs >= 5.0 and ahead on >= 6 of 8 (final set)" if final else "needs >= 5.0 (the tuning set is judged by the mean; ahead is information)"
+	var head := "THREAT_LEAD: %s (mean lead %s points over %s, ahead on %d of %d seeds; %s)" % ["PASS" if ok else "FAIL", _num(mean_lead, "%+.1f"), best, ahead, seeds.size(), rule]
+	var info := "  info: lead against each seed's own best pair (not the verdict): mean %s, per seed %s" % [_num(_mean(own), "%+.1f"), " ".join(own.map(func(v): return "%+.1f" % v))]
+	return {"ok": ok, "lines": [head, info] + _breakdown(rows, func(sub): return _lead_of(sub, best), "%+.1f")}
 
 ## THREAT_LEAD_BY_LANE: the mean lead (against the same best pair) is not negative on any siege lane.
 static func threat_lead_by_lane(rows: Array) -> Dictionary:
@@ -493,17 +545,29 @@ static func fixed_spread(rows: Array) -> Dictionary:
 	var head := "FIXED_SPREAD: %s (spread %s points: %s; needs <= 15.0)" % ["PASS" if ok else "FAIL", _num(sp, "%.1f"), ", ".join(parts)]
 	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return _spread(sub), "spread %.1f")}
 
-## HARE_SHARE: night-level share of the hares that walk the hare lane, per seed (mean over the six runs of the seed, each the mean over its tier-3 nights with hares);
-## a seed below 0.6 is FLAGGED (exactly 0.6 is not). ok = nothing flagged.
+## HARE_SHARE: night-level share of the hares that walk the hare lane, per seed (mean over the runs of the seed that had hares, each the mean over its tier-3 nights with hares;
+## runs holding -1 had no hares and are left out); a seed below 0.6 is FLAGGED (exactly 0.6 is not; a seed with no value at all too). The lowest single night per seed is printed.
+## ok = nothing flagged.
+static func _share_of(rows: Array) -> float:
+	return _mean(rows.filter(func(r): return float(r.hare_share) >= 0.0).map(func(r): return float(r.hare_share)))
+
 static func hare_share(rows: Array) -> Dictionary:
 	var flagged := 0
 	for s in _distinct(rows, "seed"):
-		var v := _mean(rows.filter(func(r): return r.seed == s).map(func(r): return float(r.hare_share)))
+		var v := _share_of(rows.filter(func(r): return r.seed == s))
 		if is_nan(v) or v < 0.6 - EPS:
 			flagged += 1
 	var ok := flagged == 0
 	var head := "HARE_SHARE: %s (%d of %d seeds flagged below 0.60)" % ["PASS" if ok else "FLAGGED", flagged, _distinct(rows, "seed").size()]
-	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return _mean(sub.map(func(r): return float(r.hare_share))), "%.3f", 0.6)}
+	var lines: Array = [head]
+	for l in _breakdown(rows, func(sub): return _share_of(sub), "%.3f", 0.6):
+		var line := String(l)
+		if line.begins_with("  seed "):
+			var sd := int(line.split(" ")[3])
+			var mins := rows.filter(func(r): return r.seed == sd and float(r.get("hare_share_min", -1.0)) >= 0.0).map(func(r): return float(r.hare_share_min))
+			line += " (min night %s)" % _num(NAN if mins.is_empty() else float(mins.min()), "%.3f")
+		lines.append(line)
+	return {"ok": ok, "lines": lines}
 
 ## LANE_CAP_GUARD: waves whose extra hare group was skipped by the 3-lane guard, summed over all runs; expected 0.
 static func lane_cap_guard(rows: Array) -> Dictionary:
@@ -515,7 +579,7 @@ static func lane_cap_guard(rows: Array) -> Dictionary:
 	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return float(sub.map(func(r): return int(r.guard_hits)).reduce(func(a, b): return a + b, 0)), "hits %.0f")}
 
 ## The whole report. `expected`: [[seed, policy], ...]. A missing run, a run with `failed`, or a run that never reached tier 3 (first_t3_frac < 0) = NO verdict lines, exit 1.
-static func retune_report(rows: Array, expected: Array) -> Dictionary:
+static func retune_report(rows: Array, expected: Array, final := false) -> Dictionary:
 	var problems: Array = []
 	for e in expected:
 		var found: Array = rows.filter(func(r): return int(r.seed) == int(e[0]) and r.policy == e[1])
@@ -529,7 +593,7 @@ static func retune_report(rows: Array, expected: Array) -> Dictionary:
 		return {"exit": 1, "ok": false, "lines": ["FAILED: a run is missing or failed; no verdict lines"] + problems}
 	var lines: Array = []
 	var all_ok := true
-	for res in [threat_lead(rows), threat_lead_by_lane(rows), retry_nights(rows), first_t3_night(rows), fence_tax(rows), fixed_spread(rows), hare_share(rows), lane_cap_guard(rows)]:
+	for res in [threat_lead(rows, final), threat_lead_by_lane(rows), retry_nights(rows), first_t3_night(rows), fence_tax(rows), fixed_spread(rows), hare_share(rows), lane_cap_guard(rows)]:
 		lines.append_array(res.lines)
 		all_ok = all_ok and res.ok
 	return {"exit": 0, "ok": all_ok, "lines": lines}

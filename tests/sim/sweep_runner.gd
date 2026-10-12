@@ -270,7 +270,7 @@ func _run() -> void:
 		if String(args.retune) == "on":
 			var rt := SweepMath.retune_run_stats(nights)
 			var ch := LaneCharacter.for_run(int(args.seed))
-			print("RETUNE seed=%s policy=%s siege=%s hare=%s first_t3_frac=%.3f hare_share_mean=%.3f hare_share_min=%.3f guard_hits=%d t3_nights=%d" % [
+			print("RETUNE seed=%s policy=%s siege=%s hare=%s first_t3_frac=%.4f hare_share_mean=%.3f hare_share_min=%.3f guard_hits=%d t3_nights=%d" % [
 				args.seed, args.policy, ch.siege, ch.hare, rt.first_t3_frac, rt.hare_share_mean, rt.hare_share_min, rt.guard_hits, rt.t3_nights])
 		if String(args.tier3) == "off" and tier3_events != 0:
 			push_error("tier 3 is not for sale but %d brute kills, south-west spawns and branches were counted" % tier3_events)
