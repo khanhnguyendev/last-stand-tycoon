@@ -155,3 +155,307 @@ func test_two_by_two_effects_and_cells() -> void:
 	assert_almost_eq(t.fence_effect, 17.5, 1e-9, "Stone (77.5) minus Spike (60)")
 	assert_almost_eq(t.interaction, 15.0, 1e-9, "(80 - 40) - (90 - 65)")
 	assert_eq(SweepMath.two_by_two([_run("all_a", 0.5)]), {})
+
+# --- E6 Task 16: the retune report (tests/sim/report_retune.gd), pure maths on literal rows ---
+
+const LANES4 := ["east", "sw", "west", "north"]
+const PAIRS := ["all_a", "all_b", "mixed", "volley_stone"]
+
+## The pinned sets, written out by hand (the scan of LaneCharacter.for_run from seed 1; set #2 computed once, then pinned).
+func test_seed_sets_are_the_pinned_literals_and_the_scan_reproduces_them() -> void:
+	var tuning := {"east": [1], "sw": [3], "west": [4], "north": [7]}
+	var h1 := {"east": [2, 5], "sw": [10, 12], "west": [6, 13], "north": [9, 14]}
+	var h2 := {"east": [8, 11], "sw": [21, 23], "west": [18, 25], "north": [16, 19]}
+	assert_eq(SweepMath.TUNING_SET, tuning)
+	assert_eq(SweepMath.HOLDOUT_SET_1, h1)
+	assert_eq(SweepMath.HOLDOUT_SET_2, h2)
+	var scan := SweepMath.seed_scan(func(s): return String(LaneCharacter.for_run(s).siege), LANES4)
+	assert_eq(scan.tuning, tuning, "the scan, not the constant, is the rule")
+	assert_eq(scan.holdout1, h1)
+	assert_eq(scan.holdout2, h2)
+
+func test_the_three_sets_are_disjoint_and_in_scan_order() -> void:
+	var seen := {}
+	for set in [SweepMath.TUNING_SET, SweepMath.HOLDOUT_SET_1, SweepMath.HOLDOUT_SET_2]:
+		for s in SweepMath.set_seeds(set):
+			assert_false(seen.has(s), "seed %d is in two sets" % s)
+			seen[s] = true
+	assert_eq(seen.size(), 4 + 8 + 8)
+	for lane in LANES4:
+		var all: Array = SweepMath.TUNING_SET[lane] + SweepMath.HOLDOUT_SET_1[lane] + SweepMath.HOLDOUT_SET_2[lane]
+		var sorted_all := all.duplicate()
+		sorted_all.sort()
+		assert_eq(all, sorted_all, "%s: tuning, then hold-out #1, then #2, each later in the scan" % lane)
+	assert_eq(SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1), [2, 5, 10, 12, 6, 13, 9, 14], "lane order east, sw, west, north; scan order inside a lane")
+
+## A made-up lane function: seed % 4 picks the lane. Mutation: a scan that restarts at a wrong value, or takes seeds in a different order.
+func test_seed_scan_on_a_synthetic_lane_function() -> void:
+	var scan := SweepMath.seed_scan(func(s): return LANES4[s % 4], LANES4)
+	assert_eq(scan.tuning, {"east": [4], "sw": [1], "west": [2], "north": [3]}, "first seed per lane, scanning from 1")
+	assert_eq(scan.holdout1, {"east": [8, 12], "sw": [5, 9], "west": [6, 10], "north": [7, 11]})
+	assert_eq(scan.holdout2, {"east": [16, 20], "sw": [13, 17], "west": [14, 18], "north": [15, 19]})
+
+# rows: {seed, lane, policy, mean_frac, retry_nights, first_t3_frac, fence_median, income_at_cap, hare_share, guard_hits}
+func _row(seed: int, lane: String, policy: String, frac: float, extra := {}) -> Dictionary:
+	var r := {"seed": seed, "lane": lane, "policy": policy, "mean_frac": frac, "retry_nights": 0, "first_t3_frac": 0.5, "fence_median": 10, "income_at_cap": 100,
+		"hare_share": 0.7, "guard_hits": 0}
+	r.merge(extra, true)
+	return r
+
+## 8 seeds (hold-out #1) x 6 policies. The four fixed pairs sit at `fixed` (fraction), threat at `fixed + lead/100` on every seed, unbranched at 0.40.
+func _grid(fixed := 0.50, lead := 10.0) -> Array:
+	var rows: Array = []
+	var seeds := SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1)
+	for s in seeds:
+		var lane := ""
+		for l in LANES4:
+			if s in SweepMath.HOLDOUT_SET_1[l]:
+				lane = l
+		for p in PAIRS:
+			rows.append(_row(s, lane, p, fixed))
+		rows.append(_row(s, lane, "threat", fixed + lead / 100.0))
+		rows.append(_row(s, lane, "unbranched", 0.40))
+	return rows
+
+func _put(rows: Array, policy: String, seed: int, extra: Dictionary) -> void:
+	for r in rows:
+		if r.policy == policy and r.seed == seed:
+			r.merge(extra, true)
+
+func _line(res: Dictionary, prefix: String) -> String:
+	for l in res.lines:
+		if String(l).begins_with(prefix):
+			return l
+	return ""
+
+func test_threat_lead_passes_at_exactly_five_points_and_fails_just_below() -> void:
+	assert_true(SweepMath.threat_lead(_grid(0.50, 5.0)).ok, "mean lead 5.0 is inside")
+	var low := SweepMath.threat_lead(_grid(0.50, 4.9))
+	assert_false(low.ok, "mean lead 4.9 is outside")
+	assert_string_contains(low.lines[0], "THREAT_LEAD: FAIL")
+	assert_string_contains(SweepMath.threat_lead(_grid(0.50, 10.0)).lines[0], "THREAT_LEAD: PASS")
+
+## Ahead on 6 of 8 passes, on 5 of 8 fails, with the mean lead kept at 10 in both cases. Mutation: counting ties as ahead.
+func test_threat_lead_needs_six_of_eight_seeds_ahead() -> void:
+	var rows := _grid(0.50, 10.0)
+	var seeds := SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1)
+	# seeds 0 and 1 of the list: threat ties the fixed pairs (lead 0); seeds 2 and 3 get +20 so the mean stays 10.
+	for i in 2:
+		_put(rows, "threat", seeds[i], {"mean_frac": 0.50})
+	for i in [2, 3]:
+		_put(rows, "threat", seeds[i], {"mean_frac": 0.70})
+	var six := SweepMath.threat_lead(rows)
+	assert_true(six.ok, "ahead on 6 of 8 (the two ties are not ahead): %s" % six.lines[0])
+	_put(rows, "threat", seeds[4], {"mean_frac": 0.50})
+	_put(rows, "threat", seeds[5], {"mean_frac": 0.70})
+	var five := SweepMath.threat_lead(rows)
+	assert_false(five.ok, "ahead on 5 of 8 fails even though the mean lead is %s" % five.lines[0])
+
+## The best fixed pair is the one with the best MEAN over the seeds, one pair for every seed. Mutation: the best pair per seed (lead 0 here).
+func test_threat_lead_compares_with_the_best_pair_by_mean() -> void:
+	var rows := _grid(0.50, 10.0)
+	var seeds := SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1)
+	_put(rows, "all_a", seeds[0], {"mean_frac": 0.62})  # all_a: mean 0.515, the best pair; on seed 0 it is above threat's 0.60
+	var res := SweepMath.threat_lead(rows)
+	assert_string_contains(res.lines[0], "all_a")
+	assert_string_contains(res.lines[0], "ahead on 7 of 8", "seed 0 is behind all_a (0.60 < 0.62)")
+	assert_string_contains(res.lines[0], "mean lead +8.5", "(60 - 51.5)")
+
+func test_threat_lead_by_lane_is_not_negative_on_any_lane() -> void:
+	var rows := _grid(0.50, 10.0)
+	var east: Array = SweepMath.HOLDOUT_SET_1.east
+	for s in east:
+		_put(rows, "threat", s, {"mean_frac": 0.50})  # lead 0 on east: not negative
+	assert_true(SweepMath.threat_lead_by_lane(rows).ok, "a lane mean of exactly 0 is inside")
+	_put(rows, "threat", east[0], {"mean_frac": 0.49})  # east mean -0.5
+	var res := SweepMath.threat_lead_by_lane(rows)
+	assert_false(res.ok, "a lane mean below 0 is outside, although the overall lead is 7.4")
+	assert_string_contains(_line(res, "  lane east"), "-0.5")
+	assert_true(SweepMath.threat_lead(rows).ok, "the overall target alone still passes: the lane line is what catches it")
+
+func test_per_lane_lead_values_in_the_by_lane_lines() -> void:
+	var rows := _grid(0.50, 10.0)
+	for s in SweepMath.HOLDOUT_SET_1.sw:
+		_put(rows, "threat", s, {"mean_frac": 0.58})
+	var res := SweepMath.threat_lead_by_lane(rows)
+	assert_true(res.ok)
+	assert_string_contains(_line(res, "  lane sw"), "+8.0")
+	assert_string_contains(_line(res, "  lane west"), "+10.0")
+	assert_string_contains(_line(res, "  seed 10"), "+8.0")
+
+func test_retry_nights_is_zero_for_every_policy_the_floor_included() -> void:
+	assert_true(SweepMath.retry_nights(_grid()).ok)
+	var rows := _grid()
+	_put(rows, "unbranched", 14, {"retry_nights": 1})
+	var res := SweepMath.retry_nights(rows)
+	assert_false(res.ok, "one retry night of the floor policy fails")
+	assert_string_contains(res.lines[0], "unbranched 1")
+
+func test_first_t3_night_below_25_percent_fails() -> void:
+	var rows := _grid()
+	_put(rows, "all_b", 5, {"first_t3_frac": 0.25})
+	assert_true(SweepMath.first_t3_night(rows).ok, "exactly 25% is inside")
+	_put(rows, "all_b", 5, {"first_t3_frac": 0.249})
+	var res := SweepMath.first_t3_night(rows)
+	assert_false(res.ok, "24.9% is outside")
+	assert_string_contains(_line(res, "  seed 5"), "24.9")
+
+func test_fence_tax_30_percent_median_with_and_without_longbow() -> void:
+	var rows := _grid()  # every run: 10 of 100 = 10%
+	var res := SweepMath.fence_tax(rows)
+	assert_true(res.ok)
+	assert_string_contains(res.lines[0], "FENCE_TAX: PASS")
+	assert_string_contains(_line(res, "  with Longbow on the siege lane"), "10.0")
+	assert_string_contains(_line(res, "  without Longbow on the siege lane"), "10.0")
+	for r in rows:
+		r.fence_median = 30
+	assert_true(SweepMath.fence_tax(rows).ok, "a median of exactly 30% is inside")
+	for r in rows:
+		r.fence_median = 31
+	assert_false(SweepMath.fence_tax(rows).ok, "31% is outside")
+
+## The groups differ: Longbow policies (all_a, mixed, threat) at 20%, the others at 40%. Median of the 48 shares = 30.
+func test_fence_tax_groups_are_split_by_longbow_and_the_gate_is_the_overall_median() -> void:
+	var rows := _grid()
+	for r in rows:
+		r.fence_median = 20 if r.policy in ["all_a", "mixed", "threat"] else 40
+	var res := SweepMath.fence_tax(rows)
+	assert_string_contains(_line(res, "  with Longbow on the siege lane"), "20.0")
+	assert_string_contains(_line(res, "  without Longbow on the siege lane"), "40.0")
+	assert_true(res.ok, "overall median (24 runs at 20, 24 at 40) is 30")
+	_put(rows, "threat", 2, {"fence_median": 41})  # one low run moves up: 23 low, 25 high
+	assert_false(SweepMath.fence_tax(rows).ok, "25 of 48 runs above 30: the median is above 30")
+
+func test_fence_tax_without_a_cap_day_is_na_and_not_a_pass() -> void:
+	var rows := _grid()
+	for r in rows:
+		r.income_at_cap = 0
+	var res := SweepMath.fence_tax(rows)
+	assert_false(res.ok)
+	assert_string_contains(res.lines[0], "FENCE_TAX: N/A")
+
+func test_fixed_spread_within_15_points() -> void:
+	var rows := _grid()
+	for r in rows:
+		if r.policy == "all_a":
+			r.mean_frac = 0.55
+		elif r.policy == "volley_stone":
+			r.mean_frac = 0.40
+	assert_true(SweepMath.fixed_spread(rows).ok, "55 minus 40 is 15.0, inside")
+	for r in rows:
+		if r.policy == "volley_stone":
+			r.mean_frac = 0.399
+	assert_false(SweepMath.fixed_spread(rows).ok, "15.1 is outside")
+	for r in rows:
+		if r.policy in ["threat", "unbranched"]:
+			r.mean_frac = 0.99
+	assert_false(SweepMath.fixed_spread(rows).ok, "threat and unbranched are not fixed pairs: the verdict does not move")
+
+func test_hare_share_is_flagged_below_0_6_per_seed() -> void:
+	var rows := _grid()
+	for r in rows:
+		if r.seed == 13:
+			r.hare_share = 0.6
+	assert_true(SweepMath.hare_share(rows).ok, "exactly 0.6 is not flagged")
+	for r in rows:
+		if r.seed == 13:
+			r.hare_share = 0.59
+	var res := SweepMath.hare_share(rows)
+	assert_false(res.ok)
+	assert_string_contains(_line(res, "  seed 13"), "FLAGGED")
+	assert_false("FLAGGED" in _line(res, "  seed 14"))
+
+func test_lane_cap_guard_counts_hits() -> void:
+	assert_true(SweepMath.lane_cap_guard(_grid()).ok)
+	var rows := _grid()
+	_put(rows, "mixed", 9, {"guard_hits": 2})
+	var res := SweepMath.lane_cap_guard(rows)
+	assert_false(res.ok)
+	assert_string_contains(res.lines[0], "hits 2")
+
+func test_retune_run_stats_first_night_hare_share_and_guard() -> void:
+	var nights := [
+		{"tier": 2, "frac": 0.05, "hare_share": -1.0, "guard_hits": 0},
+		{"tier": 3, "frac": 0.40, "hare_share": 0.6, "guard_hits": 0},
+		{"tier": 3, "frac": 0.90, "hare_share": -1.0, "guard_hits": 1},
+		{"tier": 3, "frac": 0.80, "hare_share": 0.8, "guard_hits": 2},
+	]
+	var s := SweepMath.retune_run_stats(nights)
+	assert_almost_eq(s.first_t3_frac, 0.40, 1e-9, "the first night that STARTED at tier 3, not the tier-2 night")
+	assert_almost_eq(s.hare_share_mean, 0.7, 1e-9, "nights without hares are left out")
+	assert_almost_eq(s.hare_share_min, 0.6, 1e-9)
+	assert_eq(s.guard_hits, 3)
+	assert_eq(s.t3_nights, 3)
+	var none := SweepMath.retune_run_stats([nights[0]])
+	assert_eq(none.t3_nights, 0)
+	assert_eq(none.first_t3_frac, -1.0)
+
+func test_final_gate_refuses_hold_out_sets_without_final() -> void:
+	for set_id in ["1", "2"]:
+		var g := SweepMath.final_gate(set_id, false, "abc1234", {})
+		assert_false(g.allowed, "set %s without --final" % set_id)
+		assert_string_contains(g.lines[0], "REFUSED")
+		assert_eq(g.record, {}, "nothing recorded when refused")
+	var t := SweepMath.final_gate("tuning", false, "abc1234", {})
+	assert_true(t.allowed, "the tuning set needs no flag")
+	assert_eq(t.record, {})
+
+func test_final_gate_records_commit_and_set_number() -> void:
+	var g := SweepMath.final_gate("1", true, "abc1234", {})
+	assert_true(g.allowed)
+	assert_string_contains(g.lines[0], "FINAL set=#1 commit=abc1234")
+	assert_eq(g.record, {"1": [{"commit": "abc1234"}]})
+	var other := SweepMath.final_gate("2", true, "abc1234", g.record)
+	assert_eq(other.record, {"1": [{"commit": "abc1234"}], "2": [{"commit": "abc1234"}]}, "another set keeps the earlier record")
+	assert_eq(_line(other, "FINAL_REPEAT"), "", "set #2 was never run")
+
+## A second --final on set #1 at another commit must show in the output.
+func test_final_gate_shows_an_earlier_run_of_the_same_set_at_a_different_commit() -> void:
+	var first := SweepMath.final_gate("1", true, "abc1234", {})
+	var again := SweepMath.final_gate("1", true, "def5678", first.record)
+	assert_true(again.allowed)
+	assert_string_contains(_line(again, "FINAL_EARLIER set=#1 commit=abc1234"), "abc1234")
+	assert_string_contains(_line(again, "FINAL_REPEAT"), "abc1234")
+	assert_string_contains(_line(again, "FINAL_REPEAT"), "def5678")
+	assert_eq(again.record["1"], [{"commit": "abc1234"}, {"commit": "def5678"}])
+	var same := SweepMath.final_gate("1", true, "abc1234", first.record)
+	assert_ne(_line(same, "FINAL_EARLIER"), "", "the earlier record is printed also at the same commit")
+	assert_string_contains(_line(same, "FINAL_REPEAT"), "same commit", "a repeat at the same commit says so, still visible")
+
+func _expected() -> Array:
+	var out: Array = []
+	for r in _grid():
+		out.append([r.seed, r.policy])
+	return out
+
+func test_report_with_every_run_prints_the_eight_verdict_lines_and_exits_0() -> void:
+	var res := SweepMath.retune_report(_grid(), _expected())
+	assert_eq(res.exit, 0)
+	for key in ["THREAT_LEAD:", "THREAT_LEAD_BY_LANE:", "RETRY_NIGHTS:", "FIRST_T3_NIGHT:", "FENCE_TAX:", "FIXED_SPREAD:", "HARE_SHARE:", "LANE_CAP_GUARD:"]:
+		assert_ne(_line(res, key), "", key)
+
+## A missing run (no row), a failed run (hard break) and a run that never reached tier 3 each remove every verdict line and give exit 1.
+func test_report_with_a_missing_or_failed_run_has_no_verdicts_and_exits_1() -> void:
+	var missing := _grid()
+	missing.remove_at(7)
+	var cases := {"missing": missing}
+	var broke := _grid()
+	broke[3].failed = true
+	cases["hard break"] = broke
+	var no_t3 := _grid()
+	no_t3[5].first_t3_frac = -1.0
+	cases["no tier-3 night"] = no_t3
+	for k in cases:
+		var res := SweepMath.retune_report(cases[k], _expected())
+		assert_eq(res.exit, 1, k)
+		assert_string_contains(res.lines[0], "FAILED")
+		for key in ["THREAT_LEAD", "RETRY_NIGHTS", "FIRST_T3_NIGHT", "FENCE_TAX", "FIXED_SPREAD", "HARE_SHARE", "LANE_CAP_GUARD"]:
+			assert_eq(_line(res, key), "", "%s: no %s line" % [k, key])
+
+func test_ladder_done_for_the_unbranched_policy_needs_no_branches() -> void:
+	var spots := [{"kind": "tower", "level": 3, "branch": ""}, {"kind": "fence", "level": 3, "branch": ""}, {"kind": "grill", "level": 3, "branch": ""}]
+	assert_false(SweepMath.ladder_done(spots, [3, 3], 3, 3), "default: a tower and a fence still need their branch")
+	assert_true(SweepMath.ladder_done(spots, [3, 3], 3, 3, false), "unbranched: levels and stations are everything it can buy")
+	spots[2].level = 2
+	assert_false(SweepMath.ladder_done(spots, [3, 3], 3, 3, false), "a level still to buy")
+	assert_false(SweepMath.ladder_done(spots.slice(0, 2), [3, 2], 3, 3, false), "a station still to buy")

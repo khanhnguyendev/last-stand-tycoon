@@ -57,13 +57,14 @@ static func tier3_stats(nights: Array) -> Dictionary:
 
 ## True when nothing purchasable remains at tier 3: every spot at `max_level`, every tower and fence branched, every station at
 ## `station_max`. `spots`: {kind, level, branch} per spot of the tier; `station_levels`: the stations' levels. No spots = not done.
-static func ladder_done(spots: Array, station_levels: Array, max_level: int, station_max: int) -> bool:
+## `need_branches` false (the `unbranched` policy, E6): branches are not part of what it can buy, so levels and stations are everything.
+static func ladder_done(spots: Array, station_levels: Array, max_level: int, station_max: int, need_branches := true) -> bool:
 	if spots.is_empty():
 		return false
 	for s in spots:
 		if int(s.level) < max_level:
 			return false
-		if String(s.kind) in ["tower", "fence"] and String(s.branch) == "":
+		if need_branches and String(s.kind) in ["tower", "fence"] and String(s.branch) == "":
 			return false
 	for l in station_levels:
 		if int(l) < station_max:
@@ -219,3 +220,316 @@ static func two_by_two(runs: Array) -> Dictionary:
 		"tower_effect": (p.call("volley_stone") + p.call("volley_spike")) / 2.0 - (p.call("longbow_stone") + p.call("longbow_spike")) / 2.0,
 		"fence_effect": (p.call("longbow_stone") + p.call("volley_stone")) / 2.0 - (p.call("longbow_spike") + p.call("volley_spike")) / 2.0,
 		"interaction": (p.call("volley_spike") - p.call("longbow_spike")) - (p.call("volley_stone") - p.call("longbow_stone"))}
+
+
+# --- E6 Task 16: the retune report (tests/sim/report_retune.gd, spec 8.1, D-285, D-290, D-294) ---
+
+const SIEGE_LANES := ["east", "sw", "west", "north"]
+## The seed sets, pinned as literals (D-285). The rule: scan seeds upward from 1; a seed belongs to the lane `LaneCharacter.for_run(seed).siege`; per lane the first seed is
+## the tuning set, the next two are hold-out set #1, the two after those hold-out set #2. report_retune.gd asserts the scan still gives exactly these.
+const TUNING_SET := {"east": [1], "sw": [3], "west": [4], "north": [7]}
+const HOLDOUT_SET_1 := {"east": [2, 5], "sw": [10, 12], "west": [6, 13], "north": [9, 14]}
+const HOLDOUT_SET_2 := {"east": [8, 11], "sw": [21, 23], "west": [18, 25], "north": [16, 19]}
+const FIXED_PAIRS := ["all_a", "all_b", "mixed", "volley_stone"]
+const RETUNE_POLICIES := ["all_a", "all_b", "mixed", "volley_stone", "threat", "unbranched"]
+## Policies whose towers are Longbow on the siege lane (all_a, mixed: every tower; threat: the tower covering the siege lane, spec 4.4).
+const LONGBOW_POLICIES := ["all_a", "mixed", "threat"]
+const EPS := 1e-9
+
+## The scan. `siege_of`: Callable(seed) -> siege lane name. Returns {tuning, holdout1, holdout2}, each {lane: [seeds]} in scan order.
+static func seed_scan(siege_of: Callable, lanes: Array, per_lane := 5, start := 1) -> Dictionary:
+	var found := {}
+	for l in lanes:
+		found[l] = []
+	var s := start
+	var guard := 0
+	while guard < 100000:
+		var lane := String(siege_of.call(s))
+		if found.has(lane) and found[lane].size() < per_lane:
+			found[lane].append(s)
+		var full := true
+		for l in lanes:
+			full = full and found[l].size() >= per_lane
+		if full:
+			break
+		s += 1
+		guard += 1
+	var out := {"tuning": {}, "holdout1": {}, "holdout2": {}}
+	for l in lanes:
+		out.tuning[l] = found[l].slice(0, 1)
+		out.holdout1[l] = found[l].slice(1, 3)
+		out.holdout2[l] = found[l].slice(3, 5)
+	return out
+
+## The seeds of a set, lane order of SIEGE_LANES, scan order inside a lane.
+static func set_seeds(set: Dictionary) -> Array:
+	var out: Array = []
+	for l in SIEGE_LANES:
+		out.append_array(set.get(l, []))
+	return out
+
+static func seed_lane(set: Dictionary, seed: int) -> String:
+	for l in set:
+		if seed in set[l]:
+			return String(l)
+	return ""
+
+## The set the report runs: "tuning", "1" or "2" -> its dictionary ({} for anything else).
+static func set_by_id(set_id: String) -> Dictionary:
+	return {"tuning": TUNING_SET, "1": HOLDOUT_SET_1, "2": HOLDOUT_SET_2}.get(set_id, {})
+
+## D-290: hold-out sets run only with --final, and every such run records its commit and set number. `record`: the earlier runs {set id: [{commit}]}
+## (tests/sim/out/retune_final.json). Returns {allowed, lines, record}: the header lines, and the record with this run appended. The tuning set needs no flag.
+static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary) -> Dictionary:
+	if set_id == "tuning":
+		return {"allowed": true, "lines": [], "record": record}
+	if not set_id in ["1", "2"]:
+		return {"allowed": false, "lines": ["REFUSED: unknown set '%s' (tuning|1|2)" % set_id], "record": record}
+	if not final_flag:
+		return {"allowed": false, "lines": ["REFUSED: hold-out set #%s runs only with --final (D-290); no run was started" % set_id], "record": record}
+	var lines: Array = ["FINAL set=#%s commit=%s" % [set_id, commit]]
+	var earlier: Array = record.get(set_id, [])
+	var differs := ""
+	for e in earlier:
+		lines.append("FINAL_EARLIER set=#%s commit=%s" % [set_id, e.commit])
+		if String(e.commit) != commit:
+			differs = String(e.commit)
+	if not earlier.is_empty():
+		if differs != "":
+			lines.append("FINAL_REPEAT: set #%s was already run at commit %s; this run is at commit %s. A failed target ends tuning against this set (D-290): the next final run uses the next hold-out set" % [set_id, differs, commit])
+		else:
+			lines.append("FINAL_REPEAT: set #%s was already run at the same commit %s" % [set_id, commit])
+	var out := record.duplicate(true)
+	var list: Array = out.get(set_id, [])
+	list.append({"commit": commit})
+	out[set_id] = list
+	return {"allowed": true, "lines": lines, "record": out}
+
+## Per-run facts from the tier-3 nights of a retune-on sweep: `nights` rows {tier, frac, hare_share (-1 when the night has no hares), guard_hits}.
+## first_t3_frac = the diner fraction of the first night that STARTED at tier >= 3 (-1 none); hare_share_mean / _min over the tier-3 nights that had hares (-1 none).
+static func retune_run_stats(nights: Array) -> Dictionary:
+	var out := {"first_t3_frac": -1.0, "hare_share_mean": -1.0, "hare_share_min": -1.0, "guard_hits": 0, "t3_nights": 0}
+	var shares: Array = []
+	for n in nights:
+		if int(n.tier) < 3:
+			continue
+		if out.t3_nights == 0:
+			out.first_t3_frac = float(n.frac)
+		out.t3_nights += 1
+		out.guard_hits += int(n.get("guard_hits", 0))
+		if float(n.get("hare_share", -1.0)) >= 0.0:
+			shares.append(float(n.hare_share))
+	if not shares.is_empty():
+		var sum := 0.0
+		for v in shares:
+			sum += float(v)
+		out.hare_share_mean = sum / shares.size()
+		out.hare_share_min = ReportMath.percentile(shares, 0.0)
+	return out
+
+# Run rows: {seed, lane, policy, mean_frac, retry_nights, first_t3_frac, fence_median, income_at_cap, hare_share, guard_hits, failed (optional)}.
+# Every verdict returns {ok: bool, lines: [headline, "  seed ..." per seed, "  lane ..." per siege lane]}.
+
+static func _ge(a: float, b: float) -> bool:
+	return a >= b - EPS
+
+static func _le(a: float, b: float) -> bool:
+	return a <= b + EPS
+
+static func _pts(r: Dictionary) -> float:
+	return float(r.mean_frac) * 100.0
+
+static func _of(rows: Array, policy: String) -> Array:
+	return rows.filter(func(r): return r.policy == policy)
+
+static func _mean(values: Array) -> float:
+	if values.is_empty():
+		return NAN
+	var sum := 0.0
+	for v in values:
+		sum += float(v)
+	return sum / values.size()
+
+static func _policy_points(rows: Array, policy: String) -> float:
+	return _mean(_of(rows, policy).map(func(r): return _pts(r)))
+
+static func _distinct(rows: Array, key: String) -> Array:
+	var out: Array = []
+	for r in rows:
+		if not r[key] in out:
+			out.append(r[key])
+	return out
+
+static func _num(v: float, fmt: String) -> String:
+	return "n/a" if is_nan(v) else fmt % v
+
+## The per-seed and per-siege-lane lines. `fn`: Callable(rows) -> float (NAN = n/a) over the rows of one seed or one lane.
+static func _breakdown(rows: Array, fn: Callable, fmt: String, flag_below := -INF) -> Array:
+	var lines: Array = []
+	for s in _distinct(rows, "seed"):
+		var sub := rows.filter(func(r): return r.seed == s)
+		var v := float(fn.call(sub))
+		lines.append("  seed %d (%s): %s%s" % [s, sub[0].lane, _num(v, fmt), " FLAGGED" if (not is_nan(v) and v < flag_below - EPS) else ""])
+	for l in SIEGE_LANES:
+		var sub := rows.filter(func(r): return r.lane == l)
+		if not sub.is_empty():
+			lines.append("  lane %s: %s" % [l, _num(float(fn.call(sub)), fmt)])
+	return lines
+
+## The fixed pair with the best mean points over all the rows (ties: first in FIXED_PAIRS order).
+static func best_fixed(rows: Array) -> String:
+	var best := ""
+	var best_v := -INF
+	for p in FIXED_PAIRS:
+		var v := _policy_points(rows, p)
+		if not is_nan(v) and v > best_v + EPS:
+			best_v = v
+			best = p
+	return best
+
+static func _lead_of(rows: Array, best: String) -> float:
+	var leads: Array = []
+	for s in _distinct(rows, "seed"):
+		var t := _of(rows.filter(func(r): return r.seed == s), "threat")
+		var b := _of(rows.filter(func(r): return r.seed == s), best)
+		if not t.is_empty() and not b.is_empty():
+			leads.append(_pts(t[0]) - _pts(b[0]))
+	return _mean(leads)
+
+## THREAT_LEAD (D-285): the mean lead of threat over the best fixed pair (best by mean over all seeds, one pair for every seed) >= 5 points AND ahead (strictly) on at least
+## 6 of 8 seeds (scaled for another set size: ceil(6 n / 8), so 3 of 4 on the tuning set).
+static func threat_lead(rows: Array) -> Dictionary:
+	var best := best_fixed(rows)
+	var seeds := _distinct(rows, "seed")
+	var ahead := 0
+	for s in seeds:
+		var sub := rows.filter(func(r): return r.seed == s)
+		if _lead_of(sub, best) > EPS:
+			ahead += 1
+	var need := (6 * seeds.size() + 7) / 8
+	var mean_lead := _lead_of(rows, best)
+	var ok := not best.is_empty() and _ge(mean_lead, 5.0) and ahead >= need
+	var head := "THREAT_LEAD: %s (mean lead %s points over %s, ahead on %d of %d seeds; needs >= 5.0 and >= %d)" % ["PASS" if ok else "FAIL", _num(mean_lead, "%+.1f"), best, ahead, seeds.size(), need]
+	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return _lead_of(sub, best), "%+.1f")}
+
+## THREAT_LEAD_BY_LANE: the mean lead (against the same best pair) is not negative on any siege lane.
+static func threat_lead_by_lane(rows: Array) -> Dictionary:
+	var best := best_fixed(rows)
+	var ok := not best.is_empty()
+	var parts: Array = []
+	for l in SIEGE_LANES:
+		var sub := rows.filter(func(r): return r.lane == l)
+		if sub.is_empty():
+			continue
+		var v := _lead_of(sub, best)
+		ok = ok and _ge(v, 0.0)
+		parts.append("%s %s" % [l, _num(v, "%+.1f")])
+	var head := "THREAT_LEAD_BY_LANE: %s (mean lead per siege lane over %s: %s; none may be negative)" % ["PASS" if ok else "FAIL", best, ", ".join(parts)]
+	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return _lead_of(sub, best), "%+.1f")}
+
+## RETRY_NIGHTS: zero for every policy (unbranched included).
+static func retry_nights(rows: Array) -> Dictionary:
+	var ok := true
+	var parts: Array = []
+	for p in RETUNE_POLICIES:
+		var n := 0
+		for r in _of(rows, p):
+			n += int(r.retry_nights)
+		ok = ok and n == 0
+		parts.append("%s %d" % [p, n])
+	var head := "RETRY_NIGHTS: %s (tier-3 retry nights summed over the seeds: %s; all must be 0)" % ["PASS" if ok else "FAIL", ", ".join(parts)]
+	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return float(sub.map(func(r): return int(r.retry_nights)).reduce(func(a, b): return a + b, 0)), "%.0f")}
+
+## FIRST_T3_NIGHT: no run's first tier-3 night below 25% of the diner's HP (exactly 25% passes).
+static func first_t3_night(rows: Array) -> Dictionary:
+	var lowest := INF
+	for r in rows:
+		lowest = minf(lowest, float(r.first_t3_frac) * 100.0)
+	var ok := not rows.is_empty() and _ge(lowest, 25.0)
+	var head := "FIRST_T3_NIGHT: %s (lowest first tier-3 night %s%% over %d runs; needs >= 25.0)" % ["PASS" if ok else "FAIL", _num(lowest if lowest < INF else NAN, "%.1f"), rows.size()]
+	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return sub.map(func(r): return float(r.first_t3_frac) * 100.0).min(), "min %.1f%%")}
+
+static func _fence_shares(rows: Array) -> Array:
+	var out: Array = []
+	for r in rows:
+		if int(r.income_at_cap) > 0:
+			out.append(100.0 * float(r.fence_median) / float(r.income_at_cap))
+	return out
+
+static func _median_or_nan(values: Array) -> float:
+	return NAN if values.is_empty() else ReportMath.median(values)
+
+## FENCE_TAX: the median over the runs of (fence rebuild + rebranch gold) / income at the tier-3 cap, in percent, <= 30. Shown with and without Longbow on the siege lane
+## (all_a, mixed, threat | all_b, volley_stone, unbranched). The gate is the overall median. N/A (not a pass) when no run has a cap day.
+static func fence_tax(rows: Array) -> Dictionary:
+	var all := _fence_shares(rows)
+	var with_lb := _fence_shares(rows.filter(func(r): return r.policy in LONGBOW_POLICIES))
+	var without_lb := _fence_shares(rows.filter(func(r): return not r.policy in LONGBOW_POLICIES))
+	var med := _median_or_nan(all)
+	var ok := not is_nan(med) and _le(med, 30.0)
+	var verdict := "N/A" if is_nan(med) else ("PASS" if ok else "FAIL")
+	var head := "FENCE_TAX: %s (median %s%% of income at the cap over %d runs; needs <= 30.0)" % [verdict, _num(med, "%.1f"), all.size()]
+	var lines: Array = [head,
+		"  with Longbow on the siege lane (all_a, mixed, threat): median %s%%" % _num(_median_or_nan(with_lb), "%.1f"),
+		"  without Longbow on the siege lane (all_b, volley_stone, unbranched): median %s%%" % _num(_median_or_nan(without_lb), "%.1f")]
+	lines.append_array(_breakdown(rows, func(sub): return _median_or_nan(_fence_shares(sub)), "median %.1f%%"))
+	return {"ok": ok, "lines": lines}
+
+static func _spread(rows: Array) -> float:
+	var vals: Array = []
+	for p in FIXED_PAIRS:
+		var v := _policy_points(rows, p)
+		if not is_nan(v):
+			vals.append(v)
+	return NAN if vals.is_empty() else float(vals.max()) - float(vals.min())
+
+## FIXED_SPREAD: best minus worst mean points of the four fixed pairs <= 15 (exactly 15 passes).
+static func fixed_spread(rows: Array) -> Dictionary:
+	var sp := _spread(rows)
+	var ok := not is_nan(sp) and _le(sp, 15.0)
+	var parts: Array = []
+	for p in FIXED_PAIRS:
+		parts.append("%s %s" % [p, _num(_policy_points(rows, p), "%.1f")])
+	var head := "FIXED_SPREAD: %s (spread %s points: %s; needs <= 15.0)" % ["PASS" if ok else "FAIL", _num(sp, "%.1f"), ", ".join(parts)]
+	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return _spread(sub), "spread %.1f")}
+
+## HARE_SHARE: night-level share of the hares that walk the hare lane, per seed (mean over the six runs of the seed, each the mean over its tier-3 nights with hares);
+## a seed below 0.6 is FLAGGED (exactly 0.6 is not). ok = nothing flagged.
+static func hare_share(rows: Array) -> Dictionary:
+	var flagged := 0
+	for s in _distinct(rows, "seed"):
+		var v := _mean(rows.filter(func(r): return r.seed == s).map(func(r): return float(r.hare_share)))
+		if is_nan(v) or v < 0.6 - EPS:
+			flagged += 1
+	var ok := flagged == 0
+	var head := "HARE_SHARE: %s (%d of %d seeds flagged below 0.60)" % ["PASS" if ok else "FLAGGED", flagged, _distinct(rows, "seed").size()]
+	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return _mean(sub.map(func(r): return float(r.hare_share))), "%.3f", 0.6)}
+
+## LANE_CAP_GUARD: waves whose extra hare group was skipped by the 3-lane guard, summed over all runs; expected 0.
+static func lane_cap_guard(rows: Array) -> Dictionary:
+	var n := 0
+	for r in rows:
+		n += int(r.guard_hits)
+	var ok := n == 0
+	var head := "LANE_CAP_GUARD: %s (hits %d, expected 0)" % ["PASS" if ok else "FAIL", n]
+	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return float(sub.map(func(r): return int(r.guard_hits)).reduce(func(a, b): return a + b, 0)), "hits %.0f")}
+
+## The whole report. `expected`: [[seed, policy], ...]. A missing run, a run with `failed`, or a run that never reached tier 3 (first_t3_frac < 0) = NO verdict lines, exit 1.
+static func retune_report(rows: Array, expected: Array) -> Dictionary:
+	var problems: Array = []
+	for e in expected:
+		var found: Array = rows.filter(func(r): return int(r.seed) == int(e[0]) and r.policy == e[1])
+		if found.is_empty():
+			problems.append("seed %d %s: missing" % [e[0], e[1]])
+		elif bool(found[0].get("failed", false)):
+			problems.append("seed %d %s: failed (hard break or no result)" % [e[0], e[1]])
+		elif float(found[0].first_t3_frac) < 0.0:
+			problems.append("seed %d %s: no tier-3 night" % [e[0], e[1]])
+	if not problems.is_empty():
+		return {"exit": 1, "ok": false, "lines": ["FAILED: a run is missing or failed; no verdict lines"] + problems}
+	var lines: Array = []
+	var all_ok := true
+	for res in [threat_lead(rows), threat_lead_by_lane(rows), retry_nights(rows), first_t3_night(rows), fence_tax(rows), fixed_spread(rows), hare_share(rows), lane_cap_guard(rows)]:
+		lines.append_array(res.lines)
+		all_ok = all_ok and res.ok
+	return {"exit": 0, "ok": all_ok, "lines": lines}
