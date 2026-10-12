@@ -16,6 +16,8 @@
 # PERF_SETTLE=<s> (optional, E6 A2, D-292; default off = the overlay's 2 s): the measured window opens <s> seconds after the phase change (adds `perfwarm=<s>` to QUERY;
 #   needs SHOT_WAIT >= load + <s> + 60). For a night RESUMED from a save: the first seconds hold the load freeze, its tail and the overlay's own first glyph draw.
 # SHOT_WAIT (optional) is the seconds between opening the night page and the screenshot (default 100).
+# DRAW_CALL_BUDGET (E6 A3, D-294): the frozen PERF line ends with `DRAW_CALL_BUDGET: OK|WARN <n> (budget 58)` (58 = the E5 T3 count 48 + 10; WARN never fails
+# the run). The budget describes the RESUMED night; a PLAY_ENTERED night frames the whole diner from HOME and reads about 30 higher (WARN is expected there).
 set -euo pipefail
 BUILD="$1"; OUT="$2"; PORT=8765
 if [ -n "${PLAY_ENTERED:-}" ]; then

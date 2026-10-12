@@ -357,3 +357,20 @@ func test_perf_priming_frame_is_still_counted() -> void:
 	for i in 130:
 		p._tick(1.0 / 60.0, 1.0 / 60.0)
 	assert_gt(p._n, 0, "frames past the 2 s warm-up are counted exactly as before the prime existed")
+
+## E6 A3 (D-294): the budget line. Fails when the limit moves (59 OK, 58 WARN), when WARN is not reported above it, or when the line is not in the frozen text.
+func test_draw_call_budget_line_is_ok_up_to_58_and_warns_above() -> void:
+	var P = load("res://ui/perf_overlay.gd")
+	assert_eq(P.budget_text(48.0), "DRAW_CALL_BUDGET: OK 48 (budget 58)")
+	assert_eq(P.budget_text(58.4), "DRAW_CALL_BUDGET: OK 58 (budget 58)")
+	assert_eq(P.budget_text(58.6), "DRAW_CALL_BUDGET: WARN 59 (budget 58)")
+	assert_eq(P.budget_text(78.0), "DRAW_CALL_BUDGET: WARN 78 (budget 58)")
+
+func test_the_frozen_perf_line_ends_with_the_budget_line() -> void:
+	var p := _perf()
+	EventBus.phase_changed.emit(Phase.NIGHT, 3)
+	for i in 130:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	for i in 3700:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_true(p.frozen_text().ends_with("(budget 58)"), "the frozen line carries the budget words: " + p.frozen_text())

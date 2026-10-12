@@ -314,9 +314,18 @@ func _tick(raw: float, delta: float) -> void:
 		var line := "PERF phase=%s day=%d window=60s avg_fps=%.1f worst_ms=%.1f proc_ms=%.2f phys_ms=%.2f dc=%.0f slow_pct=%.1f delta_worst_ms=%.1f" % [
 			_phase_name(), _day, avg_fps(), worst_ms(), _proc_sum / _n, _phys_sum / _n, _dc_sum / _n,
 			100.0 * _slow / _n, _delta_worst]
-		line += " top3=" + top3_text() + " pre3=" + pre3_text()
+		line += " top3=" + top3_text() + " pre3=" + pre3_text() + " " + budget_text(_dc_sum / _n)
 		_frozen_label.text = line
 		print(line)
+
+## E5 T3 checkpoint night 3 = 48 draw calls, plus 10 (E6 A3, D-294). A warning only: WARN never fails a run.
+const DRAW_CALL_BUDGET := 58
+
+## `DRAW_CALL_BUDGET: OK 50 (budget 58)` or `WARN 78 (budget 58)`: the frozen line's last words. The budget is for the night RESUMED from a save
+## (the camera frames the hero's saved place); a night entered by play frames the whole diner from HOME and draws about 30 more (a2.md 4e).
+static func budget_text(dc: float) -> String:
+	var n := int(round(dc))
+	return "DRAW_CALL_BUDGET: %s %d (budget %d)" % ["OK" if n <= DRAW_CALL_BUDGET else "WARN", n, DRAW_CALL_BUDGET]
 
 func _track_top(raw: float) -> void:
 	var ms := raw * 1000.0
