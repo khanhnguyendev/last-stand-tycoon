@@ -359,3 +359,56 @@ func test_tier_3_arrays_are_live_and_the_top_tier_is_3() -> void:
 		assert_ne(tb.boss_kind[t], &"", "boss_kind[%d] must name the boss that leaves tier %d (a new tier must add its boss)" % [t, t])
 	assert_eq(tb.boss_kind[last], &"", "no boss leaves the top tier: the last boss_kind entry is empty")
 	assert_eq(bd.guards.respawn_protect_s, 1.5)
+
+# ---- E6 Task 9 (spec 4.3, D-294.6, D-294.7): the identity restated on the lane-type bench's measures, flag ON ----------------------
+## Uses the bench's FAST subset (tests/unit/test_branch_bench.gd computes it; BranchBench.fast_results() caches it per process, so this adds
+## no runs when that file ran first): pressure 12, the LAST wave of each mix only, an invulnerable diner. A shorter night than the full
+## bench (tests/bench/test_branch_bench_full.gd runs the same rules over three waves). The assertions above (flag off, Balance only) are
+## untouched. The fast file's old combined identity test moved here, with the stands-longest and fewest-hares rules added.
+
+func _fast() -> Dictionary:
+	return await BranchBench.fast_results()
+
+## A run the identity rules read must have cleared the night.
+func _ok_runs(lane_results: Dictionary, lane: StringName) -> void:
+	for name in lane_results:
+		assert_false(lane_results[name].timed_out, "%s %s did not clear before MAX_TICKS (timed out)" % [lane, name])
+
+func test_e6_identity_longbow_is_the_best_tower_state_against_the_siege_mix() -> void:
+	var f := await _fast()
+	_ok_runs(f[&"siege"], &"siege")
+	var v := BranchBench.identity_longbow_siege(f[&"siege"])
+	assert_true(v.ok, "%s | fails when: %s" % [v.why, BranchBench.IDENTITY_FAILS_WHEN["longbow_siege"]])
+
+func test_e6_identity_volley_is_the_best_tower_state_against_the_hare_mix() -> void:
+	var f := await _fast()
+	_ok_runs(f[&"hare"], &"hare")
+	var v := BranchBench.identity_volley_hare(f[&"hare"])
+	assert_true(v.ok, "%s | fails when: %s" % [v.why, BranchBench.IDENTITY_FAILS_WHEN["volley_hare"]])
+
+func test_e6_identity_stone_wall_fence_stands_longest_against_brutes() -> void:
+	var f := await _fast()
+	_ok_runs(f[&"siege"], &"siege")
+	var v := BranchBench.identity_stone_stands_longest(f[&"siege"])
+	assert_true(v.ok, "%s | fails when: %s" % [v.why, BranchBench.IDENTITY_FAILS_WHEN["stone_stands"]])
+
+func test_e6_identity_spike_fence_lets_the_fewest_hares_reach_the_zone_on_the_hare_lane() -> void:
+	var f := await _fast()
+	_ok_runs(f[&"hare"], &"hare")
+	var v := BranchBench.identity_spike_fewest_hares(f[&"hare"])
+	assert_true(v.ok, "%s | fails when: %s" % [v.why, BranchBench.IDENTITY_FAILS_WHEN["spike_hares"]])
+
+func test_e6_identity_unbranched_is_never_the_best_at_any_named_measure_on_any_lane_type() -> void:
+	var f := await _fast()
+	for lane in BranchBench.LANES:
+		var l: Dictionary = f[lane]
+		_ok_runs(l, lane)
+		var base: Dictionary = l["-/-"]
+		var towers := minf(float(l["longbow/-"].diner_lost), float(l["volley/-"].diner_lost))
+		var fences := minf(float(l["-/stone"].diner_lost), float(l["-/spike"].diner_lost))
+		assert_lt(towers, float(base.diner_lost) - BranchBench.SAME, "%s: the unbranched tower is never best on diner HP lost (best branch %.1f vs %.1f)" % [lane, towers, base.diner_lost])
+		assert_lt(fences, float(base.diner_lost) - BranchBench.SAME, "%s: the unbranched fence is never best on diner HP lost (best branch %.1f vs %.1f)" % [lane, fences, base.diner_lost])
+	var s: Dictionary = f[&"siege"]
+	assert_gt(maxf(float(s["-/stone"].fence_stands_s), float(s["-/spike"].fence_stands_s)), float(s["-/-"].fence_stands_s), "siege: a branched fence stands longer than the unbranched one")
+	var h: Dictionary = f[&"hare"]
+	assert_lt(mini(int(h["-/stone"].hares_in_zone), int(h["-/spike"].hares_in_zone)), int(h["-/-"].hares_in_zone), "hare: a branched fence lets fewer hares in than the unbranched one")

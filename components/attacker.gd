@@ -13,6 +13,10 @@ var projectile_speed := 14.0
 var enabled := true
 ## Projectiles per attack, one at each of the first `count` targets of Targeting.select_many (Volley, E5 tier 3).
 var count := 1
+## E6 (D-283): damage x this by the target's `kind` (an absent kind = 1.0). Empty for every shooter but a Longbow tower
+## with the retune on. Resolved at launch: a projectile can only hit the target it was launched at (it is lost if that
+## target dies), and a monster's kind never changes, so the launch-time multiplier is the hit-time one.
+var kind_mults: Dictionary = {}
 ## Which projectile art this shooter's shots wear (S4 Task 7a, D-191): the hero's is &"knife".
 @export var projectile_art: StringName = &"arrow"
 var candidates: Callable
@@ -61,7 +65,7 @@ func _physics_process(delta: float) -> void:
 		var ref: Object = _target.ref
 		var p: Projectile = projectile_pool.acquire()
 		p.set_art(projectile_art)
-		p.launch(origin + Vector3(0, 1.0, 0), ref, int(_target.spawn_index), damage, projectile_speed, projectile_pool)
+		p.launch(origin + Vector3(0, 1.0, 0), ref, int(_target.spawn_index), _damage_against(ref), projectile_speed, projectile_pool)
 		fired.emit(ref)
 
 ## Multi-projectile attack: when the cooldown is ready, pick the first `count` targets afresh and fire one at each.
@@ -80,8 +84,13 @@ func _volley(origin: Vector3, delta: float) -> void:
 	for t in targets:
 		var p: Projectile = projectile_pool.acquire()
 		p.set_art(projectile_art)
-		p.launch(origin + Vector3(0, 1.0, 0), t.ref, int(t.spawn_index), damage, projectile_speed, projectile_pool)
+		p.launch(origin + Vector3(0, 1.0, 0), t.ref, int(t.spawn_index), _damage_against(t.ref), projectile_speed, projectile_pool)
 		fired.emit(t.ref)
+
+func _damage_against(target: Object) -> float:
+	if kind_mults.is_empty():
+		return damage
+	return damage * float(kind_mults.get(target.get(&"kind"), 1.0))
 
 func _target_valid(origin: Vector3) -> bool:
 	if _target.is_empty():

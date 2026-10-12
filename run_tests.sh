@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Usage: ./run_tests.sh [unit|sim|sim-tiers|all|--quick]. Requires $GODOT (Godot 4.7 binary, see docs/DECISIONS.md D-116).
-# sim = res://tests/sim, sim-tiers = res://tests/sim_tier (two CI jobs, D-247). all = unit, sim, sim-tiers (stops at the first failure).
+# Usage: ./run_tests.sh [unit|sim|sim-tiers|bench|all|--quick]. Requires $GODOT (Godot 4.7 binary, see docs/DECISIONS.md D-116).
+# sim = res://tests/sim, sim-tiers = res://tests/sim_tier (two CI jobs, D-247). bench = res://tests/bench (the full lane-type bench,
+# E6 D-292: its own CI job; tick budget as the sims; wall time warns above 150 s and fails above 400 s because it is 42 one-lane
+# nights, about 75 s on an idle Mac). all = unit, sim, sim-tiers, bench (stops at the first failure).
 # --quick = unit + night-1 sims (no tick hook), for local loops (D-132). CI always runs the full suites.
 # Sim budget (D-247): the deterministic check is a per-test physics-tick budget (tests/sim_ticks.golden.json, +20%),
 # enforced by tests/sim/tick_budget_hook.gd. Wall time only warns above SIM_WARN_S (default 60) and fails above
-# SIM_FAIL_S (default 150). Update the golden file deliberately: TICK_BUDGET_UPDATE=1 ./run_tests.sh sim|sim-tiers
+# SIM_FAIL_S (default 150). Update the golden file deliberately: TICK_BUDGET_UPDATE=1 ./run_tests.sh sim|sim-tiers|bench
 # (refused in CI). A watchdog kills a sim suite that is still running SIM_FAIL_S + 30 s after it started (a hang).
 # Fails on test failures AND on GUT errors (missing scripts, parse errors, nothing run).
 # .gutconfig.json is ignored by this runner (-gconfig=); dirs come from the flags below.
@@ -66,8 +68,9 @@ case "$SUITE" in
   unit) run_gut -gdir=res://tests/unit ;;
   sim) run_sim_suite sim tests/sim ;;
   sim-tiers) run_sim_suite sim-tiers tests/sim_tier ;;
-  all) "$SELF" unit && "$SELF" sim && "$SELF" sim-tiers ;;
+  bench) SIM_WARN_S="${SIM_WARN_S:-150}" SIM_FAIL_S="${SIM_FAIL_S:-400}" run_sim_suite bench tests/bench ;;
+  all) "$SELF" unit && "$SELF" sim && "$SELF" sim-tiers && "$SELF" bench ;;
   --quick)
     run_gut -gdir=res://tests/unit && run_gut -gtest=res://tests/sim/test_night_sims.gd ;;
-  *) echo "usage: $0 [unit|sim|sim-tiers|all|--quick]"; exit 2 ;;
+  *) echo "usage: $0 [unit|sim|sim-tiers|bench|all|--quick]"; exit 2 ;;
 esac

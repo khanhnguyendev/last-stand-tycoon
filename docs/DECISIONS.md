@@ -3036,3 +3036,112 @@ process of the last slice; the escalation rule. Additions:
    save.
 3. **Phase A goes first** and merges on its own as soon as it is green; it does not wait for the other phases.
 
+**D-292 Author's answers to four escalations during the E6 build (2026-10-08).**
+
+1. **Bench measure (changes D-288):** the diner is INVULNERABLE in the lane-type bench; the primary measure is total
+   diner HP lost, then the D-288 lane-type tie-breakers. The bench ranks branches relatively and does not predict
+   real nights; real outcomes are judged by the report. Reason: as approved (one lane, one tower, one fence, no
+   hero, no guards, pressure 12) the diner fell in almost every configuration, so the measure read 300 everywhere.
+2. **Bench placement (changes D-288.3):** split. The unit suite keeps a fast subset under about 10 s (each lane type
+   at pressure 12, the primary measure only), enough to catch a regression in the floor, the specialist margin or
+   the identity ordering. The FULL bench (all lane types, pressure 12 and the final cap, all tie-breakers) is its own
+   CI job with tick budgets (D-247 rules), added as a required check under D-274.4. Deviation logged: the bench took
+   70 to 79 s against the approved "about 10 s in the unit suite".
+3. **Badge placement (changes D-289):** the lane-character badge sits BELOW the count row and OFF the road surface.
+   It must pass the zero-overlap test with the flag on and the 40% and grayscale checks. The card's row 3 is the
+   in-the-moment source, so the badge is not required to be visible from home. Reason: "beside the row" puts it
+   under the HUD bar from the home view (on the gold coin, "Day N" or the gear).
+4. **Merging with open escalations (clarifies D-137):** per phase. A phase may self-merge when its OWN tasks have no
+   open escalation and all gates pass, including the three baselines and "tier-3 off identical". PR #62 merged.
+
+**On the early bench warning** (Volley beats Longbow on the siege lane; Longbow is below unbranched on the hare lane):
+- PRE-AUTHORIZED, no need to ask: widening any NUMERIC Longbow or Spike range when the approved ranges cannot satisfy
+  the D-288 floor, specialist and identity rules: Longbow's interval, damage per shot, range within the D-271
+  coverage limit, and `kind_mult` up to 4.0; Spike's pass and thorn damage. Each widening is logged with the bench
+  numbers that forced it.
+- NOT pre-authorized: any new mechanic (pierce, splash, a bonus against boars, and so on) or any change to Volley or
+  Stone wall. If numeric levers cannot make the specialist win on its lane while keeping the floor: escalate with
+  the bench data and 2 to 3 options.
+- Real bench numbers go to the author only with that escalation, or at the checkpoint.
+
+**A2 (worst frame):** the window-start finding suggests a measurement artifact. Confirm the cause. If it is purely
+the window: fix the MEASUREMENT (start the window after a fixed, documented settle time); do not add a warm-up. The
+boot warm-up's cost is reported as planned.
+
+Also recorded (main session, D-283): Spike fence's `pass_kinds` are unchanged, so with the flag on the Baron's pass
+damage is also the new base; unreachable in play (the Baron is fought to leave tier 2; branches need tier 3).
+
+**D-293 Tuning round 1 on the lane-type bench (main session, under the pre-authorization of D-292; 2026-10-08).**
+
+Values with the flag on (the old values stay beside them until the cleanup):
+- **Longbow firing interval 3.0 s -> 2.4 s** (a widening: the interval was not a lever in D-283's table; damage 120,
+  range 9.98 and the brute multiplier 2.0 are unchanged).
+- **Spike fence pass damage 16 -> 24** (the top of D-283's range 12 to 24).
+
+Bench numbers that forced them (invulnerable diner, pressure 12, diner HP lost; `tests/bench_report/`):
+- The floor failed on the hare lane: Longbow 2313 against the unbranched tower's 1693, at EVERY brute multiplier
+  (2, 3, 4) and damage per shot (120, 160, 200, 240) and at the largest range the coverage rule allows (10.27 m).
+  Only the interval moves that row: 2.4 s -> siege 412, hare 1387, neutral 202; 2.5 s passes thinly; 2.6 s fails
+  (hare 1707, siege 636 against the bound 600.1); 1.8 s -> 0 / 545 / 8 (near-dominant on neutral: not chosen).
+- Spike pass damage: 16 -> hare 1062; 24 -> 855 (a hare has 39.75 HP in waves 1 and 2, 51.7 in wave 3: 24 and 32
+  give the same result; 40 kills a wave-1 hare in its one pass: 775).
+
+Result at the applied values (production path, equal to the in-memory candidate):
+
+| Lane type | unbranched | Longbow | Volley | Stone | Spike |
+|---|---|---|---|---|---|
+| siege | 1780 | 412 | 706 | 1478 | 1673 |
+| hare | 1693 | 1387 | 395 | 1355 | 855 |
+| neutral | 560 | 202 | 100 | 315 | 335 |
+
+24 of 26 bench rules pass. Not reachable with the pre-authorized levers, escalated to the author with data:
+"Stone wall beats Spike fence by 15% on the siege lane" (1478 against the bound 1422; Stone HP 710 or a brute
+multiplier of 0.33 would pass; by fence-fall time Stone passes today: 68.5 s against 30.2 s) and "Stone keeps the
+most fence HP" (the fence is destroyed in every siege configuration).
+
+**D-294 Author's answers to escalations 5 to 8, the fade hitch and a perf regression (2026-10-08).**
+
+5. **Banner timing (changes D-289):** both lane-character lines show AFTER the card pick, 2 s each. The badges still
+   pop in the reveal, with the sound and no text. Reason: a banner sent at the reveal's lane-character step (1.30 s)
+   cannot get 2 s before the pick opens at 3.0 s (the siege line had 0.4 s at full opacity, the hare line 0.05 s).
+6. **Fence specialist on the siege lane (refines D-288):** the deciding measure is how long the fence STANDS (fence
+   survival time), with diner HP lost as the tie-breaker. The FLOOR check (no branch worse than unbranched) keeps
+   diner HP lost as primary. The identity rule becomes "Stone wall's fence stands longest against brutes".
+7. **Fast bench subset in the unit suite:** all three lane types, LAST wave only, 8.7 s. The full three-wave bench is
+   its own CI job.
+8. **The hero and a pad's near-stage cost:** the hero is drawn IN FRONT. The test asserts that no pad label is ever
+   drawn over the hero, replacing "zero overlap with the hero". Also (visual quality is the bar):
+   - minimum clearance between world labels: at least 8 px at 720 x 1280, asserted in the overlap test;
+   - a cost must read as its pad's: offset at most 0.5 m from its pad; where geometry forces more, a subtle tether (a
+     thin line or a small pointer) from the cost to its pad; the two towers verified at 40% scale; before/after
+     shots in REVIEW_QUEUE. Then Task 14's branch merges once everything is green.
+
+**Diner-fade hitch (117 ms, render side):** run the planned test (pre-draw the faded diner for one invisible frame at
+night start, under the banner) and check whether the frame recurs at every fade start. Gone, or only under the
+banner: keep it. Persists or recurs: PRE-APPROVED: switch to a dithered (screen-door) fade with no blending; accept it
+if the 40% screenshot shows the hero and monsters clearly through the diner; before/after shots in REVIEW_QUEUE.
+Options go to the author only if the dithered fade fails visually or does not remove the frame.
+
+**Perf regression (raised by the author; the main session had not flagged it):** the gate reading shows 50.5 fps and
+78 draw calls on a night entered by play, against 58.8 fps / 48 draw calls at the E5 T3 checkpoint and 58.9 / 50 on
+a resumed night. About 30 extra draw calls and 8 fps: a regression, separate from the fade hitch.
+- Find the source: the same night entered by play with the flag off and on, and against the resumed night. Suspects:
+  day objects still drawn at night (pad icons and rings, cost labels, tethers, count rows), new badges and markers,
+  the third arrow, Label3D instances (one draw call each).
+- Fix: night-only content is drawn at night; day-only nodes are hidden or disabled, not just transparent; batch or
+  merge where possible.
+- Target: at least 58 fps average and draw calls back near the E5 T3 level on the gate reading.
+- A draw-call budget check joins the perf procedure: warn above the E5 T3 count + 10.
+- The finding goes to the author only if the target cannot be met without a visual change.
+
+**Process (also in CLAUDE.md):** before every perf run, check that no stray Godot or Simulator processes from earlier
+tasks are running, and kill them. Implementers stop every process they start before reporting done.
+
+**D-295 The bench suite's wall limits and required check (2026-10-13).** The full lane-type bench (`tests/bench`,
+`./run_tests.sh bench`, CI job `bench`) is 42 one-lane nights: about 75 s idle on the build machine, 111 s under
+load. D-247's 60 s warning and 150 s failure were set for the two sim suites and would make this job warn on every
+run, so the bench has its own wall limits: warn above 150 s, fail above 400 s. Its gate is the tick budget in
+`tests/sim_ticks.golden.json`, the same rule as the sims (more than 20% over, missing, or not run fails the job).
+`bench` joins `unit`, `sim`, `sim-tiers` and `deploy` as a required check on `main` (D-274.4 authorized updating the
+required checks when a suite is split or added; D-292 made the full bench a required CI job). This is a deviation
+from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the fast subset). No test was dropped.
