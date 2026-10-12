@@ -62,6 +62,7 @@ func close_up() -> void:
 	_enter_night()
 
 func _enter_night() -> void:
+	_lane_inflight = ""
 	_lane_lines = []  # night starting before the pair went out: nothing at night, the flag stays false, the pair comes at the next dawn
 	traveler_spawner.stop()
 	phase = Phase.NIGHT
@@ -136,7 +137,7 @@ func _input(event: InputEvent) -> void:
 func _physics_process(delta: float) -> void:
 	if reveal_pending:
 		_reveal_age += delta
-	_tick_banner_model(delta)
+	_tick_banner_clock(delta)
 
 ## Ends the reveal wait at once and opens the card pick (or, with no offer, the day): the pending reveal timer is spent, never left
 ## to open a second pick. No-op when no reveal is pending.
@@ -154,6 +155,7 @@ func _on_reveal_timer(id: int) -> void:
 
 func _cancel_reveal() -> void:
 	_lane_lines = []
+	_lane_inflight = ""
 	reveal_pending = false
 	_reveal_id += 1
 
@@ -178,56 +180,35 @@ func _on_card_chosen(id: StringName) -> void:
 	_enter_day()
 
 ## E6 (D-289, D-294.5): the lane character's two flavour lines come once, after the card pick, whether the run just reached tier 3 (the
-## reveal only pops the badges) or the save was already there. Scheduled, not sent: see _tick_banner_model. Marked shown when the hare line is sent.
+## reveal only pops the badges) or the save was already there. Scheduled, not sent: see _tick_banner_clock. Marked shown when the hare line has had its full time, uncut.
 func _announce_lane_character() -> void:
 	var lines := LaneCharacter.flavour_lines(GameState.lane_character())
 	if lines.is_empty() or GameState.lane_character_shown:
 		return
 	_lane_lines = lines.duplicate()
 
-## A model of the HUD's banner timing, kept from the bus (the HUD owns the real one and its rule is unchanged: a new banner cuts the one
-## showing to banner_min_s, a banner shown while others wait plays banner_min_s). Our own lane lines pass through it too.
+## The banner rule is the HUD's own (BannerClock); this node advances a second instance per physics tick to know when the HUD is free and
+## whether a line it sent was cut. Our own lane lines pass through it too (they arrive on the bus like any banner).
 var _lane_lines: Array = []  ## [siege, hare] still to send, in order
-var _bm_left := 0.0
-var _bm_queue := 0
-var _bm_idle_ticks := 0
-## Physics ticks the banner system must have been idle before a lane line goes out: the HUD counts in render frames, so its banner can end
-## a frame after the model's.
-const BANNER_IDLE_TICKS := 3
+var _lane_inflight := ""  ## the line sent and not yet ended
+var _clock := BannerClock.new()
 
-func _on_any_banner(_text: String) -> void:
-	_bm_queue += 1
-	if _bm_left <= 0.0:
-		_bm_show_next()
-	else:
-		_bm_left = minf(_bm_left, Balance.ui.banner_min_s)
-	_bm_idle_ticks = 0
+func _on_any_banner(text: String) -> void:
+	_clock.arrive(text, Balance.ui.banner_time, Balance.ui.banner_min_s)
 
-func _bm_show_next() -> void:
-	if _bm_queue <= 0:
-		_bm_left = 0.0
+func _tick_banner_clock(delta: float) -> void:
+	_clock.advance(delta, Balance.ui.banner_time, Balance.ui.banner_min_s)
+	if _clock.take_ended() and _lane_inflight != "" and _clock.ended == _lane_inflight:
+		var line := _lane_inflight
+		_lane_inflight = ""
+		if _clock.ended_cut:
+			_lane_lines.push_front(line)  # a cut line is not a shown line: it goes out again after the banner that cut it
+		elif _lane_lines.is_empty():
+			GameState.mark_lane_character_shown()  # the hare line has had its full time
+	if _lane_inflight != "" or _lane_lines.is_empty() or phase != Phase.DAY or not _clock.is_idle():
 		return
-	_bm_queue -= 1
-	_bm_left = Balance.ui.banner_time if _bm_queue == 0 else minf(Balance.ui.banner_time, Balance.ui.banner_min_s)
-
-func _tick_banner_model(delta: float) -> void:
-	if _bm_left > 0.0:
-		_bm_left -= delta
-		if _bm_left <= 0.0:
-			_bm_show_next()
-		_bm_idle_ticks = 0
-		return
-	if _lane_lines.is_empty():
-		return
-	if phase != Phase.DAY:
-		return
-	_bm_idle_ticks += 1
-	if _bm_idle_ticks < BANNER_IDLE_TICKS:
-		return
-	var line: String = _lane_lines.pop_front()
-	EventBus.banner_requested.emit(line)  # _on_any_banner starts its 2.0 s in the model
-	if _lane_lines.is_empty():
-		GameState.mark_lane_character_shown()
+	_lane_inflight = _lane_lines.pop_front()
+	EventBus.banner_requested.emit(_lane_inflight)  # _on_any_banner starts it in the clock
 
 func _on_diner_fell() -> void:
 	if phase != Phase.NIGHT or failing:

@@ -185,21 +185,44 @@ func _frame_of(text: String) -> int:
 	var i := banners.find(text)
 	return banner_frames[i] if i >= 0 else -1
 
+## Physics frames each text has been ON the HUD's banner label (the test reads the HUD, not the controller's clock).
+var hud_frames := {}
+
+func _sample_hud() -> void:
+	if main != null and main.hud.banner.visible:
+		var t: String = main.hud.banner.text
+		hud_frames[t] = int(hud_frames.get(t, 0)) + 1
+
 func _wait_s(sec: float) -> void:
 	for i in int(sec * 60.0):
 		await get_tree().physics_frame
+		_sample_hud()
 
-## E6 fix round (D-294.5): the order is the pick banner, the siege line, the hare line, each for its full banner_time.
-## Mutation: both lines sent at once with the pick; the hare line sent early; a line sent while the one before still shows.
-func test_pick_banner_then_siege_then_hare_each_gets_its_full_two_seconds() -> void:
-	await _boot(_v6_decoded(), true)
+## Waits until `text` has been emitted `n` times (at most 12 s).
+func _wait_emitted(text: String, n: int) -> void:
+	var guard := 0
+	while banners.count(text) < n and guard < 720:
+		await _wait_s(1.0 / 60.0)
+		guard += 1
+	assert_eq(banners.count(text), n, "setup: %s emitted %d times" % [text, n])
+
+## The pick of a tier-3 fixture dawn after the boot's own banners are gone. Returns the pair.
+func _start_pick() -> Array:
 	var lines := LaneCharacter.flavour_lines(GameState.lane_character())
-	await _wait_s(3.0)  # the boot's own banner is gone
+	await _wait_s(3.0)
 	main.phase_controller._on_wave_cleared(GameState.lane_plan.size() - 1)
 	assert_eq(main.phase_controller.dawn_substate, "CARD_PICK", "setup: the fixture offers cards")
 	banners.clear()
 	banner_frames.clear()
+	hud_frames.clear()
 	EventBus.card_chosen.emit(GameState.card_offer[0])
+	return lines
+
+## E6 fix round (D-294.5): the order is the pick banner, the siege line, the hare line, each for its full banner_time ON THE HUD.
+## Mutation: both lines sent at once with the pick; the hare line sent early; a line sent while the one before still shows.
+func test_pick_banner_then_siege_then_hare_each_gets_its_full_two_seconds() -> void:
+	await _boot(_v6_decoded(), true)
+	var lines: Array = await _start_pick()
 	var pick: String = banners[0]
 	var t_pick: int = banner_frames[0]
 	assert_eq(banners.size(), 1, "only the pick banner at the pick")
@@ -210,24 +233,25 @@ func test_pick_banner_then_siege_then_hare_each_gets_its_full_two_seconds() -> v
 	assert_eq(_lc_banners(), [lines[0]], "the siege line once the pick banner had its 2.0 s")
 	var t_siege := _frame_of(lines[0])
 	assert_gte(t_siege - t_pick, 120, "pick banner full time")
-	assert_lte(t_siege - t_pick, 130)
-	assert_false(GameState.lane_character_shown, "false until the hare line is sent")
+	assert_lte(t_siege - t_pick, 126)
+	assert_false(GameState.lane_character_shown, "false until the hare line has had its time")
 	await _wait_s(1.8)
 	assert_eq(_lc_banners(), [lines[0]], "the hare line waits for the siege line's 2.0 s")
 	await _wait_s(0.4)
 	assert_eq(_lc_banners(), lines)
 	assert_gte(_frame_of(lines[1]) - t_siege, 120)
-	assert_lte(_frame_of(lines[1]) - t_siege, 130)
-	assert_true(GameState.lane_character_shown, "true once the hare line is sent")
+	assert_lte(_frame_of(lines[1]) - t_siege, 126)
+	assert_false(GameState.lane_character_shown, "the hare line has not had its 2.0 s yet")
+	await _wait_s(2.0)
+	assert_true(GameState.lane_character_shown, "true once the hare line's full time has ended")
 	assert_eq(banners.filter(func(b): return b == pick).size(), 1)
+	for t in [pick, lines[0], lines[1]]:
+		assert_between(int(hud_frames.get(t, 0)), 117, 124, "frames '%s' was on the HUD's label" % t)
 
 ## Mutation: a foreign banner is cut by a lane line, or the lane line is dropped.
 func test_a_foreign_banner_while_the_lines_wait_is_not_cut_and_the_lines_follow_it() -> void:
 	await _boot(_v6_decoded(), true)
-	var lines := LaneCharacter.flavour_lines(GameState.lane_character())
-	await _wait_s(3.0)
-	main.phase_controller._on_wave_cleared(GameState.lane_plan.size() - 1)
-	EventBus.card_chosen.emit(GameState.card_offer[0])
+	var lines: Array = await _start_pick()
 	await _wait_s(0.5)
 	EventBus.banner_requested.emit("Foreign event")
 	var t_f := _frame_of("Foreign event")
@@ -236,17 +260,57 @@ func test_a_foreign_banner_while_the_lines_wait_is_not_cut_and_the_lines_follow_
 	await _wait_s(0.6)
 	assert_eq(_lc_banners(), [lines[0]], "the siege line follows the foreign banner")
 	assert_gte(_frame_of(lines[0]) - t_f, 155, "after the foreign banner's full time (0.6 s cut + 2.0 s)")
-	await _wait_s(2.4)
+	assert_between(int(hud_frames.get("Foreign event", 0)), 117, 124, "the foreign banner was not cut")
+	await _wait_s(4.5)
 	assert_eq(_lc_banners(), lines)
 	assert_true(GameState.lane_character_shown)
 
-## Mutation: lines shown at night; the flag set although the hare line never went; the pair not repeated at the next dawn.
+## E6 review 2: a cut line is not a shown line. A foreign banner 0.5 s into the siege line cuts it; it is shown again in full after the
+## foreign banner, then the hare line; the flag is true only at the end. Mutation: the cut line dropped, or the flag set at the cut.
+func test_a_foreign_banner_half_a_second_into_the_siege_line_gets_the_siege_line_again_in_full() -> void:
+	await _boot(_v6_decoded(), true)
+	var lines: Array = await _start_pick()
+	await _wait_emitted(lines[0], 1)
+	await _wait_s(0.5)
+	hud_frames.clear()
+	EventBus.banner_requested.emit("Boss")
+	await _wait_s(0.4)
+	assert_false(GameState.lane_character_shown)
+	await _wait_s(1.9)  # the siege line's cut remainder (0.6 s), then the boss banner 2.0 s: 2.6 s in all
+	assert_eq(banners.filter(func(b): return b in lines or b == "Boss"), [lines[0], "Boss"], "the siege line waits behind the foreign banner")
+	await _wait_emitted(lines[0], 2)
+	hud_frames.clear()
+	await _wait_s(2.3)
+	assert_between(int(hud_frames.get(lines[0], 0)), 117, 124, "the second showing is in full")
+	assert_eq(banners.filter(func(b): return b in lines or b == "Boss"), [lines[0], "Boss", lines[0], lines[1]], "order holds")
+	assert_false(GameState.lane_character_shown, "the hare line is still on screen")
+	await _wait_s(2.2)
+	assert_true(GameState.lane_character_shown)
+	assert_eq(banners.count(lines[1]), 1)
+
+## Same, 0.5 s into the hare line (the real case: the boss banner at a close-up). Mutation: a cut hare line marks the flag.
+func test_a_foreign_banner_half_a_second_into_the_hare_line_gets_the_hare_line_again_in_full() -> void:
+	await _boot(_v6_decoded(), true)
+	var lines: Array = await _start_pick()
+	await _wait_emitted(lines[1], 1)
+	await _wait_s(0.5)
+	EventBus.banner_requested.emit("Boss")
+	await _wait_s(0.7 + 1.0)
+	assert_false(GameState.lane_character_shown, "a cut hare line is not a shown one")
+	await _wait_emitted(lines[1], 2)
+	hud_frames.clear()
+	assert_false(GameState.lane_character_shown, "just sent again")
+	await _wait_s(1.9)
+	assert_false(GameState.lane_character_shown, "not before its full time")
+	await _wait_s(0.4)
+	assert_true(GameState.lane_character_shown)
+	assert_eq(banners.filter(func(b): return b in lines or b == "Boss"), [lines[0], lines[1], "Boss", lines[1]])
+	assert_between(int(hud_frames.get(lines[1], 0)), 117, 124, "the second showing is in full")
+
+## Mutation: lines shown at night; the flag set although the hare line never finished; the pair not repeated at the next dawn.
 func test_night_before_the_pair_completes_shows_nothing_keeps_the_flag_false_and_the_pair_comes_at_the_next_dawn() -> void:
 	await _boot(_v6_decoded(), true)
-	var lines := LaneCharacter.flavour_lines(GameState.lane_character())
-	await _wait_s(3.0)
-	main.phase_controller._on_wave_cleared(GameState.lane_plan.size() - 1)
-	EventBus.card_chosen.emit(GameState.card_offer[0])
+	var lines: Array = await _start_pick()
 	await _wait_s(2.3)
 	assert_eq(_lc_banners(), [lines[0]], "setup: the siege line is out, the hare line is not")
 	main.phase_controller.close_up()
@@ -260,3 +324,52 @@ func test_night_before_the_pair_completes_shows_nothing_keeps_the_flag_false_and
 	assert_eq(_lc_banners(), lines, "the whole pair at the next dawn")
 	assert_true(GameState.lane_character_shown)
 
+## Parity: the HUD and the controller's clock agree on a scripted sequence (pick banner, the two lane lines, a foreign banner in the middle),
+## each physics frame, within one frame. Mutation: the controller's clock follows another rule than the HUD's.
+func test_the_controllers_clock_and_the_hud_agree_every_frame() -> void:
+	await _boot(_v6_decoded(), true)
+	await _start_pick()
+	var pc := main.phase_controller
+	var hud_show: Array = []
+	var ctl_show: Array = []
+	var hud_q: Array = []
+	var ctl_q: Array = []
+	for i in int(14.0 * 60.0):
+		if i == 200:
+			EventBus.banner_requested.emit("Foreign event")
+		await get_tree().physics_frame
+		hud_show.append(main.hud._banner_left > 0.0)
+		ctl_show.append(pc._clock.left > 0.0)
+		hud_q.append(main.hud._banner_queue.size())
+		ctl_q.append(pc._clock.queue.size())
+	for i in hud_show.size():
+		var lo := maxi(i - 1, 0)
+		var hi := mini(i + 1, hud_show.size() - 1)
+		assert_true(hud_show[i] == ctl_show[i] or hud_show[i] == ctl_show[lo] or hud_show[i] == ctl_show[hi], "showing at frame %d" % i)
+		assert_true(hud_q[i] == ctl_q[i] or hud_q[i] == ctl_q[lo] or hud_q[i] == ctl_q[hi], "queue size at frame %d" % i)
+	assert_true(ctl_show.has(true) and ctl_show[ctl_show.size() - 1] == false, "setup: the sequence shows banners and ends idle")
+
+## Mutation: _cancel_reveal leaves pending or in-flight lines.
+func test_cancel_reveal_clears_the_pending_and_in_flight_lines() -> void:
+	await _boot(_v6_decoded(), true)
+	var pc := main.phase_controller
+	pc._lane_lines = ["a", "b"]
+	pc._lane_inflight = "c"
+	pc._cancel_reveal()
+	assert_eq(pc._lane_lines, [])
+	assert_eq(pc._lane_inflight, "")
+
+## E6 review 2: the flag is saved when it is set. RED until the wiring note of the Task 11 fix round is applied (a bus signal emitted by
+## GameState.mark_lane_character_shown, and Autosave writing on it): today nothing writes after the hare line.
+func test_the_shown_flag_is_written_to_the_store_when_it_is_set() -> void:
+	var dir := "user://test_saves/lb_%d" % Time.get_ticks_usec()
+	await _boot(_v6_decoded(), true)
+	var store := SaveStore.with_dir(dir)
+	main.autosave.store = store
+	await _start_pick()
+	await _wait_s(7.5)
+	assert_true(GameState.lane_character_shown, "setup: the pair went out")
+	var saved: Dictionary = SaveStore.with_dir(dir).read().state
+	assert_true(bool(saved.get("lane_character_shown", false)), "the store holds the flag the moment it is set")
+	store.wipe()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))

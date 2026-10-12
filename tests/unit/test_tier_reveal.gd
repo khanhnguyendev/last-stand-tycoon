@@ -906,12 +906,12 @@ const LC_HARE_LINE := "Quick paws in the west grass..."
 ## same air the other subjects get. Without the badges in the fit, the south-west badge sits at ndc (-0.82, -0.72) and fails it.
 const BADGE_MARGIN := 0.2
 ## Seconds after a pick that cover the setup's queued banners (the tier-ups' own, each at least banner_min_s), the pick banner and both lines.
-const LC_AFTER_PICK_S := 9.0
+const LC_AFTER_PICK_S := 13.0
 
 ## The tier-3 dawn of a run on seed 1 with the retune flag as given. Nothing of the reveal has run yet.
-func _lc_dawn(flag := true) -> void:
+func _lc_dawn(flag := true, run_seed := 1) -> void:
 	Balance.data.tiers.retune_enabled = flag
-	main.phase_controller.start_new_game(1)
+	main.phase_controller.start_new_game(run_seed)
 	_tier3_dawn()
 	banners.clear()  # the "diner grows" banner of the tier-ups is not under test
 
@@ -1070,25 +1070,53 @@ func test_lc_the_reveal_camera_fit_includes_both_badges_for_every_siege_and_hare
 					assert_true(CameraMath.on_screen(p, xf, proj), "the old subjects stay on screen: %s" % p)
 	gut.p("worst badge ndc %.3f" % worst)
 
-## The points are the badges' real places: the reveal's frame (the real world) is the one for the character's points.
-func test_lc_the_reveal_camera_uses_the_runs_badge_points() -> void:
-	_lc_dawn()
+var reveal_calls: Array = []
+
+func _on_reveal_call(seconds_in, hold_s, seconds_out, zoom, focus) -> void:
+	reveal_calls.append({"zoom": zoom, "focus": focus})
+
+## A run seed whose lane character has the south-west lane (its badge lies outside the frame the other subjects give).
+func _seed_with_sw() -> int:
+	for sd in range(1, 400):
+		var ch := LaneCharacter.for_run(sd)
+		if ch.siege == "sw" or ch.hare == "sw":
+			return sd
+	return -1
+
+## The camera is asked for the frame of the run's badge points. Mutation: world/tier_reveal.gd ignores the badges (red, shown in the report).
+func test_lc_the_reveal_camera_request_carries_the_frame_of_the_runs_badge_points() -> void:
+	var sd := _seed_with_sw()
+	assert_gt(sd, 0, "setup: a seed with the sw lane")
+	reveal_calls.clear()
+	EventBus.camera_reveal_requested.connect(_on_reveal_call)
+	_lc_dawn(true, sd)
+	EventBus.camera_reveal_requested.disconnect(_on_reveal_call)
 	var ch := GameState.lane_character()
 	var pts := TierReveal.badge_points(ch)
+	var want := TierReveal.frame_for(3, Balance.ui, CameraMath.ASPECT, pts)
+	var without := TierReveal.frame_for(3, Balance.ui)
+	assert_true(want.zoom != without.zoom or want.focus != without.focus, "setup: the badges move the frame for this seed")
+	var req: Dictionary = reveal_calls.back()
+	assert_eq(req.zoom, want.zoom)
+	assert_eq(req.focus, want.focus)
 	for lane in [ch.siege, ch.hare]:
 		var c: Vector3 = _badge(lane).position
 		assert_true(pts.any(func(q): return absf(q.x - c.x) <= LaneCharacterMarker.BADGE_M and absf(q.z - c.z) < 0.01), "%s badge centre is inside its points" % lane)
-	var want := TierReveal.frame_for(3, Balance.ui, CameraMath.ASPECT, pts)
-	await _frames(int(1.0 * 60.0))
-	assert_almost_eq(main.camera_rig.zoom_now(), want.zoom, 0.03)
-	var xf: Transform3D = main.camera_rig.camera.global_transform
-	var proj := CameraMath.projection(Balance.ui, CameraMath.ASPECT)
-	for lane in [ch.siege, ch.hare]:
-		var n := CameraMath.to_ndc(_badge(lane).global_position, xf, proj)
-		assert_lte(absf(n.x), 1.0 - BADGE_MARGIN + 1e-4, lane)
-		assert_lte(absf(n.y), 1.0 - BADGE_MARGIN + 1e-4, lane)
 
-## With the flag off the frame is the E5 one.
+## With the flag off the frame is the E5 one: the values recorded before Task 11's code path existed (zoom 1.3, focus (-1.8, 3.5)), both from
+## the pure function and from the request of a real flag-off reveal.
 func test_lc_flag_off_the_frame_has_no_extra_points() -> void:
-	assert_eq(TierReveal.frame_for(3, Balance.ui, CameraMath.ASPECT, []), TierReveal.frame_for(3, Balance.ui))
+	var recorded := {"zoom": 1.3, "focus": Vector2(-1.8, 3.5)}
+	var f := TierReveal.frame_for(3, Balance.ui)
+	assert_almost_eq(f.zoom, recorded.zoom, 1e-4)
+	assert_almost_eq(f.focus.x, recorded.focus.x, 1e-4)
+	assert_almost_eq(f.focus.y, recorded.focus.y, 1e-4)
 	assert_eq(TierReveal.badge_points({}), [])
+	reveal_calls.clear()
+	EventBus.camera_reveal_requested.connect(_on_reveal_call)
+	_lc_dawn(false)
+	EventBus.camera_reveal_requested.disconnect(_on_reveal_call)
+	var req: Dictionary = reveal_calls.back()
+	assert_almost_eq(req.zoom, recorded.zoom, 1e-4)
+	assert_almost_eq(req.focus.x, recorded.focus.x, 1e-4)
+	assert_almost_eq(req.focus.y, recorded.focus.y, 1e-4)
