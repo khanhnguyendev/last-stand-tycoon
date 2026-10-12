@@ -2,6 +2,7 @@ extends GutTest
 
 const S := "res://tests/sim"
 const T := "res://tests/sim_tier"
+const B := "res://tests/bench"
 
 
 func test_exactly_plus_20_percent_passes() -> void:
@@ -60,7 +61,7 @@ func test_committed_golden_covers_every_sim_test() -> void:
 	var re := RegEx.new()
 	re.compile("(?m)^\\s*func\\s+(test_\\w+)")
 	var found := {}
-	for dir in [S, T]:
+	for dir in [S, T, B]:
 		for path in _scripts_under(dir):
 			for m in re.search_all(FileAccess.get_file_as_string(path)):
 				found["%s::%s" % [path, m.get_string(1)]] = true

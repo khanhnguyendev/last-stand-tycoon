@@ -19,17 +19,7 @@ extends GutTest
 
 const LANES: Array[StringName] = [&"siege", &"hare", &"neutral"]
 const PRESSURE := 12
-const SAME := 0.001
-const MARGIN := 0.15
-const FLOOR_ORDER := {
-	&"siege": [["diner_lost", false], ["fence_hp_left", true]],
-	&"hare": [["diner_lost", false], ["hares_in_zone", false]],
-	&"neutral": [["diner_lost", false], ["clear_s", false]],
-}
-const SPEC_ORDER := {
-	&"siege": [["diner_lost", false], ["fence_hp_left", true]],
-	&"hare": [["diner_lost", false], ["hares_in_zone", false], ["clear_s", false]],
-}
+const SAME := BranchBench.SAME
 ## The smallest change I (the implementer) believe meets floor + specialist on all three lane types. A SUGGESTION, not a decision.
 const SUGGEST_LONGBOW := {"longbow_interval": 2.5}
 const SUGGEST_SPIKE := {"spike_pass": 24.0}
@@ -59,28 +49,15 @@ func _run(lane: StringName, tb: StringName, fb: StringName, ov := {}) -> Diction
 func _fmt(r: Dictionary) -> String:
 	return "lost %7.1f fence %5.1f hares %2d clear %6.2f" % [r.diner_lost, r.fence_hp_left, r.hares_in_zone, r.clear_s]
 
-func _same(a: float, b: float) -> bool:
-	return absf(a - b) <= SAME
-
 func _floor(a: Dictionary, b: Dictionary, lane: StringName) -> bool:
-	for m in FLOOR_ORDER[lane]:
-		var x := float(a[m[0]])
-		var y := float(b[m[0]])
-		if _same(x, y):
-			continue
-		return x > y if m[1] else x < y
-	return true
+	return BranchBench.no_worse(a, b, lane).ok
 
-func _spec(a: Dictionary, b: Dictionary, lane: StringName) -> String:
-	for m in SPEC_ORDER[lane]:
-		var x := float(a[m[0]])
-		var y := float(b[m[0]])
-		if _same(x, y):
-			continue
-		var need := (1.0 + MARGIN) * y if m[1] else (1.0 - MARGIN) * y
-		var ok: bool = x >= need if m[1] else x <= need
-		return "%s on %s (%.1f vs %.1f, needs %s %.1f)" % ["PASS" if ok else "fail", m[0], x, y, ">=" if m[1] else "<=", need]
-	return "fail: nothing separates"
+## The shared margin rule (tests/support/branch_bench.gd) as a report string. `v` is the verdict of beats_by_margin / stone_over_spike.
+func _spec_text(v: Dictionary) -> String:
+	if v.measure == "none":
+		return "fail: nothing separates"
+	var higher: bool = v.measure == "fence_stands_s" or v.measure == "fence_hp_left"
+	return "%s on %s (%.1f vs %.1f, needs %s %.1f)" % ["PASS" if v.ok else "fail", v.measure, v.a, v.b, ">=" if higher else "<=", v.bound]
 
 func _references() -> void:
 	for lane in LANES:
@@ -97,7 +74,7 @@ func _longbow_row(label: String, ov: Dictionary) -> void:
 		var line := "  %-26s %-7s Longbow %s | floor %s" % [label, lane, _fmt(r), "ok" if _floor(r, base, lane) else "FAIL"]
 		if lane == &"siege":
 			var vol := await _run(lane, &"volley", &"")
-			line += " | spec vs Volley: %s | ID %s" % [_spec(r, vol, lane), "ok" if r.diner_lost < base.diner_lost - SAME and r.diner_lost < vol.diner_lost - SAME else "FAIL"]
+			line += " | spec vs Volley: %s | ID %s" % [_spec_text(BranchBench.beats_by_margin(r, vol, BranchBench.ORDER_SIEGE_TOWER)), "ok" if r.diner_lost < base.diner_lost - SAME and r.diner_lost < vol.diner_lost - SAME else "FAIL"]
 		gut.p(line)
 
 func _spike_row(label: String, ov: Dictionary) -> void:
@@ -106,9 +83,9 @@ func _spike_row(label: String, ov: Dictionary) -> void:
 		var r := await _run(lane, &"", &"spike", ov)
 		var line := "  %-26s %-7s Spike %s | floor %s" % [label, lane, _fmt(r), "ok" if _floor(r, base, lane) else "FAIL"]
 		if lane == &"hare":
-			line += " | spec vs Stone: %s" % _spec(r, await _run(lane, &"", &"stone"), lane)
+			line += " | spec vs Stone: %s" % _spec_text(BranchBench.beats_by_margin(r, await _run(lane, &"", &"stone"), BranchBench.ORDER_HARE))
 		if lane == &"siege":
-			line += " | Stone vs this Spike (needs Stone <= 0.85 x Spike): %s" % _spec(await _run(lane, &"", &"stone"), r, lane)
+			line += " | Stone vs this Spike (D-294.6: fence stands >= 1.15 x Spike): %s" % _spec_text(BranchBench.stone_over_spike(await _run(lane, &"", &"stone"), r))
 		gut.p(line)
 
 func test_1_references() -> void:
@@ -210,43 +187,41 @@ func _evaluate(res: Dictionary, full: bool) -> Array:
 			if full:
 				ok = _floor(r, base, lane)
 				var shown := "diner_lost"
-				for m in FLOOR_ORDER[lane]:
+				for m in BranchBench.FLOOR_ORDER[lane]:
 					shown = m[0]
-					if not _same(float(r[m[0]]), float(base[m[0]])):
+					if not BranchBench.same(float(r[m[0]]), float(base[m[0]])):
 						break
 				text = "%s %.1f <= unbranched %.1f%s" % [shown, float(r[shown]), float(base[shown]), " (higher is better)" if shown == "fence_hp_left" else ""]
 			else:
 				ok = float(r.diner_lost) <= float(base.diner_lost) + SAME
 				text = "lost %.1f <= unbranched %.1f" % [r.diner_lost, base.diner_lost]
 			out.append(_rule("FLOOR %s %s" % [lane, name], ok, text))
-	var specs := [
-		[&"siege", "longbow/-", "volley/-", "Longbow over Volley"], [&"siege", "-/stone", "-/spike", "Stone over Spike"],
-		[&"hare", "volley/-", "longbow/-", "Volley over Longbow"], [&"hare", "-/spike", "-/stone", "Spike over Stone"],
-	]
-	for s in specs:
-		if not res.has(s[0]) or not res[s[0]].has(s[1]):
+	for row in BranchBench.SPECIALISTS:
+		if not res.has(row[0]) or not res[row[0]].has(BranchBench.cfg_name(row[1])):
 			continue
-		var a: Dictionary = res[s[0]][s[1]]
-		var b: Dictionary = res[s[0]][s[2]]
-		if full:
-			var v := _spec(a, b, s[0])
-			out.append(_rule("SPEC %s lane, %s" % [s[0], s[3]], v.begins_with("PASS"), v))
+		var a: Dictionary = res[row[0]][BranchBench.cfg_name(row[1])]
+		var b: Dictionary = res[row[0]][BranchBench.cfg_name(row[2])]
+		var rname := "SPEC %s lane, %s" % [row[0], row[3]]
+		if full or row[4] == BranchBench.ORDER_SIEGE_FENCE:
+			# The shared rule code (D-294.6 for Stone over Spike, in both readings: the fence standing time is not a primary-only measure).
+			var v := BranchBench.specialist_verdict(row, a, b)
+			out.append(_rule(rname, v.ok, _spec_text(v)))
 		else:
 			var ok := float(a.diner_lost) < float(b.diner_lost) - SAME and float(a.diner_lost) <= 0.85 * float(b.diner_lost)
-			out.append(_rule("SPEC %s lane, %s" % [s[0], s[3]], ok, "lost %.1f <= 0.85 x %.1f = %.1f" % [a.diner_lost, b.diner_lost, 0.85 * float(b.diner_lost)]))
+			out.append(_rule(rname, ok, "lost %.1f <= 0.85 x %.1f = %.1f" % [a.diner_lost, b.diner_lost, 0.85 * float(b.diner_lost)]))
 	var sg: Dictionary = res[&"siege"]
-	out.append(_rule("ID siege: Longbow loses least tower state", sg["longbow/-"].diner_lost < sg["-/-"].diner_lost - SAME and sg["longbow/-"].diner_lost < sg["volley/-"].diner_lost - SAME,
-		"Longbow %.1f < unbranched %.1f and < Volley %.1f" % [sg["longbow/-"].diner_lost, sg["-/-"].diner_lost, sg["volley/-"].diner_lost]))
+	var idl := BranchBench.identity_longbow_siege(sg)
+	out.append(_rule("ID siege: Longbow loses least tower state", idl.ok, idl.why))
 	if res.has(&"hare"):
 		var hr: Dictionary = res[&"hare"]
-		out.append(_rule("ID hare: Volley loses least tower state", hr["volley/-"].diner_lost < hr["-/-"].diner_lost - SAME and hr["volley/-"].diner_lost < hr["longbow/-"].diner_lost - SAME,
-			"Volley %.1f < unbranched %.1f and < Longbow %.1f" % [hr["volley/-"].diner_lost, hr["-/-"].diner_lost, hr["longbow/-"].diner_lost]))
+		var idv := BranchBench.identity_volley_hare(hr)
+		out.append(_rule("ID hare: Volley loses least tower state", idv.ok, idv.why))
 		if full:
-			out.append(_rule("ID hare: Spike lets fewest hares reach the zone", hr["-/spike"].hares_in_zone < hr["-/-"].hares_in_zone and hr["-/spike"].hares_in_zone < hr["-/stone"].hares_in_zone,
-				"Spike %d < unbranched %d and < Stone %d" % [hr["-/spike"].hares_in_zone, hr["-/-"].hares_in_zone, hr["-/stone"].hares_in_zone]))
+			var ids := BranchBench.identity_spike_fewest_hares(hr)
+			out.append(_rule("ID hare: Spike lets fewest hares reach the zone", ids.ok, ids.why))
 	if full:
-		out.append(_rule("ID siege: Stone wall's fence stands longest (D-294.6)", sg["-/stone"].fence_stands_s > sg["-/-"].fence_stands_s and sg["-/stone"].fence_stands_s > sg["-/spike"].fence_stands_s,
-			"Stone %.2f s > unbranched %.2f s and > Spike %.2f s" % [sg["-/stone"].fence_stands_s, sg["-/-"].fence_stands_s, sg["-/spike"].fence_stands_s]))
+		var idst := BranchBench.identity_stone_stands_longest(sg)
+		out.append(_rule("ID siege: Stone wall's fence stands longest (D-294.6)", idst.ok, idst.why))
 	for lane in res:
 		var b2: Dictionary = res[lane]["-/-"]
 		var tw := minf(res[lane]["longbow/-"].diner_lost, res[lane]["volley/-"].diner_lost)

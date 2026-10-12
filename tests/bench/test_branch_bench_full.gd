@@ -67,7 +67,7 @@ func _run(flag: bool, lane: StringName, tb: StringName, fb: StringName, pressure
 	if not _cache.has(key):
 		Balance.data.tiers.retune_enabled = flag
 		_cache[key] = await BranchBench.run(lane, tb, fb, pressure)
-		assert_false(_cache[key].timed_out, "%s did not clear in time" % key)
+	assert_false(_cache[key].timed_out, "%s did not clear in time" % key)
 	return _cache[key]
 
 func _cfg_name(cfg: Array) -> String:
@@ -93,7 +93,7 @@ func _check_floor(pressure: int) -> void:
 			var r: Dictionary = await _run(true, lane, cfg[0], cfg[1], pressure)
 			var v := BranchBench.no_worse(r, base, lane)
 			_row("FLOOR p%d %s %s" % [pressure, lane, _cfg_name(cfg)], "lost %.1f" % r.diner_lost, "%.1f" % base.diner_lost, "<= unbranched", v.ok)
-			assert_true(v.ok, "FLOOR p%d %s lane, %s must be no worse than unbranched: %s | unbranched %s | branch %s | fails when: Longbow damage cut to 30, Spike hp cut to 100, Volley damage cut to 2" % [pressure, lane, _cfg_name(cfg), v.why, _fmt(base), _fmt(r)])
+			assert_true(v.ok, "FLOOR p%d %s lane, %s must be no worse than unbranched: %s | unbranched %s | branch %s | fails when: %s" % [pressure, lane, _cfg_name(cfg), v.why, _fmt(base), _fmt(r), BranchBench.FLOOR_FAILS_WHEN[_cfg_name(cfg)]])
 
 func _check_specialists(pressure: int) -> void:
 	for row in BranchBench.SPECIALISTS:
@@ -102,7 +102,7 @@ func _check_specialists(pressure: int) -> void:
 		var f: Array = row[2]
 		var spec: Dictionary = await _run(true, lane, s[0], s[1], pressure)
 		var ref: Dictionary = await _run(true, lane, f[0], f[1], pressure)
-		var v := BranchBench.beats_by_margin(spec, ref, row[4])
+		var v := BranchBench.specialist_verdict(row, spec, ref)
 		var upper: bool = v.measure == "fence_stands_s" or v.measure == "fence_hp_left"
 		_row("SPECIALIST p%d %s: %s" % [pressure, lane, row[3]], "%s %.2f" % [v.measure, v.a], "%.2f" % v.b, "%s %.2f" % [">=" if upper else "<=", v.bound], v.ok)
 		assert_true(v.ok, "SPECIALIST p%d %s lane, %s by 15%%: %s | spec %s | ref %s | fails when: %s" % [pressure, lane, row[3], v.why, _fmt(spec), _fmt(ref), row[5]])
@@ -113,19 +113,15 @@ func _check_identity(pressure: int) -> void:
 	for cfg in [[&"", &""], [&"longbow", &""], [&"volley", &""], [&"", &"stone"], [&"", &"spike"]]:
 		siege[_cfg_name(cfg)] = await _run(true, &"siege", cfg[0], cfg[1], pressure)
 		hare[_cfg_name(cfg)] = await _run(true, &"hare", cfg[0], cfg[1], pressure)
-	var lb: float = siege["longbow/-"].diner_lost
-	_row("IDENTITY p%d siege: Longbow best tower state" % pressure, "Longbow %.1f" % lb, "base %.1f / Volley %.1f" % [siege["-/-"].diner_lost, siege["volley/-"].diner_lost], "strictly least", lb < siege["-/-"].diner_lost - SAME and lb < siege["volley/-"].diner_lost - SAME)
-	assert_true(lb < siege["-/-"].diner_lost - SAME and lb < siege["volley/-"].diner_lost - SAME, "IDENTITY p%d siege: Longbow %.1f loses least of unbranched %.1f / Volley %.1f | fails when: Longbow kind multiplier 1.0" % [pressure, lb, siege["-/-"].diner_lost, siege["volley/-"].diner_lost])
-	var vy: float = hare["volley/-"].diner_lost
-	_row("IDENTITY p%d hare: Volley best tower state" % pressure, "Volley %.1f" % vy, "base %.1f / Longbow %.1f" % [hare["-/-"].diner_lost, hare["longbow/-"].diner_lost], "strictly least", vy < hare["-/-"].diner_lost - SAME and vy < hare["longbow/-"].diner_lost - SAME)
-	assert_true(vy < hare["-/-"].diner_lost - SAME and vy < hare["longbow/-"].diner_lost - SAME, "IDENTITY p%d hare: Volley %.1f loses least of unbranched %.1f / Longbow %.1f | fails when: Volley damage cut to 5" % [pressure, vy, hare["-/-"].diner_lost, hare["longbow/-"].diner_lost])
-	var st: float = siege["-/stone"].fence_stands_s
-	var st_ok: bool = st > siege["-/-"].fence_stands_s and st > siege["-/spike"].fence_stands_s
-	_row("IDENTITY p%d siege: Stone's fence stands longest" % pressure, "Stone %.2f s" % st, "base %.2f / Spike %.2f" % [siege["-/-"].fence_stands_s, siege["-/spike"].fence_stands_s], "strictly longest", st_ok)
-	assert_true(st_ok, "IDENTITY p%d siege: Stone wall's fence stands longest (%s s vs unbranched %s s, Spike %s s) | fails when: Stone wall HP halved" % [pressure, st, siege["-/-"].fence_stands_s, siege["-/spike"].fence_stands_s])
-	var sp: int = hare["-/spike"].hares_in_zone
-	_row("IDENTITY p%d hare: Spike fewest hares in the zone" % pressure, "Spike %d" % sp, "base %d / Stone %d" % [hare["-/-"].hares_in_zone, hare["-/stone"].hares_in_zone], "strictly fewest", sp < hare["-/-"].hares_in_zone and sp < hare["-/stone"].hares_in_zone)
-	assert_true(sp < hare["-/-"].hares_in_zone and sp < hare["-/stone"].hares_in_zone, "IDENTITY p%d hare: Spike lets the fewest hares reach the zone (%d vs unbranched %d, Stone %d) | fails when: Spike pass damage 10" % [pressure, sp, hare["-/-"].hares_in_zone, hare["-/stone"].hares_in_zone])
+	var rules := [
+		["IDENTITY p%d siege: Longbow best tower state" % pressure, BranchBench.identity_longbow_siege(siege), "longbow_siege", "strictly least"],
+		["IDENTITY p%d hare: Volley best tower state" % pressure, BranchBench.identity_volley_hare(hare), "volley_hare", "strictly least"],
+		["IDENTITY p%d siege: Stone's fence stands longest" % pressure, BranchBench.identity_stone_stands_longest(siege), "stone_stands", "strictly longest"],
+		["IDENTITY p%d hare: Spike fewest hares in the zone" % pressure, BranchBench.identity_spike_fewest_hares(hare), "spike_hares", "strictly fewest"],
+	]
+	for r in rules:
+		_row(r[0], r[1].why, "", r[3], r[1].ok)
+		assert_true(r[1].ok, "IDENTITY p%d %s | fails when: %s" % [pressure, r[1].why, BranchBench.IDENTITY_FAILS_WHEN[r[2]]])
 	for lane in LANES:
 		var base: Dictionary = await _run(true, lane, &"", &"", pressure)
 		var towers := minf((await _run(true, lane, &"longbow", &"", pressure)).diner_lost, (await _run(true, lane, &"volley", &"", pressure)).diner_lost)
@@ -138,6 +134,7 @@ func _check_identity(pressure: int) -> void:
 # ---- the wave mixes ------------------------------------------------------------------------------------------------------------
 
 func test_1_the_wave_mixes_at_pressure_12_are_the_real_formulas() -> void:
+	await wait_physics_frames(10)
 	for lane in LANES:
 		var parts: Array = []
 		for m in BranchBench.mix(lane, PRESSURE):
@@ -158,6 +155,7 @@ func test_1_the_wave_mixes_at_pressure_12_are_the_real_formulas() -> void:
 		assert_almost_eq(float(got[2].hp_mult), 3.445, 1e-6, "wave 2 hp_mult carries the 39/30 oversize")
 
 func test_2_the_bench_is_deterministic() -> void:
+	await wait_physics_frames(10)
 	Balance.data.tiers.retune_enabled = true
 	var a: Dictionary = await BranchBench.run(&"hare", &"volley", &"spike", PRESSURE)
 	var b: Dictionary = await BranchBench.run(&"hare", &"volley", &"spike", PRESSURE)
@@ -168,20 +166,25 @@ func test_2_the_bench_is_deterministic() -> void:
 # ---- flag ON -------------------------------------------------------------------------------------------------------------------
 
 func test_3_matrix_flag_on_pressure_12() -> void:
+	await wait_physics_frames(10)
 	await _print_matrix("FLAG ON", true, PRESSURE, CONFIGS)
 	var r: Dictionary = await _run(true, &"siege", &"", &"", PRESSURE)
 	assert_gt(int(r.ticks), 600, "the matrix really ran")
 
 func test_4_floor_pressure_12() -> void:
+	await wait_physics_frames(10)
 	await _check_floor(PRESSURE)
 
 func test_5_specialist_margin_pressure_12() -> void:
+	await wait_physics_frames(10)
 	await _check_specialists(PRESSURE)
 
 func test_6_identity_pressure_12() -> void:
+	await wait_physics_frames(10)
 	await _check_identity(PRESSURE)
 
 func test_7_the_rule_at_the_final_cap() -> void:
+	await wait_physics_frames(10)
 	var cap: int = Balance.data.tiers.tier_cap[3]
 	if cap == PRESSURE:
 		gut.p("CAP PASS skipped: tier_cap[3] is %d, the pressure the tests above already ran" % cap)
@@ -204,6 +207,7 @@ const OFF_PINS := {
 }
 
 func test_8_flag_off_rows_and_pins() -> void:
+	await wait_physics_frames(10)
 	await _print_matrix("FLAG OFF (unbranched and single changes)", false, PRESSURE, [[&"", &""]] + SINGLES)
 	for lane in [&"siege", &"hare"]:
 		for cfg in [[&"", &""]] + SINGLES:
