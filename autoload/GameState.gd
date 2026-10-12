@@ -473,9 +473,10 @@ func _plan_today() -> Array:
 		p = LaneCharacter.apply(p, character, Balance.data.tiers)
 	return _with_tonights_boss(p) if boss_pending else p
 
-## E6 (D-289): the lane-character banner has been shown. Not an EventBus event: nothing else reads it.
+## E6 (D-289): the lane-character banner pair has been shown. Autosave writes on the signal, so the flag is saved when it is set.
 func mark_lane_character_shown() -> void:
 	lane_character_shown = true
+	EventBus.lane_character_shown_marked.emit()
 
 ## E6 (D-282): the run's lane character ({"siege", "hare"}), or {} below tier 3 or with the retune flag off.
 func lane_character() -> Dictionary:
