@@ -15,6 +15,17 @@ extends Node3D
 ##   ON    (the hero is inside this pad): glyph and cost row, name, preview line, the fence warning line, and the preview at the
 ##         building (range rings, "x3", shield, spikes). It shows before the stand-still threshold and before any gold moves.
 ## The stage is VISUAL ONLY: _on_tick (the payment) never reads it.
+##
+## E6 (spec 5.3, D-284.4, D-284.5, D-286; behind the retune flag, TierEffects.retune_on): the name, the preview line and the fence warning live in
+## the HUD's branch card (ui/hud/branch_card.gd), so the world keeps only the ring, the glyph, the NEAR cost and the preview at the building.
+##   ON    (the hero stands on an ARMED pad: he walked in, the card shows): the ring, the glyph alone (no cost, no name, no preview line, no
+##         warning) and the preview shape. The sibling stays quiet.
+##   UNARMED (the hero stands on a pad that is not armed: he was placed there, or the pad appeared under him; the card stays hidden until he
+##         leaves and re-enters): the world must still say what the pad is, so the pad keeps its NEAR content, the glyph and the cost, laid out
+##         beside the hero (above his head or below the pad, like the ON glyph) instead of on him; no preview. The sibling stays quiet.
+##   NEAR  is per PAD: the focus spot's pad shows its cost only while the hero is within branch_pad_near_m of that pad (branch_pad_leave_m once
+##         shown); the spot's other pad, if farther, stays FAR (ring and glyph). With the flag off the whole spot goes NEAR together, as before.
+##   FAR / QUIET are the same as with the flag off. With the flag off every stage is exactly as before.
 
 const FAR := 0
 const FAR_QUIET := 1
@@ -22,6 +33,8 @@ const NEAR := 2
 const ON := 3
 ## The sibling of the pad the hero stands on: its ground ring and payment ring only (on a pad only the stood option speaks).
 const SIBLING_QUIET := 4
+## E6 (flag on only): the hero stands on a pad that is not armed, so the card is hidden: the glyph and the cost stay in the world.
+const UNARMED := 5
 ## Metres ON THE SCREEN: the gap between the glyph and its cost, and between two stacked items.
 const ROW_GAP := 0.12
 const STACK_GAP_M := 0.08
@@ -30,6 +43,8 @@ const STACK_GAP_M := 0.08
 const NORTH_BASE_M := 1.05
 const SOUTH_BASE_M := 0.8
 const WARN_GAP := 0.1
+## E6 (flag on): the lone glyph above the hero's head starts here (the flag-off stack starts at NORTH_BASE_M, which leaves a few px between the head and the glyph).
+const RETUNE_NORTH_BASE_M := 1.25
 ## The coins of a refund flight (the exact amount is on the "+N" label) and the pause between two of them (s).
 const REFUND_COINS := 5
 const REFUND_GAP := 0.07
@@ -41,6 +56,9 @@ const REFUND_LABEL_TIME := 1.4
 const ON_MODES := {
 	"fence_n:0": [true, true], "tower_w:1": [false, true], "tower_e:0": [false, true], "tower_sw:1": [false, true], "fence_sw:1": [true, false],
 }
+## E6 (flag on): where the lone ON glyph (and the UNARMED glyph-and-cost row) stands: "spot:index" -> true above the hero's head, false below
+## the pad. Searched with the zero-overlap test (tests/unit/test_branch_pads.gd); a pad not listed stands above.
+const ON_ROW_NORTH_RETUNE := {"tower_nw:0": false, "tower_ne:1": false}
 
 ## The texts, through tr() when shown: [name, preview line]. The Volley's line is built from the balance count.
 const TEXTS := {
@@ -80,6 +98,8 @@ var stage := FAR
 ## Where the ON clusters stand (ON_MODES); call _layout_items() and re-apply the stage after changing them.
 var row_north := false
 var name_south := false
+## E6: the retune flag as read when the pad was made (TierEffects.retune_on): the pad table, the labels and the stages follow it.
+var retune := false
 var _fx: FlyFx
 var _paid_ticks := 0
 var _was_shown := false
@@ -182,7 +202,8 @@ func setup(p_spot_id: String, p_index: int, world: World) -> void:
 	branch_id = GameState.branch_options(spot_id)[index]
 	_fx = world.fly_fx
 	name = "BranchPad_%s_%s" % [spot_id, branch_id]
-	position = MapLayout.to3((MapLayout.BRANCH_PADS[spot_id] as Array)[index])
+	retune = TierEffects.retune_on(Balance.data.tiers)
+	position = MapLayout.to3(MapLayout.branch_pad(spot_id, index, retune))
 	body = Node3D.new()
 	body.name = "Body"
 	add_child(body)
@@ -275,6 +296,8 @@ func _build_items() -> void:
 	var mode: Array = ON_MODES.get("%s:%d" % [spot_id, index], [false, false])
 	row_north = mode[0]
 	name_south = mode[1]
+	if retune:
+		row_north = bool(ON_ROW_NORTH_RETUNE.get("%s:%d" % [spot_id, index], true))
 	_layout_items()
 	cost_label.text = ""
 
@@ -288,6 +311,9 @@ func _layout_items() -> void:
 		icon: _at(block_h * 0.5 - ibox.y * 0.5, true),
 		cost_label: _at(block_h * 0.5 - cbox.y * 0.5, false),
 	}
+	if retune:
+		_layout_retune(ibox, cbox)
+		return
 	# ON: the glyph row (and the fence warning) on one side of the pad, the name and the preview line on one side; each cluster
 	# stands above the hero's head (north) or below the pad (south). Where both share a side the row is nearest the pad.
 	var on := {}
@@ -298,6 +324,16 @@ func _layout_items() -> void:
 	m[name_north] = _place_text(on, name_label, m[name_north], name_north)
 	m[name_north] = _place_text(on, effect_label, m[name_north], name_north)
 	_pos[ON] = on
+
+## E6: the ON glyph alone, centred, above the hero's head or below the pad (`row_north`); the UNARMED block (glyph over its cost, the NEAR block's
+## order) at the same edge. Above the head starts higher than the flag-off stack (RETUNE_NORTH_BASE_M): the test's hero box is taller on screen.
+func _layout_retune(ibox: Vector2, cbox: Vector2) -> void:
+	var m := RETUNE_NORTH_BASE_M if row_north else SOUTH_BASE_M
+	_pos[ON] = {icon: _at(m + ibox.y * 0.5, row_north)}
+	if row_north:  # the cost nearest the pad, the glyph above it
+		_pos[UNARMED] = {cost_label: _at(m + cbox.y * 0.5, true), icon: _at(m + cbox.y + STACK_GAP_M + ibox.y * 0.5, true)}
+	else:  # the glyph nearest the pad, the cost below it
+		_pos[UNARMED] = {icon: _at(m + ibox.y * 0.5, false), cost_label: _at(m + ibox.y + STACK_GAP_M + cbox.y * 0.5, false)}
 
 ## The local position of an item whose centre stands `c` metres ON THE SCREEN above (north) or below (south) the pad: above it is a
 ## height (a billboard over the hero), below it is a point on the ground south of the pad (the camera looks down at 55 degrees).
@@ -383,6 +419,9 @@ const HINT_Y := 0.35
 ## whole rule (the preview against every obstacle the stood stack meets, and every stack item against the preview): fewest findings,
 ## then fewest px. tower_e and fence_sw moved from the default ((0, 1.0) at fence_sw landed on the SW telegraph's count row).
 const HINT_AT := {"tower_w": Vector2(0.0, -1.5), "tower_sw": Vector2(-1.0, 0.0), "tower_e": Vector2(0.0, 0.25), "fence_sw": Vector2(0.25, 0.0)}
+## E6 (flag on): the same offsets today (the pad search of Task 14 kept them: no preview needed to move). A key is a spot ("tower_e") or one pad
+## ("tower_e:1", which wins); the zero-overlap test (tests/unit/test_branch_pads.gd) is the oracle for any change.
+const HINT_AT_RETUNE := {"tower_w": Vector2(0.0, -1.5), "tower_sw": Vector2(-1.0, 0.0), "tower_e": Vector2(0.0, 0.25), "fence_sw": Vector2(0.25, 0.0)}
 
 ## A glyph and, if `mult` is not empty, its multiplier beside it, in front of the building.
 func _hint(kind: StringName, mult: String) -> void:
@@ -393,7 +432,10 @@ func _hint(kind: StringName, mult: String) -> void:
 		hint_label.name = "HintMult"
 		hint_label.pixel_size = Balance.ui.branch_pad_label_pixel_size
 		preview.add_child(hint_label)
-	hint_at = HINT_AT.get(spot_id, Vector2.ZERO)
+	if retune:
+		hint_at = HINT_AT_RETUNE.get("%s:%d" % [spot_id, index], HINT_AT_RETUNE.get(spot_id, Vector2.ZERO))
+	else:
+		hint_at = HINT_AT.get(spot_id, Vector2.ZERO)
 	place_hint()
 
 ## Puts the preview glyph (and its multiplier) at (hint_at.x, HINT_Y, HINT_Z + hint_at.y) from the building.
@@ -449,12 +491,25 @@ func _physics_process(_delta: float) -> void:
 
 func _stage_now() -> int:
 	if _on_pad == self:
+		if retune and not zone.armed:
+			return UNARMED
 		return ON
 	if _on_pad != null and _on_pad.spot_id == spot_id:
 		return SIBLING_QUIET
 	if _focus_spot == spot_id:
+		if retune and not _in_reach():
+			return FAR  # E6: a pad of the focus spot that is out of reach keeps its ring and glyph; the cost is for the pads the hero can walk to
 		return NEAR
 	return FAR if _on_pad == null else FAR_QUIET
+
+## E6 (flag on): the hero is within `branch_pad_near_m` of THIS pad, or, while it already shows its cost, within `branch_pad_leave_m` (the same
+## hysteresis as the spot's focus, per pad).
+func _in_reach() -> bool:
+	var hero := get_tree().get_first_node_in_group(&"hero") as Node3D
+	if hero == null:
+		return false
+	var d := Vector2(hero.global_position.x - global_position.x, hero.global_position.z - global_position.z).length()
+	return d <= (Balance.ui.branch_pad_leave_m if stage == NEAR else Balance.ui.branch_pad_near_m)
 
 ## Writes the items of `st`: only when the stage changes (visibility, positions, glyph size and material).
 func _apply_stage(st: int) -> void:
@@ -468,16 +523,17 @@ func _apply_stage(st: int) -> void:
 	else:
 		icon.material_override = BranchIcons.material()
 		icon.scale = Vector3.ONE * ui.branch_pad_icon_m
-	cost_label.visible = st == NEAR or st == ON
-	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if st == NEAR else HORIZONTAL_ALIGNMENT_LEFT
+	cost_label.visible = st == NEAR or st == UNARMED or (st == ON and not retune)
+	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if (st == NEAR or st == UNARMED) else HORIZONTAL_ALIGNMENT_LEFT
 	var on := st == ON
-	name_label.visible = on
-	effect_label.visible = on
+	var texts := on and not retune  # E6: the name, the preview line and the warning are the card's, not the world's
+	name_label.visible = texts
+	effect_label.visible = texts
 	preview.visible = on
 	if warn_label != null:  # the fence pads' "lost if broken" is part of the preview (D-273.4)
-		warn_label.visible = on
-		warn_icon.visible = on
-	if st == NEAR or st == ON:
+		warn_label.visible = texts
+		warn_icon.visible = texts
+	if _pos.has(st):
 		for n in _pos[st]:
 			(n as Node3D).position = _pos[st][n]
 

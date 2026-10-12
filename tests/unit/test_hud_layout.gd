@@ -155,13 +155,14 @@ func test_lane_arrows_are_not_polygons_and_are_drawn_by_hud_icons() -> void:
 	EventBus.wave_incoming.emit(0, &"north", &"west")
 	await get_tree().process_frame
 	assert_true(hud.arrows.main.visible)
-	assert_eq(hud.icons.arrow_nodes.size(), 2, "HudIcons draws the two holders")
+	assert_eq(hud.icons.arrow_nodes.size(), 3, "HudIcons draws the three holders: main, side, extra")
 	assert_true(hud.icons.arrow_nodes.has(hud.arrows.main))
 	assert_true(hud.icons.arrow_nodes.has(hud.arrows.side))
+	assert_true(hud.icons.arrow_nodes.has(hud.arrows.extra))
 	var draws := [0]
 	hud.icons.draw.connect(func(): draws[0] += 1)
 	EventBus.wave_spawned_out.emit(0)
-	assert_false(hud.arrows.main.visible or hud.arrows.side.visible)
+	assert_false(hud.arrows.main.visible or hud.arrows.side.visible or hud.arrows.extra.visible)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	assert_gte(draws[0], 1, "hiding both arrows redraws once more")

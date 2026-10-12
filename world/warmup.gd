@@ -68,6 +68,7 @@ func run(main: Main, resume_phase := "") -> void:
 	cube.material_override = main.world.occluder_fade.fade_material_for_warmup()
 	_place(cube)
 	_prebuild_tier_caches()
+	prebuild_card_textures()
 	for n in branch_pad_visuals():
 		_place(n)
 	for n in lane_character_visuals():
@@ -119,6 +120,12 @@ static func lane_character_visuals() -> Array[Node3D]:
 		g.scale = Vector3.ONE * LaneCharacterMarker.BADGE_M * 0.5
 		out.append(g)
 	return out
+
+## E6 Task 13: the branch card's rasterized icons (first shown at the first branch pad). No grid slot (they are textures, not drawn
+## meshes). Nothing with the retune flag off.
+static func prebuild_card_textures() -> void:
+	if TierEffects.retune_on(Balance.data.tiers):
+		BranchCard.prebuild_textures()
 
 ## E5 Task 12: each tier-up would build that tier's terrain mesh (10.5k vertices, in GDScript) and re-merge the props
 ## inside the tier-up frame. Fill both caches now; no node is added, nothing in the world changes.

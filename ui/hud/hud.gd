@@ -14,10 +14,12 @@ var diner_bar: ProgressBar
 var icons: HudIcons
 var banner: Label
 var banner_panel: PanelContainer
+## E6 (spec 5.2): the branch card; hidden unless the run has a lane character and the hero stands on an armed branch pad.
+var branch_card: BranchCard
 var arrows := {}
 var _camera: Camera3D
 var _lanes := {}
-var _arrow_lane := {"main": "", "side": ""}
+var _arrow_lane := {"main": "", "side": "", "extra": ""}
 var _filled := 0
 var _banner_queue: Array[String] = []
 ## Seconds left of the banner on screen; 0 when none is showing.
@@ -38,6 +40,11 @@ var _dim_t := 0.0
 ## Layout constants in 720-base units (spec 9.4: slim diner bar under the moons).
 const BAR_SIZE := Vector2(220, 12)
 const BANNER_SIDE_MARGIN := 40.0
+## The arrow slots in placement order (E6 Task 12): main first (it never moves), then side, then the third lane's.
+const ARROW_KEYS := ["main", "side", "extra"]
+## Separation rule (D-287.3): a later arrow whose footprint, grown by this, meets an earlier one's slides along its arrow rect's edge in steps of this size.
+const ARROW_SEPARATION_GAP := 4.0
+const ARROW_SEPARATION_STEP := 8.0
 ## Half the arrow's height, derived from arrow_px (the arrow is drawn centred 2 px below its origin), rounded up for the big one.
 static func arrow_extent() -> float:
 	return ceilf(Balance.ui.arrow_px * 0.5 + 2.0) + 2.0
@@ -121,13 +128,16 @@ func _ready() -> void:
 	banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	banner.visible = false
-	for key in ["main", "side"]:
+	for key in ARROW_KEYS:
 		var p := HudArrow.new()
 		p.scale = Vector2.ONE if key == "main" else Vector2.ONE * Balance.ui.arrow_side_scale
 		p.visible = false
 		root.add_child(p)
 		arrows[key] = p
 		icons.arrow_nodes.append(p)
+	branch_card = BranchCard.new()
+	branch_card.name = "BranchCard"
+	root.add_child(branch_card)
 	_set_moon_count(GameState.lane_plan.size())
 	EventBus.gold_changed.connect(_on_gold_changed)
 	EventBus.phase_changed.connect(_on_phase_changed)
@@ -213,8 +223,10 @@ func _on_phase_changed(phase: int, day: int) -> void:
 	else:
 		_arrow_lane.main = ""
 		_arrow_lane.side = ""
+		_arrow_lane.extra = ""
 		arrows.main.visible = false
 		arrows.side.visible = false
+		arrows.extra.visible = false
 	icons.night = night
 	# The boss moon is set when the night's HUD is rebuilt: moons draw at night only, so a tier-up paid by day is read here.
 	icons.boss_moon = boss_moon_index() if night else -1
@@ -261,16 +273,41 @@ func _on_wave_incoming(w: int, main_lane: StringName, side_lane: StringName) -> 
 	_arrow_lane.main = String(main_lane)
 	_arrow_lane.side = String(side_lane)
 	arrows.main.visible = _arrow_lane.main != ""
-	arrows.side.visible = _arrow_lane.side != ""
+	arrows.side.visible = _arrow_lane.side != "" and _side_lane_in_use(w, _arrow_lane.side)
+	_arrow_lane.extra = _third_lane(w, _arrow_lane.main, _arrow_lane.side)
+	arrows.extra.visible = _arrow_lane.extra != ""
 	_mark_brute_arrows(w)
 	_place_arrows()
 	_punch_arrows()
+
+## E6 Task 12: whether the side arrow shows. A plain two-lane wave keeps today's rule (a side lane is named: it shows). The
+## active-lane rule applies only when the wave carries `extra` groups, or its side group was emptied (side_count 0 and no
+## brute_side, which the planner never produces without the lane character): the side arrow then shows only if
+## LaneCharacter.active_lanes(wave) holds the lane, so it never points at an empty lane.
+func _side_lane_in_use(w: int, side_lane: String) -> bool:
+	if w < 0 or w >= GameState.lane_plan.size():
+		return true
+	var wave: Dictionary = GameState.lane_plan[w]
+	var emptied := int(wave.get("side_count", 1)) == 0 and int(wave.get("brute_side", 0)) == 0
+	if wave.get("extra", []).is_empty() and not emptied:
+		return true
+	return LaneCharacter.active_lanes(wave).has(side_lane)
+
+## E6 Task 12: the third active lane of wave w (an extra group's lane that is neither the main nor the side lane), or "".
+func _third_lane(w: int, main_lane: String, side_lane: String) -> String:
+	if w < 0 or w >= GameState.lane_plan.size():
+		return ""
+	for e in GameState.lane_plan[w].get("extra", []):
+		var lane := String(e.lane)
+		if int(e.count) > 0 and lane != "" and lane != main_lane and lane != side_lane:
+			return lane
+	return ""
 
 ## E5 tier 3 Task 14 (D-264): an arrow whose lane brings a brute in this wave or a later one tonight gets the heavy mark (not
 ## once its last brute has come). Arrows show only from wave_incoming, at night (today's timing, unchanged).
 func _mark_brute_arrows(w: int) -> void:
 	var comp := LanePlanner.composition_by_lane(GameState.lane_plan.slice(maxi(w, 0)), GameState.tier)
-	for key in ["main", "side"]:
+	for key in ARROW_KEYS:
 		arrows[key].heavy = int(comp.get(_arrow_lane[key], {}).get("brute", 0)) > 0
 
 ## S5 Task 5: the arrows pop when a wave is announced (visual only).
@@ -278,14 +315,18 @@ func _punch_arrows() -> void:
 	if _punch_tween != null and _punch_tween.is_valid():
 		_punch_tween.kill()
 	_punch_tween = create_tween().set_parallel(true)
-	for key in ["main", "side"]:
-		var rest := Vector2.ONE if key == "main" else Vector2.ONE * Balance.ui.arrow_side_scale
+	for key in ARROW_KEYS:
+		var rest := _rest_scale(key)
 		arrows[key].scale = rest * Balance.ui.arrow_punch_scale
 		_punch_tween.tween_property(arrows[key], "scale", rest, Balance.ui.arrow_punch_time)
+
+func _rest_scale(key: String) -> Vector2:
+	return Vector2.ONE if key == "main" else Vector2.ONE * Balance.ui.arrow_side_scale
 
 func _on_wave_spawned_out(_w: int) -> void:
 	arrows.main.visible = false
 	arrows.side.visible = false
+	arrows.extra.visible = false
 
 func _on_diner_damaged(_amount: float, hp_left: float) -> void:
 	diner_bar.value = hp_left
@@ -364,7 +405,7 @@ func _process(delta: float) -> void:
 	_layout_strip()
 	_tick_label_dim(delta)
 	# The arrows are drawn by `icons`; redraw while one shows (and once more when the last one hides).
-	var any: bool = arrows.main.visible or arrows.side.visible
+	var any: bool = arrows.main.visible or arrows.side.visible or arrows.extra.visible
 	if any or _arrows_were_shown:
 		icons.queue_redraw()
 	_arrows_were_shown = any
@@ -433,7 +474,9 @@ func _place_arrows() -> void:
 	if _camera == null:
 		return
 	var base_rect := arrow_rect()
-	for key in ["main", "side"]:
+	var three_lanes: bool = arrows.extra.visible and _arrow_lane.extra != "" and _lanes.has(_arrow_lane.extra)
+	var placed: Array[Rect2] = []  # footprints (global px) of the arrows already placed, in ARROW_KEYS order
+	for key in ARROW_KEYS:
 		var arrow: HudArrow = arrows[key]
 		var lane: String = _arrow_lane[key]
 		if not arrow.visible or lane == "" or not _lanes.has(lane):
@@ -446,10 +489,98 @@ func _place_arrows() -> void:
 		var p := _camera.unproject_position(world_pos)
 		if _camera.is_position_behind(world_pos):
 			p = rect.get_center() - (p - rect.get_center())
-		if rect.has_point(p):
+		var inside := rect.has_point(p)
+		if inside:
 			arrow.position = _hover_point(p, rect) - root.position
 			arrow.rotation = 0.0
 		else:
 			var e := EdgeClamp.clamp_to_rect(p, rect)
 			arrow.position = (e.position as Vector2) - root.position
 			arrow.rotation = e.rotation
+		if three_lanes:
+			# Only a wave with a third lane is separated: a two-lane wave keeps exactly the places it always had.
+			# Footprints are taken at the punch's peak scale, so the pop never makes two arrows touch and the rule does not flicker with the tween.
+			var scl := _rest_scale(key).y * Balance.ui.arrow_punch_scale
+			var s := _separate(arrow.position + root.position, arrow.rotation, inside, rect, arrow.heavy, scl, placed)
+			arrow.position = (s.position as Vector2) - root.position
+			arrow.rotation = s.rotation
+			placed.append(arrow_footprint(s.position, s.rotation, scl, arrow.heavy))
+
+## Where an arrow covers on screen (global px): the square around its drawn disc (the arrow's width, turned about `pos`,
+## scaled), plus its brute mark. A disc, not the turned square: the glyph does not fill the square's corners, and
+## arrow_extent() treats it the same way.
+static func arrow_footprint(pos: Vector2, rot: float, scl: float, heavy: bool) -> Rect2:
+	var h := Balance.ui.arrow_px * 0.5 * scl
+	var c := pos + HudIcons.ARROW_CENTER.rotated(rot) * scl
+	var r := Rect2(c - Vector2.ONE * h, Vector2.ONE * h * 2.0)
+	if heavy:
+		r = r.merge(HudIcons.heavy_rect_at(pos, rot, scl))
+	return r
+
+func _blocker(fp: Rect2, placed: Array[Rect2]) -> int:
+	for i in placed.size():
+		if fp.grow(ARROW_SEPARATION_GAP).intersects(placed[i].grow(ARROW_SEPARATION_GAP)):
+			return i
+	return -1
+
+## The separation rule (D-287.3), used only for a wave with a third lane. The arrows are placed in the order main, side, extra. The main arrow never moves. An
+## arrow whose footprint (grown by ARROW_SEPARATION_GAP) meets an earlier one's slides along the edge of its arrow rect
+## (clockwise = +, the perimeter walk top, right, bottom, left; an arrow hovering inside the rect slides in x) in steps
+## of ARROW_SEPARATION_STEP, the nearest clear spot first, trying the direction away from the arrow it met before the other
+## one; it points away from the rect centre at its new place. If no spot is clear it keeps its own place.
+func _separate(pos: Vector2, rot: float, inside: bool, rect: Rect2, heavy: bool, scl: float, placed: Array[Rect2]) -> Dictionary:
+	var first := _blocker(arrow_footprint(pos, rot, scl, heavy), placed)
+	if first < 0:
+		return {"position": pos, "rotation": rot}
+	var per := 2.0 * (rect.size.x + rect.size.y)
+	var s0 := _perimeter_param(pos, rect)
+	var away := pos - placed[first].get_center()
+	var tangent := Vector2.RIGHT if inside else (_perimeter_point(s0 + 1.0, rect) - _perimeter_point(s0, rect))
+	var sign_first := 1.0 if away.dot(tangent) >= 0.0 else -1.0
+	var steps := int(per / ARROW_SEPARATION_STEP)
+	for k in range(1, steps + 1):
+		for sg in [sign_first, -sign_first]:
+			var q: Vector2
+			var r2 := 0.0
+			if inside:
+				q = Vector2(clampf(pos.x + sg * k * ARROW_SEPARATION_STEP, rect.position.x, rect.end.x), pos.y)
+			else:
+				q = _perimeter_point(s0 + sg * k * ARROW_SEPARATION_STEP, rect)
+				r2 = (q - rect.get_center()).normalized().angle() - PI / 2.0
+			if _blocker(arrow_footprint(q, r2, scl, heavy), placed) < 0:
+				return {"position": q, "rotation": r2}
+	return {"position": pos, "rotation": rot}
+
+## Distance along the rect's outline from its top-left corner, clockwise, of the outline point nearest to p.
+static func _perimeter_param(p: Vector2, r: Rect2) -> float:
+	var d := {
+		"top": absf(p.y - r.position.y), "right": absf(p.x - r.end.x),
+		"bottom": absf(p.y - r.end.y), "left": absf(p.x - r.position.x),
+	}
+	var best := "top"
+	for k in d:
+		if d[k] < d[best]:
+			best = k
+	match best:
+		"top":
+			return clampf(p.x - r.position.x, 0.0, r.size.x)
+		"right":
+			return r.size.x + clampf(p.y - r.position.y, 0.0, r.size.y)
+		"bottom":
+			return r.size.x + r.size.y + clampf(r.end.x - p.x, 0.0, r.size.x)
+		_:
+			return 2.0 * r.size.x + r.size.y + clampf(r.end.y - p.y, 0.0, r.size.y)
+
+static func _perimeter_point(s: float, r: Rect2) -> Vector2:
+	var per := 2.0 * (r.size.x + r.size.y)
+	s = fposmod(s, per)
+	if s <= r.size.x:
+		return r.position + Vector2(s, 0)
+	s -= r.size.x
+	if s <= r.size.y:
+		return Vector2(r.end.x, r.position.y + s)
+	s -= r.size.y
+	if s <= r.size.x:
+		return Vector2(r.end.x - s, r.end.y)
+	s -= r.size.x
+	return Vector2(r.position.x, r.end.y - s)
