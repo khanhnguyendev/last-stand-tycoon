@@ -20,13 +20,10 @@ var _diner_base := Vector3.ONE
 var _staged := false  ## the ground, kerb and edge stones show the tier before
 var _diner_old := false  ## the diner shows the previous tier's art
 var _hidden_markers: Array[TelegraphMarker] = []
-## E6 (D-289, spec 5.4): the lane-character step. The markers whose badge the reveal hid (and each badge's scale), and the two flavour
-## lines still to be shown: the siege line at the step, the hare line at the last step (a banner is cut to banner_min_s by the next one, so two
-## sent together would leave the first unreadable). All empty with no lane character: the step does not exist.
+## E6 (D-289, spec 5.4): the lane-character step. The markers whose badge the reveal holds (and each badge's scale). The step only pops the
+## badges: the two flavour lines are scheduled by the controller after the card pick (D-294.5). Empty with no lane character: no step.
 var _badge_markers: Array[TelegraphMarker] = []
 var _badge_base := {}
-var _line_siege := ""
-var _line_hare := ""
 var _diner_kept: Node3D  ## tier 3: the new storey's art, taken out of the diner for the first steps and put back at step 5 (no second instantiation)
 
 func setup(world: World) -> void:
@@ -167,8 +164,6 @@ func _restore() -> void:
 			m.refresh()  # the badge shows what the lane character says
 	_badge_markers.clear()
 	_badge_base.clear()
-	_line_siege = ""
-	_line_hare = ""
 
 func _on_tier_reached(tier: int) -> void:
 	_cancel()
@@ -266,7 +261,7 @@ func _plan_tier3() -> void:
 ## {} with no badge (flag off: the list stays the five steps of E5).
 func _plan_lane_character() -> Dictionary:
 	# The badges (made by the tier-up's refresh, only with a lane character) say which lane is which: this node reads and writes no game
-	# data. The controller marks the banner as shown when the reveal ends.
+	# data. The controller schedules the lines after the pick.
 	var sum := Vector3.ZERO
 	for id in LanePlanner.lanes_for_tier(3):
 		var m: TelegraphMarker = _world.telegraph_markers.get(id)
@@ -275,10 +270,6 @@ func _plan_lane_character() -> Dictionary:
 		var kind: StringName = m.badge.shown_kind()
 		if kind == &"":
 			continue
-		if kind == LaneCharacter.SIEGE:
-			_line_siege = LaneCharacter.flavour(id, kind)
-		else:
-			_line_hare = LaneCharacter.flavour(id, kind)
 		_badge_markers.append(m)
 		_badge_base[m.badge] = m.badge.scale
 		m.badge.hold(true)  # the marker's cover rule re-shows a badge every tick: only a hold keeps it hidden
@@ -309,13 +300,7 @@ func _apply(st: Dictionary, animate: bool) -> void:
 					m.badge.hold(false)
 					if animate:
 						_pops.append(PopFx.pop(self, m.badge, _badge_base.get(m.badge, Vector3.ONE), null))
-			if _line_siege != "":
-				EventBus.banner_requested.emit(_line_siege)
-				_line_siege = ""
 		&"diner":
-			if _line_hare != "":
-				EventBus.banner_requested.emit(_line_hare)
-				_line_hare = ""
 			if _diner_old:
 				_diner_old = false
 				_world.put_back_diner_art(_diner_kept)  # the new storey (the node the world built at the tier-up)

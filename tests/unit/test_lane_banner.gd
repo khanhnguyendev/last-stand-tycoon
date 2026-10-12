@@ -11,13 +11,17 @@ const LANE_WORD := {"west": "west", "north": "north", "east": "east", "sw": "sou
 var main: Main
 var banners: Array = []
 
+var banner_frames: Array = []
+
 func _on_banner(t) -> void:
 	banners.append(t)
+	banner_frames.append(Engine.get_physics_frames())
 
 func before_each() -> void:
 	Balance.reset()
 	SaveCodec.MIGRATIONS.clear()
 	banners.clear()
+	banner_frames.clear()
 
 func after_each() -> void:
 	if EventBus.banner_requested.is_connected(_on_banner):
@@ -123,6 +127,7 @@ func _boot(state: Dictionary, flag: bool) -> void:
 	main.phase_controller.resume_from(state)
 	await get_tree().physics_frame
 	banners.clear()
+	banner_frames.clear()
 
 ## A won night: the real dawn, the real pick when one is offered, then `wait` physics seconds of the day.
 func _dawn_and_pick(wait := 2.5) -> void:
@@ -145,7 +150,7 @@ func test_a_tier3_save_with_the_field_false_shows_the_banner_once_and_never_agai
 	assert_false(GameState.lane_character_shown, "setup: the loaded save has not shown it")
 	var lines := LaneCharacter.flavour_lines(GameState.lane_character())
 	assert_eq(lines.size(), 2)
-	await _dawn_and_pick()
+	await _dawn_and_pick(7.0)
 	assert_eq(_lc_banners(), lines, "siege line then hare line, once each")
 	assert_true(GameState.lane_character_shown)
 	# save, reload, and the next dawn
@@ -176,12 +181,82 @@ func test_a_save_whose_field_is_true_shows_no_banner() -> void:
 	await _dawn_and_pick()
 	assert_eq(_lc_banners(), [])
 
-## Mutation: both lines sent at once (the first is cut to banner_min_s and unreadable): the hare line comes banner_time after.
-func test_the_hare_line_follows_the_siege_line_after_banner_time() -> void:
+func _frame_of(text: String) -> int:
+	var i := banners.find(text)
+	return banner_frames[i] if i >= 0 else -1
+
+func _wait_s(sec: float) -> void:
+	for i in int(sec * 60.0):
+		await get_tree().physics_frame
+
+## E6 fix round (D-294.5): the order is the pick banner, the siege line, the hare line, each for its full banner_time.
+## Mutation: both lines sent at once with the pick; the hare line sent early; a line sent while the one before still shows.
+func test_pick_banner_then_siege_then_hare_each_gets_its_full_two_seconds() -> void:
 	await _boot(_v6_decoded(), true)
 	var lines := LaneCharacter.flavour_lines(GameState.lane_character())
-	await _dawn_and_pick(0.5)
-	assert_eq(_lc_banners(), [lines[0]], "only the siege line at first")
-	for i in int(Balance.ui.banner_time * 60.0):
-		await get_tree().physics_frame
+	await _wait_s(3.0)  # the boot's own banner is gone
+	main.phase_controller._on_wave_cleared(GameState.lane_plan.size() - 1)
+	assert_eq(main.phase_controller.dawn_substate, "CARD_PICK", "setup: the fixture offers cards")
+	banners.clear()
+	banner_frames.clear()
+	EventBus.card_chosen.emit(GameState.card_offer[0])
+	var pick: String = banners[0]
+	var t_pick: int = banner_frames[0]
+	assert_eq(banners.size(), 1, "only the pick banner at the pick")
+	assert_false(GameState.lane_character_shown)
+	await _wait_s(1.9)
+	assert_eq(_lc_banners(), [], "no lane line while the pick banner shows")
+	await _wait_s(0.3)
+	assert_eq(_lc_banners(), [lines[0]], "the siege line once the pick banner had its 2.0 s")
+	var t_siege := _frame_of(lines[0])
+	assert_gte(t_siege - t_pick, 120, "pick banner full time")
+	assert_lte(t_siege - t_pick, 130)
+	assert_false(GameState.lane_character_shown, "false until the hare line is sent")
+	await _wait_s(1.8)
+	assert_eq(_lc_banners(), [lines[0]], "the hare line waits for the siege line's 2.0 s")
+	await _wait_s(0.4)
 	assert_eq(_lc_banners(), lines)
+	assert_gte(_frame_of(lines[1]) - t_siege, 120)
+	assert_lte(_frame_of(lines[1]) - t_siege, 130)
+	assert_true(GameState.lane_character_shown, "true once the hare line is sent")
+	assert_eq(banners.filter(func(b): return b == pick).size(), 1)
+
+## Mutation: a foreign banner is cut by a lane line, or the lane line is dropped.
+func test_a_foreign_banner_while_the_lines_wait_is_not_cut_and_the_lines_follow_it() -> void:
+	await _boot(_v6_decoded(), true)
+	var lines := LaneCharacter.flavour_lines(GameState.lane_character())
+	await _wait_s(3.0)
+	main.phase_controller._on_wave_cleared(GameState.lane_plan.size() - 1)
+	EventBus.card_chosen.emit(GameState.card_offer[0])
+	await _wait_s(0.5)
+	EventBus.banner_requested.emit("Foreign event")
+	var t_f := _frame_of("Foreign event")
+	await _wait_s(2.5)  # the pick banner was cut to 0.6 s by the foreign one (HUD rule), which then shows 2.0 s
+	assert_eq(_lc_banners(), [], "no lane line while the foreign banner shows")
+	await _wait_s(0.6)
+	assert_eq(_lc_banners(), [lines[0]], "the siege line follows the foreign banner")
+	assert_gte(_frame_of(lines[0]) - t_f, 155, "after the foreign banner's full time (0.6 s cut + 2.0 s)")
+	await _wait_s(2.4)
+	assert_eq(_lc_banners(), lines)
+	assert_true(GameState.lane_character_shown)
+
+## Mutation: lines shown at night; the flag set although the hare line never went; the pair not repeated at the next dawn.
+func test_night_before_the_pair_completes_shows_nothing_keeps_the_flag_false_and_the_pair_comes_at_the_next_dawn() -> void:
+	await _boot(_v6_decoded(), true)
+	var lines := LaneCharacter.flavour_lines(GameState.lane_character())
+	await _wait_s(3.0)
+	main.phase_controller._on_wave_cleared(GameState.lane_plan.size() - 1)
+	EventBus.card_chosen.emit(GameState.card_offer[0])
+	await _wait_s(2.3)
+	assert_eq(_lc_banners(), [lines[0]], "setup: the siege line is out, the hare line is not")
+	main.phase_controller.close_up()
+	assert_eq(main.phase_controller.phase, Phase.NIGHT)
+	await _wait_s(5.0)
+	assert_eq(_lc_banners(), [lines[0]], "nothing more at night")
+	assert_false(GameState.lane_character_shown)
+	banners.clear()
+	banner_frames.clear()
+	await _dawn_and_pick(7.0)
+	assert_eq(_lc_banners(), lines, "the whole pair at the next dawn")
+	assert_true(GameState.lane_character_shown)
+

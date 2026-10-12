@@ -905,6 +905,8 @@ const LC_HARE_LINE := "Quick paws in the west grass..."
 ## The named margin: a badge point lies within ndc +-(1 - BADGE_MARGIN), which is the tier-3 fit limit (ui.tier_reveal_fit_t3, 0.8): the
 ## same air the other subjects get. Without the badges in the fit, the south-west badge sits at ndc (-0.82, -0.72) and fails it.
 const BADGE_MARGIN := 0.2
+## Seconds after a pick that cover the setup's queued banners (the tier-ups' own, each at least banner_min_s), the pick banner and both lines.
+const LC_AFTER_PICK_S := 9.0
 
 ## The tier-3 dawn of a run on seed 1 with the retune flag as given. Nothing of the reveal has run yet.
 func _lc_dawn(flag := true) -> void:
@@ -971,30 +973,33 @@ func test_lc_the_badges_are_hidden_until_step_three_and_visible_after_it() -> vo
 	assert_true(_badge("west").visible)
 	assert_eq(_badge("east").scale, Vector3.ONE, "no pop left running")
 
-## Mutation: one combined or doubled banner; the hare line at the wrong step; a line missing.
-func test_lc_the_siege_line_shows_at_step_three_the_hare_line_at_step_six_each_once() -> void:
+## E6 fix round (D-294.5), replacing the 1.30 s / 2.35 s banner timing test. Before: the siege line was sent at step 3 (1.30 s) and the hare
+## line at step 6 (2.35 s). After: neither is sent during the reveal (its steps pop the badges only); both come after the card pick.
+## Mutation: a banner sent from a reveal step.
+func test_lc_no_lane_line_is_sent_during_the_reveal_and_the_flag_is_still_false_at_its_end() -> void:
 	_lc_dawn()
-	await _frames(int(1.25 * 60.0))
-	assert_eq(_lines_seen(), [0, 0], "nothing before step 3")
-	await _frames(8)
-	assert_eq(_lines_seen(), [1, 0], "the siege line at step 3")
-	await _frames(50)  # 2.2 s: not yet step 6 (2.35 s)
-	assert_eq(_lines_seen(), [1, 0])
-	await _frames(15)  # 2.45 s
-	assert_eq(_lines_seen(), [1, 1], "the hare line at step 6")
-	await _frames(int(2.0 * 60.0))
-	assert_eq(_lines_seen(), [1, 1], "once each")
-	assert_true(GameState.lane_character_shown)
+	await _frames(int(1.4 * 60.0))
+	assert_eq(_reveal().steps_left(), 3, "setup: step 3 has run")
+	assert_eq(_lines_seen(), [0, 0], "not at step 3 (1.30 s)")
+	await _frames(int(1.1 * 60.0))
+	assert_eq(_reveal().steps_left(), 0, "setup: step 6 has run (2.35 s)")
+	assert_eq(_lines_seen(), [0, 0], "not at step 6")
+	await _frames(int(Balance.data.tiers.tier_reveal_time * 60.0) - int(2.5 * 60.0) + 3)
+	assert_false(_reveal().running())
+	assert_eq(_lines_seen(), [0, 0], "none when the reveal ends and the pick opens")
+	assert_false(GameState.lane_character_shown, "not shown yet: the lines come after the pick")
 
 ## Mutation: the banner texts do not come from the run's character.
 func test_lc_the_banner_texts_are_the_lines_of_the_runs_character() -> void:
 	_lc_dawn()
-	await _frames(int(Balance.data.tiers.tier_reveal_time * 60.0))
+	await _frames(int(Balance.data.tiers.tier_reveal_time * 60.0) + 5)
+	EventBus.card_chosen.emit(GameState.card_offer[0])
+	await _frames(int(LC_AFTER_PICK_S * 60.0))
 	var lc := banners.filter(func(b): return String(b).begins_with("Heavy") or String(b).begins_with("Quick"))
 	assert_eq(lc, [LC_SIEGE_LINE, LC_HARE_LINE])
 	assert_eq(LaneCharacter.flavour_lines(GameState.lane_character()), [LC_SIEGE_LINE, LC_HARE_LINE])
 
-## Mutation: a skip leaves a badge hidden, shows a line twice or never, or leaves the flag false.
+## Mutation: a skip leaves a badge hidden, loses a line (or shows one twice) after the pick, or leaves the flag false.
 func test_lc_a_skip_at_any_time_leaves_everything_visible_the_flag_true_and_each_line_once() -> void:
 	for at in [0, 20, 50, 80, 100, 130, 170]:  # frames after the dawn: before step 1 ... after step 6
 		_lc_dawn()
@@ -1007,18 +1012,26 @@ func test_lc_a_skip_at_any_time_leaves_everything_visible_the_flag_true_and_each
 		assert_true(_badge("east").visible, tag)
 		assert_true(_badge("west").visible, tag)
 		assert_eq(_badge("east").scale, Vector3.ONE, tag)
+		assert_false(GameState.lane_character_shown, tag + ": not before the lines are sent")
+		assert_eq(_lines_seen(), [0, 0], tag + ": nothing at the skip")
+		EventBus.card_chosen.emit(GameState.card_offer[0])
+		await _frames(int(LC_AFTER_PICK_S * 60.0))
 		assert_true(GameState.lane_character_shown, tag)
-		await _frames(5)
-		assert_eq(_lines_seen(), [1, 1], tag + ": each line once")
+		assert_eq(_lines_seen(), [1, 1], tag + ": each line once, after the pick")
 
 ## Mutation: the tap path does not reach the step (the controller's tap, after the guard).
-func test_lc_a_tap_after_the_guard_applies_the_step_and_shows_the_banner_once() -> void:
+func test_lc_a_tap_after_the_guard_applies_the_step_and_the_lines_come_after_the_pick() -> void:
 	_lc_dawn()
 	await _frames(int(0.7 * 60.0))
 	assert_false(_badge("east").visible)
 	_tap(_mouse())
 	assert_true(_badge("east").visible)
 	assert_true(_badge("west").visible)
+	assert_false(_badge("east").held)
+	assert_eq(_lines_seen(), [0, 0], "none at the tap")
+	assert_false(GameState.lane_character_shown)
+	EventBus.card_chosen.emit(GameState.card_offer[0])
+	await _frames(int(LC_AFTER_PICK_S * 60.0))
 	assert_true(GameState.lane_character_shown)
 	assert_eq(_lines_seen(), [1, 1])
 
