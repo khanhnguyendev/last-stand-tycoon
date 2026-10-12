@@ -202,7 +202,8 @@ func _wait_s(sec: float) -> void:
 func _wait_emitted(text: String, n: int) -> void:
 	var guard := 0
 	while banners.count(text) < n and guard < 720:
-		await _wait_s(1.0 / 60.0)
+		await get_tree().physics_frame
+		_sample_hud()
 		guard += 1
 	assert_eq(banners.count(text), n, "setup: %s emitted %d times" % [text, n])
 
@@ -288,7 +289,7 @@ func test_a_foreign_banner_half_a_second_into_the_siege_line_gets_the_siege_line
 	assert_true(GameState.lane_character_shown)
 	assert_eq(banners.count(lines[1]), 1)
 
-## Same, 0.5 s into the hare line (the real case: the boss banner at a close-up). Mutation: a cut hare line marks the flag.
+## Same, 0.5 s into the hare line. Mutation: a cut hare line marks the flag.
 func test_a_foreign_banner_half_a_second_into_the_hare_line_gets_the_hare_line_again_in_full() -> void:
 	await _boot(_v6_decoded(), true)
 	var lines: Array = await _start_pick()
@@ -371,5 +372,6 @@ func test_the_shown_flag_is_written_to_the_store_when_it_is_set() -> void:
 	assert_true(GameState.lane_character_shown, "setup: the pair went out")
 	var saved: Dictionary = SaveStore.with_dir(dir).read().state
 	assert_true(bool(saved.get("lane_character_shown", false)), "the store holds the flag the moment it is set")
+	assert_eq(str(saved.get("resume_phase", "")), "DAY", "the restore point is the day")
 	store.wipe()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))

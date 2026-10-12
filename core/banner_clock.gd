@@ -10,7 +10,7 @@ var current := ""
 ## True when the showing banner will end before its full time (cut by an arrival, or shown while others waited).
 var current_cut := false
 var queue: Array[String] = []
-## The banner that last ended or was replaced, and whether it was cut: read, then `clear_ended`.
+## The banner that last ended or was replaced, and whether it was cut: read, then `take_ended`.
 var ended := ""
 var ended_cut := false
 var _has_ended := false

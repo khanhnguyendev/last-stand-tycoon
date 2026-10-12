@@ -225,3 +225,25 @@ func test_a_chosen_branch_writes_at_once_in_day_and_never_at_night() -> void:
 	var before: int = main.autosave.writes
 	EventBus.branch_chosen.emit(&"tower_nw", &"longbow")
 	assert_eq(main.autosave.writes, before + 1, "exactly one write at once in DAY")
+
+## E6: the lane character's shown flag is saved only in a live DAY. Mutation: the guard removed (a NIGHT mark overwrites the night snapshot).
+func test_the_lane_character_shown_mark_writes_only_in_a_live_day() -> void:
+	pc.start_new_game(9)
+	var w: int = main.autosave.writes
+	var before := _saved()
+	GameState.mark_lane_character_shown()
+	assert_eq(main.autosave.writes, w, "no write at night")
+	assert_eq(_saved(), before, "the night restore point is untouched")
+	assert_eq(String(_saved().resume_phase), "NIGHT")
+	pc.debug_skip_to_day()
+	var w_day: int = main.autosave.writes
+	var day_state := _saved()
+	main.autosave.failing = true
+	GameState.mark_lane_character_shown()
+	assert_eq(main.autosave.writes, w_day, "no write while failing")
+	assert_eq(_saved(), day_state, "the restore point is untouched while failing")
+	main.autosave.failing = false
+	GameState.mark_lane_character_shown()
+	assert_eq(main.autosave.writes, w_day + 1, "exactly one write at DAY")
+	assert_eq(String(_saved().resume_phase), "DAY")
+	assert_true(bool(_saved().get("lane_character_shown", false)))

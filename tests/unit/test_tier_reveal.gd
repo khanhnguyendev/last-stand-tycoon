@@ -905,8 +905,9 @@ const LC_HARE_LINE := "Quick paws in the west grass..."
 ## The named margin: a badge point lies within ndc +-(1 - BADGE_MARGIN), which is the tier-3 fit limit (ui.tier_reveal_fit_t3, 0.8): the
 ## same air the other subjects get. Without the badges in the fit, the south-west badge sits at ndc (-0.82, -0.72) and fails it.
 const BADGE_MARGIN := 0.2
-## Seconds after a pick that cover the setup's queued banners (the tier-ups' own, each at least banner_min_s), the pick banner and both lines.
-const LC_AFTER_PICK_S := 13.0
+## Seconds after a pick that cover everything the tests wait for. The test's setup stacks six banners in one tick; at a frame-0 skip the flag
+## sets at 6 x 0.6 + 3 x 2.0 = 9.6 s. In real play, after the pick closes, the siege line is sent at 2.0 s, the hare line at 4.0 s and the flag is saved at 6.0 s.
+const LC_AFTER_PICK_S := 10.5
 
 ## The tier-3 dawn of a run on seed 1 with the retune flag as given. Nothing of the reveal has run yet.
 func _lc_dawn(flag := true, run_seed := 1) -> void:
@@ -1102,6 +1103,15 @@ func test_lc_the_reveal_camera_request_carries_the_frame_of_the_runs_badge_point
 	for lane in [ch.siege, ch.hare]:
 		var c: Vector3 = _badge(lane).position
 		assert_true(pts.any(func(q): return absf(q.x - c.x) <= LaneCharacterMarker.BADGE_M and absf(q.z - c.z) < 0.01), "%s badge centre is inside its points" % lane)
+	# The live camera: the real rig reaches the frame and both badges project inside the named margin through the REAL camera.
+	await _frames(int(1.0 * 60.0))
+	assert_almost_eq(main.camera_rig.zoom_now(), want.zoom, 0.03, "the real rig is at the frame's zoom")
+	var xf: Transform3D = main.camera_rig.camera.global_transform
+	var proj := CameraMath.projection(Balance.ui, CameraMath.ASPECT)
+	for lane in [ch.siege, ch.hare]:
+		var n := CameraMath.to_ndc(_badge(lane).global_position, xf, proj)
+		assert_lte(absf(n.x), 1.0 - BADGE_MARGIN + 1e-4, "%s badge ndc x through the real camera" % lane)
+		assert_lte(absf(n.y), 1.0 - BADGE_MARGIN + 1e-4, "%s badge ndc y through the real camera" % lane)
 
 ## With the flag off the frame is the E5 one: the values recorded before Task 11's code path existed (zoom 1.3, focus (-1.8, 3.5)), both from
 ## the pure function and from the request of a real flag-off reveal.
