@@ -70,9 +70,9 @@ const ORDER_HARE := [["diner_lost", false], ["hares_in_zone", false], ["clear_s"
 ## [lane, specialist [tower, fence], reference [tower, fence], name, order, the mutation that fails the rule]
 const SPECIALISTS: Array = [
 	[&"siege", [&"longbow", &""], [&"volley", &""], "Longbow over Volley", ORDER_SIEGE_TOWER, "Longbow kind multiplier 1.0 (longbow_kind_mult_retune[brute] = 1.0)"],
-	[&"siege", [&"", &"stone"], [&"", &"spike"], "Stone over Spike (fence fall time)", ORDER_SIEGE_FENCE, "Stone wall HP halved (stone.hp = 0.5 x) or brute multiplier 1.0"],
-	[&"hare", [&"volley", &""], [&"longbow", &""], "Volley over Longbow", ORDER_HARE, "Volley damage cut to 5 (volley.damage = 5.0)"],
-	[&"hare", [&"", &"spike"], [&"", &"stone"], "Spike over Stone", ORDER_HARE, "Spike pass damage 10 (spike_pass_damage_retune = 10.0)"],
+	[&"siege", [&"", &"stone"], [&"", &"spike"], "Stone over Spike (fence fall time)", ORDER_SIEGE_FENCE, "Stone wall HP halved (stone.hp = 320.0)"],
+	[&"hare", [&"volley", &""], [&"longbow", &""], "Volley over Longbow", ORDER_HARE, "Volley damage 5 (volley.damage = 5.0)"],
+	[&"hare", [&"", &"spike"], [&"", &"stone"], "Spike over Stone", ORDER_HARE, "Spike pass damage 0 (spike_pass_damage_retune = 0.0)"],
 ]
 
 static func cfg_name(cfg: Array) -> String:
@@ -111,6 +111,63 @@ static func beats_by_margin(spec: Dictionary, ref: Dictionary, order: Array) -> 
 		return {"ok": ok, "measure": name, "a": a, "b": b, "bound": need,
 			"why": "first separating measure %s: specialist %.2f vs reference %.2f (needs %s %.2f)" % [name, a, b, ">=" if higher else "<=", need]}
 	return {"ok": false, "measure": "none", "a": 0.0, "b": 0.0, "bound": 0.0, "why": "no measure separates the two"}
+
+## The one-number mutation that turns each FLOOR row red, SEEN red in tests/unit/test_branch_bench.gd and tests/bench/test_branch_bench_full.gd
+## (E6 task 9 fix round; table in task-9-fix-report.md). The Spike row has none: no single-number mutation of Spike (hp 100 / 1 / 0, pass 0 / 4 / 10,
+## thorn 0, all three at once, or a stronger unbranched fence) was seen to make its diner HP lost worse than the unbranched fence.
+const FLOOR_FAILS_WHEN := {
+	"longbow/-": "Longbow damage 30 (longbow.damage = 30.0)",
+	"volley/-": "Volley damage 2 (volley.damage = 2.0)",
+	"-/stone": "Stone wall HP 100 (stone.hp = 100.0)",
+	"-/spike": "no single-number mutation known to turn the Spike floor row red (see task-9-fix-report.md)",
+}
+## The mutation that turns each IDENTITY rule red (seen red in the fast identity tests and the full bench).
+const IDENTITY_FAILS_WHEN := {
+	"longbow_siege": "Longbow kind multiplier 1.0 (longbow_kind_mult_retune[brute] = 1.0)",
+	"volley_hare": "Volley damage 5 (volley.damage = 5.0)",
+	"stone_stands": "Stone wall HP 100 (stone.hp = 100.0)",
+	"spike_hares": "Spike pass damage 0 (spike_pass_damage_retune = 0.0)",
+}
+
+## D-294.6, the siege FENCE rule, in ONE place: Stone beats Spike by the margin on how long the fence STANDS (higher is better, a fence that
+## never falls is INF), diner HP lost breaking a tie. {ok, measure, a, b, bound, why}. Used by the fast file, the full bench and the report.
+static func stone_over_spike(stone: Dictionary, spike: Dictionary) -> Dictionary:
+	return beats_by_margin(stone, spike, ORDER_SIEGE_FENCE)
+
+## The verdict of one SPECIALISTS row; the Stone-over-Spike row goes through stone_over_spike().
+static func specialist_verdict(row: Array, spec: Dictionary, ref: Dictionary) -> Dictionary:
+	if row[4] == ORDER_SIEGE_FENCE:
+		return stone_over_spike(spec, ref)
+	return beats_by_margin(spec, ref, row[4])
+
+## IDENTITY (spec 4.3 restated, D-294.6). Each takes the results of one lane type (cfg_name -> run) and returns {ok, why}.
+static func identity_longbow_siege(siege: Dictionary) -> Dictionary:
+	var lb := float(siege["longbow/-"].diner_lost)
+	var base := float(siege["-/-"].diner_lost)
+	var vol := float(siege["volley/-"].diner_lost)
+	return {"ok": lb < base - SAME and lb < vol - SAME,
+		"why": "siege: Longbow %.1f loses least diner HP of unbranched %.1f / Volley %.1f" % [lb, base, vol]}
+
+static func identity_volley_hare(hare: Dictionary) -> Dictionary:
+	var vy := float(hare["volley/-"].diner_lost)
+	var base := float(hare["-/-"].diner_lost)
+	var lb := float(hare["longbow/-"].diner_lost)
+	return {"ok": vy < base - SAME and vy < lb - SAME,
+		"why": "hare: Volley %.1f loses least diner HP of unbranched %.1f / Longbow %.1f" % [vy, base, lb]}
+
+static func identity_stone_stands_longest(siege: Dictionary) -> Dictionary:
+	var st := float(siege["-/stone"].fence_stands_s)
+	var base := float(siege["-/-"].fence_stands_s)
+	var sp := float(siege["-/spike"].fence_stands_s)
+	return {"ok": st > base and st > sp,
+		"why": "siege: Stone's fence stands %.2f s vs unbranched %.2f s / Spike %.2f s" % [st, base, sp]}
+
+static func identity_spike_fewest_hares(hare: Dictionary) -> Dictionary:
+	var sp := int(hare["-/spike"].hares_in_zone)
+	var base := int(hare["-/-"].hares_in_zone)
+	var st := int(hare["-/stone"].hares_in_zone)
+	return {"ok": sp < base and sp < st,
+		"why": "hare: Spike lets %d hares reach the zone vs unbranched %d / Stone %d" % [sp, base, st]}
 
 ## The FAST subset's results (flag ON, pressure 12, the LAST wave of each mix only, the five single-change configurations on all
 ## three lane types: 15 runs), computed once per process and cached: lane -> cfg_name -> run result. The identity test reuses it.

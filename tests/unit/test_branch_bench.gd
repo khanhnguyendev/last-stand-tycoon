@@ -37,7 +37,9 @@ func after_all() -> void:
 		gut.p("  %-52s %14s vs %-14s %-18s %s" % [r[0], r[1], r[2], r[3], "PASS" if r[4] else "FAIL"])
 
 func _res(lane: StringName, name: String) -> Dictionary:
-	return BranchBench.fast_cached()[lane][name]
+	var r: Dictionary = BranchBench.fast_cached()[lane][name]
+	assert_false(r.timed_out, "%s %s did not clear before MAX_TICKS (timed out)" % [lane, name])
+	return r
 
 func _row(rule: String, a: String, b: String, bound: String, ok: bool) -> void:
 	_rows.append([rule, a, b, bound, ok])
@@ -46,18 +48,19 @@ func test_floor_every_branch_loses_no_more_than_the_unbranched_building() -> voi
 	for lane in BranchBench.LANES:
 		var base := _res(lane, "-/-")
 		for cfg in BranchBench.FAST_CONFIGS.slice(1):
-			var r := _res(lane, BranchBench.cfg_name(cfg))
+			var name := BranchBench.cfg_name(cfg)
+			var r := _res(lane, name)
 			var ok := float(r.diner_lost) <= float(base.diner_lost) + BranchBench.SAME
-			_row("FLOOR %s %s" % [lane, BranchBench.cfg_name(cfg)], "%.1f" % r.diner_lost, "%.1f" % base.diner_lost, "<= unbranched", ok)
-			assert_true(ok, "FLOOR %s: %s %.1f vs unbranched %.1f | fails when: Longbow damage cut to 30, Volley damage cut to 2, Spike hp cut to 100, Stone hp cut to 100" % [lane, BranchBench.cfg_name(cfg), r.diner_lost, base.diner_lost])
+			_row("FLOOR %s %s" % [lane, name], "%.1f" % r.diner_lost, "%.1f" % base.diner_lost, "<= unbranched", ok)
+			assert_true(ok, "FLOOR %s: %s %.1f vs unbranched %.1f | fails when: %s" % [lane, name, r.diner_lost, base.diner_lost, BranchBench.FLOOR_FAILS_WHEN[name]])
 			# The full floor order (a tie on diner HP lost falls to the lane type's next measure).
 			var v := BranchBench.no_worse(r, base, lane)
-			assert_true(v.ok, "FLOOR %s: %s no worse than unbranched on the floor order: %s" % [lane, BranchBench.cfg_name(cfg), v.why])
+			assert_true(v.ok, "FLOOR %s: %s no worse than unbranched on the floor order: %s | fails when: %s" % [lane, name, v.why, BranchBench.FLOOR_FAILS_WHEN[name]])
 
 func test_specialist_margin_on_its_own_lane_type() -> void:
 	for row in BranchBench.SPECIALISTS:
 		var spec := _res(row[0], BranchBench.cfg_name(row[1]))
 		var ref := _res(row[0], BranchBench.cfg_name(row[2]))
-		var v := BranchBench.beats_by_margin(spec, ref, row[4])
+		var v := BranchBench.specialist_verdict(row, spec, ref)
 		_row("SPECIALIST %s: %s" % [row[0], row[3]], "%s %.2f" % [v.measure, v.a], "%.2f" % v.b, "%s %.2f" % ["<=" if v.measure != "fence_stands_s" and v.measure != "fence_hp_left" else ">=", v.bound], v.ok)
 		assert_true(v.ok, "SPECIALIST %s lane, %s by 15%%: %s | fails when: %s" % [row[0], row[3], v.why, row[5]])
