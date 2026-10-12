@@ -15,6 +15,7 @@ class FakeTarget:
 	var spawn_index := 1
 	var generation := 1
 	var hits := 0.0
+	var kind: StringName = &"boar"
 	func take_hit(a: float) -> void:
 		hits += a
 
@@ -335,3 +336,141 @@ func test_queries_change_no_state() -> void:
 	assert_signal_not_emitted(EventBus, "building_changed")
 	assert_signal_not_emitted(EventBus, "gold_changed")
 	assert_signal_not_emitted(EventBus, "branch_chosen")
+
+# --- E6 Task 7: the specialist values behind the retune flag (D-283, D-286) ---------------------------------
+
+func _fake_kind(kind: StringName, idx: int) -> FakeTarget:
+	var t := _fake(5.0, idx)
+	t.kind = kind
+	return t
+
+## One Longbow shot at a lone target of `kind`; returns the damage it took.
+func _longbow_shot_at(kind: StringName) -> float:
+	_arm()
+	var t := _fake_kind(kind, 1)
+	_attack_once()
+	await _settle()
+	return t.hits
+
+## Mutation: the multiplier is 1.0 for every kind (brute stays 120), or it is applied to every kind (boar gets 240).
+func test_retune_on_longbow_does_double_to_a_brute_and_exactly_120_to_the_rest() -> void:
+	Balance.data.tiers.retune_enabled = true
+	_branch(TOWER, &"longbow")
+	assert_eq(await _longbow_shot_at(&"brute"), 240.0, "120 x 2.0")
+	for kind in [&"boar", &"hare", &"baron", &"boss"]:
+		_targets.clear()
+		spot.attacker._cooldown = 0.0
+		spot.attacker._retarget = 0.0
+		assert_eq(await _longbow_shot_at(kind), 120.0, "no bonus against %s" % kind)
+
+## Mutation: the multiplier lives in the shared Attacker default or in stats_for, so an unbranched or Volley tower gets it.
+func test_retune_on_unbranched_and_volley_do_their_old_damage_to_a_brute() -> void:
+	Balance.data.tiers.retune_enabled = true
+	_build_max(TOWER)
+	assert_eq(await _longbow_shot_at(&"brute"), 18.0, "unbranched level 3: 18")
+	var spot2: TowerSpot = main.world.build_spots["tower_ne"]
+	_targets.clear()
+	_branch("tower_ne", &"volley")
+	var a := spot2.attacker
+	a.process_mode = Node.PROCESS_MODE_DISABLED
+	var t := FakeTarget.new()
+	t.kind = &"brute"
+	t.spawn_index = 1
+	add_child_autofree(t)
+	t.global_position = Vector3(spot2.global_position.x + 3.0, 0.0, spot2.global_position.z)
+	a.candidates = func(): return [{"position": t.global_position, "spawn_index": 1, "ref": t}]
+	a._physics_process(1.0 / 60.0)
+	await _settle()
+	assert_eq(t.hits, 10.0, "Volley: 10 per projectile, one target")
+	assert_true(a.kind_mults.is_empty())
+
+## Mutation: pass damage still 10 with the flag on, or the retune value ignores the night's scale.
+func test_retune_on_spike_pass_damage_is_24_times_the_scale() -> void:
+	Balance.data.tiers.retune_enabled = true
+	_branch(FENCE, &"spike")
+	_base_plan()
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 24.0, 1e-6)
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"baron"), 24.0, 1e-6)
+	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0, 1e-6, "thorns unchanged")
+	assert_eq(GameState.fence_pass_damage(FENCE, &"boar"), 0.0)
+	# In memory: pressure 15 raises the scale to 3.1 / 2.65; 24 x 1.169811 = 28.0755.
+	_first_wave_mult(WaveMath.hp_mult(15, 0, Balance.data.wave))
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 28.0755, 0.001)
+
+## Flag-off pins: mutation = the retune value leaks into the default path.
+func test_retune_off_pins_longbow_120_and_pass_damage_10() -> void:
+	assert_false(TierEffects.retune_on(Balance.data.tiers))
+	_branch(TOWER, &"longbow")
+	assert_true(spot.attacker.kind_mults.is_empty())
+	assert_eq(await _longbow_shot_at(&"brute"), 120.0)
+	assert_eq(spot.attacker.interval, 3.0, "flag off: the Longbow fires every 3.0 s")
+	_branch(FENCE, &"spike")
+	_base_plan()
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 10.0, 1e-6)
+
+## Mutation: the accessor ignores the flag, applies to every kind, or returns 0 for an unknown kind.
+func test_longbow_kind_mult_accessor_off_on_unknown() -> void:
+	var bb := Balance.data.branches
+	assert_eq(BranchMath.longbow_kind_mult(&"brute", bb, false), 1.0)
+	assert_eq(BranchMath.longbow_kind_mult(&"brute", bb, true), 2.0)
+	assert_eq(BranchMath.longbow_kind_mult(&"boar", bb, true), 1.0)
+	assert_eq(BranchMath.longbow_kind_mult(&"baron", bb, true), 1.0)
+	assert_eq(BranchMath.longbow_kind_mult(&"boss", bb, true), 1.0)
+	assert_eq(BranchMath.longbow_kind_mult(&"no_such_kind", bb, true), 1.0)
+	assert_true(BranchMath.longbow_kind_mults(bb, false).is_empty())
+	assert_eq(BranchMath.longbow_kind_mults(bb, true), {&"brute": 2.0})
+
+## Mutation: spike_pass_base returns the retune value for any fence, or ignores the flag.
+func test_spike_pass_base_accessor() -> void:
+	var bb := Balance.data.branches
+	assert_eq(BranchMath.spike_pass_base(bb.spike, bb, false), 10.0)
+	assert_eq(BranchMath.spike_pass_base(bb.spike, bb, true), 24.0)
+	assert_eq(BranchMath.spike_pass_base(bb.stone, bb, true), 0.0, "another fence keeps its own number")
+
+# --- E6 tuning round 1 (D-292): Longbow interval 2.4 s behind the flag ---------------------------------------
+
+## Mutation: the interval accessor returns the old value with the flag on (3.0), or the field is not read.
+func test_retune_on_longbow_interval_is_2_4_through_apply_level() -> void:
+	Balance.data.tiers.retune_enabled = true
+	_branch(TOWER, &"longbow")
+	assert_eq(spot.attacker.interval, 2.4)
+	assert_eq([spot.attacker.damage, spot.attacker.attack_range], [120.0, 9.98], "damage and range unchanged")
+
+## Mutation: the new interval leaks to the flag-off path (accessor ignores the flag).
+func test_retune_off_longbow_interval_is_3_0_and_accessor_pins() -> void:
+	var bb := Balance.data.branches
+	_branch(TOWER, &"longbow")
+	assert_eq(spot.attacker.interval, 3.0)
+	assert_eq(BranchMath.tower_interval(bb.longbow, bb, false), 3.0)
+	assert_eq(BranchMath.tower_interval(bb.longbow, bb, true), 2.4)
+	assert_eq(BranchMath.tower_interval(bb.volley, bb, true), 0.5, "Volley keeps its interval with the flag on")
+	var plain := TowerSpot.stats_for(3, &"")
+	assert_eq(BranchMath.tower_interval(plain, bb, true), 0.5, "the unbranched tower keeps its interval with the flag on")
+
+## Mutation: Volley or the unbranched tower pick up the Longbow's interval through the real path.
+func test_retune_on_volley_and_unbranched_keep_their_interval() -> void:
+	Balance.data.tiers.retune_enabled = true
+	_build_max(TOWER)
+	assert_eq(spot.attacker.interval, 0.5)
+	_branch("tower_ne", &"volley")
+	assert_eq((main.world.build_spots["tower_ne"] as TowerSpot).attacker.interval, 0.5)
+
+## The interval is taken when the level is applied (like the kind multipliers): a Longbow built with the flag on has 2.4 s and
+## keeps it when the flag later reads off; one built in the same world with the flag off from the start has 3.0 s.
+func test_longbow_interval_is_a_snapshot_of_the_flag_at_build_time() -> void:
+	Balance.data.tiers.retune_enabled = true
+	_branch(TOWER, &"longbow")
+	assert_eq(spot.attacker.interval, 2.4)
+	Balance.data.tiers.retune_enabled = false
+	assert_eq(spot.attacker.interval, 2.4, "not re-read after the toggle")
+	_arm()
+	var t := _fake(5.0, 1)
+	_attack_once()
+	assert_eq(spot.attacker._cooldown, 2.4, "a shot after the toggle still cools down 2.4 s")
+	_branch("tower_ne", &"longbow")
+	assert_eq((main.world.build_spots["tower_ne"] as TowerSpot).attacker.interval, 3.0, "flag off at build: the old interval")
+
+## Mutation: the retune interval applies to any Longbow-looking stats object, not the balance's own.
+func test_retune_on_a_fresh_longbow_stats_object_keeps_3_0() -> void:
+	var bb := Balance.data.branches
+	assert_eq(BranchMath.tower_interval(BranchBalance._longbow(), bb, true), 3.0)

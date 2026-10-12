@@ -60,8 +60,12 @@ func _apply_level(p_level: int, b: Dictionary) -> void:
 	if built:
 		# refresh() runs on building_changed (a branch purchase emits it), state_restored (load, new_game) and phase changes.
 		var st := TowerSpot.stats_for(p_level, StringName(String(b.get("branch", ""))))
-		attacker.configure(st.damage, st.attack_range, st.interval, Balance.data.hero.retarget_interval, 1.0,
+		attacker.configure(st.damage, st.attack_range,
+			BranchMath.tower_interval(st, Balance.data.branches, TierEffects.retune_on(Balance.data.tiers)), Balance.data.hero.retarget_interval, 1.0,
 			Balance.data.build.tower_projectile_speed, st.count)
+		# E6 (D-283): the Longbow's kind multipliers; every other level and branch gets none.
+		var is_longbow := p_level == Balance.data.build.max_level and StringName(String(b.get("branch", ""))) == &"longbow"
+		attacker.kind_mults = BranchMath.longbow_kind_mults(Balance.data.branches, TierEffects.retune_on(Balance.data.tiers)) if is_longbow else {}
 
 func _pip_y(p_level: int) -> float:
 	var br := shown_branch(p_level, GameState.branch_of(spot_id))

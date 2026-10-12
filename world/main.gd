@@ -69,6 +69,11 @@ func _on_focus_changed(p: bool) -> void:
 	else:
 		remove_pause_reason(&"focus")
 
+## Debug builds only (D-099: load(), never preload): URL flags that change Balance (?retune=1, E6 D-286) before any child's _ready.
+func _enter_tree() -> void:
+	if OS.is_debug_build() and ResourceLoader.exists("res://ui/debug/debug_overlay.gd"):
+		load("res://ui/debug/debug_overlay.gd").apply_url_balance()
+
 func _ready() -> void:
 	focus_pause = FocusPause.new()
 	focus_pause.name = "FocusPause"
