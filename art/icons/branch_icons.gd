@@ -163,6 +163,24 @@ static func front_material(priority: int) -> StandardMaterial3D:
 		_cache[key] = m
 	return _cache[key]
 
+## E6 (D-294.8): the FAR glyph material (depth test ON) with a render priority, cached per priority.
+static func far_front_material(priority: int) -> StandardMaterial3D:
+	var key := "far_front_%d" % priority
+	if not _cache.has(key):
+		var m := far_material().duplicate() as StandardMaterial3D
+		m.render_priority = priority
+		_cache[key] = m
+	return _cache[key]
+
+## E6 (D-294.8): the ground ring and disc material with a render priority (drawn before the pad's labels), cached per priority.
+static func ground_front_material(priority: int) -> StandardMaterial3D:
+	var key := "ground_front_%d" % priority
+	if not _cache.has(key):
+		var m := ground_material().duplicate() as StandardMaterial3D
+		m.render_priority = priority
+		_cache[key] = m
+	return _cache[key]
+
 ## The glyph material of a FAR pad: the billboard material with the depth test ON, so buildings hide the glyph.
 static func far_material() -> StandardMaterial3D:
 	if _far_mat == null:

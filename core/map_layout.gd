@@ -86,11 +86,12 @@ const BRANCH_PADS := {
 ## pad's world items clear every label (tests/unit/test_branch_pads.gd, test_branch_pad_layout.gd; tools/probe_t3_layout.gd with the flag on).
 ## ONLY the spots whose pads move are listed; branch_pads(true) falls back to BRANCH_PADS for the rest. Read pads ONLY through branch_pads().
 const BRANCH_PADS_RETUNE := {
-	"tower_nw": [Vector2(-3.6, -7.4), Vector2(-3.0, -5.1)],
+	"tower_nw": [Vector2(-3.6, -7.3), Vector2(-3.0, -5.1)],
 	"tower_ne": [Vector2(3.2, -5.1), Vector2(3.5, -7.3)],
-	"tower_e": [Vector2(6.6, 2.6), Vector2(7.5, 0.0)],
+	"tower_e": [Vector2(6.8, 3.0), Vector2(7.5, 0.0)],
 	"tower_w": [Vector2(-10.7, 2.4), Vector2(-8.7, 0.8)],
-	"tower_sw": [Vector2(-7.8, 3.1), Vector2(-5.3, 3.9)],
+	"tower_sw": [Vector2(-7.8, 4.1), Vector2(-5.1, 3.7)],
+	"fence_n": [Vector2(-2.3, -10.4), Vector2(2.3, -10.4)],
 	"fence_e": [Vector2(6.1, -6.1), Vector2(9.5, -3.8)],
 	"fence_w": [Vector2(-9.6, -4.0), Vector2(-6.2, -6.2)],
 	"fence_sw": [Vector2(-5.6, 7.8), Vector2(-1.0, 10.5)],

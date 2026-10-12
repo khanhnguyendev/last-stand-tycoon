@@ -11,13 +11,15 @@ extends SceneTree
 ##     and cost, the other pad of the spot, out of reach, ring and glyph only),
 ##   near_tower_nw.png / near_tower_sw.png (the hero off every pad with both pads of the spot in reach: two blocks, shifted off the tower's pips),
 ##   hero_front.png (the hero 1.2 m south of tower_e's first pad: his body in front of the cost; D-294.8),
-##   near_tower_nw.png and near_tower_sw.png show the tethers (a cost farther than 0.5 m from its pad),
+##   tethered.png (the hero under a cost that stands beside its ring with its notch), walk_south.png (the hero running north onto tower_e's first pad, mid-stride); `--only=a,b` writes just those,
 ##   unarmed.png (the hero PLACED on tower_e's first pad, not walked in: the card stays hidden; ring and glyph only, no cost, no preview),
 ##   edge_tower_e_a.png (the hero walked onto tower_e's first pad and standing at its north edge, 0.72 m from the centre: the glyph follows him),
 ##   far_stage.png (the hero at HOME: every pad shows its ring and glyph only), refund.png (the E5 refund flight, unchanged).
 ## The hero shuffles in place after arriving (a hero standing still would pay into the pad), with a purse that cannot move the bar.
 
 var _out := "docs/review/media/e6/interface"
+## `--only=a,b` writes just those pictures (names without .png).
+var _only: PackedStringArray = []
 
 func _initialize() -> void:
 	_run.call_deferred()
@@ -31,6 +33,8 @@ func _run() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			_out = a.trim_prefix("--out=")
+		elif a.begins_with("--only="):
+			_only = a.trim_prefix("--only=").split(",")
 		elif a == "--flag=off":
 			flag_on = false
 	var bal = root.get_node("Balance")
@@ -83,9 +87,15 @@ func _run() -> void:
 	await _place_and_grab(main, camera_math, bal, "near_tower_nw", Vector2(-1.6, -6.9))
 	await _place_and_grab(main, camera_math, bal, "near_tower_sw", Vector2(-6.5, 1.4))
 	await _place_and_grab(main, camera_math, bal, "hero_front", table["tower_e"][0] + Vector2(0.0, 1.2))
+	await _place_and_grab(main, camera_math, bal, "tethered", table["tower_nw"][0] + Vector2(1.2, 0.9))
+	await _walk_shot(main, camera_math, "walk_south", table["tower_e"][0])
+	await _place_and_grab(main, camera_math, bal, "diner_fade", Vector2(0.5, -5.2))  # behind the diner (north of it): the fade is on
 	await _place_and_grab(main, camera_math, bal, "unarmed", table["tower_e"][0])
 	await _walk_and_grab(main, camera_math, bal, "edge_tower_e_a", table["tower_e"][0], Vector2(0.0, -0.72))
 	await _place_and_grab(main, camera_math, bal, "far_stage", layout.HOME)
+	if not _only.is_empty() and not "refund" in _only:
+		quit(0)
+		return
 	# the refund: half the Volley pad on tower_e, then the Longbow pad paid in full with the hero standing on it
 	var cost: int = gs.branch_cost("tower_e")
 	gs.gold = cost / 2
@@ -111,6 +121,8 @@ func _run() -> void:
 
 ## Walks onto the pad from two metres south (the zone arms, the card shows), shuffles in place and saves the picture.
 func _walk_and_grab(main, camera_math, bal, name: String, p: Vector2, edge := Vector2.ZERO) -> void:
+	if not _only.is_empty() and not name in _only:
+		return
 	main.hero.teleport(p + Vector2(0, 2.0))
 	for i in 5:
 		await physics_frame
@@ -139,6 +151,8 @@ func _walk_and_grab(main, camera_math, bal, name: String, p: Vector2, edge := Ve
 
 ## Places the hero (a teleport: the pad stays unarmed) and saves the picture.
 func _place_and_grab(main, camera_math, bal, name: String, p: Vector2) -> void:
+	if not _only.is_empty() and not name in _only:
+		return
 	main.hero.teleport(Vector2(15.0, 8.0))
 	for i in 10:
 		await physics_frame
@@ -147,6 +161,26 @@ func _place_and_grab(main, camera_math, bal, name: String, p: Vector2) -> void:
 	for i in 40:
 		await physics_frame
 	await _save(main, name)
+
+## The hero running north onto a pad from the south, picture taken while he moves, 1.6 m short of its centre.
+func _walk_shot(main, camera_math, name: String, p: Vector2) -> void:
+	if not _only.is_empty() and not name in _only:
+		return
+	main.hero.teleport(Vector2(15.0, 8.0))
+	for i in 10:
+		await physics_frame
+	main.hero.teleport(p + Vector2(0.0, 3.4))
+	for i in 5:
+		await physics_frame
+	for i in 240:
+		if main.hero.xz().y <= p.y + 1.6:
+			break
+		main.hero.input.set_move(Vector2(0.0, -1.0))
+		main.camera_rig.snap_to(camera_math.focus_for(main.hero.xz()))
+		await physics_frame
+	main.camera_rig.snap_to(camera_math.focus_for(main.hero.xz()))
+	await _save(main, name)
+	main.hero.input.set_move(Vector2.ZERO)
 
 func _save(main, name: String) -> void:
 	for i in 90:  # the diner's fade settles
