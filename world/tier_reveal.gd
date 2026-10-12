@@ -69,8 +69,10 @@ static func lane_stretch_points(stretch: float) -> Array[Vector2]:
 
 ## Pure: the reveal camera for `tier`: the focus is the centre of the subject points' bounding rectangle, the zoom the
 ## smallest in [1.0, ui.tier_reveal_zoom] (steps of 0.05) that shows every point at `aspect`; the cap when none does.
-static func frame_for(tier: int, ui: UiTuning, aspect := CameraMath.ASPECT) -> Dictionary:
+## `extra` (E6, spec 5.4): more points the frame must show (the lane character's badges); empty leaves the E5 frame.
+static func frame_for(tier: int, ui: UiTuning, aspect := CameraMath.ASPECT, extra: Array[Vector3] = []) -> Dictionary:
 	var pts := subject_points(tier)
+	pts.append_array(extra)
 	var lo := Vector2(INF, INF)
 	var hi := Vector2(-INF, -INF)
 	for p in pts:
@@ -93,6 +95,27 @@ static func frame_for(tier: int, ui: UiTuning, aspect := CameraMath.ASPECT) -> D
 			return {"focus": focus, "zoom": z}
 		z += 0.05
 	return {"focus": focus, "zoom": cap}
+
+## E6: the corners of the two lane badges (centre +-BADGE_M/2 across and up) of `character` ({} gives none), where the badges stand.
+static func badge_points(character: Dictionary) -> Array[Vector3]:
+	var centres: Array[Vector3] = []
+	if character.is_empty():
+		return centres
+	for k in ["siege", "hare"]:
+		var lane := String(character.get(k, ""))
+		var other := String(character.get("hare" if k == "siege" else "siege", ""))
+		var a: Vector2 = TelegraphMarker.ROW_ANCHORS[lane]
+		centres.append(LaneCharacterMarker.place(lane, Vector3(a.x, Balance.ui.telegraph_row_height_m, a.y), other))
+	return badge_corners(centres)
+
+## The four edge points of a badge centred at each of `centres`.
+static func badge_corners(centres: Array[Vector3]) -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	var h := LaneCharacterMarker.BADGE_M * 0.5
+	for c in centres:
+		for d in [Vector3(h, 0, 0), Vector3(-h, 0, 0), Vector3(0, h, 0), Vector3(0, -h, 0)]:
+			out.append(c + d)
+	return out
 
 func running() -> bool:
 	return _tween != null and _tween.is_valid() and _tween.is_running()
@@ -140,6 +163,7 @@ func _restore() -> void:
 	for m in _badge_markers:
 		if is_instance_valid(m) and m.badge != null and is_instance_valid(m.badge):
 			m.badge.scale = _badge_base.get(m.badge, Vector3.ONE)
+			m.badge.hold(false)
 			m.refresh()  # the badge shows what the lane character says
 	_badge_markers.clear()
 	_badge_base.clear()
@@ -165,7 +189,10 @@ func _on_tier_reached(tier: int) -> void:
 		_plan_default(tier, yards)
 	var ui := Balance.ui
 	var hold := minf(float(_steps.size()) * ui.tier_reveal_step_s, Balance.data.tiers.tier_reveal_time - ui.tier_reveal_in_s - ui.tier_reveal_out_s)
-	var frame := frame_for(tier, ui)
+	var centres: Array[Vector3] = []
+	for m in _badge_markers:
+		centres.append(m.badge.position)  # the badges this reveal holds: none with the flag off
+	var frame := frame_for(tier, ui, CameraMath.ASPECT, badge_corners(centres))
 	EventBus.camera_reveal_requested.emit(ui.tier_reveal_in_s, maxf(hold, 0.0), ui.tier_reveal_out_s, frame.zoom, frame.focus)
 	_tween = create_tween()
 	_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
@@ -254,7 +281,7 @@ func _plan_lane_character() -> Dictionary:
 			_line_hare = LaneCharacter.flavour(id, kind)
 		_badge_markers.append(m)
 		_badge_base[m.badge] = m.badge.scale
-		m.badge.visible = false
+		m.badge.hold(true)  # the marker's cover rule re-shows a badge every tick: only a hold keeps it hidden
 		sum += m.badge.position
 	if _badge_markers.is_empty():
 		return {}
@@ -279,7 +306,7 @@ func _apply(st: Dictionary, animate: bool) -> void:
 		&"character":
 			for m in _badge_markers:
 				if is_instance_valid(m) and m.badge != null and is_instance_valid(m.badge):
-					m.badge.visible = true
+					m.badge.hold(false)
 					if animate:
 						_pops.append(PopFx.pop(self, m.badge, _badge_base.get(m.badge, Vector3.ONE), null))
 			if _line_siege != "":

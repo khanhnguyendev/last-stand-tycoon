@@ -902,6 +902,9 @@ func test_with_no_offer_the_skip_opens_the_day_and_the_drag_of_that_touch_moves_
 ## Hand-written from LaneCharacter.for_run(1) (pinned forever): siege east, hare west.
 const LC_SIEGE_LINE := "Heavy tracks on the east road..."
 const LC_HARE_LINE := "Quick paws in the west grass..."
+## The named margin: a badge point lies within ndc +-(1 - BADGE_MARGIN), which is the tier-3 fit limit (ui.tier_reveal_fit_t3, 0.8): the
+## same air the other subjects get. Without the badges in the fit, the south-west badge sits at ndc (-0.82, -0.72) and fails it.
+const BADGE_MARGIN := 0.2
 
 ## The tier-3 dawn of a run on seed 1 with the retune flag as given. Nothing of the reveal has run yet.
 func _lc_dawn(flag := true) -> void:
@@ -947,14 +950,20 @@ func test_lc_the_badges_are_hidden_until_step_three_and_visible_after_it() -> vo
 	assert_not_null(_badge("west"))
 	assert_null(_badge("north"), "a neutral lane has none")
 	assert_null(_badge("sw"))
-	assert_false(_badge("east").visible, "hidden at the start")
+	assert_true(_badge("east").held, "held at the start (the cover rule re-shows a badge that is only not visible)")
+	assert_true(_badge("west").held)
+	assert_false(_badge("east").visible)
 	assert_false(_badge("west").visible)
 	await _frames(int(1.25 * 60.0))  # after step 2 (0.95 s), before step 3 (1.30 s)
 	assert_eq(_reveal().steps_left(), 4, "steps 1 and 2 have run")
-	assert_false(_badge("east").visible, "still hidden after the lane step")
+	assert_true(_badge("east").held, "still held after the lane step")
+	assert_true(_badge("west").held)
+	assert_false(_badge("east").visible)
 	assert_false(_badge("west").visible)
 	await _frames(8)  # 1.38 s
 	assert_eq(_reveal().steps_left(), 3, "step 3 ran")
+	assert_false(_badge("east").held, "released at step 3")
+	assert_false(_badge("west").held)
 	assert_true(_badge("east").visible)
 	assert_true(_badge("west").visible)
 	await _frames(int(Balance.data.tiers.tier_reveal_time * 60.0))
@@ -993,6 +1002,8 @@ func test_lc_a_skip_at_any_time_leaves_everything_visible_the_flag_true_and_each
 		main.phase_controller.finish_reveal_now()  # what a tap does: the pick opens, the reveal hears it and applies what is left
 		var tag := "skip at frame %d" % at
 		assert_eq(_reveal().steps_left(), 0, tag)
+		assert_false(_badge("east").held, tag + ": released")
+		assert_false(_badge("west").held, tag + ": released")
 		assert_true(_badge("east").visible, tag)
 		assert_true(_badge("west").visible, tag)
 		assert_eq(_badge("east").scale, Vector3.ONE, tag)
@@ -1021,3 +1032,50 @@ func test_lc_flag_off_the_reveal_has_five_steps_no_badge_and_no_lane_banner() ->
 	await _frames(int(Balance.data.tiers.tier_reveal_time * 60.0))
 	assert_eq(_lines_seen(), [0, 0])
 	assert_false(GameState.lane_character_shown, "the field stays false")
+
+## Mutation: the camera fit ignores the badges (east was at ndc x 1.07), or the margin is not applied.
+func test_lc_the_reveal_camera_fit_includes_both_badges_for_every_siege_and_hare_lane() -> void:
+	var lanes := ["west", "north", "east", "sw"]
+	var worst := 0.0
+	for siege in lanes:
+		for hare in lanes:
+			if hare == siege:
+				continue
+			var ch := {"siege": siege, "hare": hare}
+			var extra := TierReveal.badge_points(ch)
+			assert_eq(extra.size() % 2, 0, "setup: points for two badges")
+			for aspect in [CameraMath.ASPECT]:
+				var f := TierReveal.frame_for(3, Balance.ui, aspect, extra)
+				var xf := CameraMath.zoomed_transform(f.focus, Balance.ui, f.zoom)
+				var proj := CameraMath.projection(Balance.ui, aspect)
+				for q in extra:
+					var n := CameraMath.to_ndc(q, xf, proj)
+					worst = maxf(worst, maxf(absf(n.x), absf(n.y)))
+					assert_lte(absf(n.x), 1.0 - BADGE_MARGIN + 1e-4, "siege %s hare %s: ndc x of %s" % [siege, hare, q])
+					assert_lte(absf(n.y), 1.0 - BADGE_MARGIN + 1e-4, "siege %s hare %s: ndc y of %s" % [siege, hare, q])
+				for p in TierReveal.subject_points(3):
+					assert_true(CameraMath.on_screen(p, xf, proj), "the old subjects stay on screen: %s" % p)
+	gut.p("worst badge ndc %.3f" % worst)
+
+## The points are the badges' real places: the reveal's frame (the real world) is the one for the character's points.
+func test_lc_the_reveal_camera_uses_the_runs_badge_points() -> void:
+	_lc_dawn()
+	var ch := GameState.lane_character()
+	var pts := TierReveal.badge_points(ch)
+	for lane in [ch.siege, ch.hare]:
+		var c: Vector3 = _badge(lane).position
+		assert_true(pts.any(func(q): return absf(q.x - c.x) <= LaneCharacterMarker.BADGE_M and absf(q.z - c.z) < 0.01), "%s badge centre is inside its points" % lane)
+	var want := TierReveal.frame_for(3, Balance.ui, CameraMath.ASPECT, pts)
+	await _frames(int(1.0 * 60.0))
+	assert_almost_eq(main.camera_rig.zoom_now(), want.zoom, 0.03)
+	var xf: Transform3D = main.camera_rig.camera.global_transform
+	var proj := CameraMath.projection(Balance.ui, CameraMath.ASPECT)
+	for lane in [ch.siege, ch.hare]:
+		var n := CameraMath.to_ndc(_badge(lane).global_position, xf, proj)
+		assert_lte(absf(n.x), 1.0 - BADGE_MARGIN + 1e-4, lane)
+		assert_lte(absf(n.y), 1.0 - BADGE_MARGIN + 1e-4, lane)
+
+## With the flag off the frame is the E5 one.
+func test_lc_flag_off_the_frame_has_no_extra_points() -> void:
+	assert_eq(TierReveal.frame_for(3, Balance.ui, CameraMath.ASPECT, []), TierReveal.frame_for(3, Balance.ui))
+	assert_eq(TierReveal.badge_points({}), [])
