@@ -83,6 +83,30 @@ static func branch_choices(p_policy: String, spot_ids: Array, plan: Array, tier 
 		out[id] = opts[0] if a else opts[1]
 	return out
 
+## Pure: `spot_ids` ordered for the threat-matched buyer (E6, D-293): (1) towers covering the siege lane, (2) towers covering the hare lane,
+## (3) the siege lane's fence, (4) the hare lane's fence, (5) the rest. A spot is in the first group that fits; inside a group the input order stays.
+static func threat_order(spot_ids: Array, character: Dictionary) -> Array:
+	var siege := String(character.get("siege", ""))
+	var hare := String(character.get("hare", ""))
+	var groups: Array = [[], [], [], [], []]
+	for id in spot_ids:
+		var tower := MapLayout.spot_kind(id) == "tower"
+		var lanes: Array = MapLayout.tower_lanes(id) if tower else [MapLayout.fence_lane(id)]
+		if tower and siege in lanes:
+			groups[0].append(id)
+		elif tower and hare in lanes:
+			groups[1].append(id)
+		elif not tower and siege in lanes:
+			groups[2].append(id)
+		elif not tower and hare in lanes:
+			groups[3].append(id)
+		else:
+			groups[4].append(id)
+	var out: Array = []
+	for g in groups:
+		out.append_array(g)
+	return out
+
 ## The pad goal name of `branch` at `spot_id` (the graph's `pad_<spot>_<a|b>`).
 static func pad_goal(spot_id: String, branch: StringName) -> String:
 	var opts: Array[StringName] = BranchBalance.TOWER_BRANCHES if MapLayout.spot_kind(spot_id) == "tower" else BranchBalance.FENCE_BRANCHES
@@ -201,7 +225,10 @@ func _next_branch_pad() -> String:
 		_blocked_pads.clear()
 	if policy == "unbranched":
 		return ""  # the report's floor: no branch is a goal, so none is a skipped goal either
-	var choices := branch_choices(policy, spots, GameState.lane_plan, GameState.tier, GameState.lane_character())
+	var character := GameState.lane_character()
+	var choices := branch_choices(policy, spots, GameState.lane_plan, GameState.tier, character)
+	if policy == "threat" and not character.is_empty():  # E6 (D-293): a player reads the lane badges and buys for the marked lanes first
+		spots.assign(threat_order(spots, character))
 	for id in spots:
 		if not GameState.can_branch(id):
 			continue

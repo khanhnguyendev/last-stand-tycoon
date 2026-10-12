@@ -533,3 +533,125 @@ func test_a_pad_that_never_pays_is_skipped_once_after_the_cap() -> void:
 	bot.day_think(0.0)
 	assert_eq(bot.skipped_goals, 1)
 	assert_ne(bot.next_purchase(), pad, "not picked again today")
+
+# --- E6 phase 4: the threat-matched bot buys for the marked lanes first (flag on) ------------------------------------
+
+## Buys `n` branches in a row with plenty of gold: returns the pad goals in the order the bot targets them (each target is then marked bought).
+func _targets(bot: TierBot, n: int) -> Array:
+	var out: Array = []
+	for i in n:
+		var p := bot.next_purchase()
+		if p == "":
+			break
+		out.append(p)
+		var t := TierBot._pad_target(p)
+		GameState.buildings[t[0]].branch = String(t[1])  # test-only setup: the branch is bought
+	return out
+
+## A run seed whose lane character has this siege lane (the character is derived from the seed, so the test searches for one).
+func _seed_with_siege(siege: String) -> int:
+	for sd in range(1, 400):
+		if String(LaneCharacter.for_run(sd).get("siege", "")) == siege:
+			return sd
+	return -1
+
+func _bot_for_seed(sd: int, gold: int) -> TierBot:
+	var bot := _one_branch_bot()
+	GameState.new_game(sd)
+	GameState.debug_set_tier(3, 1)
+	for id in MapLayout.spots_for_tier(3):
+		GameState.buildings[id].level = Balance.data.build.max_level  # test-only setup
+		GameState.buildings[id].hp = GameState.fence_max_hp(Balance.data.build.max_level) if MapLayout.spot_kind(id) == "fence" else 0.0
+	GameState.gold = gold  # test-only setup
+	GameState.lane_plan = [_wave("west", 2)]
+	return bot
+
+## The independent oracle of the buying order (spec 4.4, D-293): towers on the siege lane, towers on the hare lane, the siege fence, the hare
+## fence, the rest; list order inside a group. Spot ids are in spots_for_tier order.
+func _order_oracle(siege: String, hare: String) -> Array:
+	var ids := MapLayout.spots_for_tier(3)
+	var groups: Array = [[], [], [], [], []]
+	for id in ids:
+		var tower: bool = id.begins_with("tower")
+		var lanes: Array = SPOT_LANES[id]
+		if tower and siege in lanes:
+			groups[0].append(id)
+		elif tower and hare in lanes:
+			groups[1].append(id)
+		elif not tower and siege in lanes:
+			groups[2].append(id)
+		elif not tower and hare in lanes:
+			groups[3].append(id)
+		else:
+			groups[4].append(id)
+	var out: Array = []
+	for g in groups:
+		out.append_array(g)
+	return out
+
+func _pad_for(spot: String, siege: String) -> String:
+	return "pad_%s_%s" % [spot, "a" if _oracle(spot, siege) in [&"longbow", &"stone"] else "b"]
+
+## With gold for exactly one tower branch (500), the first target is a tower covering the siege lane, for each siege lane. Mutation: the list
+## order (siege east then buys tower_nw, which does not cover east; the 300-gold fence is not what is bought either).
+func test_with_gold_for_one_branch_the_threat_bot_buys_a_tower_on_the_siege_lane() -> void:
+	Balance.data.tiers.retune_enabled = true
+	for siege in ["west", "north", "east", "sw"]:
+		var sd := _seed_with_siege(siege)
+		assert_ne(sd, -1, "a seed with siege " + siege)
+		var bot := _bot_for_seed(sd, 500)
+		var ch := GameState.lane_character()
+		assert_eq(ch.siege, siege)
+		assert_ne(ch.hare, siege)
+		var first := bot.next_purchase()
+		var spot: String = TierBot._pad_target(first)[0]
+		assert_true(spot.begins_with("tower") and siege in SPOT_LANES[spot], "siege %s: first target %s" % [siege, first])
+		assert_true(first.ends_with("_a"), "Longbow")
+
+## With gold for everything, the targets follow groups 1 to 5. Mutations: groups 1 and 2 swapped, the hare fence before the siege fence,
+## list order inside a group lost (node or hash order).
+func test_the_threat_bot_buys_in_the_order_of_the_five_groups() -> void:
+	Balance.data.tiers.retune_enabled = true
+	for siege in ["west", "north", "east", "sw"]:
+		var sd := _seed_with_siege(siege)
+		var bot := _bot_for_seed(sd, 5000)
+		var hare: String = GameState.lane_character().hare
+		var want: Array = []
+		for spot in _order_oracle(siege, hare):
+			want.append(_pad_for(spot, siege))
+		assert_eq(_targets(bot, 9), want, "siege %s hare %s" % [siege, hare])
+
+## Hand-written literal for the character {siege east, hare west}: towers on east (ne, e), towers on west (nw, w), fence_e, fence_w, then the rest.
+func test_the_order_for_siege_east_hare_west_is_a_literal() -> void:
+	Balance.data.tiers.retune_enabled = true
+	var sd := _seed_with_siege("east")
+	var bot := _bot_for_seed(sd, 5000)
+	if GameState.lane_character().hare != "west":
+		pending("the first east-siege seed has another hare lane")
+		return
+	assert_eq(_targets(bot, 9), ["pad_tower_ne_a", "pad_tower_e_a", "pad_tower_nw_b", "pad_tower_w_b", "pad_fence_e_a", "pad_fence_w_b",
+		"pad_fence_n_b", "pad_tower_sw_b", "pad_fence_sw_b"])
+
+## Today's first three targets (captured before the change; seed 1, gold 5000, every spot at the top level, tonight's plan a brute on west),
+## flag off and flag on: only `threat` with a character moves.
+func test_the_other_policies_and_threat_without_a_character_keep_todays_order() -> void:
+	var today := {
+		"all_a": ["pad_tower_nw_a", "pad_tower_ne_a", "pad_fence_w_a"],
+		"all_b": ["pad_tower_nw_b", "pad_tower_ne_b", "pad_fence_w_b"],
+		"mixed": ["pad_tower_nw_a", "pad_tower_ne_a", "pad_fence_w_b"],
+		"volley_stone": ["pad_tower_nw_b", "pad_tower_ne_b", "pad_fence_w_a"],
+		"unbranched": [],
+	}
+	for flag in [false, true]:
+		for pol in today:
+			Balance.reset()
+			Balance.data.tiers.retune_enabled = flag
+			var bot := _one_branch_bot()
+			bot.policy = pol
+			GameState.lane_plan = [_wave("west", 2)]
+			assert_eq(_targets(bot, 3), today[pol], "%s flag %s" % [pol, flag])
+	Balance.reset()
+	var bot2 := _one_branch_bot()
+	GameState.lane_plan = [_wave("west", 2)]
+	assert_true(GameState.lane_character().is_empty())
+	assert_eq(_targets(bot2, 3), ["pad_tower_nw_a", "pad_tower_ne_b", "pad_fence_w_a"], "threat, empty character: the plan decides, list order")
