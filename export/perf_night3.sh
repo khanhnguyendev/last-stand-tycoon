@@ -15,7 +15,8 @@
 #   (no resume load tail inside its window). The shot is taken after ${SHOT_WAIT:-100} s (default 125 s with PLAY_ENTERED).
 # PERF_SETTLE=<s> (optional, E6 A2, D-292; default off = the overlay's 2 s): the measured window opens <s> seconds after the phase change (adds `perfwarm=<s>` to QUERY;
 #   needs SHOT_WAIT >= load + <s> + 60). For a night RESUMED from a save: the first seconds hold the load freeze and its tail (the overlay's glyph prime is drawn in its first frame and cleared on the next, inside the warm-up).
-# SHOT_WAIT (optional) is the seconds between opening the night page and the screenshot (default 100).
+# SHOT_WAIT (optional) is the seconds between opening the night page and the screenshot (default 100; with PLAY_ENTERED the default shot wait is 125 s + PERF_SETTLE).
+# Safari in the Simulator is terminated on every exit, normal or interrupted (the exit trap).
 # DRAW_CALL_BUDGET (E6 A3, D-294): the frozen PERF line ends with `DRAW_CALL_BUDGET: OK|WARN <n> (budget 58)` (58 = the E5 T3 count 48 + 10; WARN never fails
 # the run). The budget describes the RESUMED night; a PLAY_ENTERED night frames the whole diner from HOME and reads about 30 higher (WARN is expected there).
 set -euo pipefail
@@ -65,11 +66,11 @@ xcrun simctl terminate "$UDID" com.apple.mobilesafari 2>/dev/null || true
 if [ -z "${NIGHT_ONLY:-}" ]; then
 xcrun simctl openurl "$UDID" "http://localhost:$PORT/seed_save.html?f=$DAY_FIXTURE&to=$TO"
 ( sleep 45; echo "cpu_idle_mid=$(cpu_idle)% phase=day" ) & MID=$!   # sampled in the background: timings unchanged
-sleep 90; xcrun simctl io "$UDID" screenshot "$OUT/day_peak.png" >/dev/null; wait $MID
+sleep 90; xcrun simctl io "$UDID" screenshot "$OUT/day_peak.png" >/dev/null; wait $MID; MID=""
 xcrun simctl terminate "$UDID" com.apple.mobilesafari 2>/dev/null || true   # no hidden tab flushing its DAY save
 fi
 xcrun simctl openurl "$UDID" "http://localhost:$PORT/seed_save.html?f=$NIGHT_FIXTURE&to=$TO"
 ( sleep $((SHOT_WAIT / 2)); echo "cpu_idle_mid=$(cpu_idle)% phase=night" ) & MID=$!
-sleep "$SHOT_WAIT"; xcrun simctl io "$UDID" screenshot "$OUT/night3_80s.png" >/dev/null; wait $MID
+sleep "$SHOT_WAIT"; xcrun simctl io "$UDID" screenshot "$OUT/night3_80s.png" >/dev/null; wait $MID; MID=""
 echo "ios: $OUT/night3_80s.png"
 echo "cpu_idle_after=$(cpu_idle)%"

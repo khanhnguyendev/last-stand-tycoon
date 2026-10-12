@@ -227,6 +227,8 @@ func test_warmup_draws_the_guard_hp_bar_variant() -> void:
 			var m := c.material_override as StandardMaterial3D
 			if m.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL and [Palette.color(&"ink"), Palette.color(&"guard_green")].has(m.albedo_color):
 				assert_eq(c.cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "like the guard's bar")
+				assert_eq(m.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED, "the placed bar box is opaque like the guard's")
+				assert_eq(m.cull_mode, BaseMaterial3D.CULL_BACK, "the placed bar box is single-sided like the guard's")
 				guard_mats.append(m.albedo_color)
 	assert_true(guard_mats.has(Palette.color(&"ink")), "the bar's ink backing")
 	assert_true(guard_mats.has(Palette.color(&"guard_green")), "the bar's fill")
@@ -235,7 +237,7 @@ func test_warmup_draws_the_guard_hp_bar_variant() -> void:
 ## The warm-up builds its guard bars with the guard's own static builder, so they share every material feature that picks the shader.
 ## Fails if the builder starts to use an unshaded, blended or two-sided material (the warm-up would then compile the wrong variant).
 func test_warmup_guard_bar_is_the_real_guards_bar_builder() -> void:
-	var real := Guard._bar_box(Vector3.ONE, &"ink")
+	var real := Guard.bar_box(Vector3.ONE, &"ink")
 	var a := real.material_override as StandardMaterial3D
 	assert_eq(a.shading_mode, BaseMaterial3D.SHADING_MODE_PER_PIXEL)
 	assert_eq(a.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)

@@ -60,7 +60,7 @@ func run(main: Main, resume_phase := "") -> void:
 		bar.material_override = mat
 		_place(bar)
 	for pal in [&"ink", &"guard_green"]:
-		_place(Guard._bar_box(Vector3.ONE, pal))  # the guard's own builder (static): a SHADED material, the shader variant of the first hit on a guard (E6 A2)
+		_place(Guard.bar_box(Vector3.ONE, pal))  # the guard's own builder (static): a SHADED material, the shader variant of the first hit on a guard (E6 A2)
 	for path in SCENES:
 		_place((load(path) as PackedScene).instantiate())
 	_place(_steak_field())

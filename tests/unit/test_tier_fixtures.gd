@@ -156,9 +156,13 @@ func test_every_fixture_survives_five_seconds_of_night() -> void:
 		main.get_parent().remove_child(main)
 		main.free()
 
+## Keys of the decoded day fixture allowed to differ from tier3_cap_threat, with the value the day fixture must hold (none so far: the test fails
+## on any other difference and names the key; add a key here with the reason it legitimately differs, e.g. a dawn-only card offer).
+const DAY_FIXTURE_DIFFERS := {}
+
 ## E6 A4: the day fixture the PLAY_ENTERED perf runs resume (`make_save.gd -- --fixture=tier3_cap_day`, written at the current schema).
 ## It must decode, resume into the DAY, and differ from the night fixture it was made from in `resume_phase` only.
-## Fails when the file is stale (a schema the codec rejects), is a night, or drifts from tier3_cap_threat in any of the named fields.
+## Fails when the file is stale (a schema the codec rejects), is a night, or differs from tier3_cap_threat in any key but resume_phase (or the listed DAY_FIXTURE_DIFFERS).
 func test_tier3_cap_threat_day_decodes_resumes_in_the_day_and_matches_the_night_fixture() -> void:
 	var day := _decode("tier3_cap_threat_day")
 	var night := _decode("tier3_cap_threat")
@@ -169,6 +173,18 @@ func test_tier3_cap_threat_day_decodes_resumes_in_the_day_and_matches_the_night_
 	assert_true(night.ok, str(night.get("reason", "")))
 	assert_eq(day.state.resume_phase, "DAY")
 	assert_eq(night.state.resume_phase, "NIGHT", "the source is the night fixture")
-	for f in ["run_seed", "day", "tier", "tier_day", "tier_paid", "gold", "gold_pile", "diner_hp", "buildings", "guards", "cards", "lane_plan", "stations", "counter_steaks", "freezer_steaks", "carried_steaks", "night_fails", "boss_pending"]:
-		assert_true(day.state.has(f), f)
-		assert_eq(day.state[f], night.state[f], "same %s as tier3_cap_threat" % f)
+	# Every key of both decoded saves except resume_phase (checked above) must be equal, unless it is listed in DAY_FIXTURE_DIFFERS.
+	var keys := {}
+	for k in day.state.keys():
+		keys[k] = true
+	for k in night.state.keys():
+		keys[k] = true
+	for k in keys.keys():
+		if k == "resume_phase":
+			continue
+		assert_true(day.state.has(k), "the day fixture has key %s" % k)
+		assert_true(night.state.has(k), "tier3_cap_threat has key %s" % k)
+		if DAY_FIXTURE_DIFFERS.has(k):
+			assert_eq(day.state[k], DAY_FIXTURE_DIFFERS[k], "key %s: the listed expected day value" % k)
+		else:
+			assert_eq(day.state[k], night.state[k], "key %s: same as tier3_cap_threat" % k)

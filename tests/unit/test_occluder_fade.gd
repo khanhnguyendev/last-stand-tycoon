@@ -677,6 +677,8 @@ func test_no_diner_material_uses_a_feature_the_dither_copy_drops() -> void:
 				assert_true(b.texture_filter in [BaseMaterial3D.TEXTURE_FILTER_NEAREST, BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS, BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS_ANISOTROPIC], where + ": filtering")
 				assert_ne(b.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR, where + ": alpha scissor")
 				assert_ne(b.cull_mode, BaseMaterial3D.CULL_FRONT, where + ": front-face culling")
+				assert_eq(b.shading_mode, BaseMaterial3D.SHADING_MODE_PER_PIXEL, where + ": the copy drops unshaded sources")
+				assert_eq(b.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED, where + ": the copy drops blended sources")
 	assert_gt(seen, 3, "materials were inspected")
 
 ## The shader source is non-empty and declares the `fade` uniform the fade animates (a headless run has no renderer to compile it; the
