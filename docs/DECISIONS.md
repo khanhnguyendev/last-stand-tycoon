@@ -3154,12 +3154,14 @@ from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the
    Gate reading (night entered by play, median of 3): worst frame 117 ms -> 24 ms (first fade 21 to 22 ms), 50.5 ->
    53.9 fps, 78 draw calls. Resumed night: 34 -> 21 ms, 58.9 -> 59.9 fps, 50 draw calls. The worst-frame gate
    (under 60 ms) passes. The main session checked the tier-3 night pair at 40%: accepted. REVIEW_QUEUE 29.
-3. **The fps and draw-call gap is camera framing, not a regression (measured).** The camera follows the hero. Draw
+3. **The draw-call gap is camera framing, not a regression (draw calls measured; the fps half is inferred: there
+   is no fps reading of the E5 T3 build at HOME).** The camera follows the hero. Draw
    calls on desktop at a fixed tick, three identical runs each: hero at HOME (0, 9.5): this build with the flag off
    78, flag on 78, the E5 T3 build (697cb1a) 78; hero at the resumed place (-2.5, -7): 47, 47, 47. The E5 T3
    checkpoint reading (58.8 fps, 48 draws) was a resumed night. No day-only object is drawn at night. The count
    follows the fight (67 to 83 across one night), which explains the earlier 69-against-78 spread.
-4. **The 58 fps target at the HOME framing is not met (53.9) and cannot be met without changing the picture.** The
+4. **The 58 fps target at the HOME framing is not met (53.9).** Star batching tops out near 56; other levers (HUD,
+   labels, build-spot models) were not examined. The
    level stars are 20 to 23 of the 78 draw calls; hiding all of them (a test, not kept) reads 56.0 fps and 55 draws.
    Options for the author: batch each spot's stars into one draw (about 55 fps, 64 draws, same picture); one draw
    for all stars (about 56 fps, 59 draws); set the fps reference and the draw-call budget by framing. Open with the
@@ -3168,6 +3170,6 @@ from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the
    a warning only). It describes the resumed framing; a night entered by play at HOME reads WARN by construction
    until item 4 is decided.
 6. **Found by review and fixed:** a detached, kept art node was forgotten by the fade without restoring its
-   materials (the diner could stay dithered after a rebuild); the overlay's prime text stayed on screen during the
+   materials (the diner could stay dithered after the tier-3 reveal's put-back); the overlay's prime text stayed on screen during the
    measured window; the day fixture is regenerated at schema 7 with a test; the perf script stops Safari and its
    monitor on interrupt.
