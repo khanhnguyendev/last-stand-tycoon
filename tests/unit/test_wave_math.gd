@@ -85,3 +85,10 @@ func test_tiers_1_and_2_pressure_ignores_the_flag() -> void:
 	for day in range(1, 40):
 		assert_eq(WaveMath.pressure(day, 1, 1, on), WaveMath.pressure(day, 1, 1, off), "tier 1 day %d" % day)
 		assert_eq(WaveMath.pressure(day, 2, 9, on), WaveMath.pressure(day, 2, 9, off), "tier 2 day %d" % day)
+	# Flag-on literals (tier 2 starts at 8 on tier_day 9 and rises one a night to its cap 10; tier 1 is the day itself for the first days).
+	var tier2: Array = []
+	for day in [9, 10, 11, 13]:
+		tier2.append(WaveMath.pressure(day, 2, 9, on))
+	assert_eq(tier2, [8, 9, 10, 10], "flag on, tier 2, tier_day 9, days 9, 10, 11, 13")
+	for day in range(1, 8):
+		assert_eq(WaveMath.pressure(day, 1, 1, on), day, "flag on, tier 1 day %d equals the day" % day)

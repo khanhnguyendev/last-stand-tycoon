@@ -206,7 +206,7 @@ func _run() -> void:
 			_h.bot.pin_active = func() -> bool:
 				return _in_night and _row == pin_row and _h.elapsed - _nt0 >= from_s and _h.main.world.wave_director.wave_index <= 2
 	var ch := LaneCharacter.for_run(int(_args.seed))
-	_out("RUN seed=%s policy=%s force=%s variant=%s pin=%s interval=%s siege=%s hare=%s days=%s" % [_args.seed, _args.policy, _args.force, _args.variant, _args.pin, _args.interval, ch.siege, ch.hare, _args.days])
+	_out("RUN seed=%s policy=%s force=%s variant=%s pin=%s interval=%s siege=%s hare=%s days=%s hold=%s commit=%s far=%s base=%s" % [_args.seed, _args.policy, _args.force, _args.variant, _args.pin, _args.interval, ch.siege, ch.hare, _args.days, _args.hold, _args.commit, _args.far, _args.base])
 	EventBus.gold_changed.connect(_on_gold)
 	EventBus.branch_chosen.connect(_on_branch)
 	EventBus.building_changed.connect(_on_building)
