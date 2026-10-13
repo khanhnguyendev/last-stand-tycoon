@@ -372,6 +372,10 @@ static func parse_record(text: String) -> Dictionary:
 		return {"valid": false, "record": {}}
 	var v = j.data
 	if v is Dictionary and v.get("history") is Array:
+		# JSON numbers parse as floats; keep `days` an int so a rewrite prints 32, not 32.0.
+		for e in v.history:
+			if e is Dictionary and e.has("days") and (e.days is float or e.days is int):
+				e["days"] = int(e.days)
 		return {"valid": true, "record": v}
 	return {"valid": false, "record": {}}
 
@@ -559,7 +563,13 @@ static func threat_lead(rows: Array, final := false) -> Dictionary:
 	var head := "THREAT_LEAD: %s (mean lead %s points over %s, ahead (>= %.1f) on %d of %d seeds, level (within +-%.1f) on %d; against each seed's own best pair: mean %s, ahead on %d; %s)" % [
 		"PASS" if ok else "FAIL", _num(mean_lead, "%+.1f"), best, AHEAD_MARGIN, ahead, seeds.size(), AHEAD_MARGIN, level, _num(_mean(own), "%+.1f"), ahead_own, rule]
 	var info := "  info: lead against each seed's own best pair (not the verdict): mean %s, per seed %s" % [_num(_mean(own), "%+.1f"), " ".join(own.map(func(v): return "%+.1f" % v))]
-	var weight := [] if final else ["  info: seed-weighted: the mean counts every seed once, and north has 2 of the 5 tuning seeds (14 was promoted, D-304), so north weighs double; THREAT_LEAD_BY_LANE is the per-lane view"]
+	var weight := []
+	if not final:
+		var total := 0
+		for l in TUNING_SET:
+			total += (TUNING_SET[l] as Array).size()
+		var north_n: int = (TUNING_SET.get("north", []) as Array).size()
+		weight = ["  info: seed-weighted: the mean counts every seed once, and north has %d of the %d tuning seeds (14 was promoted, D-304), so north weighs %dx; THREAT_LEAD_BY_LANE is the per-lane view" % [north_n, total, north_n]]
 	return {"ok": ok, "lines": [head] + weight + [info] + _breakdown(rows, func(sub): return _lead_of(sub, best), "%+.1f")}
 
 ## THREAT_LEAD_BY_LANE: the mean lead (against the same best pair) is not negative on any siege lane.

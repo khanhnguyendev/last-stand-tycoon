@@ -14,6 +14,7 @@ const SAME := BranchBench.SAME
 var _cache := {}
 var _t0 := 0
 var _fails := {}
+var _rules := {}
 
 func before_all() -> void:
 	_t0 = Time.get_ticks_msec()
@@ -35,12 +36,18 @@ func _run(lane: StringName, tb: StringName, fb: StringName, pressure: int) -> Di
 	return _cache[key]
 
 func _fmt(r: Dictionary) -> String:
-	return "lost %8.1f  fence %6.1f  stands %7.2f s  hares %2d  clear %7.2f s" % [r.diner_lost, r.fence_hp_left, r.fence_stands_s, r.hares_in_zone, r.clear_s]
+	return "lost %8.1f  fence %6.1f  stands %7.2f s  hares %2d  clear %7.2f s  timed_out %s" % [r.diner_lost, r.fence_hp_left, r.fence_stands_s, r.hares_in_zone, r.clear_s, str(r.timed_out)]
 
 func _row(pressure: int, rule: String, numbers: String, ok: bool) -> void:
+	_rules[pressure] = int(_rules.get(pressure, 0)) + 1
 	if not ok:
 		_fails[pressure] = int(_fails.get(pressure, 0)) + 1
 	gut.p("  p%d %-62s %s  %s" % [pressure, rule, numbers, "PASS" if ok else "FAIL"])
+
+## The CI bench asserts every run clears in time (test_branch_bench_full.gd): a timed-out run is a FAIL row here too (only a timed-out run prints a row).
+func _timeout_row(pressure: int, lane: StringName, cfg_name: String, r: Dictionary) -> void:
+	if r.timed_out:
+		_row(pressure, "TIMEOUT %s %s did not clear in time" % [lane, cfg_name], "clear %.2f s" % r.clear_s, false)
 
 func _floor(pressure: int) -> void:
 	for lane in BranchBench.LANES:
@@ -80,10 +87,12 @@ func test_rules_at_pressures_10_11_12() -> void:
 		gut.p("PRESSURE %d (flag ON)%s" % [p, "  [control: must reproduce the CI bench]" if p == 12 else ""])
 		for lane in BranchBench.LANES:
 			for cfg in BranchBench.FAST_CONFIGS:
-				gut.p("  p%d %-8s %-14s %s" % [p, lane, BranchBench.cfg_name(cfg), _fmt(await _run(lane, cfg[0], cfg[1], p))])
+				var run: Dictionary = await _run(lane, cfg[0], cfg[1], p)
+				gut.p("  p%d %-8s %-14s %s" % [p, lane, BranchBench.cfg_name(cfg), _fmt(run)])
+				_timeout_row(p, lane, BranchBench.cfg_name(cfg), run)
 		await _floor(p)
 		await _specialists(p)
 		await _identity(p)
 	for p in PRESSURES:
-		gut.p("SUMMARY p%d: %d rule(s) FAIL" % [p, int(_fails.get(p, 0))])
+		gut.p("SUMMARY p%d: %d rule(s) FAIL, %d PASS, %d rules" % [p, int(_fails.get(p, 0)), int(_rules.get(p, 0)) - int(_fails.get(p, 0)), int(_rules.get(p, 0))])
 	assert_gt(_cache.size(), 0, "the report ran bench runs")

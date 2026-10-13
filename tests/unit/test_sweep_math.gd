@@ -593,7 +593,6 @@ func test_final_gate_records_set_commit_and_date_then_finish_marks_done_and_ok()
 func test_final_gate_shows_every_earlier_entry_and_a_repeat_at_a_different_commit() -> void:
 	var old := {"history": [{"set": "1", "commit": "abc1234", "date": DATE, "days": 32, "done": true, "ok": false}]}
 	var two := SweepMath.final_gate("2", true, "bbb2222", old, DATE)
-	var first := two
 	assert_eq(_line(two, "FINAL_REPEAT"), "", "set #2 was never run")
 	assert_string_contains(_line(two, "FINAL_EARLIER set=#1 commit=abc1234"), "ok=false")
 	var again := SweepMath.final_gate("2", true, "def5678", SweepMath.final_finish(two.record, false), DATE)
@@ -603,7 +602,7 @@ func test_final_gate_shows_every_earlier_entry_and_a_repeat_at_a_different_commi
 	assert_string_contains(_line(again, "FINAL_REPEAT"), "bbb2222")
 	assert_string_contains(_line(again, "FINAL_REPEAT"), "def5678")
 	assert_eq(again.record.history.size(), 3)
-	var same := SweepMath.final_gate("2", true, "bbb2222", first.record, DATE)
+	var same := SweepMath.final_gate("2", true, "bbb2222", two.record, DATE)
 	assert_string_contains(_line(same, "FINAL_REPEAT"), "same commit")
 
 func test_parse_record_accepts_empty_and_valid_text_and_rejects_a_broken_file() -> void:
@@ -614,6 +613,25 @@ func test_parse_record_accepts_empty_and_valid_text_and_rejects_a_broken_file() 
 	assert_eq(ok.record.history.size(), 1)
 	for bad in ["{not json", "[1,2]", '{"history": 5}', '{"other": []}']:
 		assert_false(SweepMath.parse_record(bad).valid, bad)
+
+func test_parse_record_keeps_days_an_int_so_a_rewrite_prints_32_not_32_point_0() -> void:
+	var r := SweepMath.parse_record('{"history": [{"set": "1", "commit": "abc", "date": "d", "days": 32, "done": true, "ok": false}]}')
+	assert_true(r.record.history[0].days is int, "days is an int after parsing")
+	assert_eq(r.record.history[0].days, 32)
+	assert_string_contains(JSON.stringify(r.record), '"days":32')
+	assert_false(JSON.stringify(r.record).contains("32.0"))
+
+## The seed-weighting line is derived from TUNING_SET (north has 2 of its 5 seeds) and only printed for the tuning set.
+func test_the_seed_weighting_line_is_derived_for_the_tuning_set_and_absent_for_a_final_set() -> void:
+	var total := 0
+	for l in SweepMath.TUNING_SET:
+		total += (SweepMath.TUNING_SET[l] as Array).size()
+	var north: int = (SweepMath.TUNING_SET.north as Array).size()
+	var tuning: Array = SweepMath.threat_lead(_grid(0.50, 10.0)).lines.filter(func(l): return String(l).contains("seed-weighted"))
+	assert_eq(tuning.size(), 1, "present for the tuning set")
+	assert_string_contains(tuning[0], "north has %d of the %d tuning seeds" % [north, total])
+	var final: Array = SweepMath.threat_lead(_grid(0.50, 10.0), true).lines.filter(func(l): return String(l).contains("seed-weighted"))
+	assert_eq(final.size(), 0, "absent for a final set")
 
 func test_a_child_log_with_a_script_error_or_a_bad_exit_is_a_failed_run() -> void:
 	var clean := "T3RUN x\nERROR: 8 resources still in use at exit (run with --verbose for details).\n"

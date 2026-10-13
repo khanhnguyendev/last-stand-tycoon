@@ -1,0 +1,165 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+---  GUT  ---
+[INFO]:  using [/Users/ryan/Library/Application Support/Godot/app_userdata/Last Stand Tycoon] for temporary output.
+Godot version:  4.7.2
+GUT version:  9.7.1
+
+
+res://tests/bench_report/test_branch_bench_pressures.gd
+* test_rules_at_pressures_10_11_12
+    PRESSURE 10 (flag ON)
+      p10 siege    -/-            lost    833.0  fence    0.0  stands   30.23 s  hares  2  clear  147.17 s  timed_out false
+      p10 siege    longbow/-      lost     44.0  fence    0.0  stands   96.67 s  hares  4  clear  106.53 s  timed_out false
+      p10 siege    volley/-       lost    394.0  fence    0.0  stands   33.23 s  hares  2  clear  163.60 s  timed_out false
+      p10 siege    -/stone        lost    701.0  fence    0.0  stands   74.95 s  hares  2  clear  147.37 s  timed_out false
+      p10 siege    -/spike        lost    783.0  fence    0.0  stands   57.02 s  hares  2  clear  144.23 s  timed_out false
+      p10 hare     -/-            lost    842.0  fence    0.0  stands   52.75 s  hares 14  clear  113.87 s  timed_out false
+      p10 hare     longbow/-      lost    565.0  fence    0.0  stands   58.75 s  hares 15  clear  114.43 s  timed_out false
+      p10 hare     volley/-       lost    177.0  fence    0.0  stands   78.53 s  hares 11  clear   88.67 s  timed_out false
+      p10 hare     -/stone        lost    723.0  fence    0.0  stands   90.90 s  hares 14  clear  113.95 s  timed_out false
+      p10 hare     -/spike        lost    290.0  fence    0.0  stands   79.98 s  hares  4  clear   97.43 s  timed_out false
+      p10 neutral  -/-            lost    290.0  fence    0.0  stands   80.92 s  hares  1  clear   98.18 s  timed_out false
+      p10 neutral  longbow/-      lost     12.0  fence   30.0  stands     inf s  hares  3  clear   88.85 s  timed_out false
+      p10 neutral  volley/-       lost      0.0  fence   70.0  stands     inf s  hares  1  clear   80.68 s  timed_out false
+      p10 neutral  -/stone        lost     23.0  fence    0.0  stands   92.32 s  hares  1  clear   98.18 s  timed_out false
+      p10 neutral  -/spike        lost     20.0  fence    0.0  stands   79.75 s  hares  1  clear   86.12 s  timed_out false
+      p10 FLOOR siege longbow/-                                          lost 44.0 vs unbranched 833.0 (diner_lost 44.0 vs 833.0)  PASS
+      p10 FLOOR siege volley/-                                           lost 394.0 vs unbranched 833.0 (diner_lost 394.0 vs 833.0)  PASS
+      p10 FLOOR siege -/stone                                            lost 701.0 vs unbranched 833.0 (diner_lost 701.0 vs 833.0)  PASS
+      p10 FLOOR siege -/spike                                            lost 783.0 vs unbranched 833.0 (diner_lost 783.0 vs 833.0)  PASS
+      p10 FLOOR hare longbow/-                                           lost 565.0 vs unbranched 842.0 (diner_lost 565.0 vs 842.0)  PASS
+      p10 FLOOR hare volley/-                                            lost 177.0 vs unbranched 842.0 (diner_lost 177.0 vs 842.0)  PASS
+      p10 FLOOR hare -/stone                                             lost 723.0 vs unbranched 842.0 (diner_lost 723.0 vs 842.0)  PASS
+      p10 FLOOR hare -/spike                                             lost 290.0 vs unbranched 842.0 (diner_lost 290.0 vs 842.0)  PASS
+      p10 FLOOR neutral longbow/-                                        lost 12.0 vs unbranched 290.0 (diner_lost 12.0 vs 290.0)  PASS
+      p10 FLOOR neutral volley/-                                         lost 0.0 vs unbranched 290.0 (diner_lost 0.0 vs 290.0)  PASS
+      p10 FLOOR neutral -/stone                                          lost 23.0 vs unbranched 290.0 (diner_lost 23.0 vs 290.0)  PASS
+      p10 FLOOR neutral -/spike                                          lost 20.0 vs unbranched 290.0 (diner_lost 20.0 vs 290.0)  PASS
+      p10 SPECIALIST siege: Longbow over Volley                          diner_lost 44.00 vs 394.00, bound <= 334.90  PASS
+      p10 SPECIALIST siege: Stone over Spike (fence fall time)           fence_stands_s 74.95 vs 57.02, bound >= 65.57  PASS
+      p10 SPECIALIST hare: Volley over Longbow                           diner_lost 177.00 vs 565.00, bound <= 480.25  PASS
+      p10 SPECIALIST hare: Spike over Stone                              diner_lost 290.00 vs 723.00, bound <= 614.55  PASS
+      p10 IDENTITY siege: Longbow best tower state                       siege: Longbow 44.0 loses least diner HP of unbranched 833.0 / Volley 394.0  PASS
+      p10 IDENTITY hare: Volley best tower state                         hare: Volley 177.0 loses least diner HP of unbranched 842.0 / Longbow 565.0  PASS
+      p10 IDENTITY siege: Stone's fence stands longest                   siege: Stone's fence stands 74.95 s vs unbranched 30.23 s / Spike 57.02 s  PASS
+      p10 IDENTITY hare: Spike fewest hares in the zone                  hare: Spike lets 4 hares reach the zone vs unbranched 14 / Stone 14  PASS
+      p10 IDENTITY siege: unbranched tower never best                    best branch 44.0 vs base 833.0  PASS
+      p10 IDENTITY siege: unbranched fence never best                    best branch 701.0 vs base 833.0  PASS
+      p10 IDENTITY hare: unbranched tower never best                     best branch 177.0 vs base 842.0  PASS
+      p10 IDENTITY hare: unbranched fence never best                     best branch 290.0 vs base 842.0  PASS
+      p10 IDENTITY neutral: unbranched tower never best                  best branch 0.0 vs base 290.0  PASS
+      p10 IDENTITY neutral: unbranched fence never best                  best branch 20.0 vs base 290.0  PASS
+    PRESSURE 11 (flag ON)
+      p11 siege    -/-            lost   1456.0  fence    0.0  stands   28.23 s  hares  5  clear  163.27 s  timed_out false
+      p11 siege    longbow/-      lost     98.0  fence    0.0  stands   91.27 s  hares  3  clear  108.73 s  timed_out false
+      p11 siege    volley/-       lost    506.0  fence    0.0  stands   33.23 s  hares  1  clear  174.15 s  timed_out false
+      p11 siege    -/stone        lost   1162.0  fence    0.0  stands   68.05 s  hares  4  clear  163.37 s  timed_out false
+      p11 siege    -/spike        lost   1367.0  fence    0.0  stands   31.23 s  hares  4  clear  157.73 s  timed_out false
+      p11 hare     -/-            lost   1468.0  fence    0.0  stands   55.45 s  hares 19  clear  131.23 s  timed_out false
+      p11 hare     longbow/-      lost    685.0  fence    0.0  stands   60.15 s  hares 18  clear  119.30 s  timed_out false
+      p11 hare     volley/-       lost    254.0  fence    0.0  stands   53.75 s  hares 15  clear   94.47 s  timed_out false
+      p11 hare     -/stone        lost   1129.0  fence    0.0  stands   63.45 s  hares 19  clear  131.23 s  timed_out false
+      p11 hare     -/spike        lost    826.0  fence    0.0  stands   77.30 s  hares  8  clear  107.80 s  timed_out false
+      p11 neutral  -/-            lost    390.0  fence    0.0  stands   53.05 s  hares  4  clear  109.37 s  timed_out false
+      p11 neutral  longbow/-      lost      0.0  fence    0.0  stands   87.70 s  hares  3  clear   90.55 s  timed_out false
+      p11 neutral  volley/-       lost      5.0  fence    0.0  stands   80.13 s  hares  0  clear   84.17 s  timed_out false
+      p11 neutral  -/stone        lost    195.0  fence    0.0  stands   93.42 s  hares  4  clear  109.47 s  timed_out false
+      p11 neutral  -/spike        lost    195.0  fence    0.0  stands   78.32 s  hares  0  clear   94.47 s  timed_out false
+      p11 FLOOR siege longbow/-                                          lost 98.0 vs unbranched 1456.0 (diner_lost 98.0 vs 1456.0)  PASS
+      p11 FLOOR siege volley/-                                           lost 506.0 vs unbranched 1456.0 (diner_lost 506.0 vs 1456.0)  PASS
+      p11 FLOOR siege -/stone                                            lost 1162.0 vs unbranched 1456.0 (diner_lost 1162.0 vs 1456.0)  PASS
+      p11 FLOOR siege -/spike                                            lost 1367.0 vs unbranched 1456.0 (diner_lost 1367.0 vs 1456.0)  PASS
+      p11 FLOOR hare longbow/-                                           lost 685.0 vs unbranched 1468.0 (diner_lost 685.0 vs 1468.0)  PASS
+      p11 FLOOR hare volley/-                                            lost 254.0 vs unbranched 1468.0 (diner_lost 254.0 vs 1468.0)  PASS
+      p11 FLOOR hare -/stone                                             lost 1129.0 vs unbranched 1468.0 (diner_lost 1129.0 vs 1468.0)  PASS
+      p11 FLOOR hare -/spike                                             lost 826.0 vs unbranched 1468.0 (diner_lost 826.0 vs 1468.0)  PASS
+      p11 FLOOR neutral longbow/-                                        lost 0.0 vs unbranched 390.0 (diner_lost 0.0 vs 390.0)  PASS
+      p11 FLOOR neutral volley/-                                         lost 5.0 vs unbranched 390.0 (diner_lost 5.0 vs 390.0)  PASS
+      p11 FLOOR neutral -/stone                                          lost 195.0 vs unbranched 390.0 (diner_lost 195.0 vs 390.0)  PASS
+      p11 FLOOR neutral -/spike                                          lost 195.0 vs unbranched 390.0 (diner_lost 195.0 vs 390.0)  PASS
+      p11 SPECIALIST siege: Longbow over Volley                          diner_lost 98.00 vs 506.00, bound <= 430.10  PASS
+      p11 SPECIALIST siege: Stone over Spike (fence fall time)           fence_stands_s 68.05 vs 31.23, bound >= 35.92  PASS
+      p11 SPECIALIST hare: Volley over Longbow                           diner_lost 254.00 vs 685.00, bound <= 582.25  PASS
+      p11 SPECIALIST hare: Spike over Stone                              diner_lost 826.00 vs 1129.00, bound <= 959.65  PASS
+      p11 IDENTITY siege: Longbow best tower state                       siege: Longbow 98.0 loses least diner HP of unbranched 1456.0 / Volley 506.0  PASS
+      p11 IDENTITY hare: Volley best tower state                         hare: Volley 254.0 loses least diner HP of unbranched 1468.0 / Longbow 685.0  PASS
+      p11 IDENTITY siege: Stone's fence stands longest                   siege: Stone's fence stands 68.05 s vs unbranched 28.23 s / Spike 31.23 s  PASS
+      p11 IDENTITY hare: Spike fewest hares in the zone                  hare: Spike lets 8 hares reach the zone vs unbranched 19 / Stone 19  PASS
+      p11 IDENTITY siege: unbranched tower never best                    best branch 98.0 vs base 1456.0  PASS
+      p11 IDENTITY siege: unbranched fence never best                    best branch 1162.0 vs base 1456.0  PASS
+      p11 IDENTITY hare: unbranched tower never best                     best branch 254.0 vs base 1468.0  PASS
+      p11 IDENTITY hare: unbranched fence never best                     best branch 826.0 vs base 1468.0  PASS
+      p11 IDENTITY neutral: unbranched tower never best                  best branch 0.0 vs base 390.0  PASS
+      p11 IDENTITY neutral: unbranched fence never best                  best branch 195.0 vs base 390.0  PASS
+    PRESSURE 12 (flag ON)  [control: must reproduce the CI bench]
+      p12 siege    -/-            lost   1780.0  fence    0.0  stands   28.23 s  hares  5  clear  173.27 s  timed_out false
+      p12 siege    longbow/-      lost    114.0  fence    0.0  stands   91.27 s  hares  3  clear  110.73 s  timed_out false
+      p12 siege    volley/-       lost    706.0  fence    0.0  stands   33.23 s  hares  3  clear  185.65 s  timed_out false
+      p12 siege    -/stone        lost   1478.0  fence    0.0  stands   68.45 s  hares  4  clear  173.37 s  timed_out false
+      p12 siege    -/spike        lost   1673.0  fence    0.0  stands   30.23 s  hares  4  clear  167.22 s  timed_out false
+      p12 hare     -/-            lost   1693.0  fence    0.0  stands   55.45 s  hares 21  clear  138.58 s  timed_out false
+      p12 hare     longbow/-      lost    828.0  fence    0.0  stands   60.15 s  hares 19  clear  122.90 s  timed_out false
+      p12 hare     volley/-       lost    395.0  fence    0.0  stands   52.55 s  hares 17  clear  101.10 s  timed_out false
+      p12 hare     -/stone        lost   1355.0  fence    0.0  stands   63.45 s  hares 21  clear  138.58 s  timed_out false
+      p12 hare     -/spike        lost    855.0  fence    0.0  stands   53.55 s  hares  8  clear  114.55 s  timed_out false
+      p12 neutral  -/-            lost    560.0  fence    0.0  stands   53.05 s  hares  4  clear  114.37 s  timed_out false
+      p12 neutral  longbow/-      lost      0.0  fence    0.0  stands   87.70 s  hares  3  clear   90.55 s  timed_out false
+      p12 neutral  volley/-       lost    100.0  fence    0.0  stands   77.33 s  hares  1  clear   87.67 s  timed_out false
+      p12 neutral  -/stone        lost    315.0  fence    0.0  stands   93.42 s  hares  4  clear  114.47 s  timed_out false
+      p12 neutral  -/spike        lost    335.0  fence    0.0  stands   78.02 s  hares  1  clear  100.47 s  timed_out false
+      p12 FLOOR siege longbow/-                                          lost 114.0 vs unbranched 1780.0 (diner_lost 114.0 vs 1780.0)  PASS
+      p12 FLOOR siege volley/-                                           lost 706.0 vs unbranched 1780.0 (diner_lost 706.0 vs 1780.0)  PASS
+      p12 FLOOR siege -/stone                                            lost 1478.0 vs unbranched 1780.0 (diner_lost 1478.0 vs 1780.0)  PASS
+      p12 FLOOR siege -/spike                                            lost 1673.0 vs unbranched 1780.0 (diner_lost 1673.0 vs 1780.0)  PASS
+      p12 FLOOR hare longbow/-                                           lost 828.0 vs unbranched 1693.0 (diner_lost 828.0 vs 1693.0)  PASS
+      p12 FLOOR hare volley/-                                            lost 395.0 vs unbranched 1693.0 (diner_lost 395.0 vs 1693.0)  PASS
+      p12 FLOOR hare -/stone                                             lost 1355.0 vs unbranched 1693.0 (diner_lost 1355.0 vs 1693.0)  PASS
+      p12 FLOOR hare -/spike                                             lost 855.0 vs unbranched 1693.0 (diner_lost 855.0 vs 1693.0)  PASS
+      p12 FLOOR neutral longbow/-                                        lost 0.0 vs unbranched 560.0 (diner_lost 0.0 vs 560.0)  PASS
+      p12 FLOOR neutral volley/-                                         lost 100.0 vs unbranched 560.0 (diner_lost 100.0 vs 560.0)  PASS
+      p12 FLOOR neutral -/stone                                          lost 315.0 vs unbranched 560.0 (diner_lost 315.0 vs 560.0)  PASS
+      p12 FLOOR neutral -/spike                                          lost 335.0 vs unbranched 560.0 (diner_lost 335.0 vs 560.0)  PASS
+      p12 SPECIALIST siege: Longbow over Volley                          diner_lost 114.00 vs 706.00, bound <= 600.10  PASS
+      p12 SPECIALIST siege: Stone over Spike (fence fall time)           fence_stands_s 68.45 vs 30.23, bound >= 34.77  PASS
+      p12 SPECIALIST hare: Volley over Longbow                           diner_lost 395.00 vs 828.00, bound <= 703.80  PASS
+      p12 SPECIALIST hare: Spike over Stone                              diner_lost 855.00 vs 1355.00, bound <= 1151.75  PASS
+      p12 IDENTITY siege: Longbow best tower state                       siege: Longbow 114.0 loses least diner HP of unbranched 1780.0 / Volley 706.0  PASS
+      p12 IDENTITY hare: Volley best tower state                         hare: Volley 395.0 loses least diner HP of unbranched 1693.0 / Longbow 828.0  PASS
+      p12 IDENTITY siege: Stone's fence stands longest                   siege: Stone's fence stands 68.45 s vs unbranched 28.23 s / Spike 30.23 s  PASS
+      p12 IDENTITY hare: Spike fewest hares in the zone                  hare: Spike lets 8 hares reach the zone vs unbranched 21 / Stone 21  PASS
+      p12 IDENTITY siege: unbranched tower never best                    best branch 114.0 vs base 1780.0  PASS
+      p12 IDENTITY siege: unbranched fence never best                    best branch 1478.0 vs base 1780.0  PASS
+      p12 IDENTITY hare: unbranched tower never best                     best branch 395.0 vs base 1693.0  PASS
+      p12 IDENTITY hare: unbranched fence never best                     best branch 855.0 vs base 1693.0  PASS
+      p12 IDENTITY neutral: unbranched tower never best                  best branch 0.0 vs base 560.0  PASS
+      p12 IDENTITY neutral: unbranched fence never best                  best branch 315.0 vs base 560.0  PASS
+    SUMMARY p10: 0 rule(s) FAIL, 26 PASS, 26 rules
+    SUMMARY p11: 0 rule(s) FAIL, 26 PASS, 26 rules
+    SUMMARY p12: 0 rule(s) FAIL, 26 PASS, 26 rules
+* after_all
+    BENCH PRESSURES WALL TIME 68.3 s, 45 bench runs
+1/1 passed.
+
+
+
+
+==============================================
+= Run Summary
+==============================================
+
+Totals
+------
+Scripts               1
+Tests                 1
+Passing Tests         1
+Asserts               1
+Time              68.307s
+
+
+---- All tests passed! ----
+
+WARNING: 36 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 7 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)
