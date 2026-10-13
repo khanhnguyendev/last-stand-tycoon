@@ -209,10 +209,11 @@ func test_it_appears_only_on_an_armed_pad_by_day_at_tier_3_with_the_flag_on() ->
 	assert_true(card.visible, "armed")
 	# the flag off: walking in again shows nothing
 	Balance.data.tiers.retune_enabled = false
-	main.hero.teleport(_pad_pos("tower_e", 0) + Vector2(0, 4))
+	main.hero.teleport(MapLayout.branch_pad("tower_e", 0, true) + Vector2(0, 4))  # the pad was made with the flag on: it stands at the retune position
 	await _settle()
 	assert_false(card.visible)
-	await _stand_on("tower_e", 0)
+	await TestHelpers.walk_in(main.hero, MapLayout.branch_pad("tower_e", 0, true))
+	await _settle()
 	assert_true(BranchPad.pad_hero_stands_on().zone.armed, "setup: armed")
 	assert_false(card.visible, "flag off: nothing")
 	Balance.data.tiers.retune_enabled = true

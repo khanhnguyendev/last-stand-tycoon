@@ -73,6 +73,10 @@ func run(main: Main, resume_phase := "") -> void:
 		_place(n)
 	for n in lane_character_visuals():
 		_place(n)
+	for n in hero_front_visuals():
+		_place(n)
+		if n is HeroVisual:  # after _place: the baked mesh is made in _ready
+			(n as HeroVisual).draw_after_labels(Hero.DRAW_AFTER_LABELS_PRIORITY)
 	if not MapLayout.yards_for_tier(TierEffects.top_tier(Balance.data.tiers)).is_empty():
 		_place(YardStones.build_sample())  # the kerb's mesh and material are first drawn at the tier-2 reveal
 	for _i in FRAMES:
@@ -119,6 +123,20 @@ static func lane_character_visuals() -> Array[Node3D]:
 		g.material_override = LaneCharacterIcons.material()
 		g.scale = Vector3.ONE * LaneCharacterMarker.BADGE_M * 0.5
 		out.append(g)
+	return out
+
+## E6 Task 14 (D-294.8): the hero's and his carried pile's draw-after-labels variant (alpha, depth writing: a shader variant the opaque ones are not), first drawn
+## when the hero is set up. Nothing with the retune flag off. The pad glyph and ring materials differ from today's only in render priority, which is no variant.
+static func hero_front_visuals() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	if not TierEffects.retune_on(Balance.data.tiers):
+		return out
+	var hv := load("res://art/characters/hero_visual.tscn").instantiate() as HeroVisual
+	out.append(hv)
+	var pile := PileMesh.steak_pile(PackedVector3Array([Vector3.ZERO]))
+	PileMesh.set_count(pile, 1)
+	pile.material_override = HeroVisual.front_copy(PileMesh.steak_mesh().surface_get_material(0), Hero.DRAW_AFTER_LABELS_PRIORITY)
+	out.append(pile)
 	return out
 
 ## E6 Task 13: the branch card's rasterized icons (first shown at the first branch pad). No grid slot (they are textures, not drawn

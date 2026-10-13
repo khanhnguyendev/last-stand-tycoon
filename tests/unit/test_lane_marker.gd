@@ -394,8 +394,9 @@ func _foci() -> Array:
 		out.append(MapLayout.zone_rect(lane).get_center())
 	for id in MapLayout.spots_for_tier(3):
 		out.append(MapLayout.spot_position(id))
-	for id in MapLayout.BRANCH_PADS:
-		for pad in MapLayout.BRANCH_PADS[id]:
+	var pads := MapLayout.branch_pads(TierEffects.retune_on(Balance.data.tiers))
+	for id in pads:
+		for pad in pads[id]:
 			out.append(pad)
 	return out
 
@@ -817,7 +818,7 @@ func _set_levels(level: int) -> void:
 		GameState.debug_set_station_level(sid, mini(level, Balance.data.stations.max_level))
 
 ## The things a badge must not cover, as the test models them from the game's own numbers (not from the badge's code): the hero's body at
-## `f`, each visible spot's cost / MAX label at the spot's own label height, its pips as the LevelPips row lays them out, every visible
+## `f`, each visible spot's cost / MAX label at the spot's own label height, its pips as the LevelPips row lays them out (the ones that show), every visible
 ## station label.
 func _cover_obstacles(v: View, f: Vector2) -> Array:
 	var out: Array = [["hero", v.box(AABB(Vector3(f.x - 0.4, 0.0, f.y - 0.05), Vector3(0.8, 1.8, 0.1)))]]
@@ -827,6 +828,8 @@ func _cover_obstacles(v: View, f: Vector2) -> Array:
 		if sp.label.is_visible_in_tree() and sp.label.text != "":
 			out.append([id + " label", v.quad(sp.global_position + Vector3(0, sp._label_y(sp.level), 0), BranchPad.text_box(sp.label))])
 		for i in sp.level:
+			if not (sp._pips[i] as Node3D).is_visible_in_tree():
+				continue  # E6 round 7: a star hides while one of its spot's own branch pads shows a cost; a hidden star is no obstacle (read from the real node, like the label above)
 			out.append([id + " pip %d" % i, v.quad(sp.global_position + Vector3((i - (max_level - 1) * 0.5) * LevelPips.SPACING, sp._pip_y(sp.level), 0), Vector2.ONE * LevelStar.SIZE)])
 	for n in get_tree().get_nodes_in_group(&"world_labels"):
 		var l := n as Label3D

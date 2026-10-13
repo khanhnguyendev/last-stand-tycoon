@@ -185,7 +185,7 @@ func test_pad_sides_as_the_camera_sees_them() -> void:
 
 # --- E6 (spec 5.3, D-284.5, D-286): the pads the retune moves --------------------------------------------------------------------
 # MapLayout.branch_pads(true) is BRANCH_PADS with the spots of BRANCH_PADS_RETUNE replaced. Every pad of it passes the rules above, and the
-# moved ones also the front lot's kerb, props and the south-west lane's edge stones (laid out with today's pads); the flag-off table is untouched.
+# moved ones also the front lot's kerb, props and the south-west lane's edge stones (laid out with the moved pads, since round 2); the flag-off table is untouched.
 
 func _retune_pad_list() -> Array:
 	var out: Array = []
@@ -237,7 +237,10 @@ func test_retune_the_table_replaces_only_the_listed_spots() -> void:
 	for must in ["tower_e", "tower_ne", "tower_nw"]:
 		assert_true(must in moved, "%s moves (D-284.5)" % must)
 	assert_true("fence_sw" in moved, "fence_sw moves (D-284.5)")
-	assert_false("fence_n" in moved, "fence_n keeps today's pads: the badge moved off them")
+	# Task 14 round 5 (a Task 14 statement, not an author rule): fence_n's pads move 0.2 m toward each other so the NEAR glyph, centred in its ring, keeps 8 px from the lane badges
+	assert_true("fence_n" in moved, "fence_n moves 0.2 m (D-294.8: 8 px between world labels)")
+	assert_eq(MapLayout.branch_pad("fence_n", 0, true), Vector2(-2.3, -10.4))
+	assert_eq(MapLayout.branch_pad("fence_n", 1, true), Vector2(2.3, -10.4))
 
 func test_retune_pads_are_on_a_tenth_of_a_metre_near_their_spot_and_apart() -> void:
 	for pad in _retune_pad_list():

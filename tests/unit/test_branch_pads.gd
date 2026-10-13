@@ -6,6 +6,8 @@ extends GutTest
 const ASPECTS := [9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0]
 const ASPECT_NAMES := ["9:21", "9:16", "16:9"]
 const HINT_DIR := "user://test_branch_hint"
+## D-294.8: at least this many base px (720 x 1280; the views are in base px at every aspect, like the size floors) between a pad's items and every other label.
+const MIN_GAP_PX := 8.0
 ## The seven buildings that stand at the tier-3 dawn (tower_sw and fence_sw are bought afterwards).
 const SEVEN := ["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e", "tower_w", "tower_e"]
 
@@ -14,6 +16,8 @@ var pc: PhaseController
 var pile_sparkles := 0
 var _fx_log: Array = []
 var _boxes: Array = []
+## The smallest gap (px) found per pad, stage and place of the hero by `_on_findings`: printed by the stood-pad tests.
+var _stage_gaps := {}
 
 func before_each() -> void:
 	BranchPad.reset_focus()
@@ -23,6 +27,7 @@ func before_each() -> void:
 	pile_sparkles = 0
 	_fx_log = []
 	_boxes = []
+	_stage_gaps = {}
 
 func after_each() -> void:
 	if EventBus.fx_requested.is_connected(_on_fx):
@@ -1467,10 +1472,18 @@ func _badge_rect(b: LaneCharacterMarker, v: View) -> Rect2:
 	var c := b.icon.global_position + v.xf.basis.x * (bb.get_center().x * b.icon.scale.x) + v.xf.basis.y * (bb.get_center().y * b.icon.scale.y)
 	return v.quad(c, Vector2(bb.size.x, bb.size.y) * b.icon.scale.x)
 
-## The card's rect (View coordinates: the origin is the screen centre) for a bottom safe inset.
+## The card's rect (View coordinates: the origin is the screen centre) for a bottom safe inset. While the REAL card control shows (`main.hud.branch_card`)
+## its size and its distance from the bottom of the base view come from the control's own global rect; hidden, from the card's constants.
 func _card_rect_v(v: View, inset: float) -> Rect2:
-	var bottom := v.half_h() - inset - BranchCard.BOTTOM_GAP
-	return Rect2(-BranchCard.CARD_SIZE.x * 0.5, bottom - BranchCard.CARD_SIZE.y, BranchCard.CARD_SIZE.x, BranchCard.CARD_SIZE.y)
+	var size := BranchCard.CARD_SIZE
+	var gap := BranchCard.BOTTOM_GAP
+	var card: Control = main.hud.branch_card
+	if card.visible:
+		var r := card.get_global_rect()
+		size = r.size
+		gap = card.get_viewport().get_visible_rect().size.y - r.end.y
+	var bottom := v.half_h() - inset - gap
+	return Rect2(-size.x * 0.5, bottom - size.y, size.x, size.y)
 
 ## Every obstacle a pad's world item must clear, as [[what, rect]]: the hero's body at `hero_at`, the pips of all nine buildings at level 3
 ## (and any building MAX label that shows), the close-up sign's label, the stations' own labels (Counter, Freezer, ...), tonight's count rows
@@ -1481,7 +1494,8 @@ func _world_obstacles(v: View, hero_at: Vector2, rows: Array, badges: Array, ski
 	out.append(["the hero", _hero_rect(hero_at, v)])
 	for id in main.world.build_spots:
 		var sp: BuildSpot = main.world.build_spots[id]
-		out.append(["the pips of " + id, v.quad(sp.global_position + Vector3(0, sp._pip_y(Balance.data.build.max_level), 0), Vector2(1.1, 0.4))])
+		if _visible_pips(id) > 0:  # round 7: a spot's own pips hide while its pad shows a cost; hidden pips are no obstacle (read from the real nodes)
+			out.append(["the pips of " + id, v.quad(sp.global_position + Vector3(0, sp._pip_y(Balance.data.build.max_level), 0), Vector2(1.1, 0.4))])
 		if sp.label.visible:
 			out.append(["the MAX label of " + id, _node_rect(sp.label, v)])
 	out.append(["the close-up sign's label", _sign_rect(v)])
@@ -1527,16 +1541,23 @@ func _fmt_overlap(a: Rect2, b: Rect2) -> String:
 	var ov := a.intersection(b)
 	return "%.0f x %.0f px" % [ov.size.x, ov.size.y]
 
-## The ON findings of the hero standing on pad `i` of `id` at `aspect` (the hero walked in: the zone is armed): [text], empty when clean.
-func _on_findings(id: String, i: int, aspect: float, rows: Array, badges: Array) -> Array:
+## The ON findings of the hero standing on pad `i` of `id` at `hero_at` (the pad's centre when INF) at `aspect`: [text], empty when clean.
+## `armed`: the hero walked in (stage ON: the glyph and the preview shape); else he was placed there (stage UNARMED: the glyph alone, no preview).
+## Either way the world shows the glyph and NOTHING else of the pad: no cost, no name, no preview line, no warning.
+func _on_findings(id: String, i: int, aspect: float, rows: Array, badges: Array, hero_at := Vector2.INF, armed := true) -> Array:
 	var bad: Array = []
 	var p: BranchPad = _pads(id)[i]
 	var sib: BranchPad = _pads(id)[1 - i]
-	var v := View.new(_pad_pos(id, i), aspect)
-	var tag := "%s %s pad %d" % [ASPECT_NAMES[ASPECTS.find(aspect)], id, i]
-	if p.stage != BranchPad.ON:
-		bad.append("%s: the stage is %d, not ON" % [tag, p.stage])
+	if not hero_at.is_finite():
+		hero_at = _pad_pos(id, i)
+	var v := View.new(hero_at, aspect)
+	var tag := "%s %s pad %d hero at %s" % [ASPECT_NAMES[ASPECTS.find(aspect)], id, i, hero_at]
+	var want_stage := BranchPad.ON if armed else BranchPad.UNARMED
+	if p.stage != want_stage:
+		bad.append("%s: the stage is %d, not %d" % [tag, p.stage, want_stage])
 		return bad
+	if p.cost_label.visible:
+		bad.append("%s: the cost shows" % tag)
 	if sib.stage != BranchPad.SIBLING_QUIET or not _pad_items(sib, v).is_empty():
 		bad.append("%s: the sibling is not quiet" % tag)
 	var mine := _pad_items(p, v)
@@ -1546,17 +1567,27 @@ func _on_findings(id: String, i: int, aspect: float, rows: Array, badges: Array)
 	for it in mine:
 		items.append([String(it[0]).get_slice("/", 1), it[2]])
 	var pr = _preview_rect(p, v)
-	if pr != null:
+	if not armed:
+		if p.preview.visible:
+			bad.append("%s: a preview shows on an unarmed pad" % tag)
+	elif pr != null:
 		items.append(["preview", pr])
 	elif p.branch_id != &"longbow":
 		bad.append("%s: the preview shape does not show" % tag)
-	var obstacles := _on_obstacles(v, _pad_pos(id, i), rows, badges, [p, sib])
+	var obstacles := _on_obstacles(v, hero_at, rows, badges, [p, sib])
 	for it in items:
 		var r: Rect2 = it[1]
 		if not v.screen().encloses(r):
 			bad.append("%s: the %s %s is not fully on screen" % [tag, it[0], r])
-		for h in _hits(r, obstacles):
-			bad.append("%s: the %s %s overlaps %s %s by %s" % [tag, it[0], r, h[0], h[1], _fmt_overlap(r, h[1])])
+		for o in obstacles:
+			var cls := _obstacle_class(String(o[0]))
+			var g := _gap(r, o[1])
+			var key := "%s %s pad %d (%s)" % ["ON" if armed else "UNARMED", id, i, "edge" if hero_at.distance_to(_pad_pos(id, i)) > 0.01 else "centre"]
+			if cls != "HUD bar" and cls != "card" and cls != "hero":
+				_stage_gaps[key] = minf(float(_stage_gaps.get(key, INF)), g)
+			var need := 0.0 if cls == "HUD bar" or cls == "card" or cls == "hero" else MIN_GAP_PX  # the HUD bar, the card and the hero (the glyph follows him) keep the zero-overlap rule
+			if g < need or (need == 0.0 and r.intersects(o[1])):
+				bad.append("%s: the %s %s is %.0f px from %s %s (under %.0f)" % [tag, it[0], r, g, o[0], o[1], need])
 	if items.size() == 2 and (items[0][1] as Rect2).intersects(items[1][1]):
 		bad.append("%s: the glyph overlaps the preview by %s" % [tag, _fmt_overlap(items[0][1], items[1][1])])
 	if not mine.is_empty():
@@ -1594,104 +1625,489 @@ func test_flag_on_the_card_is_in_the_armed_pads_obstacle_list_and_a_rect_on_it_i
 	var unarmed_free := _world_obstacles(v, _pad_pos("fence_n", 1), [], [], [], false).map(func(o): return String(o[0]))
 	assert_false("the branch card (inset 0)" in unarmed_free, "the near stage has no card")
 
+func _dump_gaps(title: String) -> void:
+	var lines: Array = []
+	var worst := INF
+	for k in _stage_gaps:
+		lines.append("%s: smallest gap %.0f px" % [k, _stage_gaps[k]])
+		worst = minf(worst, float(_stage_gaps[k]))
+	lines.sort()
+	gut.p("%s: smallest of all %.0f px" % [title, worst])
+	_dump(title, lines)
+
 func _dump(title: String, lines: Array) -> void:
 	gut.p("%s: %d findings" % [title, lines.size()])
 	for l in lines:
 		gut.p("  " + String(l))
 
-func test_flag_on_the_stood_pad_shows_zero_overlaps_in_all_54_views() -> void:
+## The hero walks onto each of the 18 pads (armed: the card shows) and stands at its centre and at four edge points (N, E, S, W at 0.8 of the pad's
+## radius; a point inside a solid, or on another pad, is skipped, and at least three per pad must be measured): the world shows the glyph (which
+## FOLLOWS the hero) and the preview shape, and nothing of them meets the hero, the pips, the labels, the count rows, the badges, the HUD bar, the
+## card or another pad's items. Mutation: the glyph anchored to the pad's centre again fails the north edge point (it lands on his head).
+func test_flag_on_the_stood_pad_shows_zero_overlaps_at_the_centre_and_four_edge_points_in_every_view() -> void:
 	await _start_on()
 	_all_max()
 	var rows := _all_rows([_plan_boss_on("west"), _plan_boss_on("north"), _plan_boss_on("east"), _plan_boss_on("sw")])
 	var badges := _badge_nodes()
 	var findings: Array = []
 	var views := 0
+	var edge_min := 99
 	for id in MapLayout.spots_for_tier(3):
 		for i in 2:
 			await _walk_onto(id, i)
 			assert_true(main.hud.branch_card.visible, "%s pad %d: the card shows (armed), so the world may leave the words to it" % [id, i])
+			var c := _pad_pos(id, i)
 			for a in ASPECTS.size():
 				findings.append_array(_on_findings(id, i, ASPECTS[a], rows, badges))
 				views += 1
-	assert_eq(views, 54)
-	_dump("ON, 54 views", findings)
+			var edges := 0
+			for dir in [Vector2(0, -1), Vector2(1, 0), Vector2(0, 1), Vector2(-1, 0)]:
+				var pt: Vector2 = c + dir * (0.8 * MapLayout.BRANCH_PAD_RADIUS)
+				if _solid_dist(pt) <= MapLayout.HERO_RADIUS or pt.distance_to(_pad_pos(id, 1 - i)) <= MapLayout.BRANCH_PAD_RADIUS:
+					continue
+				var other_pad := false
+				for oid in MapLayout.spots_for_tier(3):
+					for k in 2:
+						other_pad = other_pad or ((oid != id or k != i) and pt.distance_to(_pad_pos(oid, k)) <= MapLayout.BRANCH_PAD_RADIUS)
+				if other_pad:
+					continue
+				main.hero.global_position = MapLayout.to3(pt)  # not teleport: that would disarm the pad
+				await _settle()
+				assert_true(main.hud.branch_card.visible, "%s pad %d edge %s: still armed" % [id, i, dir])
+				edges += 1
+				for a in ASPECTS.size():
+					findings.append_array(_on_findings(id, i, ASPECTS[a], rows, badges, pt))
+					views += 1
+			assert_gte(edges, 3, "%s pad %d: at least three edge points were measured" % [id, i])
+			edge_min = mini(edge_min, edges)
+	gut.p("ON: %d views (centre and edge points), at least %d edge points per pad" % [views, edge_min])
+	_dump_gaps("ON gaps")
+	_dump("ON, centre and edge points", findings)
 	assert_eq(findings, [], "an empty expected set: no pinned view, no exemption")
 
-## Near stage, per pad (the flag on): from the old test's approach points (home at 3.0 and 3.45 m, the worst reachable point) a pad within
-## branch_pad_near_m of the hero shows glyph over cost; a pad of the focus spot beyond it shows ring and glyph only (no cost). The blocks that
-## show stand apart, are fully on screen, keep the 28 px floors and overlap none of the obstacles. Eight spots here, fence_sw below.
-func test_flag_on_the_near_stage_shows_zero_overlaps_at_every_spot_but_fence_sw() -> void:
-	var spots: Array = MapLayout.spots_for_tier(3).filter(func(id): return id != "fence_sw")
-	await _near_zero_overlaps(spots)
+## A point the hero can stand on, about `r` m from `c`, on the ray from `c` along the first free direction (of 16); the direction is returned in the second slot.
+func _free_point(c: Vector2, r: float) -> Array:
+	for k in 16:
+		var dir := Vector2.from_angle(TAU * float(k) / 16.0)
+		var ok := true
+		for rr in [r, Balance.ui.leave_m(true) - 0.05, Balance.ui.leave_m(true) + 0.1]:
+			ok = ok and _reachable(c + dir * rr)
+		if ok:
+			return [c + dir * r, dir]
+	return []
 
-## fence_sw's two pads stand 5.4 m apart, so from the ends of its near range one is out of reach: by the per-pad rule that pad shows no
-## cost, and the one in reach is a block that fits (D-284.5 as ruled by the main session).
-func test_flag_on_the_near_stage_shows_zero_overlaps_at_fence_sw() -> void:
-	await _near_zero_overlaps(["fence_sw"])
+## The pips of a spot as the real nodes show them now: how many of its stars are visible.
+func _visible_pips(id: String) -> int:
+	var n := 0
+	for pip in (main.world.build_spots[id] as BuildSpot)._pips:
+		n += int((pip as MeshInstance3D).visible)
+	return n
 
-func _near_zero_overlaps(spots: Array) -> void:
+## Author's decision (task 14 round 7, flag on only): a building's level pips HIDE while one of its own pads shows a cost (NEAR or ON) and come back with the cost.
+## Catches: pips that never hide; pips of ANOTHER spot hidden; pips that stay hidden after the hero leaves (at the flag-on leave distance) or after the purchase.
+func test_flag_on_a_spots_level_pips_hide_while_its_own_pad_shows_a_cost_and_return_with_it() -> void:
+	await _start_on()
+	_all_max()
+	var c := _pad_pos("tower_nw", 0)
+	_near_step(Vector2(15.0, 8.0))
+	for id in MapLayout.spots_for_tier(3):
+		assert_eq(_visible_pips(id), 3, "%s: FAR from every pad the three stars show" % id)
+	var fp := _free_point(c, 1.6)
+	assert_false(fp.is_empty(), "setup: a free ray from the pad")
+	var near_at: Vector2 = fp[0]
+	_near_step(near_at)
+	assert_eq(_pads("tower_nw")[0].stage, BranchPad.NEAR, "setup: the pad shows its cost")
+	assert_eq(_visible_pips("tower_nw"), 0, "the pad of the SAME spot is NEAR: its stars are hidden")
+	assert_eq(_visible_pips("tower_ne"), 3, "another spot's stars are not touched")
+	assert_eq(_visible_pips("fence_w"), 3, "another spot's stars are not touched")
+	# the keep band: still shown at the leave distance, back once the hero is past it
+	var dir: Vector2 = fp[1]
+	_near_step(c + dir * (Balance.ui.leave_m(true) - 0.05))
+	assert_eq(_pads("tower_nw")[0].stage, BranchPad.NEAR, "setup: inside the keep band the cost stays")
+	assert_eq(_visible_pips("tower_nw"), 0, "hidden while the cost is shown")
+	_near_step(c + dir * (Balance.ui.leave_m(true) + 0.1))
+	assert_ne(_pads("tower_nw")[0].stage, BranchPad.NEAR, "setup: past the leave distance the cost hides")
+	assert_eq(_visible_pips("tower_nw"), 3, "the stars are back with the cost hidden")
+	# a purchase: the pad disappears while NEAR
+	_near_step(near_at)
+	assert_eq(_visible_pips("tower_nw"), 0, "setup: hidden again")
+	GameState.gold = _cost("tower_nw")
+	assert_gt(GameState.pay_into_branch("tower_nw", &"volley", _cost("tower_nw")), 0)
+	assert_false(_pads("tower_nw")[0].is_shown(), "setup: the pads are gone")
+	assert_eq(_visible_pips("tower_nw"), 3, "after the purchase the pad is gone and the stars are back")
+
+## ON hides them too (the hero stands on the pad); leaving brings them back. Catches a rule that covers NEAR only.
+func test_flag_on_a_spots_level_pips_stay_hidden_while_the_hero_stands_on_its_pad() -> void:
+	await _start_on()
+	_all_max()
+	await _walk_onto("tower_ne", 0)
+	assert_eq(_pads("tower_ne")[0].stage, BranchPad.ON, "setup: on the pad")
+	assert_eq(_visible_pips("tower_ne"), 0, "ON: hidden")
+	assert_eq(_visible_pips("tower_nw"), 3, "another spot's stars show")
+	_near_step(Vector2(15.0, 8.0))
+	assert_eq(_visible_pips("tower_ne"), 3, "back once he is away")
+
+## Flag off: nothing changes. Catches a rule that does not read the flag.
+func test_flag_off_the_level_pips_never_hide_for_a_pad() -> void:
+	await _start()
+	_all_max()
+	var c := _pad_pos("tower_nw", 0)
+	_near_step(_free_point(c, 1.6)[0])
+	assert_eq(_pads("tower_nw")[0].stage, BranchPad.NEAR, "setup: the whole spot is NEAR")
+	assert_true(_pads("tower_nw")[0].cost_label.visible, "setup: the cost shows")
+	assert_eq(_visible_pips("tower_nw"), 3, "flag off: the stars stay")
+
+## Near stage, per pad (the flag on). EVERY pad is measured over EVERY reachable view in which it shows its cost: the hero on a 0.5 m grid within
+## branch_pad_near_m of the pad (arriving from far away), and the keep band out to branch_pad_leave_m (the hero first inside the reach, then walked
+## outward in 0.25 m steps along the line from the pad, so the hysteresis keeps the cost shown). Reachable = off every solid by his radius + 0.05, on
+## no pad, inside the map. At each such point, at 9:21, 9:16 and 16:9, the pad that shows its cost is a block (glyph over cost) that is fully on
+## screen, keeps the 28 px floors and intersects NONE of: the hero, the pips (and MAX labels) of all nine buildings, the close-up sign's label, the
+## station labels, tonight's count rows (four plans), the tier sign's label, the HUD's top bar, every lane badge, the other pads' glyphs and costs, and
+## the sibling's block. Empty expected set: no pinned view, no exemption. The obstacles are the real nodes' rects, cached once (they do not depend on
+## where the hero stands); the cache is compared with `_world_obstacles` (the stood-pad tests' list) at the first view of every pad.
+## Mutations: a pad moved back / an offset removed (tower_ne b), the old three-point sampling (it never saw tower_ne b's pips), a wider block.
+func test_flag_on_the_near_stage_shows_zero_overlaps_for_every_pad_over_its_reachable_views() -> void:
+	var t0 := Time.get_ticks_msec()
 	await _start_on()
 	_all_max()
 	var rows := _all_rows([_plan_boss_on("west"), _plan_boss_on("north"), _plan_boss_on("east"), _plan_boss_on("sw")])
 	var badges := _badge_nodes()
-	var findings: Array = []
-	var near_m: float = Balance.ui.branch_pad_near_m - 0.05
-	var cases := 0
-	var far_seen := 0
-	for case in [["home", 3.0], ["home", near_m], ["worst", 0.0]]:
-		for id in spots:
-			var at := _near_hero_at(id, case[1], case[0])
-			assert_true(at.is_finite(), "%s %s: a reachable point exists" % [case[0], id])
-			if not at.is_finite():
-				continue
-			cases += 1
-			main.hero.teleport(Vector2(15.0, 8.0))
-			await _settle()
-			main.hero.teleport(at)
-			await _settle()
-			assert_lt(main.hero.xz().distance_to(at), 0.01, "%s %s: the hero stands at the point" % [case[0], id])
-			assert_eq(BranchPad.focus_spot(), id)
-			var own := _pad_dist(at, id)
-			for a in ASPECTS.size():
-				var v := View.new(at, ASPECTS[a])
-				var tag := "%s %.2f %s %s" % [case[0], snappedf(own, 0.05), ASPECT_NAMES[a], id]
-				var obstacles := _world_obstacles(v, at, rows, badges, [_pads(id)[0], _pads(id)[1]], false)
-				var blocks: Array = []
-				for i in 2:
-					var p: BranchPad = _pads(id)[i]
-					var reach := at.distance_to(_pad_pos(id, i))
-					if reach > Balance.ui.branch_pad_near_m:  # out of reach: ring and glyph, no cost
-						if p.stage != BranchPad.FAR or p.cost_label.visible or not p.icon.visible:
-							findings.append("%s pad %d: %.2f m away it shows stage %d, cost %s: not ring and glyph only" % [tag, i, reach, p.stage, p.cost_label.visible])
-						far_seen += 1
+	var statics := _static_obstacles(rows, badges)
+	var res := _near_scan(MapLayout.spots_for_tier(3), range(ASPECTS.size()), statics, rows, badges, true)
+	_dump("NEAR per pad (points measured, smallest gap in px to each obstacle class; negative = overlap)", res.report)
+	var lines: Array = []
+	for k in res.findings:
+		lines.append("%s  [%d times, worst shortfall %.0f px, hero at %s]" % [k, res.findings[k][0], res.findings[k][1], res.findings[k][3]])
+	lines.sort()
+	_dump("NEAR scan findings", lines)
+	gut.p("NEAR scan: %d..%d points per pad, %d ms; smallest tether: %.1f px wide (gold line), %.1f px long; smallest gap to any obstacle or block: %.1f px" % [res.min_pts, res.max_pts, Time.get_ticks_msec() - t0, _tether_min[0], _tether_min[1], res.min_gap])
+	for id in MapLayout.spots_for_tier(3):
+		for i in 2:
+			assert_true(res.seen_near.has("%s:%d" % [id, i]), "%s pad %d was measured in the near stage at least once" % [id, i])
+		if res.both_possible.has(id):
+			assert_true(res.both_seen.has(id), "%s: both pads can be in reach, so a both-in-reach view was measured" % id)
+	assert_eq(lines, [], "an empty expected set: no pinned view, no exemption (the hero is drawn in front: test_flag_on_the_hero_and_his_pile_write_depth_after_the_pad_labels_and_rings, tools/check_hero_front.gd)")
+
+## The scan behind the test above (also used by tools/probes): {findings, report, seen_near, both_possible, both_seen, min_pts, max_pts}. `aspect_ids`:
+## indices into ASPECTS. `oracle`: compare the cached obstacle list with `_world_obstacles` at the first view of every pad.
+func _near_scan(spots: Array, aspect_ids: Array, statics: Array, rows: Array, badges: Array, oracle: bool, step_spots := []) -> Dictionary:
+	var all_pads: Array = []
+	for id in MapLayout.spots_for_tier(3):
+		all_pads.append_array(_pads(id))
+	var res := {"findings": {}, "report": [], "seen_near": {}, "both_possible": {}, "both_seen": {}, "min_pts": 100000, "max_pts": 0, "min_gap": INF}
+	var findings: Dictionary = res.findings
+	var near_m: float = Balance.ui.branch_pad_near_m
+	var leave_m: float = Balance.ui.leave_m(true)
+	for id in spots:
+		for i in 2:
+			var p: BranchPad = _pads(id)[i]
+			var sib: BranchPad = _pads(id)[1 - i]
+			var c := _pad_pos(id, i)
+			var gaps := {}  # class -> smallest gap (px) of an item to it
+			var pts := 0
+			var views := 0
+			var checked_oracle := not oracle
+			for xi in range(-9, 10):
+				for zi in range(-9, 10):
+					var at := c + Vector2(xi, zi) * 0.5
+					var d := at.distance_to(c)
+					if d > leave_m or not _reachable(at):
 						continue
-					if p.stage != BranchPad.NEAR:
-						findings.append("%s pad %d: %.2f m away, stage %d, not NEAR" % [tag, i, reach, p.stage])
+					if d <= near_m and at.distance_to(_pad_pos(id, 1 - i)) <= near_m:
+						res.both_possible[id] = true
+					# arrive: from far away inside the reach, or (the keep band) from inside it, walking out along the line from the pad
+					_near_step(Vector2(15.0, 8.0), step_spots)
+					if d > near_m:
+						var dir := (at - c).normalized()
+						var r := 3.0
+						while r < d - 0.001:
+							_near_step(c + dir * r, step_spots)
+							r += 0.25
+					_near_step(at, step_spots)
+					if BranchPad.focus_spot() == id and d <= near_m and p.stage != BranchPad.NEAR:
+						_add_finding(findings, "%s pad %d at %s: %.2f m away in the focus spot, stage %d, not NEAR" % [id, i, at, d, p.stage], Vector2.ZERO)
+					if p.stage != BranchPad.NEAR or not p.cost_label.visible:
 						continue
-					var items := _pad_items(p, v)
-					if items.map(func(it): return it[1]) != [p.icon, p.cost_label]:
-						findings.append("%s pad %d: shows %s, not a glyph and a cost" % [tag, i, items.map(func(it): return it[0])])
-						continue
-					var block: Rect2 = (items[0][2] as Rect2).merge(items[1][2])
-					blocks.append(block)
-					if not v.screen().encloses(block):
-						var s := v.screen()
-						findings.append("%s pad %d: the block %s clips the screen by %.0f px" % [tag, i, block, maxf(maxf(s.position.x - block.position.x, block.end.x - s.end.x), maxf(s.position.y - block.position.y, block.end.y - s.end.y))])
-					var h: float = (items[0][2] as Rect2).size.y / 1.14
-					if h < Balance.ui.branch_pad_icon_min_px:
-						findings.append("%s pad %d: glyph %.1f px under its floor" % [tag, i, h])
-					var em := _px_h(p.cost_label.global_position, float(p.cost_label.font_size) * p.cost_label.pixel_size, v)
-					if em < Balance.ui.branch_pad_label_min_px:
-						findings.append("%s pad %d: cost %.1f px under its floor" % [tag, i, em])
-					for it in items:
-						for o in obstacles:
-							if (it[2] as Rect2).intersects(o[1]):
-								findings.append("%s pad %d: the %s overlaps %s by %s" % [tag, i, String(it[0]).get_slice("/", 1), o[0], _fmt_overlap(it[2], o[1])])
-				if blocks.size() == 2 and (blocks[0] as Rect2).intersects(blocks[1]):
-					findings.append("%s: the two blocks overlap by %s" % [tag, _fmt_overlap(blocks[0], blocks[1])])
-	assert_eq(cases, 3 * spots.size())
-	_dump("NEAR, %d points x 3 aspects (%d pad views out of reach)" % [cases, far_seen], findings)
-	assert_eq(findings, [], "an empty expected set: no pinned view, no exemption")
+					res.seen_near["%s:%d" % [id, i]] = true
+					pts += 1
+					var sib_near := sib.stage == BranchPad.NEAR and sib.cost_label.visible
+					if sib_near:
+						res.both_seen[id] = true
+					for a in aspect_ids:
+						var v := View.new(at, ASPECTS[a])
+						var tag := "%s %s pad %d" % [ASPECT_NAMES[a], id, i]
+						var items := _pad_items(p, v)
+						if items.map(func(it): return it[1]) != [p.icon, p.cost_label]:
+							_add_finding(findings, "%s: shows %s, not a glyph and a cost" % [tag, items.map(func(it): return it[0])], Vector2.ZERO)
+							continue
+						views += 1
+						var obstacles := _near_obstacles(statics, v, at, c, p, all_pads, NEAR_CULL_M)
+						var block: Rect2 = (items[0][2] as Rect2).merge(items[1][2])
+						if not checked_oracle:
+							checked_oracle = true
+							_assert_cache_matches(obstacles, statics, v, at, c, p, rows, badges, all_pads, block)
+						for it in items:
+							if not v.screen().encloses(it[2]):
+								var s := v.screen()
+								var br: Rect2 = it[2]
+								_add_finding(findings, "%s: the %s is not fully on screen" % [tag, String(it[0]).get_slice("/", 1)], Vector2(maxf(maxf(s.position.x - br.position.x, br.end.x - s.end.x), 0.0), 0.0))
+						if (items[0][2] as Rect2).size.y / 1.14 < Balance.ui.branch_pad_icon_min_px:
+							_add_finding(findings, "%s: the glyph is under its floor" % tag, Vector2.ZERO)
+						if _px_h(p.cost_label.global_position, float(p.cost_label.font_size) * p.cost_label.pixel_size, v) < Balance.ui.branch_pad_label_min_px:
+							_add_finding(findings, "%s: the cost is under its floor" % tag, Vector2.ZERO)
+						for it in items:
+							for o in obstacles:
+								var cls := _obstacle_class(String(o[0]))
+								if cls == "hero":
+									continue  # D-294.8: the hero is drawn in front of every pad label (the render check and the priorities below), not a rect rule
+								var g := _gap(it[2], o[1])
+								gaps[cls] = minf(float(gaps.get(cls, INF)), g)
+								res.min_gap = minf(res.min_gap, g)
+								if g < MIN_GAP_PX:
+									_add_finding(findings, "%s: the %s is under %.0f px from %s" % [tag, String(it[0]).get_slice("/", 1), MIN_GAP_PX, o[0]], Vector2(MIN_GAP_PX - g, MIN_GAP_PX - g), at)
+						if _own_overlap_m(p) > 0.06:  # a cost never sits on its own glyph (boxes in metres on the screen; the layout's boxes are a little larger than the ink)
+							_add_finding(findings, "%s: the cost overlaps its own glyph" % tag, Vector2.ONE, at)
+						_check_tether(p, v, at, obstacles, findings, tag)
+						if sib_near:
+							var sitems := _pad_items(sib, v)
+							var bg := INF
+							for it in items:
+								for sit in sitems:
+									bg = minf(bg, _gap(it[2], sit[2]))
+							gaps["sibling block"] = minf(float(gaps.get("sibling block", INF)), bg)
+							res.min_gap = minf(res.min_gap, bg)
+							if bg < MIN_GAP_PX:
+								_add_finding(findings, "%s: the two blocks are under %.0f px apart" % [tag, MIN_GAP_PX], Vector2(MIN_GAP_PX - bg, MIN_GAP_PX - bg), at)
+			res.min_pts = mini(res.min_pts, pts)
+			res.max_pts = maxi(res.max_pts, pts)
+			var gl: Array = []
+			for k in gaps:
+				gl.append("%s %.0f" % [k, float(gaps[k])])
+			gl.sort()
+			res.report.append("%s pad %d: %d points, %d views; smallest gap px: %s" % [id, i, pts, views, ", ".join(gl)])
+	return res
+
+## How far (metres on the screen, camera plane) the cost's layout box reaches into the glyph's layout box; 0 when they do not overlap.
+func _own_overlap_m(p: BranchPad) -> float:
+	var xf := CameraMath.camera_transform(Vector2.ZERO, Balance.ui)
+	var rel := p.cost_label.global_position - p.icon.global_position
+	var d := Vector2(rel.dot(xf.basis.x), rel.dot(xf.basis.y))
+	var half := (BranchPad.glyph_box(p.icon) + p._cost_box()) * 0.5
+	return maxf(0.0, minf(half.x - absf(d.x), half.y - absf(d.y)))
+
+## D-294.8: the glyph stays INSIDE its ring (all four corners of its box inside the ring's ellipse on the screen), and a cost reads as its pad's: a cost whose nearest edge is within
+## 0.5 m (screen metres) of its pad's centre needs nothing; one beyond it shows the TETHER, a light line with an ink edge from the cost's box to the RING's edge: its ring end lies
+## within 0.15 m of the ring's edge, its cost end touches the cost's label rect, it is at least TETHER_MIN_W_PX wide and TETHER_MIN_LEN_PX long at 720x1280, and it keeps MIN_GAP_PX from
+## every obstacle but the hero (drawn in front), its own ring and its own cost.
+const TETHER_MIN_W_PX := 7.5  # 3 px at the 40% scale
+const TETHER_MIN_LEN_PX := 20.0
+## The smallest tether measured in the last scan: [width px, length px] (reported by the near-stage test).
+var _tether_min := [INF, INF]
+func _check_tether(p: BranchPad, v: View, at: Vector2, obstacles: Array, findings: Dictionary, tag: String) -> void:
+	var ppm := v.px_per_m(p.global_position)
+	var centre := v.pt(p.global_position)
+	var ring := PackedVector2Array()
+	for k in 48:
+		var ang := TAU * float(k) / 48.0
+		ring.append(v.pt(p.global_position + Vector3(cos(ang), 0.0, sin(ang)) * MapLayout.BRANCH_PAD_RADIUS))
+	var gr := _node_rect(p.icon, v)
+	for corner in [gr.position, Vector2(gr.end.x, gr.position.y), gr.end, Vector2(gr.position.x, gr.end.y)]:
+		if not Geometry2D.is_point_in_polygon(corner, ring):
+			_add_finding(findings, "%s: the glyph is not inside its ring" % tag, Vector2.ONE, at)
+
+			break
+	var cr := _node_rect(p.cost_label, v)
+	# the distance rule is measured in the world, in metres ON THE SCREEN (the camera's plane), so it does not depend on where the pad stands in the view:
+	# the cost's nearest edge from the pad's centre, from the real label's position and the box its layout uses ("000")
+	var xf := CameraMath.camera_transform(Vector2.ZERO, Balance.ui)
+	var rel := p.cost_label.global_position - p.global_position
+	var cpos := Vector2(rel.dot(xf.basis.x), rel.dot(xf.basis.y))
+	var cbox: Vector2 = p._cost_box()
+	var dist := Vector2(maxf(absf(cpos.x) - cbox.x * 0.5, 0.0), maxf(absf(cpos.y) - cbox.y * 0.5, 0.0)).length()
+	var shown: bool = p.tether != null and p.tether.visible and p.tether_ink.visible and p.tether_ends.size() == 2
+	if dist > BranchPad.TETHER_FROM_M + 0.01 and not shown:
+		_add_finding(findings, "%s: the cost's nearest edge stands %.2f m from its pad and shows no tether" % [tag, dist], Vector2.ONE, at)
+	if not shown:
+		return
+	var tip := v.pt(p.global_position + p.tether_ends[0])
+	var tail := v.pt(p.global_position + p.tether_ends[1])
+	var len_px := tip.distance_to(tail)
+	_tether_min[1] = minf(_tether_min[1], len_px)
+	if len_px < TETHER_MIN_LEN_PX:
+		_add_finding(findings, "%s: the tether is %.0f px long (under %.0f)" % [tag, len_px, TETHER_MIN_LEN_PX], Vector2.ONE, at)
+	# the width is the GOLD line's (the light part the eye reads), not the ink strip's, which is wider by its two edges
+	var gold_v: PackedVector3Array = p.tether.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var width_px := v.pt(p.global_position + gold_v[0]).distance_to(v.pt(p.global_position + gold_v[1]))
+	_tether_min[0] = minf(_tether_min[0], width_px)
+	if width_px < TETHER_MIN_W_PX:
+		_add_finding(findings, "%s: the tether is %.1f px wide (under %.1f)" % [tag, width_px, TETHER_MIN_W_PX], Vector2.ONE, at)
+	var tq := Vector2(clampf(tail.x, cr.position.x, cr.end.x), clampf(tail.y, cr.position.y, cr.end.y))
+	if tail.distance_to(tq) > 0.15 * ppm:
+		_add_finding(findings, "%s: the tether's cost end is %.0f px from the cost" % [tag, tail.distance_to(tq)], Vector2.ONE, at)
+	var ring_gap := INF
+	for k in ring.size():
+		var a0 := ring[k]
+		var a1 := ring[(k + 1) % ring.size()]
+		ring_gap = minf(ring_gap, tip.distance_to(Geometry2D.get_closest_point_to_segment(tip, a0, a1)))
+	if ring_gap > 0.15 * ppm:
+		_add_finding(findings, "%s: the tether's ring end is %.0f px from the ring's edge (over 0.15 m)" % [tag, ring_gap], Vector2.ONE, at)
+	if tip.distance_to(centre) >= tail.distance_to(centre):
+		_add_finding(findings, "%s: the tether points away from the pad" % tag, Vector2.ONE, at)
+	for k in 13:
+		var q := tip.lerp(tail, float(k) / 12.0)
+		for o in obstacles:
+			if _obstacle_class(String(o[0])) != "hero" and (o[1] as Rect2).grow(MIN_GAP_PX + width_px * 0.5).has_point(q):
+				_add_finding(findings, "%s: the tether is within %.0f px of %s" % [tag, MIN_GAP_PX, o[0]], Vector2.ONE, at)
+
+## A point the hero can stand on: off every solid by his radius + 0.05, on no pad, inside the map.
+func _reachable(at: Vector2) -> bool:
+	return at.x > -16.0 and at.x < 16.0 and at.y > -19.0 and at.y < 14.0 and _solid_dist(at) > MapLayout.HERO_RADIUS + 0.05 \
+			and _min_pad_dist(at) > MapLayout.BRANCH_PAD_RADIUS
+
+func _min_pad_dist(at: Vector2) -> float:
+	var best := INF
+	var table := MapLayout.branch_pads(TierEffects.retune_on(Balance.data.tiers))
+	for oid in table:
+		for pp in table[oid]:
+			best = minf(best, at.distance_to(pp))
+	return best
+
+## The hero is put at `at` and every pad runs its frame (the shared focus is recomputed): no physics frames, so a scan of thousands of points stays fast.
+func _near_step(at: Vector2, only_spots := []) -> void:
+	main.hero.global_position = MapLayout.to3(at)
+	BranchPad._cache_frame = -1
+	for id in (only_spots if not only_spots.is_empty() else MapLayout.spots_for_tier(3)):
+		for q: BranchPad in _pads(id):
+			q._physics_process(0.0)
+
+func _add_finding(findings: Dictionary, text: String, size: Vector2, hero := Vector2.INF) -> void:
+	if not findings.has(text):
+		findings[text] = [0, 0.0, 0.0, hero]
+	findings[text][0] += 1
+	if size.x * size.y >= maxf(findings[text][1] * findings[text][2], 0.0):
+		findings[text][3] = hero  # the hero point of the worst overlap
+	findings[text][1] = maxf(findings[text][1], size.x)
+	findings[text][2] = maxf(findings[text][2], size.y)
+
+static func _obstacle_class(what: String) -> String:
+	if what == "the hero":
+		return "hero"
+	if what.begins_with("the pips of"):
+		return "pips"
+	if what.begins_with("the MAX label"):
+		return "MAX labels"
+	if what.contains("close-up"):
+		return "close-up sign"
+	if what.contains("tier sign"):
+		return "tier sign"
+	if what.contains("HUD"):
+		return "HUD bar"
+	if what.ends_with("count row"):
+		return "count rows"
+	if what.contains("badge"):
+		return "lane badges"
+	if what.begins_with("the glyph of") or what.begins_with("the cost of"):
+		return "other pads"
+	if what.begins_with("the branch card"):
+		return "card"
+	return "station labels"
+
+## The obstacles that do not move with the hero, as [{name, at (a world point), quads: [[centre, size m]], screen (the HUD bar)}]. The quads come from
+## the real nodes (the billboards face the camera, whose basis is the same for every focus).
+func _static_obstacles(rows: Array, badges: Array) -> Array:
+	var basis := CameraMath.camera_transform(Vector2.ZERO, Balance.ui).basis
+	var out: Array = []
+	for id in main.world.build_spots:
+		var sp: BuildSpot = main.world.build_spots[id]
+		var pips := sp.global_position + Vector3(0, sp._pip_y(Balance.data.build.max_level), 0)
+		out.append({"name": "the pips of " + id, "at": pips, "quads": [[pips, Vector2(1.1, 0.4)]], "spot": id})
+		if sp.label.visible:
+			out.append({"name": "the MAX label of " + id, "at": sp.label.global_position, "quads": [_label_quad(sp.label, basis)]})
+	var sw := _font_w(tr("Close up"), 36) + 0.08
+	out.append({"name": "the close-up sign's label", "at": MapLayout.to3(MapLayout.SIGN, 1.95), "quads": [[MapLayout.to3(MapLayout.SIGN, 1.95), Vector2(sw, 0.36 * 1.3)]]})
+	var ts: TierSign = main.world.tier_sign
+	if ts != null and ts.label.visible:
+		out.append({"name": "the tier sign's label", "at": ts.label.global_position, "quads": [_label_quad(ts.label, basis)]})
+	out.append({"name": "the HUD's top bar", "at": Vector3.INF, "quads": []})
+	for l in get_tree().get_nodes_in_group(&"world_labels"):
+		var lab := l as Label3D
+		if lab == null or lab.text == "" or not lab.is_visible_in_tree() or (ts != null and lab == ts.label):
+			continue
+		var skip_it := lab.get_parent().name == "CloseUpSign"
+		var anc: Node = lab.get_parent()
+		while anc != null and not skip_it:
+			skip_it = anc is TelegraphMarker or anc is BranchPad
+			anc = anc.get_parent()
+		if skip_it:
+			continue
+		var idx := 0
+		for lsib in lab.get_parent().get_children():
+			if lsib == lab:
+				break
+			idx += int(lsib is Label3D)
+		out.append({"name": "the %s label #%d" % [lab.get_parent().name, idx], "at": lab.global_position, "quads": [_label_quad(lab, basis)]})
+	for row in rows:
+		out.append({"name": "the %s count row" % row[0], "at": (row[1][0] as Array)[0], "quads": row[1]})
+	for b in badges:
+		var ic: MeshInstance3D = (b[1] as LaneCharacterMarker).icon
+		var bb := ic.mesh.get_aabb()
+		var cc := ic.global_position + basis.x * (bb.get_center().x * ic.scale.x) + basis.y * (bb.get_center().y * ic.scale.y)
+		out.append({"name": b[0], "at": cc, "quads": [[cc, Vector2(bb.size.x, bb.size.y) * ic.scale.x]]})
+	return out
+
+func _label_quad(l: Label3D, basis: Basis) -> Array:
+	var b := BranchPad.text_box(l)
+	var c := l.global_position
+	if l.horizontal_alignment == HORIZONTAL_ALIGNMENT_LEFT:
+		c += basis.x * b.x * 0.5
+	return [c, b]
+
+## [[what, rect]] for one view of a pad at `c` with the hero at `at`: the cached obstacles within reach of the pad (a block is under 2 m wide, so
+## anything over NEAR_CULL_M metres away cannot touch it), the hero, and the other pads' glyphs and costs as they show now.
+const NEAR_CULL_M := 12.0
+func _near_obstacles(statics: Array, v: View, at: Vector2, c: Vector2, p: BranchPad, all_pads: Array, cull: float) -> Array:
+	var out: Array = [["the hero", _hero_rect(at, v)]]
+	for o in statics:
+		if o.name == "the HUD's top bar":
+			out.append([o.name, _hud_rect(v)])
+			continue
+		if o.has("spot") and _visible_pips(o.spot) == 0:
+			continue  # round 7: the real pips of that spot are hidden in this view (its pad shows a cost): no obstacle
+		var ap: Vector3 = o.at
+		if Vector2(ap.x - c.x, ap.z - c.y).length() > cull:
+			continue
+		var r := Rect2()
+		var first := true
+		for q in o.quads:
+			var qr := v.quad(q[0], q[1])
+			r = qr if first else r.merge(qr)
+			first = false
+		out.append([o.name, r])
+	for q: BranchPad in all_pads:
+		if q == p or not q.body.visible:
+			continue
+		if q.icon.visible:
+			out.append(["the glyph of " + String(q.name), _node_rect(q.icon, v)])
+		if q.cost_label.visible and q.cost_label.text != "":
+			out.append(["the cost of " + String(q.name), _node_rect(q.cost_label, v)])
+	return out
+
+## The cached list gives the same obstacles and rects as `_world_obstacles` (the other tests' list) for this view, exactly (the pad's own items and the
+## other pads aside: both lists hold the other pads'), and everything the culling dropped is far from the block.
+func _assert_cache_matches(culled: Array, statics: Array, v: View, at: Vector2, c: Vector2, p: BranchPad, rows: Array, badges: Array, all_pads: Array, block: Rect2) -> void:
+	var full := _near_obstacles(statics, v, at, c, p, all_pads, 1.0e9)
+	var want: Array = []
+	for o in _world_obstacles(v, at, rows, badges, [p], false):
+		want.append("%s %s" % [o[0], o[1]])
+	var got: Array = []
+	for o in full:
+		got.append("%s %s" % [o[0], o[1]])
+	want.sort()
+	got.sort()
+	assert_eq(got, want, "the cached obstacles are the full list's")
+	for o in full:
+		if not culled.any(func(k): return k[0] == o[0] and k[1] == o[1]):
+			assert_gt(_gap(block, o[1]), 50.0, "%s was culled and is far from the block" % o[0])
 
 ## The lane-character badges against the pads: from the 18 pad views (the stood glyph and preview, and every glyph that shows) and from each
 ## lane's attack zone (the pads' glyphs and costs as they show there). The north badge met fence_n's glyph in 36 own-zone views.
@@ -1713,8 +2129,8 @@ func test_flag_on_no_lane_badge_overlaps_a_pad_item_from_the_pad_views_or_the_zo
 				for it in items:
 					for b in badges:
 						var br := _badge_rect(b[1], v)
-						if (it[2] as Rect2).intersects(br):
-							findings.append("%s %s pad %d: %s overlaps %s by %s" % [ASPECT_NAMES[a], id, i, it[0], b[0], _fmt_overlap(it[2], br)])
+						if _gap(it[2], br) < MIN_GAP_PX:
+							findings.append("%s %s pad %d: %s is %.0f px from %s (under %.0f)" % [ASPECT_NAMES[a], id, i, it[0], _gap(it[2], br), b[0], MIN_GAP_PX])
 	for lane in MapLayout.lanes_for_tier(3):
 		var zone := MapLayout.zone_rect(lane).get_center()
 		main.hero.teleport(Vector2(15.0, 8.0))
@@ -1728,20 +2144,201 @@ func test_flag_on_no_lane_badge_overlaps_a_pad_item_from_the_pad_views_or_the_zo
 					for it in _pad_items(q, v):
 						for b in badges:
 							var br := _badge_rect(b[1], v)
-							if (it[2] as Rect2).intersects(br):
-								findings.append("%s zone %s: %s overlaps %s by %s" % [ASPECT_NAMES[a], lane, it[0], b[0], _fmt_overlap(it[2], br)])
+							if _gap(it[2], br) < MIN_GAP_PX:
+								findings.append("%s zone %s: %s is %.0f px from %s (under %.0f)" % [ASPECT_NAMES[a], lane, it[0], _gap(it[2], br), b[0], MIN_GAP_PX])
 	_dump("badges vs pads", findings)
 	assert_eq(findings, [], "an empty expected set")
 
-## The hero standing on a pad that is NOT armed (placed there, or the pad appeared under him): the card stays hidden, so the world still says what the
-## pad is. The rule: the pad keeps its NEAR content, the glyph and the cost (beside the hero, not on him), and shows no preview. The sibling stays quiet.
-func test_flag_on_an_unarmed_pad_keeps_its_glyph_and_cost_in_the_world_and_the_card_stays_hidden() -> void:
+## D-294.8: the hero is drawn in front of every pad label. Structure (what guarantees it in the render; tools/check_hero_front.gd renders it). The order is by
+## render priority in the transparent pass: pad ring and disc RING_PRIORITY (-7), pad label OUTLINES (and the tether's ink edge) -6, pad label fills, glyphs and the
+## tether's light line LABEL_PRIORITY (-5), the hero and his carried pile -2 and WRITING DEPTH (DEPTH_DRAW_ALWAYS: not a depth pre-pass, which some mobile GPUs skip in the Compatibility renderer, so everything drawn after him
+## would paint over him), everything else 0 and up. The hero owns his materials (HeroVisual.draw_after_labels); no pad touches them.
+func _hero_surfaces() -> Array:
+	var out: Array = []
+	for mi in main.hero.visual.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		for s in m.mesh.get_surface_count():
+			out.append(m.get_active_material(s))
+	return out
+
+## Every material a pad draws: [what, material] for each Label3D (its render_priority is its own), each mesh with a material override, and the zone's payment ring.
+func _pad_draws(p: BranchPad) -> Array:
+	var out: Array = []
+	for n in p.find_children("*", "", true, false):
+		if n is Label3D:
+			out.append([String(p.get_path_to(n)), (n as Label3D).render_priority, false])
+			out.append([String(p.get_path_to(n)) + " outline", (n as Label3D).outline_render_priority, false])
+		elif n is MeshInstance3D and (n as MeshInstance3D).material_override != null:
+			var mo := (n as MeshInstance3D).material_override
+			out.append([String(p.get_path_to(n)) + (" ring" if n is ProgressRing else ""), (mo as Material).render_priority, mo is BaseMaterial3D and (mo as BaseMaterial3D).no_depth_test])
+	return out
+
+func test_flag_on_the_hero_and_his_pile_write_depth_after_the_pad_labels_and_rings() -> void:
+	await _start_on()
+	_all_max()
+	await _settle()
+	var surfaces := _hero_surfaces()
+	assert_gt(surfaces.size(), 0, "the hero has surfaces")
+	for m in surfaces:
+		var b := m as BaseMaterial3D
+		assert_eq(b.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA, "the hero is in the transparent pass, where the labels are")
+		assert_eq(b.depth_draw_mode, BaseMaterial3D.DEPTH_DRAW_ALWAYS, "and writes depth (a depth pre-pass is skipped by some mobile GPUs)")
+		assert_eq(b.render_priority, -2)
+	var pile: MultiMeshInstance3D = main.hero.carry_stack.get_child(0)
+	var pm := pile.material_override as BaseMaterial3D
+	assert_not_null(pm, "the carried pile has its own material")
+	assert_eq(pm.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
+	assert_eq(pm.depth_draw_mode, BaseMaterial3D.DEPTH_DRAW_ALWAYS)
+	assert_eq(pm.render_priority, -2)
+	assert_eq(PileMesh.steak_mesh().surface_get_material(0).render_priority, 0, "the shared steak mesh (every other pile) is untouched")
+	assert_eq(BranchPad.RING_PRIORITY, -7)
+	assert_eq(BranchPad.OUTLINE_PRIORITY, -6)
+	assert_eq(BranchPad.LABEL_PRIORITY, -5)
+	assert_eq(Hero.DRAW_AFTER_LABELS_PRIORITY, -2)
+	var labels := 0
+	var outlines := 0
+	var depthless := 0
+	var rings := 0
+	for id in MapLayout.spots_for_tier(3):
+		for p: BranchPad in _pads(id):
+			for d in _pad_draws(p):
+				assert_lt(int(d[1]), Hero.DRAW_AFTER_LABELS_PRIORITY, "%s %s: a pad node never draws at or after the hero (nothing under a pad is at or above -2)" % [p.name, d[0]])
+				if String(d[0]).ends_with(" outline") or String(d[0]).ends_with("TetherInk"):
+					outlines += 1
+					assert_eq(int(d[1]), BranchPad.OUTLINE_PRIORITY, "%s %s: a label outline (and the tether's ink edge) draws below the label fills" % [p.name, d[0]])
+					continue
+				var is_ring := String(d[0]).ends_with(" ring") or String(d[0]).ends_with("Marker") or String(d[0]).contains("Range")
+				if is_ring:
+					rings += 1
+					assert_eq(int(d[1]), BranchPad.RING_PRIORITY, "%s %s: ring and disc" % [p.name, d[0]])
+				else:
+					labels += 1
+					assert_eq(int(d[1]), BranchPad.LABEL_PRIORITY, "%s %s: labels, glyphs, tether" % [p.name, d[0]])
+					depthless += 1 if d[2] else 0
+			assert_eq(((p.zone.ring.material_override) as ShaderMaterial).render_priority, BranchPad.RING_PRIORITY, "%s: the payment ring" % p.name)
+			assert_eq(p.marker.material_override.render_priority, BranchPad.RING_PRIORITY)
+			assert_eq(p.refund_label.render_priority, BranchPad.LABEL_PRIORITY)
+	assert_gte(labels, 18 * 6)
+	var pad_labels := 0
+	for id in MapLayout.spots_for_tier(3):
+		for p: BranchPad in _pads(id):
+			pad_labels += p.find_children("*", "Label3D", true, false).size()
+	assert_gt(pad_labels, 18 * 4)
+	var tether_inks := 0
+	for id in MapLayout.spots_for_tier(3):
+		for p: BranchPad in _pads(id):
+			tether_inks += 1 if p.tether_ink != null else 0
+	assert_eq(outlines, pad_labels + tether_inks, "every pad Label3D has its outline priority asserted (and every tether its ink edge)")
+	assert_gte(rings, 18)
+	assert_gt(depthless, 0, "some glyphs have no depth test")
+	main.hero.teleport(_near_hero_at("tower_e", 3.0, "home"))  # a NEAR glyph has no depth test: its material carries the priority
+	await _settle()
+	var near_glyphs := 0
+	for p: BranchPad in _pads("tower_e"):
+		if p.stage == BranchPad.NEAR:
+			near_glyphs += 1
+			assert_true((p.icon.material_override as BaseMaterial3D).no_depth_test)
+			assert_eq((p.icon.material_override as BaseMaterial3D).render_priority, BranchPad.LABEL_PRIORITY, "a NEAR glyph draws before the hero")
+	assert_gt(near_glyphs, 0)
+	for l in get_tree().get_nodes_in_group(&"world_labels"):
+		var anc: Node = l
+		var pad_label := false
+		while anc != null:
+			pad_label = pad_label or anc is BranchPad
+			anc = anc.get_parent()
+		if not pad_label:
+			assert_eq((l as Label3D).render_priority, 0, "a station label stays at priority 0, over the hero as today")
+
+## Every pad whose cost stands beyond 0.5 m (its nearest edge from the pad's centre, measured on the real label) has a tether (a light line at LABEL_PRIORITY over its
+## ink edge at OUTLINE_PRIORITY, no depth test); every other pad, shifted or not, has none. Round 6 moved eight of the ten shifted costs to within 0.5 m (a row beside the
+## glyph; round 7: with the own pips hidden tower_nw a joined them); the one pad that keeps a tether, tower_e a, is pinned: no placement within 0.5 m clears the Freezer label
+## and its own glyph (the search is in the report). Mutation: a tether on a pad whose
+## cost stands within 0.5 m, or none on one beyond it.
+func test_flag_on_the_tether_threshold_is_half_a_metre_and_its_gold_line_is_wide_enough() -> void:
+	assert_eq(BranchPad.TETHER_FROM_M, 0.5, "pinned: a cost nearer than this to its pad's centre needs no tether (the distance rule of the search)")
+	assert_almost_eq(BranchPad.TETHER_WIDTH_M - 2.0 * BranchPad.TETHER_INK_M, 0.17, 1e-6, "the gold line is 0.17 m: 7.5 px at 720x1280 where the view is the tightest (46.7 px per m)")
+
+func test_flag_on_a_cost_beyond_half_a_metre_has_a_tether_drawn_with_the_labels_and_no_other_pad_has_one() -> void:
+	await _start_on()
+	_all_max()
+	var with_tether: Array = []
+	var shifted := 0
+	var xf := CameraMath.camera_transform(Vector2.ZERO, Balance.ui)
+	for id in MapLayout.spots_for_tier(3):
+		for i in 2:
+			var p: BranchPad = _pads(id)[i]
+			var seen := false
+			for k in 24:  # a reachable point 2 m from the pad, in whatever direction shows its cost
+				var at := _pad_pos(id, i) + Vector2(2.0, 0.0).rotated(TAU * float(k) / 24.0)
+				if not _reachable(at):
+					continue
+				_near_step(Vector2(15.0, 8.0))
+				_near_step(at)
+				if p.stage == BranchPad.NEAR and p.cost_label.visible:
+					seen = true
+					break
+			assert_true(seen, "%s pad %d: shows its cost from a reachable point" % [id, i])
+			var key := "%s:%d" % [id, i]
+			shifted += 1 if BranchPad.COST_SHIFT_RETUNE.has(key) else 0
+			var rel := p.cost_label.global_position - p.global_position
+			var cpos := Vector2(rel.dot(xf.basis.x), rel.dot(xf.basis.y))
+			var cbox: Vector2 = p._cost_box()
+			var dist := Vector2(maxf(absf(cpos.x) - cbox.x * 0.5, 0.0), maxf(absf(cpos.y) - cbox.y * 0.5, 0.0)).length()
+			var has: bool = p.tether_ends.size() == 2
+			assert_eq(has, dist > BranchPad.TETHER_FROM_M, "%s: the cost's nearest edge is %.2f m from the pad: a tether iff beyond %.1f m" % [key, dist, BranchPad.TETHER_FROM_M])
+			assert_true(p.tether.visible == has and p.tether_ink.visible == has)
+			if has:
+				with_tether.append(key)
+				assert_eq((p.tether.material_override as BaseMaterial3D).render_priority, BranchPad.LABEL_PRIORITY)
+				assert_eq((p.tether_ink.material_override as BaseMaterial3D).render_priority, BranchPad.OUTLINE_PRIORITY)
+				assert_true((p.tether.material_override as BaseMaterial3D).no_depth_test)
+				assert_true((p.tether_ink.material_override as BaseMaterial3D).no_depth_test)
+				assert_ne(p.tether.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR][0], p.tether_ink.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR][0], "a light line over a dark edge")
+				assert_gte(p.tether_len, 0.25, "%s: a tether is at least 0.25 m long on the screen" % key)
+			else:
+				assert_null(p.tether.mesh)
+				assert_null(p.tether_ink.mesh)
+	assert_eq(shifted, BranchPad.COST_SHIFT_RETUNE.size(), "every shifted pad was measured in its near stage")
+	with_tether.sort()
+	assert_eq(with_tether, ["tower_e:0"], "the one tethered pad: every other shifted cost stands within 0.5 m")
+	gut.p("tethers: %s of %d shifted costs" % [with_tether, BranchPad.COST_SHIFT_RETUNE.size()])
+
+## With the flag off nothing changes: the hero's materials are the untouched originals (opaque, priority 0), the pile has no override, the pads have no tether
+## and every pad node draws at priority 0.
+func test_flag_off_the_hero_and_the_pad_labels_keep_their_render_state() -> void:
+	await _start()
+	_all_max()
+	await _settle()
+	for mi in main.hero.visual.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh != null:
+			for s in m.mesh.get_surface_count():
+				assert_null(m.get_surface_override_material(s), "no override on the hero's surfaces")
+	for m in _hero_surfaces():
+		assert_eq((m as BaseMaterial3D).transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)
+		assert_eq((m as BaseMaterial3D).depth_draw_mode, BaseMaterial3D.DEPTH_DRAW_OPAQUE_ONLY)
+		assert_eq((m as BaseMaterial3D).render_priority, 0)
+	assert_null((main.hero.carry_stack.get_child(0) as MultiMeshInstance3D).material_override)
+	for id in MapLayout.spots_for_tier(3):
+		for p: BranchPad in _pads(id):
+			assert_eq(p.cost_label.render_priority, 0)
+			assert_null(p.tether)
+			for d in _pad_draws(p):
+				assert_eq(int(d[1]), -1 if String(d[0]).ends_with(" outline") else 0, "%s %s (a label's outline keeps the engine default, -1)" % [p.name, d[0]])
+			assert_eq(((p.zone.ring.material_override) as ShaderMaterial).render_priority, 0)
+
+## The hero standing on a pad that is NOT armed (placed there, or the pad appeared under him): the card stays hidden; the world shows the ring and the
+## glyph at the ON place, NO cost and NO preview (it cannot be paid yet). The same empty expected set as the ON stage, 18 pads x 3 aspects. A pad
+## processes before its own zone, so a walk-in shows one tick of UNARMED: no cost node is visible then either. Mutation: the cost shown while unarmed.
+func test_flag_on_an_unarmed_pad_shows_ring_and_glyph_only_with_the_same_zero_overlaps_as_the_on_stage() -> void:
 	await _start_on()
 	_all_max()
 	var rows := _all_rows([_plan_boss_on("west"), _plan_boss_on("north"), _plan_boss_on("east"), _plan_boss_on("sw")])
 	var badges := _badge_nodes()
 	var findings: Array = []
-	var table := {}
+	var views := 0
 	for id in MapLayout.spots_for_tier(3):
 		for i in 2:
 			main.hero.teleport(Vector2(15.0, 8.0))
@@ -1754,41 +2351,34 @@ func test_flag_on_an_unarmed_pad_keeps_its_glyph_and_cost_in_the_world_and_the_c
 			assert_false(p.zone.armed, "%s pad %d: setup, the pad is not armed" % [id, i])
 			assert_false(main.hud.branch_card.visible, "%s pad %d: so the card is hidden" % [id, i])
 			assert_eq(p.stage, BranchPad.UNARMED, "%s pad %d" % [id, i])
+			assert_true(p.marker.visible and p.icon.visible, "ring and glyph")
+			assert_false(p.cost_label.visible, "%s pad %d: an unarmed pad shows no cost" % [id, i])
 			assert_false(p.preview.visible, "no preview while unarmed")
 			assert_false(p.name_label.visible or p.effect_label.visible or (p.warn_label != null and p.warn_label.visible), "no name, effect or warning")
 			assert_eq((_pads(id)[1 - i] as BranchPad).stage, BranchPad.SIBLING_QUIET)
 			for a in ASPECTS.size():
-				var v := View.new(_pad_pos(id, i), ASPECTS[a])
-				var tag := "%s %s pad %d" % [ASPECT_NAMES[a], id, i]
-				var items := _pad_items(p, v)
-				if items.map(func(it): return it[1]) != [p.icon, p.cost_label]:
-					findings.append("%s: shows %s, not a glyph and a cost" % [tag, items.map(func(it): return it[0])])
-					continue
-				assert_eq(p.cost_label.text, str(_cost(id)), "the cost the pad asks")
-				var obstacles := _world_obstacles(v, _pad_pos(id, i), rows, badges, [p, _pads(id)[1 - i]], true)
-				for it in items:
-					if not v.screen().encloses(it[2]):
-						findings.append("%s: the %s is not fully on screen" % [tag, String(it[0]).get_slice("/", 1)])
-					for o in obstacles:
-						if (it[2] as Rect2).intersects(o[1]):
-							# asserted: the hero stays visible, and nothing sits under the HUD's top bar or the card (cheap to guarantee). The other
-							# obstacles are counted in the table below (for the author's review queue): the state is transient (a placed hero, a
-							# pad that appears under him) and ends the moment he steps out and in.
-							var what: String = String(o[0])
-							if what == "the hero" or what.begins_with("the HUD") or what.begins_with("the branch card"):
-								findings.append("%s: the %s overlaps %s by %s" % [tag, String(it[0]).get_slice("/", 1), what, _fmt_overlap(it[2], o[1])])
-							else:
-								var kind := what.get_slice(" of ", 0) if what.begins_with("the pips of") or what.begins_with("the glyph of") or what.begins_with("the cost of") else what.get_slice(" (other", 0)
-								var key := "%s hits %s" % [String(it[0]).get_slice("/", 1), kind]
-								table[key] = int(table.get(key, 0)) + 1
-	var table_lines: Array = []
-	for k in table:
-		table_lines.append("%-34s %3d of 162 (54 pad views x 3 aspects)" % [k, table[k]])
-	table_lines.sort()
-	_dump("UNARMED, 54 views: hero, HUD bar, card and screen (asserted)", findings)
-	_dump("UNARMED, 54 views: what the glyph or cost hits besides (reported for the review queue, not asserted)", table_lines)
-	assert_eq(findings, [], "the unarmed glyph and cost never cover the hero, the HUD bar or the card, and stay on screen")
-	# leaving and walking back in arms the pad: the card shows and the world drops the cost
+				findings.append_array(_on_findings(id, i, ASPECTS[a], rows, badges, Vector2.INF, false))
+				views += 1
+	assert_eq(views, 54)
+	_dump("UNARMED, 54 views", findings)
+	_dump_gaps("UNARMED gaps")
+	assert_eq(findings, [], "an empty expected set: the same as the ON stage")
+	# the walk-in tick: the pad has run, its zone has not (so it is not armed yet): the stage is UNARMED, with no cost node visible
+	for id in ["tower_e", "fence_sw"]:
+		var p: BranchPad = _pads(id)[0]
+		main.hero.teleport(_pad_pos(id, 0) + Vector2(0, 2.0))
+		await _settle()
+		main.hero.global_position = MapLayout.to3(_pad_pos(id, 0) + Vector2(0, 0.5))
+		BranchPad._cache_frame = -1
+		p._physics_process(0.0)
+		assert_eq(p.stage, BranchPad.UNARMED, "%s: the walk-in tick, before the zone arms" % id)
+		assert_false(p.cost_label.visible, "%s: no cost node in the walk-in tick" % id)
+		for pad_id in MapLayout.spots_for_tier(3):
+			for q: BranchPad in _pads(pad_id):
+				assert_false(q.stage == BranchPad.UNARMED and q.cost_label.visible, "an unarmed pad never shows a cost")
+		await _settle()
+		assert_eq(p.stage, BranchPad.ON, "%s: the next ticks arm it" % id)
+	# leaving and walking back in arms the pad: the card shows
 	await _walk_onto("tower_e", 0)
 	assert_true(main.hud.branch_card.visible)
 	assert_eq((_pads("tower_e")[0] as BranchPad).stage, BranchPad.ON)
@@ -1849,15 +2439,17 @@ func test_flag_on_a_pad_shows_its_cost_only_within_reach_with_a_hysteresis_band(
 	assert_eq(b.stage, BranchPad.FAR, "the far pad of the focus spot shows ring and glyph only")
 	assert_false(b.cost_label.visible)
 	assert_true(b.icon.visible)
-	main.hero.teleport(pa + Vector2(-4.0, 0.0))  # 4.0 m: inside the leave band, a keeps its cost
+	var lv: float = Balance.ui.leave_m(true)  # round 5: the flag-on keep band is shorter (3.8 m)
+	assert_gte(lv, Balance.ui.branch_pad_near_m + 0.3, "the band stays at least 0.3 m wide")
+	main.hero.teleport(pa + Vector2(-(lv - 0.2), 0.0))  # inside the leave band, a keeps its cost
 	await _settle()
-	assert_eq(a.stage, BranchPad.NEAR, "kept while within branch_pad_leave_m")
-	main.hero.teleport(pa + Vector2(-4.8, 0.0))  # beyond it
+	assert_eq(a.stage, BranchPad.NEAR, "kept while within the flag-on leave distance")
+	main.hero.teleport(pa + Vector2(-(lv + 0.4), 0.0))  # beyond it
 	await _settle()
 	assert_eq(a.stage, BranchPad.FAR, "dropped beyond branch_pad_leave_m")
 	main.hero.teleport(Vector2(15.0, 8.0))
 	await _settle()
-	main.hero.teleport(pa + Vector2(-4.0, 0.0))  # entered from far, straight into the band
+	main.hero.teleport(pa + Vector2(-(lv - 0.2), 0.0))  # entered from far, straight into the band
 	await _settle()
 	assert_ne(a.stage, BranchPad.NEAR, "a pad first met in the band does not show its cost")
 

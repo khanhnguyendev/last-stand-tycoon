@@ -21,11 +21,17 @@ extends Node3D
 ##   ON    (the hero stands on an ARMED pad: he walked in, the card shows): the ring, the glyph alone (no cost, no name, no preview line, no
 ##         warning) and the preview shape. The sibling stays quiet.
 ##   UNARMED (the hero stands on a pad that is not armed: he was placed there, or the pad appeared under him; the card stays hidden until he
-##         leaves and re-enters): the world must still say what the pad is, so the pad keeps its NEAR content, the glyph and the cost, laid out
-##         beside the hero (above his head or below the pad, like the ON glyph) instead of on him; no preview. The sibling stays quiet.
+##         leaves and re-enters): ring and glyph at the ON glyph's place, NO cost and NO preview (it cannot be paid yet: one step out shows the
+##         near cost, stepping back in arms it and the card shows). The sibling stays quiet.
+##   While a pad is ON or UNARMED its glyph follows the HERO (above his head, or below his feet for the pads in ON_ROW_NORTH_RETUNE), by the same
+##         screen offset it has above the pad's centre; the preview shape stays at the building. One position write per physics frame, visual only.
 ##   NEAR  is per PAD: the focus spot's pad shows its cost only while the hero is within branch_pad_near_m of that pad (branch_pad_leave_m once
 ##         shown); the spot's other pad, if farther, stays FAR (ring and glyph). With the flag off the whole spot goes NEAR together, as before.
 ##   FAR / QUIET are the same as with the flag off. With the flag off every stage is exactly as before.
+
+## E6 (flag on): emitted whenever the stage changes (or the pad goes away). The build spot of the pad listens: its level pips hide while one of its own pads
+## shows a cost. A local signal between a spot and its own pads, not an EventBus event.
+signal stage_changed
 
 const FAR := 0
 const FAR_QUIET := 1
@@ -45,6 +51,14 @@ const SOUTH_BASE_M := 0.8
 const WARN_GAP := 0.1
 ## E6 (flag on): the lone glyph above the hero's head starts here (the flag-off stack starts at NORTH_BASE_M, which leaves a few px between the head and the glyph).
 const RETUNE_NORTH_BASE_M := 1.25
+## E6 (flag on, D-294.8): the hero is drawn IN FRONT of every pad label. The labels are Label3D with no depth test (drawn over buildings and ground), so
+## they cannot be hidden by depth; the order is by render priority (a lower number draws earlier, all in the transparent pass): the pad's ring and disc
+## RING_PRIORITY (-7), the label OUTLINES OUTLINE_PRIORITY (-6, with the tether's ink edge), the label fills, glyphs and the tether's light line LABEL_PRIORITY (-5),
+## then the hero and his carried pile at Hero.DRAW_AFTER_LABELS_PRIORITY (-2; he writes depth, so everything drawn after him is hidden where he stands), then
+## everything else (-1 and up) as today. The HERO owns his materials (HeroVisual.draw_after_labels): no pad touches them.
+const RING_PRIORITY := -7
+const OUTLINE_PRIORITY := -6
+const LABEL_PRIORITY := -5
 ## The coins of a refund flight (the exact amount is on the "+N" label) and the pause between two of them (s).
 const REFUND_COINS := 5
 const REFUND_GAP := 0.07
@@ -59,6 +73,19 @@ const ON_MODES := {
 ## E6 (flag on): where the lone ON glyph (and the UNARMED glyph-and-cost row) stands: "spot:index" -> true above the hero's head, false below
 ## the pad. Searched with the zero-overlap test (tests/unit/test_branch_pads.gd); a pad not listed stands above.
 const ON_ROW_NORTH_RETUNE := {"tower_nw:0": false, "tower_ne:1": false}
+## E6 (flag on): where the glyph of a STOOD pad (ON or UNARMED) stands relative to its default place above the hero's head (or below the pad):
+## "spot:index" -> Vector2(right, up) in metres ON THE SCREEN. Searched with the edge-point cases of the stood-pad zero test.
+const ON_SHIFT_RETUNE := {"fence_w:1": Vector2(-0.1, 0.3), "fence_e:0": Vector2(0.2, 0.4), "tower_e:1": Vector2(-0.6, 0.0), "fence_sw:1": Vector2(0.0, -0.075), "tower_ne:0": Vector2(-0.1, 0.0), "tower_sw:0": Vector2(0.0, 0.1)}
+## E6 (flag on): where a pad's NEAR cost stands relative to its default place under the glyph: "spot:index" -> Vector2(right, up) in metres ON THE SCREEN.
+## The GLYPH moves only inside its ring (GLYPH_SHIFT_RETUNE, tested). Only the COST moves far (D-294.8); searched with the per-pad near-stage scan of tests/unit/test_branch_pads.gd (every reachable
+## view of the pad, zero overlaps, 8 px clearance). A pad not listed keeps the cost under its glyph.
+const GLYPH_SHIFT_RETUNE := {"tower_e:0": Vector2(0.1, 0.0), "tower_ne:1": Vector2(-0.05, 0.0), "tower_sw:0": Vector2(0.0, -0.05), "tower_sw:1": Vector2(0.1, 0.0)}
+const COST_SHIFT_RETUNE := {
+	"tower_nw:0": Vector2(-1.1, 0.8), "tower_ne:0": Vector2(-1.1, 0.8), "tower_ne:1": Vector2(-1.1, 0.8),
+	"tower_e:0": Vector2(1.9, 0.2),
+	"fence_e:0": Vector2(-1.1, 0.7), "fence_e:1": Vector2(0.4, 0.0), "fence_sw:0": Vector2(-1.1, 0.8), "fence_sw:1": Vector2(-1.1, 0.9),
+	"fence_w:0": Vector2(-1.1, 0.8), "fence_w:1": Vector2(-1.1, 0.8),
+}
 
 ## The texts, through tr() when shown: [name, preview line]. The Volley's line is built from the balance count.
 const TEXTS := {
@@ -93,11 +120,31 @@ var hint_at := Vector2.ZERO
 ## What the last refund showed: the exact gold (the "+N" label) and how many coins flew for it.
 var last_refund := 0
 var refund_coins := 0
-## The stage shown now (FAR, FAR_QUIET, NEAR, ON, SIBLING_QUIET).
+## The stage shown now (FAR, FAR_QUIET, NEAR, ON, SIBLING_QUIET, UNARMED).
 var stage := FAR
 ## Where the ON clusters stand (ON_MODES); call _layout_items() and re-apply the stage after changing them.
 var row_north := false
 var name_south := false
+## E6: the NEAR cost's shift from its default place (COST_SHIFT_RETUNE), metres on the screen (right, up); call _layout_items() and re-apply the stage after changing it
+## (the layout reads the glyph's size from Balance.ui.icon_m, not from its current scale, so a re-layout at any stage gives the same place).
+var cost_shift := Vector2.ZERO
+## E6: the NEAR glyph's shift inside its ring (GLYPH_SHIFT_RETUNE), metres on the screen (right, up).
+var glyph_shift := Vector2.ZERO
+## E6: the tether (D-294.8): a line from a cost's edge to the pad's RING edge, drawn when the cost's nearest edge stands farther than TETHER_FROM_M from the pad's centre; shown
+## only with the cost. A light line (palette gold) with an ink edge, TETHER_WIDTH_M wide in all (the ink included; the gold line alone is TETHER_WIDTH_M - 2 x TETHER_INK_M = 0.17 m), drawn like a label (ink edge at OUTLINE_PRIORITY, light line at
+## LABEL_PRIORITY). `tether_ends` = [ring end, cost end] of its centre line in the pad's local space ([] when there is none), `tether_len` its length in metres on the screen.
+const TETHER_FROM_M := 0.5
+## E6: the NEAR glyph's height above the pad's centre (metres on the screen: its box stays inside the ring), and the gap between it and the cost.
+const NEAR_GLYPH_UP_M := 0.0
+const STACK_GAP_NEAR_M := -0.02
+const TETHER_WIDTH_M := 0.27
+const TETHER_INK_M := 0.05
+var tether: MeshInstance3D
+var tether_ink: MeshInstance3D
+var tether_ends: Array = []
+var tether_len := 0.0
+## E6: the stood glyph's shift (ON_SHIFT_RETUNE), metres on the screen (right, up).
+var on_shift := Vector2.ZERO
 ## E6: the retune flag as read when the pad was made (TierEffects.retune_on): the pad table, the labels and the stages follow it.
 var retune := false
 var _fx: FlyFx
@@ -118,6 +165,10 @@ static var _shown_pads: Array = []
 static var _cache_frame := -1
 static var _focus_spot := ""
 static var _on_pad: BranchPad = null
+## The hero's ground position as read by the last update_focus (E6: the glyph of a stood pad follows him).
+static var _hero_at := Vector3.ZERO
+## The retune state of the shown pads (they are all made in one world, so they agree): the keep distance of the focus follows it.
+static var _shown_retune := false
 ## Reused every frame (no allocation in update_focus): spot -> smallest distance to one of its pads; the spots of the tier, refreshed
 ## when the tier changes.
 static var _nearest := {}
@@ -141,10 +192,12 @@ static func update_focus(tree: SceneTree) -> void:
 		return
 	var hx := hero.global_position.x
 	var hz := hero.global_position.z
+	_hero_at = hero.global_position
 	for k in _nearest:  # overwrite, never clear and re-insert: a spot with no shown pad now keeps INF
 		_nearest[k] = INF
 	var best_on := INF
 	for p: BranchPad in _shown_pads:
+		_shown_retune = p.retune
 		var d := Vector2(hx - p.global_position.x, hz - p.global_position.z).length()
 		if d < float(_nearest.get(p.spot_id, INF)):
 			_nearest[p.spot_id] = d
@@ -154,7 +207,7 @@ static func update_focus(tree: SceneTree) -> void:
 	if _on_pad != null:
 		_focus_spot = _on_pad.spot_id
 		return
-	if _focus_spot != "" and _nearest.has(_focus_spot) and float(_nearest[_focus_spot]) <= Balance.ui.branch_pad_leave_m:
+	if _focus_spot != "" and _nearest.has(_focus_spot) and float(_nearest[_focus_spot]) <= Balance.ui.leave_m(_shown_retune):
 		return
 	_focus_spot = ""
 	if _spots_tier != GameState.tier:
@@ -165,6 +218,10 @@ static func update_focus(tree: SceneTree) -> void:
 		if _nearest.has(id) and float(_nearest[id]) <= Balance.ui.branch_pad_near_m and float(_nearest[id]) < best:
 			best = float(_nearest[id])
 			_focus_spot = id
+
+## The material of a glyph that shows: with the flag on one with LABEL_PRIORITY (drawn before the hero), else the shared one.
+func _glyph_material() -> StandardMaterial3D:
+	return BranchIcons.front_material(LABEL_PRIORITY) if retune else BranchIcons.material()
 
 ## Drops the freed pads from the shown registry.
 static func _purge_freed() -> void:
@@ -210,7 +267,7 @@ func setup(p_spot_id: String, p_index: int, world: World) -> void:
 	marker = MeshInstance3D.new()
 	marker.name = "Marker"
 	marker.mesh = BranchIcons.ring_mesh(&"ice_blue", 0.82, 0.22)
-	marker.material_override = BranchIcons.ground_material()
+	marker.material_override = BranchIcons.ground_front_material(RING_PRIORITY) if retune else BranchIcons.ground_material()
 	marker.scale = Vector3(MapLayout.BRANCH_PAD_RADIUS, 1.0, MapLayout.BRANCH_PAD_RADIUS)
 	marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	body.add_child(marker)
@@ -220,12 +277,18 @@ func setup(p_spot_id: String, p_index: int, world: World) -> void:
 	refund_label.name = "Refund"
 	refund_label.pixel_size = Balance.ui.branch_pad_cost_pixel_size
 	refund_label.modulate = Palette.color(&"gold")
+	_front(refund_label)
 	refund_label.visible = false
 	add_child(refund_label)
 	zone = StationZone.new()
 	zone.radius = MapLayout.BRANCH_PAD_RADIUS
 	zone.drive_ring = false  # the ring shows paid / cost
 	add_child(zone)
+	if retune:  # the payment ring is a ground ring too: under the labels (the zone makes it in its _ready)
+		if zone.ring != null:
+			_ring_under_labels()
+		else:
+			zone.ready.connect(_ring_under_labels, CONNECT_ONE_SHOT)
 	zone.ticked.connect(_on_tick)
 	EventBus.building_changed.connect(_on_building_changed)
 	EventBus.branch_refunded.connect(_on_branch_refunded)
@@ -235,8 +298,13 @@ func setup(p_spot_id: String, p_index: int, world: World) -> void:
 	set_physics_process(false)
 	refresh()
 
+func _ring_under_labels() -> void:
+	(zone.ring.material_override as ShaderMaterial).render_priority = RING_PRIORITY
+
 func _exit_tree() -> void:
 	_forget_shown(self)  # also clears _on_pad when it is this pad, and the frame cache
+	stage = FAR  # a pad taken out of the tree shows no cost: its spot gets its pips back
+	stage_changed.emit()
 
 # --- items and their layout --------------------------------------------------------------------------
 
@@ -245,14 +313,21 @@ func _label(font_size: int, pixel: float, node_name: String, text := "") -> Worl
 	l.name = node_name
 	l.pixel_size = pixel
 	l.visible = false
+	_front(l)
 	body.add_child(l)
 	return l
+
+## E6 (flag on): a pad label draws below the hero: its outline at OUTLINE_PRIORITY, its fill at LABEL_PRIORITY (flag off: both as today).
+func _front(l: Label3D) -> void:
+	if retune:
+		l.render_priority = LABEL_PRIORITY
+		l.outline_render_priority = OUTLINE_PRIORITY
 
 func _glyph(kind: StringName, size_m: float, node_name: String, parent: Node3D = null) -> MeshInstance3D:
 	var m := MeshInstance3D.new()
 	m.name = node_name
 	m.mesh = BranchIcons.mesh(kind)
-	m.material_override = BranchIcons.material()
+	m.material_override = _glyph_material()
 	m.scale = Vector3.ONE * size_m
 	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	(parent if parent != null else body).add_child(m)
@@ -281,7 +356,7 @@ static func screen_to_y(m: float) -> float:
 func _build_items() -> void:
 	var ui := Balance.ui
 	var pix: float = ui.branch_pad_label_pixel_size
-	icon = _glyph(branch_id, ui.branch_pad_icon_m, "Icon")
+	icon = _glyph(branch_id, ui.icon_m(), "Icon")
 	cost_label = _label(ui.branch_pad_cost_font, ui.branch_pad_cost_pixel_size, "Cost", "000")  # "000": the widest cost fixes the block widths
 	name_label = _label(ui.branch_pad_label_font, pix, "Name", tr(TEXTS[branch_id][0]))
 	var effect := tr(TEXTS[branch_id][1])
@@ -298,22 +373,33 @@ func _build_items() -> void:
 	name_south = mode[1]
 	if retune:
 		row_north = bool(ON_ROW_NORTH_RETUNE.get("%s:%d" % [spot_id, index], true))
+		glyph_shift = GLYPH_SHIFT_RETUNE.get("%s:%d" % [spot_id, index], Vector2.ZERO)
+		cost_shift = COST_SHIFT_RETUNE.get("%s:%d" % [spot_id, index], Vector2.ZERO)
+		on_shift = ON_SHIFT_RETUNE.get("%s:%d" % [spot_id, index], Vector2.ZERO)
 	_layout_items()
 	cost_label.text = ""
 
 ## Lays out the NEAR block and the ON stack (positions only), in screen metres.
 func _layout_items() -> void:
-	var ibox := glyph_box(icon)
+	# the glyph's size at its NEAR/ON stage, not its current scale (the far stage is smaller): a re-layout at any stage gives the same place
+	var ibox := Vector2(icon.mesh.get_aabb().size.x, icon.mesh.get_aabb().size.y) * Balance.ui.icon_m()
 	var cbox := _cost_box()
 	# NEAR: the glyph with the cost centred under it; the block (at most 1.25 m wide) centred on the pad
 	var block_h := ibox.y + STACK_GAP_M + cbox.y
+	if retune:
+		# E6: the glyph stays INSIDE its ring (NEAR_GLYPH_UP_M above the pad's centre); only the cost moves (COST_SHIFT_RETUNE), from its default place right under the glyph
+		var cost_up := NEAR_GLYPH_UP_M + glyph_shift.y - ibox.y * 0.5 - STACK_GAP_NEAR_M - cbox.y * 0.5 + cost_shift.y
+		_pos[NEAR] = {
+			icon: _at(NEAR_GLYPH_UP_M + glyph_shift.y, true) + Vector3(glyph_shift.x, 0.0, 0.0),
+			cost_label: _at(-cost_up, false) + Vector3(cost_shift.x, 0.0, 0.0),
+		}
+		_layout_tether(cbox, cost_up)
+		_layout_retune(ibox, cbox)
+		return
 	_pos[NEAR] = {
 		icon: _at(block_h * 0.5 - ibox.y * 0.5, true),
 		cost_label: _at(block_h * 0.5 - cbox.y * 0.5, false),
 	}
-	if retune:
-		_layout_retune(ibox, cbox)
-		return
 	# ON: the glyph row (and the fence warning) on one side of the pad, the name and the preview line on one side; each cluster
 	# stands above the hero's head (north) or below the pad (south). Where both share a side the row is nearest the pad.
 	var on := {}
@@ -325,15 +411,72 @@ func _layout_items() -> void:
 	m[name_north] = _place_text(on, effect_label, m[name_north], name_north)
 	_pos[ON] = on
 
-## E6: the ON glyph alone, centred, above the hero's head or below the pad (`row_north`); the UNARMED block (glyph over its cost, the NEAR block's
-## order) at the same edge. Above the head starts higher than the flag-off stack (RETUNE_NORTH_BASE_M): the test's hero box is taller on screen.
-func _layout_retune(ibox: Vector2, cbox: Vector2) -> void:
+## A point `p` metres ON THE SCREEN from the pad's ground point (right, up), in the plane facing the camera, as a local position.
+static func _scr(p: Vector2) -> Vector3:
+	var basis := CameraMath.camera_transform(Vector2.ZERO, Balance.ui).basis
+	return basis.x * p.x + basis.y * p.y
+
+## E6: the tether from the NEAR cost to its pad (screen metres from the pad): a line from the cost's edge facing the pad to the RING's edge, light (gold) with an ink edge
+## all round (TETHER_WIDTH_M wide in all). None while the cost stands within TETHER_FROM_M of the pad's centre.
+func _layout_tether(cbox: Vector2, cost_up: float) -> void:
+	tether_ends = []
+	tether_len = 0.0
+	if tether == null:
+		tether_ink = _tether_node("TetherInk", OUTLINE_PRIORITY)
+		tether = _tether_node("Tether", LABEL_PRIORITY)
+	var cpos := Vector2(cost_shift.x, cost_up)  # the cost's centre from the pad's, on the screen
+	var edge := Vector2(maxf(absf(cpos.x) - cbox.x * 0.5, 0.0), maxf(absf(cpos.y) - cbox.y * 0.5, 0.0)).length()  # the cost's nearest edge from the pad's centre
+	if edge <= TETHER_FROM_M + 0.001:
+		tether.mesh = null
+		tether_ink.mesh = null
+		return
+	var d := -cpos.normalized()
+	var ry := MapLayout.BRANCH_PAD_RADIUS * sin(deg_to_rad(absf(Balance.ui.camera_pitch)))
+	var t_ring := 1.0 / sqrt(pow(d.x / MapLayout.BRANCH_PAD_RADIUS, 2.0) + pow(d.y / ry, 2.0))  # the ring's edge from the pad's centre along the line
+	var t_blk := minf(cbox.x * 0.5 / maxf(absf(d.x), 1e-6), cbox.y * 0.5 / maxf(absf(d.y), 1e-6))
+	var tail := cpos + d * t_blk  # on the edge of the cost's box (the outline included)
+	tether_len = maxf(tail.length() - t_ring, 0.0)
+	var tip := tail + d * tether_len  # on the ring's edge
+	tether_ends = [_scr(tip), _scr(tail)]
+	var ink := TETHER_INK_M
+	tether.mesh = _quad_mesh(tip, tail, d, TETHER_WIDTH_M * 0.5 - ink, Palette.color(&"gold"))
+	tether_ink.mesh = _quad_mesh(tip, tail, d, TETHER_WIDTH_M * 0.5, Palette.color(&"ink"))
+
+func _tether_node(node_name: String, priority: int) -> MeshInstance3D:
+	var n := MeshInstance3D.new()
+	n.name = node_name
+	n.visible = false
+	n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var mat := BranchIcons.ground_material().duplicate() as StandardMaterial3D
+	mat.no_depth_test = true
+	mat.render_priority = priority
+	n.material_override = mat
+	body.add_child(n)
+	return n
+
+## A flat strip from `tip` to `tail` (screen metres from the pad), `half` metres to each side of the line; the ink strip is longer than the light one by the same edge.
+func _quad_mesh(tip: Vector2, tail: Vector2, d: Vector2, half: float, c: Color) -> ArrayMesh:
+	var grow := half - (TETHER_WIDTH_M * 0.5 - TETHER_INK_M)  # 0 for the light strip, TETHER_INK_M for the ink strip
+	var perp := Vector2(-d.y, d.x) * half
+	var t0 := tip - d * grow
+	var t1 := tail + d * grow
+	var verts := PackedVector3Array([_scr(t1 - perp), _scr(t1 + perp), _scr(t0 + perp), _scr(t1 - perp), _scr(t0 + perp), _scr(t0 - perp)])
+	var cols := PackedColorArray([c, c, c, c, c, c])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_COLOR] = cols
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return m
+
+## E6: the ON glyph alone, centred, above the hero's head or below the pad (`row_north`); the UNARMED glyph stands at the same place (no cost).
+## Above the head starts higher than the flag-off stack (RETUNE_NORTH_BASE_M): the test's hero box is taller on screen. The offset is from the
+## pad's centre; while shown on a stood pad the glyph keeps it from the HERO (_follow_hero).
+func _layout_retune(ibox: Vector2, _cbox: Vector2) -> void:
 	var m := RETUNE_NORTH_BASE_M if row_north else SOUTH_BASE_M
-	_pos[ON] = {icon: _at(m + ibox.y * 0.5, row_north)}
-	if row_north:  # the cost nearest the pad, the glyph above it
-		_pos[UNARMED] = {cost_label: _at(m + cbox.y * 0.5, true), icon: _at(m + cbox.y + STACK_GAP_M + ibox.y * 0.5, true)}
-	else:  # the glyph nearest the pad, the cost below it
-		_pos[UNARMED] = {icon: _at(m + ibox.y * 0.5, false), cost_label: _at(m + ibox.y + STACK_GAP_M + cbox.y * 0.5, false)}
+	_pos[ON] = {icon: _at(m + ibox.y * 0.5 + (on_shift.y if row_north else -on_shift.y), row_north) + Vector3(on_shift.x, 0.0, 0.0)}
+	_pos[UNARMED] = _pos[ON]
 
 ## The local position of an item whose centre stands `c` metres ON THE SCREEN above (north) or below (south) the pad: above it is a
 ## height (a billboard over the hero), below it is a point on the ground south of the pad (the camera looks down at 55 degrees).
@@ -406,7 +549,7 @@ func _ring(radius: float, colour: StringName, node_name: String) -> void:
 	var r := MeshInstance3D.new()
 	r.name = node_name
 	r.mesh = BranchIcons.ring_mesh(colour, 0.985, 0.0)
-	r.material_override = BranchIcons.ground_material()
+	r.material_override = BranchIcons.ground_front_material(RING_PRIORITY) if retune else BranchIcons.ground_material()
 	r.scale = Vector3(radius, 1.0, radius)
 	r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	preview.add_child(r)
@@ -421,15 +564,16 @@ const HINT_Y := 0.35
 const HINT_AT := {"tower_w": Vector2(0.0, -1.5), "tower_sw": Vector2(-1.0, 0.0), "tower_e": Vector2(0.0, 0.25), "fence_sw": Vector2(0.25, 0.0)}
 ## E6 (flag on): the same offsets today (the pad search of Task 14 kept them: no preview needed to move). A key is a spot ("tower_e") or one pad
 ## ("tower_e:1", which wins); the zero-overlap test (tests/unit/test_branch_pads.gd) is the oracle for any change.
-const HINT_AT_RETUNE := {"tower_w": Vector2(0.0, -1.5), "tower_sw": Vector2(-1.0, 0.0), "tower_e": Vector2(0.0, 0.25), "fence_sw": Vector2(0.25, 0.0)}
+const HINT_AT_RETUNE := {"tower_w": Vector2(0.0, -1.5), "tower_sw": Vector2(-1.0, 0.0), "tower_e": Vector2(0.0, 0.25), "fence_sw": Vector2(0.25, 0.0), "tower_nw:1": Vector2(-0.5, 0.0), "tower_w:1": Vector2(-0.5, -1.5)}
 
 ## A glyph and, if `mult` is not empty, its multiplier beside it, in front of the building.
 func _hint(kind: StringName, mult: String) -> void:
-	var g := _glyph(kind, Balance.ui.branch_pad_icon_m, "HintIcon", preview)
+	var g := _glyph(kind, Balance.ui.icon_m(), "HintIcon", preview)
 	hint_icons.append(g)
 	if mult != "":
 		hint_label = WorldLabel.make(mult, Balance.ui.branch_pad_cost_font)
 		hint_label.name = "HintMult"
+		_front(hint_label)
 		hint_label.pixel_size = Balance.ui.branch_pad_label_pixel_size
 		preview.add_child(hint_label)
 	if retune:
@@ -488,6 +632,11 @@ func _physics_process(_delta: float) -> void:
 	var want := _stage_now()
 	if want != stage:
 		_apply_stage(want)
+	_follow_hero()
+
+## E6 (flag on only): this pad shows its cost (NEAR) or is stood on (ON): the pips of its building are hidden meanwhile (BuildSpot).
+func shows_cost() -> bool:
+	return retune and body != null and body.visible and (stage == NEAR or stage == ON)
 
 func _stage_now() -> int:
 	if _on_pad == self:
@@ -509,7 +658,7 @@ func _in_reach() -> bool:
 	if hero == null:
 		return false
 	var d := Vector2(hero.global_position.x - global_position.x, hero.global_position.z - global_position.z).length()
-	return d <= (Balance.ui.branch_pad_leave_m if stage == NEAR else Balance.ui.branch_pad_near_m)
+	return d <= (Balance.ui.leave_m(retune) if stage == NEAR else Balance.ui.branch_pad_near_m)
 
 ## Writes the items of `st`: only when the stage changes (visibility, positions, glyph size and material).
 func _apply_stage(st: int) -> void:
@@ -517,14 +666,17 @@ func _apply_stage(st: int) -> void:
 	var ui := Balance.ui
 	icon.visible = st != FAR_QUIET and st != SIBLING_QUIET
 	if st <= FAR_QUIET or st == SIBLING_QUIET:
-		icon.material_override = BranchIcons.far_material()
+		icon.material_override = BranchIcons.far_front_material(LABEL_PRIORITY) if retune else BranchIcons.far_material()
 		icon.scale = Vector3.ONE * ui.branch_pad_far_icon_m
 		icon.position = Vector3(0, 0.45, 0)
 	else:
-		icon.material_override = BranchIcons.material()
-		icon.scale = Vector3.ONE * ui.branch_pad_icon_m
-	cost_label.visible = st == NEAR or st == UNARMED or (st == ON and not retune)
-	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if (st == NEAR or st == UNARMED) else HORIZONTAL_ALIGNMENT_LEFT
+		icon.material_override = _glyph_material()
+		icon.scale = Vector3.ONE * ui.icon_m()
+	cost_label.visible = st == NEAR or (st == ON and not retune)  # E6: an unarmed pad cannot be paid yet: no cost
+	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if st == NEAR else HORIZONTAL_ALIGNMENT_LEFT
+	if tether != null:
+		tether.visible = st == NEAR and not tether_ends.is_empty()
+		tether_ink.visible = tether.visible
 	var on := st == ON
 	var texts := on and not retune  # E6: the name, the preview line and the warning are the card's, not the world's
 	name_label.visible = texts
@@ -536,6 +688,16 @@ func _apply_stage(st: int) -> void:
 	if _pos.has(st):
 		for n in _pos[st]:
 			(n as Node3D).position = _pos[st][n]
+	_follow_hero()
+	stage_changed.emit()
+
+## E6 (flag on): on a stood pad (ON or UNARMED) the glyph keeps its offset from the hero, not from the pad's centre: a hero standing at the pad's
+## edge has the glyph above his head, not on it. Visual only.
+func _follow_hero() -> void:
+	if not retune or (stage != ON and stage != UNARMED):
+		return
+	var off: Vector3 = _pos[ON][icon]
+	icon.global_position = Vector3(_hero_at.x, global_position.y, _hero_at.z) + off
 
 func _on_tick() -> void:
 	if not is_shown():
@@ -584,6 +746,7 @@ func refresh() -> void:
 	else:
 		preview.visible = false
 		stage = FAR
+		stage_changed.emit()
 	zone.ring.visible = shown and _paid_seen > 0
 	zone.ring.set_progress(float(_paid_seen) / float(cost) if shown and cost > 0 else 0.0)
 
