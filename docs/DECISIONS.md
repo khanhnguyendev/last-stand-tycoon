@@ -3217,3 +3217,22 @@ from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the
      (tower_e a: the Freezer label blocks every close position) and has a gold tether to its ring.
    - Scans: near 8.9 px, on 8 px smallest gap; zero findings; no exception list. The lane's telegraph flag is a 3D
      model, not a label, and is not an obstacle (one cost crosses it on fence_w).
+
+**D-300 Phase A after the author's answer 2 (D-298.2): pips in one draw, readings by framing (2026-10-14).**
+1. **Every level pip is one draw call** (one MultiMesh; the owner node is created lazily under Main). Pixel-identical
+   over 13 compared states. Draw calls on desktop at a fixed tick: night at HOME 78 -> 56; resumed night 47 -> 39;
+   day at HOME without pads 102 -> 80.
+2. **Not batched:** pad rings (15 draws), pad glyphs (12), lane flags (4), spot models (7): per-stage materials,
+   the D-299 draw order, or per-level swaps. All of them together would reach about 72 draws by day.
+3. **Simulator readings (median of 3; a proxy: the real phone check stays on the final review):** night gate
+   (entered by play, hero at HOME) 54.9 fps, worst frame 26 ms, 54 draws: UNDER the 58 fps threshold; resumed night
+   59.9 fps, 25 ms, 40 draws; day at HOME (tier 3, pads shown) 43.2 fps, 28 ms, 107 draws: UNDER the 55 fps
+   threshold. Removing 22 to 24 draws bought about 1 fps: the HOME framing is not limited by the draw count.
+4. **Attribution (one run per switch; noise about 1.5 fps; baseline that session 56.3 night, 42.5 day):** diner art
+   hidden 58.0 / 43.9; fade off 56.3 / 42.4; every Label3D hidden 57.9 / 48.6; HUD hidden 57.5 / 44.3; ground art
+   hidden 59.2 / 46.1; enemies hidden 56.9 (night). Night: no single part is worth more than 2.9 fps; the cost is
+   spread (process time 12.7 ms of a 17.8 ms frame). Day: the 29 Label3D are the one large item (+6.1 fps), and the
+   day still reads 48.6 without them.
+5. **Draw-call budgets by reading** (measured + 10; a warning only): night entered by play 64, resumed night 50,
+   day at HOME 117.
+6. **Open with the author:** both fps thresholds are unmet; no visual change was made.
