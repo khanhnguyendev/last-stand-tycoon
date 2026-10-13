@@ -1696,6 +1696,19 @@ func _free_point(c: Vector2, r: float) -> Array:
 			return [c + dir * r, dir]
 	return []
 
+## A direction from pad `i` of `id` along which the hero stands on a free point at 1 to 6 m from it and is, at every one of them, farther than the keep distance from the spot's OTHER pad (so this pad alone decides the stars).
+func _lone_ray(id: String, i: int) -> Vector2:
+	var c := _pad_pos(id, i)
+	for k in 16:
+		var dir := Vector2.from_angle(TAU * float(k) / 16.0)
+		var ok := true
+		for rr in [0.0, 1.0, 2.0, 3.0, 3.4, 4.5, 6.0]:
+			ok = ok and (rr == 0.0 or _reachable(c + dir * rr))
+			ok = ok and (c + dir * rr).distance_to(_pad_pos(id, 1 - i)) > Balance.ui.leave_m(true) + 0.3
+		if ok:
+			return dir
+	return Vector2.ZERO
+
 ## The pips of a spot as the real nodes show them now: how many of its stars are visible.
 func _visible_pips(id: String) -> int:
 	var n := 0
@@ -1735,6 +1748,133 @@ func test_flag_on_a_spots_level_pips_hide_while_its_own_pad_shows_a_cost_and_ret
 	assert_gt(GameState.pay_into_branch("tower_nw", &"volley", _cost("tower_nw")), 0)
 	assert_false(_pads("tower_nw")[0].is_shown(), "setup: the pads are gone")
 	assert_eq(_visible_pips("tower_nw"), 3, "after the purchase the pad is gone and the stars are back")
+
+## Real physics ticks: the hero walks from FAR onto tower_nw's pad a and back out. From the first tick any own pad is not FAR until every own pad is FAR again the
+## stars are hidden on EVERY tick (the walk-in passes NEAR -> UNARMED -> ON; a rule that covers only NEAR or ON flashes the stars for one tick), and they never toggle in between.
+## Catches: UNARMED not covering (one-tick flash); stars returning while the hero stands on the pad.
+func test_flag_on_the_pips_stay_hidden_on_every_tick_of_a_walk_in_and_out() -> void:
+	await _start_on()
+	_all_max()
+	var id := "fence_sw"  # its two pads are 5.3 m apart: the sibling is out of reach, so one pad alone decides the stars
+	var pad_a: BranchPad = _pads(id)[0]
+	var c := _pad_pos(id, 0)
+	var dir := _lone_ray(id, 0)
+	assert_ne(dir, Vector2.ZERO, "setup: a free ray from the pad")
+	main.hero.teleport(c + dir * 6.0)
+	await _settle()
+	assert_eq(_visible_pips(id), 3, "setup: far away the stars show")
+	var step: float = main.hero.move_speed() / 60.0
+	var log: Array = []  # [tick, stages of both pads, stars shown]
+	var seen_stages := {}
+	var in_use_once := false
+	# in: walk to the pad's centre; out: walk back to 6 m
+	for leg in 2:
+		var target := c if leg == 0 else c + dir * 6.0
+		for t in 900:
+			var d: Vector2 = target - main.hero.xz()
+			if d.length() < 0.05:
+				break
+			main.hero.input.set_move((d / step).limit_length(1.0))
+			await get_tree().physics_frame  # one tick: what is read is the state the last tick left (pads, then zones, have run)
+			var stages: Array = _pads(id).map(func(q): return q.stage)
+			seen_stages[stages[0]] = true
+			var used: bool = stages.any(func(st): return st != BranchPad.FAR)
+			in_use_once = in_use_once or used
+			log.append([used, _visible_pips(id), stages])
+	main.hero.input.set_move(Vector2.ZERO)
+	assert_true(in_use_once, "setup: the walk made a pad leave FAR")
+	assert_true(seen_stages.has(BranchPad.NEAR) and seen_stages.has(BranchPad.ON), "setup: it passed NEAR and ON (stages %s)" % [seen_stages.keys()])
+	for k in log.size():
+		var used: bool = log[k][0]
+		assert_eq(log[k][1], 0 if used else 3, "tick %d: stages %s: the stars %s" % [k, log[k][2], "hidden while a pad is in use" if used else "show with every own pad FAR"])
+	var toggles := 0
+	for k in range(1, log.size()):
+		toggles += int(log[k][1] != log[k - 1][1])
+	assert_eq(toggles, 2, "one hide on the way in and one show on the way out; no toggle in between")
+
+## The walk-in tick itself (the pad ran, its zone did not): UNARMED, and the stars are already hidden.
+func test_flag_on_the_pips_are_hidden_in_the_unarmed_walk_in_tick() -> void:
+	await _start_on()
+	_all_max()
+	var c := _pad_pos("fence_sw", 0)
+	var p: BranchPad = _pads("fence_sw")[0]
+	main.hero.teleport(c + _lone_ray("fence_sw", 0) * 3.0)
+	await _settle()
+	main.hero.global_position = MapLayout.to3(c + Vector2(0, 0.0))
+	BranchPad._cache_frame = -1
+	p._physics_process(0.0)
+	assert_eq(p.stage, BranchPad.UNARMED, "setup: the walk-in tick")
+	assert_eq(_visible_pips("fence_sw"), 0, "UNARMED hides the stars too")
+
+## The pads leave the map without a stage change of their own: night (pads are not shown at night), a tier drop (the world frees them), a new game, a load. The stars must be
+## right afterwards: visible with no pad shown, hidden again after a load that puts the hero NEAR a pad (one tick).
+func test_flag_on_the_pips_follow_night_a_tier_drop_a_new_game_and_a_load_while_the_hero_is_near_a_pad() -> void:
+	await _start_on()
+	_all_max()
+	var c := _pad_pos("tower_nw", 0)
+	var near_at: Vector2 = _free_point(c, 1.6)[0]
+	main.hero.teleport(near_at)
+	await _settle()
+	assert_eq(_pads("tower_nw")[0].stage, BranchPad.NEAR, "setup: NEAR")
+	assert_eq(_visible_pips("tower_nw"), 0, "setup: hidden")
+	# night starts while he stands there: no pad is shown at night, the stars show all night
+	pc.debug_skip_to_night()
+	assert_eq(_visible_pips("tower_nw"), 3, "night: the stars are back at once")
+	await _settle()
+	assert_eq(_visible_pips("tower_nw"), 3, "night: and stay all night")
+	pc.debug_skip_to_day()
+	await _settle()
+	assert_eq(_visible_pips("tower_nw"), 0, "dawn: he is still there, the pad is in use again")
+	# a load with the hero near: the pads are made again, the stars follow within one tick
+	var d := GameState.to_dict()
+	GameState.new_game(3)
+	await get_tree().physics_frame
+	assert_eq(main.world.branch_pads.size(), 0, "a new game: tier 1, no pads")
+	for id in main.world.build_spots:
+		assert_false((main.world.build_spots[id] as BuildSpot)._pips_covered, "%s: nothing covers its stars after a new game" % id)
+	GameState.from_dict(d)
+	main.hero.teleport(near_at)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert_eq(_pads("tower_nw")[0].stage, BranchPad.NEAR, "setup: the reloaded pad is NEAR")
+	assert_eq(_visible_pips("tower_nw"), 0, "a load with the hero NEAR: hidden after one tick")
+	assert_eq(_visible_pips("tower_ne"), 3, "another spot's stars show")
+	# a tier drop while NEAR frees the pads
+	GameState.debug_set_tier(2, GameState.day)
+	await get_tree().physics_frame
+	assert_eq(main.world.branch_pads.size(), 0, "setup: a tier drop frees the pads")
+	assert_eq(_visible_pips("tower_nw"), 3, "the pads are freed while NEAR: the stars are back")
+
+## FAR stage: the stars show, so a FAR glyph must keep MIN_GAP_PX from the pips of every building (the same 1.1 x 0.4 m star row the other scans use), over every
+## pad, three aspects, the camera on the pad (the gap is a fixed offset in the world, so only the scale of the view changes it).
+func test_flag_on_a_far_glyph_keeps_eight_px_from_every_buildings_stars() -> void:
+	await _start_on()
+	_all_max()
+	main.hero.teleport(Vector2(15.0, 8.0))
+	await _settle()
+	var findings: Array = []
+	var smallest := INF
+	var seen := 0
+	for id in MapLayout.spots_for_tier(3):
+		for i in 2:
+			var p: BranchPad = _pads(id)[i]
+			assert_eq(p.stage, BranchPad.FAR, "setup: %s pad %d is FAR" % [id, i])
+			for a in ASPECTS.size():
+				var v := View.new(_pad_pos(id, i), ASPECTS[a])
+				var g := _node_rect(p.icon, v)
+				for oid in main.world.build_spots:
+					var sp: BuildSpot = main.world.build_spots[oid]
+					if _visible_pips(oid) == 0 or sp.global_position.distance_to(p.global_position) > 12.0:
+						continue
+					seen += 1
+					var gap := _gap(g, v.quad(sp.global_position + Vector3(0, sp._pip_y(Balance.data.build.max_level), 0), Vector2(1.1, 0.4)))
+					smallest = minf(smallest, gap)
+					if gap < MIN_GAP_PX:
+						findings.append("%s %s pad %d: the FAR glyph is %.1f px from the stars of %s" % [ASPECT_NAMES[a], id, i, gap, oid])
+	gut.p("FAR glyph vs stars: %d pairs, smallest gap %.1f px" % [seen, smallest])
+	_dump("FAR glyph vs stars", findings)
+	assert_gt(seen, 18, "setup: the pairs were measured")
+	assert_eq(findings, [], "every FAR glyph keeps 8 px from every visible star row")
 
 ## ON hides them too (the hero stands on the pad); leaving brings them back. Catches a rule that covers NEAR only.
 func test_flag_on_a_spots_level_pips_stay_hidden_while_the_hero_stands_on_its_pad() -> void:

@@ -11,7 +11,7 @@ var visual: Node3D
 var marker: Node3D
 var _world: World
 var _pips: Array = []
-## E6 (flag on only, visual): the level pips hide while one of this spot's own branch pads shows a cost (NEAR or ON).
+## E6 (flag on only, visual): the level pips hide while one of this spot's own branch pads is in use (anything but FAR).
 var _pips_covered := false
 var _fx: FlyFx
 ## Paid ticks since the last empty refresh; drives the build dust only (S5 Task 5, visual).
@@ -120,7 +120,7 @@ func _on_pad_stage_changed() -> void:
 		return
 	var covered := false
 	for pad: BranchPad in _world.branch_pads.get(spot_id, []):
-		covered = covered or pad.shows_cost()
+		covered = covered or pad.in_use()
 	if covered == _pips_covered:
 		return
 	_pips_covered = covered
