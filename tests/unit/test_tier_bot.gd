@@ -655,3 +655,53 @@ func test_the_other_policies_and_threat_without_a_character_keep_todays_order() 
 	GameState.lane_plan = [_wave("west", 2)]
 	assert_true(GameState.lane_character().is_empty())
 	assert_eq(_targets(bot2, 3), ["pad_tower_nw_a", "pad_tower_ne_b", "pad_fence_w_a"], "threat, empty character: the plan decides, list order")
+
+# --- E6 phase 4: the hero holds a breached lane ---------------------------------------------------------------------------------------
+
+const _LANES3: Array = ["west", "north", "east", "sw"]  # lanes_for_tier(3) order; north before sw
+const _CHAR := {"siege": "north", "hare": "sw"}
+
+func _counts(n: int, w: int, e: int, sw: int) -> Dictionary:
+	return {"west": w, "north": n, "east": e, "sw": sw}
+
+func _breach(n: int, w: int, e: int, sw: int) -> Dictionary:
+	return {"west": w, "north": n, "east": e, "sw": sw}
+
+func test_with_a_character_the_lane_with_enemies_at_the_diner_wins_over_the_bigger_lane() -> void:
+	# seed 7, night 23, t = 93.0: north 10 (none past the fence), sw 8 (5 at the diner)
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(0, 0, 0, 5), _CHAR), "sw")
+
+func test_with_a_character_and_nothing_breached_the_choice_is_todays() -> void:
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(0, 0, 0, 0), _CHAR), "north")
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(0, 0, 0, 0), _breach(0, 0, 0, 0), _CHAR), "", "zero everywhere: no lane (the caller falls back to the plan's main lane)")
+
+func test_with_a_character_two_breached_lanes_the_one_with_more_at_the_diner_wins() -> void:
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(2, 0, 0, 5), _CHAR), "sw")
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(5, 0, 0, 2), _CHAR), "north")
+
+func test_with_a_character_equal_breach_counts_fall_back_to_the_most_enemies_then_lane_order() -> void:
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(4, 0, 0, 9), _breach(3, 0, 0, 3), _CHAR), "sw", "tied breach: most enemies")
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(6, 0, 0, 6), _breach(3, 0, 0, 3), _CHAR), "north", "tied on both: lane order")
+
+func test_with_an_empty_character_the_breach_is_ignored() -> void:
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(0, 0, 0, 5), {}), "north")
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(2, 0, 0, 5), {}), "north")
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(0, 0, 0, 0), {}), "north")
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(1, 0, 0, 8), _breach(1, 0, 0, 0), {}), "sw")
+
+func test_todays_choice_is_pinned_for_three_literals() -> void:
+	# captured from the loop in NaiveBot._night before this change
+	assert_eq(NaiveBot.most_enemies(["west", "north", "east"], {"west": 3, "north": 3, "east": 1}), "west")
+	assert_eq(NaiveBot.most_enemies(["west", "north", "east"], {"west": 0, "north": 2, "east": 5}), "east")
+	assert_eq(NaiveBot.most_enemies(["west", "north", "east", "sw"], {"west": 0, "north": 0, "east": 0, "sw": 0}), "")
+
+func test_an_enemy_counts_as_breached_in_the_zone_or_at_the_stop_point_of_a_fallen_fence() -> void:
+	var in_zone := MapLayout.zone_rect("sw").get_center()
+	var stop := MapLayout.path_length("sw") - MapLayout.FENCE_OFFSET_FROM_END - 1.2
+	var far := Vector2(-20, 11)
+	assert_true(TierBot.enemy_breached("sw", in_zone, 1.0, 1.2, true), "inside the diner zone, fence standing")
+	assert_false(TierBot.enemy_breached("sw", far, 2.0, 1.2, false), "far up the lane")
+	assert_true(TierBot.enemy_breached("sw", far, stop, 1.2, false), "held at the stop point of a fallen fence")
+	assert_false(TierBot.enemy_breached("sw", far, stop, 1.2, true), "the same place with the fence standing: held, not breached")
+	assert_false(TierBot.enemy_breached("sw", far, stop - 0.1, 1.2, false), "short of the stop point")
+	assert_false(TierBot.enemy_breached("sw", far, stop, 0.8, false), "a shorter reach stops later: this one is short of its own stop point")
