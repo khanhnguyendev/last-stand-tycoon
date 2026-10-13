@@ -6,12 +6,14 @@ extends SceneTree
 ##   pad_<spot_id>_a.png and pad_<spot_id>_b.png (the 18 pads: the hero WALKS onto the pad, so it is armed and the branch card shows; the world
 ##     keeps the ring, the glyph and the preview shape),
 ##   near_stage.png (the hero at (6.0, -9.5), not on a pad: ring, glyph and cost on the pads of tower_ne that are in reach, ring and glyph on the other),
+##   near_tower_ne.png, near_fence_e.png, near_fence_w.png (the re-placed costs of those spots, the hero off every pad; round 7),
+##   pips_far.png / pips_near.png (the SAME frozen camera: tower_nw's three stars show with the hero away, then hide while its pad shows the cost; round 7),
 ##   sw_corner.png (the hero on fence_sw's first pad: tower_sw's and fence_sw's four pads, the close-up sign and the south-west count row),
 ##   near_fence_sw_a.png / near_fence_sw_b.png (the hero 3 m west of fence_sw's pad a / 3 m east of its pad b, on no pad: the pad in reach shows ring, glyph
 ##     and cost, the other pad of the spot, out of reach, ring and glyph only),
 ##   near_tower_nw.png / near_tower_sw.png (the hero off every pad with both pads of the spot in reach: two blocks, shifted off the tower's pips),
-##   hero_front.png (the hero 1.2 m south of tower_e's first pad: his body in front of the cost; D-294.8),
-##   tethered.png (the hero standing on the tether of tower_nw's first pad), tether_clear.png and tether_tower_e.png (the two tethers with the hero away from them), walk_south.png (the hero running north onto tower_e's first pad, mid-stride); `--only=a,b` writes just those,
+##   hero_front.png (the hero's body on tower_e's first pad's cost, which stands beside the ring: his body in front of the cost; D-294.8),
+##   tethered.png (the hero standing on the tether of tower_e's first pad, the one pad that keeps a tether), tether_tower_e.png (the same tether with the hero away from it), walk_south.png (the hero running north onto tower_e's first pad, mid-stride); `--only=a,b` writes just those,
 ##   unarmed.png (the hero PLACED on tower_e's first pad, not walked in: the card stays hidden; ring and glyph only, no cost, no preview),
 ##   edge_tower_e_a.png (the hero walked onto tower_e's first pad and standing at its north edge, 0.72 m from the centre: the glyph follows him),
 ##   far_stage.png (the hero at HOME: every pad shows its ring and glyph only), refund.png (the E5 refund flight, unchanged).
@@ -82,16 +84,19 @@ func _run() -> void:
 	for id in layout.spots_for_tier(3):
 		for i in 2:
 			await _walk_and_grab(main, camera_math, bal, "pad_%s_%s" % [id, "ab"[i]], table[id][i])
-	await _place_and_grab(main, camera_math, bal, "near_stage", Vector2(6.0, -9.5))
+	await _place_and_grab(main, camera_math, bal, "near_stage", Vector2(6.0, -9.5), "tower_ne")
 	await _walk_and_grab(main, camera_math, bal, "sw_corner", table["fence_sw"][0])
-	await _place_and_grab(main, camera_math, bal, "near_fence_sw_a", Vector2(table["fence_sw"][0].x - 3.0, table["fence_sw"][0].y))
-	await _place_and_grab(main, camera_math, bal, "near_fence_sw_b", Vector2(table["fence_sw"][1].x + 3.0, table["fence_sw"][1].y))
+	await _place_and_grab(main, camera_math, bal, "near_fence_sw_a", Vector2(table["fence_sw"][0].x - 3.0, table["fence_sw"][0].y), "fence_sw")
+	await _place_and_grab(main, camera_math, bal, "near_fence_sw_b", Vector2(table["fence_sw"][1].x + 3.0, table["fence_sw"][1].y), "fence_sw")
+	await _place_and_grab(main, camera_math, bal, "near_fence_e", Vector2(7.6, -8.4), "fence_e")
+	await _place_and_grab(main, camera_math, bal, "near_fence_w", Vector2(-8.4, -7.8), "fence_w")
+	await _place_and_grab(main, camera_math, bal, "near_tower_ne", Vector2(1.6, -6.9), "tower_ne")
 	await _place_and_grab(main, camera_math, bal, "near_tower_nw", Vector2(-1.6, -6.9), "tower_nw")
 	await _place_and_grab(main, camera_math, bal, "near_tower_sw", Vector2(-6.45, 2.6), "tower_sw")
-	await _place_and_grab(main, camera_math, bal, "hero_front", table["tower_e"][0] + Vector2(0.0, 1.2), "tower_e")
-	await _place_and_grab(main, camera_math, bal, "tethered", table["tower_nw"][0] + Vector2(1.06, 0.89), "tower_nw")  # the middle of the tether line crosses his body
-	await _place_and_grab(main, camera_math, bal, "tether_clear", table["tower_nw"][0] + Vector2(-0.9, 1.3), "tower_nw")  # the same tether with the hero away from it
-	await _place_and_grab(main, camera_math, bal, "tether_tower_e", table["tower_e"][0] + Vector2(0.5, 2.6), "tower_e")
+	await _place_and_grab(main, camera_math, bal, "hero_front", _cost_stand(main, camera_math, bal, "tower_e", 0), "tower_e")  # his body on the pad's real cost (it stands beside the ring now)
+	await _place_and_grab(main, camera_math, bal, "tethered", _tether_stand(main, camera_math, bal, "tower_e", 0), "tower_e", 0)  # the middle of the tether line crosses his body
+	await _place_and_grab(main, camera_math, bal, "tether_tower_e", table["tower_e"][0] + Vector2(0.5, 2.6), "tower_e", 0)  # the same tether with the hero away from it
+	await _pips_pair(main, camera_math, "tower_nw", Vector2(-1.6, -6.9), Vector2(15.0, 8.0), Vector2(-3.2, -6.3))
 	await _walk_shot(main, camera_math, "walk_south", table["tower_e"][0])
 	await _place_and_grab(main, camera_math, bal, "diner_fade", Vector2(0.5, -5.2))  # behind the diner (north of it): the fade is on
 	await _place_and_grab(main, camera_math, bal, "unarmed", table["tower_e"][0])
@@ -154,7 +159,8 @@ func _walk_and_grab(main, camera_math, bal, name: String, p: Vector2, edge := Ve
 	await _save(main, name)
 
 ## Places the hero (a teleport: the pad stays unarmed) and saves the picture.
-func _place_and_grab(main, camera_math, bal, name: String, p: Vector2, focus := "") -> void:
+## `tether_pad` >= 0: that pad of `focus` must show its tether (the shot exists for it).
+func _place_and_grab(main, camera_math, bal, name: String, p: Vector2, focus := "", tether_pad := -1) -> void:
 	if _failed or (not _only.is_empty() and not name in _only):
 		return
 	main.hero.teleport(Vector2(15.0, 8.0))
@@ -171,7 +177,55 @@ func _place_and_grab(main, camera_math, bal, name: String, p: Vector2, focus := 
 			_failed = true
 			quit(1)
 			return
+		if tether_pad >= 0 and not main.world.branch_pads[focus][tether_pad].tether.is_visible_in_tree():
+			printerr("SHOT FAILED: %s must show the tether of %s pad %d, which does not show with the hero at %s" % [name, focus, tether_pad, p])
+			_failed = true
+			quit(1)
+			return
 	await _save(main, name)
+
+## Where the hero's feet go so that the middle of `spot`'s pad `idx` tether line crosses his body (0.4 m above his feet on the screen).
+func _tether_stand(main, camera_math, bal, spot: String, idx: int) -> Vector2:
+	var pad = main.world.branch_pads[spot][idx]
+	var xf = camera_math.camera_transform(Vector2.ZERO, bal.ui)
+	var mid: Vector3 = (pad.tether_ends[0] + pad.tether_ends[1]) * 0.5
+	var pad_at: Vector2 = load("res://core/map_layout.gd").branch_pad(spot, idx, true)
+	return pad_at + Vector2(mid.dot(xf.basis.x), -(mid.dot(xf.basis.y) - 0.4) / sin(deg_to_rad(absf(bal.ui.camera_pitch))))
+
+## Where the hero's feet go so that his body covers the centre of `spot`'s pad `idx` NEAR cost (0.4 m below it on the screen).
+func _cost_stand(main, camera_math, bal, spot: String, idx: int) -> Vector2:
+	var pad = main.world.branch_pads[spot][idx]
+	var xf = camera_math.camera_transform(Vector2.ZERO, bal.ui)
+	var cl: Vector3 = pad._pos[pad.NEAR][pad.cost_label]
+	var pad_at: Vector2 = load("res://core/map_layout.gd").branch_pad(spot, idx, true)
+	return pad_at + Vector2(cl.dot(xf.basis.x), -(cl.dot(xf.basis.y) - 0.4) / sin(deg_to_rad(absf(bal.ui.camera_pitch))))
+
+## Two pictures from ONE frozen camera (looking at `cam_at`): the hero at `far_at` (the spot's stars show), then at `near_at` (its pad shows the cost, the stars are hidden). Fails unless that is what the nodes say.
+func _pips_pair(main, camera_math, spot: String, near_at: Vector2, far_at: Vector2, cam_at: Vector2) -> void:
+	if _failed or (not _only.is_empty() and not "pips_far" in _only and not "pips_near" in _only):
+		return
+	var BP = load("res://world/build_spots/branch_pad.gd")
+	var sp = main.world.build_spots[spot]
+	main.hero.teleport(Vector2(15.0, 8.0))
+	for i in 10:
+		await physics_frame
+	main.camera_rig.snap_to(camera_math.focus_for(cam_at))
+	main.camera_rig.set_process(false)  # the same camera for both pictures
+	for step in [["pips_far", far_at, 3, ""], ["pips_near", near_at, 0, spot]]:
+		main.hero.teleport(step[1])
+		for i in 40:
+			await physics_frame
+		var shown := 0
+		for pip in sp._pips:
+			shown += int(pip.visible)
+		if BP.focus_spot() != step[3] or shown != step[2]:
+			printerr("SHOT FAILED: %s: focus spot '%s' (want '%s'), %d stars visible (want %d)" % [step[0], BP.focus_spot(), step[3], shown, step[2]])
+			_failed = true
+			main.camera_rig.set_process(true)
+			quit(1)
+			return
+		await _save(main, step[0])
+	main.camera_rig.set_process(true)
 
 ## The hero running north onto a pad from the south, picture taken while he moves, 1.6 m short of its centre.
 func _walk_shot(main, camera_math, name: String, p: Vector2) -> void:

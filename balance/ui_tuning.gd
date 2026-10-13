@@ -207,10 +207,9 @@ extends Resource
 @export var branch_pad_near_m := 3.5
 @export var branch_pad_leave_m := 4.5
 @export var branch_pad_icon_m := 0.9
-## E6 Task 14 round 5 (flag on only, read through leave_m / icon_m): the keep band is shorter (the pad drops to FAR sooner; at least 0.3 m above branch_pad_near_m)
-## and the near / stood glyph may be smaller (never under branch_pad_far_icon_m). The flag-off values above are untouched.
+## E6 Task 14 round 5 (flag on only, read through leave_m): the keep band is shorter (the pad drops to FAR sooner; at least 0.3 m above branch_pad_near_m).
+## The flag-off value above is untouched. (The near glyph's height is the same in both states: branch_pad_icon_m, through icon_m.)
 @export var branch_pad_leave_m_retune := 3.8
-@export var branch_pad_icon_m_retune := 0.9
 @export var branch_pad_far_icon_m := 0.7
 @export var branch_pad_label_font := 48
 @export var branch_pad_cost_font := 48
@@ -223,9 +222,10 @@ extends Resource
 @export var branch_pad_label_min_px := 28.0
 @export var branch_pad_warn_min_px := 20.0
 
-## The keep distance and the near glyph height for the retune state (`retune` = TierEffects.retune_on): the _retune fields with the flag on, else today's.
+## The keep distance for the retune state (`retune` = TierEffects.retune_on): the _retune field with the flag on, else today's.
 func leave_m(retune: bool) -> float:
 	return branch_pad_leave_m_retune if retune else branch_pad_leave_m
 
-func icon_m(retune: bool) -> float:
-	return branch_pad_icon_m_retune if retune else branch_pad_icon_m
+## The near and stood glyph height (m): the same with the flag on and off.
+func icon_m() -> float:
+	return branch_pad_icon_m

@@ -1494,7 +1494,8 @@ func _world_obstacles(v: View, hero_at: Vector2, rows: Array, badges: Array, ski
 	out.append(["the hero", _hero_rect(hero_at, v)])
 	for id in main.world.build_spots:
 		var sp: BuildSpot = main.world.build_spots[id]
-		out.append(["the pips of " + id, v.quad(sp.global_position + Vector3(0, sp._pip_y(Balance.data.build.max_level), 0), Vector2(1.1, 0.4))])
+		if _visible_pips(id) > 0:  # round 7: a spot's own pips hide while its pad shows a cost; hidden pips are no obstacle (read from the real nodes)
+			out.append(["the pips of " + id, v.quad(sp.global_position + Vector3(0, sp._pip_y(Balance.data.build.max_level), 0), Vector2(1.1, 0.4))])
 		if sp.label.visible:
 			out.append(["the MAX label of " + id, _node_rect(sp.label, v)])
 	out.append(["the close-up sign's label", _sign_rect(v)])
@@ -1684,6 +1685,78 @@ func test_flag_on_the_stood_pad_shows_zero_overlaps_at_the_centre_and_four_edge_
 	_dump("ON, centre and edge points", findings)
 	assert_eq(findings, [], "an empty expected set: no pinned view, no exemption")
 
+## A point the hero can stand on, about `r` m from `c`, on the ray from `c` along the first free direction (of 16); the direction is returned in the second slot.
+func _free_point(c: Vector2, r: float) -> Array:
+	for k in 16:
+		var dir := Vector2.from_angle(TAU * float(k) / 16.0)
+		var ok := true
+		for rr in [r, Balance.ui.leave_m(true) - 0.05, Balance.ui.leave_m(true) + 0.1]:
+			ok = ok and _reachable(c + dir * rr)
+		if ok:
+			return [c + dir * r, dir]
+	return []
+
+## The pips of a spot as the real nodes show them now: how many of its stars are visible.
+func _visible_pips(id: String) -> int:
+	var n := 0
+	for pip in (main.world.build_spots[id] as BuildSpot)._pips:
+		n += int((pip as MeshInstance3D).visible)
+	return n
+
+## Author's decision (task 14 round 7, flag on only): a building's level pips HIDE while one of its own pads shows a cost (NEAR or ON) and come back with the cost.
+## Catches: pips that never hide; pips of ANOTHER spot hidden; pips that stay hidden after the hero leaves (at the flag-on leave distance) or after the purchase.
+func test_flag_on_a_spots_level_pips_hide_while_its_own_pad_shows_a_cost_and_return_with_it() -> void:
+	await _start_on()
+	_all_max()
+	var c := _pad_pos("tower_nw", 0)
+	_near_step(Vector2(15.0, 8.0))
+	for id in MapLayout.spots_for_tier(3):
+		assert_eq(_visible_pips(id), 3, "%s: FAR from every pad the three stars show" % id)
+	var fp := _free_point(c, 1.6)
+	assert_false(fp.is_empty(), "setup: a free ray from the pad")
+	var near_at: Vector2 = fp[0]
+	_near_step(near_at)
+	assert_eq(_pads("tower_nw")[0].stage, BranchPad.NEAR, "setup: the pad shows its cost")
+	assert_eq(_visible_pips("tower_nw"), 0, "the pad of the SAME spot is NEAR: its stars are hidden")
+	assert_eq(_visible_pips("tower_ne"), 3, "another spot's stars are not touched")
+	assert_eq(_visible_pips("fence_w"), 3, "another spot's stars are not touched")
+	# the keep band: still shown at the leave distance, back once the hero is past it
+	var dir: Vector2 = fp[1]
+	_near_step(c + dir * (Balance.ui.leave_m(true) - 0.05))
+	assert_eq(_pads("tower_nw")[0].stage, BranchPad.NEAR, "setup: inside the keep band the cost stays")
+	assert_eq(_visible_pips("tower_nw"), 0, "hidden while the cost is shown")
+	_near_step(c + dir * (Balance.ui.leave_m(true) + 0.1))
+	assert_ne(_pads("tower_nw")[0].stage, BranchPad.NEAR, "setup: past the leave distance the cost hides")
+	assert_eq(_visible_pips("tower_nw"), 3, "the stars are back with the cost hidden")
+	# a purchase: the pad disappears while NEAR
+	_near_step(near_at)
+	assert_eq(_visible_pips("tower_nw"), 0, "setup: hidden again")
+	GameState.gold = _cost("tower_nw")
+	assert_gt(GameState.pay_into_branch("tower_nw", &"volley", _cost("tower_nw")), 0)
+	assert_false(_pads("tower_nw")[0].is_shown(), "setup: the pads are gone")
+	assert_eq(_visible_pips("tower_nw"), 3, "after the purchase the pad is gone and the stars are back")
+
+## ON hides them too (the hero stands on the pad); leaving brings them back. Catches a rule that covers NEAR only.
+func test_flag_on_a_spots_level_pips_stay_hidden_while_the_hero_stands_on_its_pad() -> void:
+	await _start_on()
+	_all_max()
+	await _walk_onto("tower_ne", 0)
+	assert_eq(_pads("tower_ne")[0].stage, BranchPad.ON, "setup: on the pad")
+	assert_eq(_visible_pips("tower_ne"), 0, "ON: hidden")
+	assert_eq(_visible_pips("tower_nw"), 3, "another spot's stars show")
+	_near_step(Vector2(15.0, 8.0))
+	assert_eq(_visible_pips("tower_ne"), 3, "back once he is away")
+
+## Flag off: nothing changes. Catches a rule that does not read the flag.
+func test_flag_off_the_level_pips_never_hide_for_a_pad() -> void:
+	await _start()
+	_all_max()
+	var c := _pad_pos("tower_nw", 0)
+	_near_step(_free_point(c, 1.6)[0])
+	assert_eq(_pads("tower_nw")[0].stage, BranchPad.NEAR, "setup: the whole spot is NEAR")
+	assert_true(_pads("tower_nw")[0].cost_label.visible, "setup: the cost shows")
+	assert_eq(_visible_pips("tower_nw"), 3, "flag off: the stars stay")
+
 ## Near stage, per pad (the flag on). EVERY pad is measured over EVERY reachable view in which it shows its cost: the hero on a 0.5 m grid within
 ## branch_pad_near_m of the pad (arriving from far away), and the keep band out to branch_pad_leave_m (the hero first inside the reach, then walked
 ## outward in 0.25 m steps along the line from the pad, so the hysteresis keeps the cost shown). Reachable = off every solid by his radius + 0.05, on
@@ -1707,7 +1780,7 @@ func test_flag_on_the_near_stage_shows_zero_overlaps_for_every_pad_over_its_reac
 		lines.append("%s  [%d times, worst shortfall %.0f px, hero at %s]" % [k, res.findings[k][0], res.findings[k][1], res.findings[k][3]])
 	lines.sort()
 	_dump("NEAR scan findings", lines)
-	gut.p("NEAR scan: %d..%d points per pad, %d ms; smallest tether: %.1f px wide, %.1f px long" % [res.min_pts, res.max_pts, Time.get_ticks_msec() - t0, _tether_min[0], _tether_min[1]])
+	gut.p("NEAR scan: %d..%d points per pad, %d ms; smallest tether: %.1f px wide (gold line), %.1f px long; smallest gap to any obstacle or block: %.1f px" % [res.min_pts, res.max_pts, Time.get_ticks_msec() - t0, _tether_min[0], _tether_min[1], res.min_gap])
 	for id in MapLayout.spots_for_tier(3):
 		for i in 2:
 			assert_true(res.seen_near.has("%s:%d" % [id, i]), "%s pad %d was measured in the near stage at least once" % [id, i])
@@ -1794,7 +1867,7 @@ func _near_scan(spots: Array, aspect_ids: Array, statics: Array, rows: Array, ba
 									_add_finding(findings, "%s: the %s is under %.0f px from %s" % [tag, String(it[0]).get_slice("/", 1), MIN_GAP_PX, o[0]], Vector2(MIN_GAP_PX - g, MIN_GAP_PX - g), at)
 						if _own_overlap_m(p) > 0.06:  # a cost never sits on its own glyph (boxes in metres on the screen; the layout's boxes are a little larger than the ink)
 							_add_finding(findings, "%s: the cost overlaps its own glyph" % tag, Vector2.ONE, at)
-						_check_notch(p, v, at, obstacles, findings, tag)
+						_check_tether(p, v, at, obstacles, findings, tag)
 						if sib_near:
 							var sitems := _pad_items(sib, v)
 							var bg := INF
@@ -1830,7 +1903,7 @@ const TETHER_MIN_W_PX := 7.5  # 3 px at the 40% scale
 const TETHER_MIN_LEN_PX := 20.0
 ## The smallest tether measured in the last scan: [width px, length px] (reported by the near-stage test).
 var _tether_min := [INF, INF]
-func _check_notch(p: BranchPad, v: View, at: Vector2, obstacles: Array, findings: Dictionary, tag: String) -> void:
+func _check_tether(p: BranchPad, v: View, at: Vector2, obstacles: Array, findings: Dictionary, tag: String) -> void:
 	var ppm := v.px_per_m(p.global_position)
 	var centre := v.pt(p.global_position)
 	var ring := PackedVector2Array()
@@ -1852,7 +1925,7 @@ func _check_notch(p: BranchPad, v: View, at: Vector2, obstacles: Array, findings
 	var cbox: Vector2 = p._cost_box()
 	var dist := Vector2(maxf(absf(cpos.x) - cbox.x * 0.5, 0.0), maxf(absf(cpos.y) - cbox.y * 0.5, 0.0)).length()
 	var shown: bool = p.tether != null and p.tether.visible and p.tether_ink.visible and p.tether_ends.size() == 2
-	if dist > BranchPad.NOTCH_FROM_M + 0.01 and not shown:
+	if dist > BranchPad.TETHER_FROM_M + 0.01 and not shown:
 		_add_finding(findings, "%s: the cost's nearest edge stands %.2f m from its pad and shows no tether" % [tag, dist], Vector2.ONE, at)
 	if not shown:
 		return
@@ -1862,8 +1935,9 @@ func _check_notch(p: BranchPad, v: View, at: Vector2, obstacles: Array, findings
 	_tether_min[1] = minf(_tether_min[1], len_px)
 	if len_px < TETHER_MIN_LEN_PX:
 		_add_finding(findings, "%s: the tether is %.0f px long (under %.0f)" % [tag, len_px, TETHER_MIN_LEN_PX], Vector2.ONE, at)
-	var ink_v: PackedVector3Array = p.tether_ink.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var width_px := v.pt(p.global_position + ink_v[0]).distance_to(v.pt(p.global_position + ink_v[1]))
+	# the width is the GOLD line's (the light part the eye reads), not the ink strip's, which is wider by its two edges
+	var gold_v: PackedVector3Array = p.tether.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var width_px := v.pt(p.global_position + gold_v[0]).distance_to(v.pt(p.global_position + gold_v[1]))
 	_tether_min[0] = minf(_tether_min[0], width_px)
 	if width_px < TETHER_MIN_W_PX:
 		_add_finding(findings, "%s: the tether is %.1f px wide (under %.1f)" % [tag, width_px, TETHER_MIN_W_PX], Vector2.ONE, at)
@@ -1946,7 +2020,7 @@ func _static_obstacles(rows: Array, badges: Array) -> Array:
 	for id in main.world.build_spots:
 		var sp: BuildSpot = main.world.build_spots[id]
 		var pips := sp.global_position + Vector3(0, sp._pip_y(Balance.data.build.max_level), 0)
-		out.append({"name": "the pips of " + id, "at": pips, "quads": [[pips, Vector2(1.1, 0.4)]]})
+		out.append({"name": "the pips of " + id, "at": pips, "quads": [[pips, Vector2(1.1, 0.4)]], "spot": id})
 		if sp.label.visible:
 			out.append({"name": "the MAX label of " + id, "at": sp.label.global_position, "quads": [_label_quad(sp.label, basis)]})
 	var sw := _font_w(tr("Close up"), 36) + 0.08
@@ -1997,6 +2071,8 @@ func _near_obstacles(statics: Array, v: View, at: Vector2, c: Vector2, p: Branch
 		if o.name == "the HUD's top bar":
 			out.append([o.name, _hud_rect(v)])
 			continue
+		if o.has("spot") and _visible_pips(o.spot) == 0:
+			continue  # round 7: the real pips of that spot are hidden in this view (its pad shows a cost): no obstacle
 		var ap: Vector3 = o.at
 		if Vector2(ap.x - c.x, ap.z - c.y).length() > cull:
 			continue
@@ -2177,8 +2253,13 @@ func test_flag_on_the_hero_and_his_pile_write_depth_after_the_pad_labels_and_rin
 
 ## Every pad whose cost stands beyond 0.5 m (its nearest edge from the pad's centre, measured on the real label) has a tether (a light line at LABEL_PRIORITY over its
 ## ink edge at OUTLINE_PRIORITY, no depth test); every other pad, shifted or not, has none. Round 6 moved eight of the ten shifted costs to within 0.5 m (a row beside the
-## glyph); the two pads that keep a tether are pinned: no placement within 0.5 m clears the obstacles (the search is in the report). Mutation: a tether on a pad whose
+## glyph; round 7: with the own pips hidden tower_nw a joined them); the one pad that keeps a tether, tower_e a, is pinned: no placement within 0.5 m clears the Freezer label
+## and its own glyph (the search is in the report). Mutation: a tether on a pad whose
 ## cost stands within 0.5 m, or none on one beyond it.
+func test_flag_on_the_tether_threshold_is_half_a_metre_and_its_gold_line_is_wide_enough() -> void:
+	assert_eq(BranchPad.TETHER_FROM_M, 0.5, "pinned: a cost nearer than this to its pad's centre needs no tether (the distance rule of the search)")
+	assert_almost_eq(BranchPad.TETHER_WIDTH_M - 2.0 * BranchPad.TETHER_INK_M, 0.17, 1e-6, "the gold line is 0.17 m: 7.5 px at 720x1280 where the view is the tightest (46.7 px per m)")
+
 func test_flag_on_a_cost_beyond_half_a_metre_has_a_tether_drawn_with_the_labels_and_no_other_pad_has_one() -> void:
 	await _start_on()
 	_all_max()
@@ -2206,7 +2287,7 @@ func test_flag_on_a_cost_beyond_half_a_metre_has_a_tether_drawn_with_the_labels_
 			var cbox: Vector2 = p._cost_box()
 			var dist := Vector2(maxf(absf(cpos.x) - cbox.x * 0.5, 0.0), maxf(absf(cpos.y) - cbox.y * 0.5, 0.0)).length()
 			var has: bool = p.tether_ends.size() == 2
-			assert_eq(has, dist > BranchPad.NOTCH_FROM_M, "%s: the cost's nearest edge is %.2f m from the pad: a tether iff beyond %.1f m" % [key, dist, BranchPad.NOTCH_FROM_M])
+			assert_eq(has, dist > BranchPad.TETHER_FROM_M, "%s: the cost's nearest edge is %.2f m from the pad: a tether iff beyond %.1f m" % [key, dist, BranchPad.TETHER_FROM_M])
 			assert_true(p.tether.visible == has and p.tether_ink.visible == has)
 			if has:
 				with_tether.append(key)
@@ -2215,13 +2296,13 @@ func test_flag_on_a_cost_beyond_half_a_metre_has_a_tether_drawn_with_the_labels_
 				assert_true((p.tether.material_override as BaseMaterial3D).no_depth_test)
 				assert_true((p.tether_ink.material_override as BaseMaterial3D).no_depth_test)
 				assert_ne(p.tether.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR][0], p.tether_ink.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR][0], "a light line over a dark edge")
-				assert_gt(p.notch_len, 0.0)
+				assert_gte(p.tether_len, 0.25, "%s: a tether is at least 0.25 m long on the screen" % key)
 			else:
 				assert_null(p.tether.mesh)
 				assert_null(p.tether_ink.mesh)
 	assert_eq(shifted, BranchPad.COST_SHIFT_RETUNE.size(), "every shifted pad was measured in its near stage")
 	with_tether.sort()
-	assert_eq(with_tether, ["tower_e:0", "tower_nw:0"], "the tethered pads: every other shifted cost stands within 0.5 m")
+	assert_eq(with_tether, ["tower_e:0"], "the one tethered pad: every other shifted cost stands within 0.5 m")
 	gut.p("tethers: %s of %d shifted costs" % [with_tether, BranchPad.COST_SHIFT_RETUNE.size()])
 
 ## With the flag off nothing changes: the hero's materials are the untouched originals (opaque, priority 0), the pile has no override, the pads have no tether

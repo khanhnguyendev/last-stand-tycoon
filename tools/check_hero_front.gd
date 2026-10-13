@@ -1,7 +1,7 @@
 extends SceneTree
 ## E6 Task 14 round 5 (D-294.8): the RENDER check that the hero is drawn in front of everything a pad draws, and that nothing drawn around him paints over him.
 ## Run WITH rendering (not --headless), desktop or the web build (see export/README.md and the report):
-##   "$GODOT" --path . --resolution 720x1280 -s res://tools/check_hero_front.gd [-- --mutate=over_hero|prepass] [--dump=<path prefix>]
+##   "$GODOT" --path . --resolution 720x1280 -s res://tools/check_hero_front.gd [-- --mutate=over_hero|prepass|tether_over] [--dump=<path prefix>]
 ## Flag on, tier 3, every building at level 3, the hero off every pad (or on one) in views where a pad's glyph, cost or tether meets his body, or where his ring, his
 ## blob shadow, an FX burst or a pad's ring and disc are on him. Per view, pictures of the same frozen scene:
 ##   N  none of the extras (pad glyphs and texts, pad rings and discs, the hero's ring, the blob shadows, the FX) shown,
@@ -9,17 +9,19 @@ extends SceneTree
 ##   and one picture per extra shown alone (labels / rings / shadows / FX) and one with all of them shown.
 ## PASS (per view) = for every one of those pictures, no silhouette pixel differs from N (nothing is drawn over him), and the extras ARE drawn elsewhere (the labels:
 ## more than 100 pixels, and, except where he stands ON the pad (views 5 and 7), the label box meets the silhouette: a real overlap). Prints PASS or FAIL per view; exit 1 on any FAIL.
-## `--mutate=over_hero`: pad labels (fills and outlines), glyphs and the tether at render priority +5 (over the hero): must FAIL. `--mutate=prepass`: the hero back in a depth pre-pass material (round 4): on a
+## `--mutate=over_hero`: pad labels (fills and outlines), glyphs and the tether at render priority +5 (over the hero): must FAIL. `--mutate=tether_over`: ONLY the tether (light line and ink edge)
+## at +5, everything else as built: must FAIL the tethered view (6). `--mutate=prepass`: the hero back in a depth pre-pass material (round 4): on a
 ## GPU that skips the pre-pass it must FAIL, on one that honours it it passes (that is why the structure is also asserted in tests/unit/test_branch_pads.gd).
 
-## [spot, pad index, hero offset from the pad (m, x / z), "tether" (the middle of the pad's tether line crosses his body) or "walk" (walked onto the pad, so it is armed: the ON stage), steaks carried, what the view shows]
+## [spot, pad index, hero offset from the pad (m, x / z), or ["cost", extra ground offset (m, x / z)]: his body stands on the pad's real NEAR cost (round 7: the costs moved off the glyph's foot), shifted by the extra offset,
+## or "tether" (the middle of the pad's tether line crosses his body) or "walk" (walked onto the pad, so it is armed: the ON stage), steaks carried, what the view shows]
 const VIEWS := [
-	["tower_e", 0, Vector2(0.0, 1.2), 0, "cost block under the hero"],
-	["fence_w", 1, Vector2(0.0, 1.2), 0, "cost block under the hero"],
-	["fence_n", 0, Vector2(0.0, 1.2), 0, "cost block under the hero"],
-	["tower_e", 0, Vector2(0.0, 2.0), 8, "the carried pile in front of the cost"],
+	["tower_e", 0, ["cost", Vector2(0.0, 0.0)], 0, "cost block under the hero"],
+	["tower_ne", 1, ["cost", Vector2(0.0, 0.0)], 0, "cost block under the hero"],
+	["fence_n", 0, ["cost", Vector2(0.0, 0.0)], 0, "cost block under the hero"],
+	["tower_e", 0, ["cost", Vector2(0.0, 0.8)], 8, "the carried pile in front of the cost"],
 	["tower_e", 0, Vector2(0.0, 0.0), 0, "the hero on the pad: its ring and disc, his ring, his shadow, FX"],
-	["tower_nw", 0, "tether", 0, "a tethered pad: the cost beside the ring with its tether, the hero standing ON the tether line"],
+	["tower_e", 0, "tether", 0, "the one tethered pad: the cost beside the ring with its tether, the hero standing ON the tether line"],
 	["tower_e", 0, "walk", 0, "the hero walked onto the pad (armed): its ring and disc, the payment ring (part paid), the preview ring, his ring, his shadow, FX"],
 ]
 const TOLERANCE := 4.0 / 255.0
@@ -94,7 +96,11 @@ func _run() -> void:
 		var at: Vector2 = pad_at
 		if v[2] is Vector2:
 			at = pad_at + v[2]
-		elif v[2] == "tether":  # his feet on the screen point of the middle of the tether line: ground north of the pad by (line height on the screen) / sin(pitch)
+		elif v[2] is Array:  # his feet on the screen point 0.4 m below the NEAR cost's centre (his body covers it), plus the extra ground offset
+			var xf = camera_math.camera_transform(Vector2.ZERO, bal.ui)
+			var cl: Vector3 = pad._pos[pad.NEAR][pad.cost_label]
+			at = pad_at + Vector2(cl.dot(xf.basis.x), -(cl.dot(xf.basis.y) - 0.4) / sin(deg_to_rad(absf(bal.ui.camera_pitch)))) + v[2][1]
+		elif v[2] is String and v[2] == "tether":  # his feet on the screen point of the middle of the tether line: ground north of the pad by (line height on the screen) / sin(pitch)
 			if pad.tether_ends.size() != 2:
 				printerr("view %d: %s pad %d has no tether" % [n, v[0], v[1]])
 				fails += 1
@@ -128,6 +134,12 @@ func _run() -> void:
 		main.camera_rig.snap_to(camera_math.focus_for(at))
 		for i in 40:
 			await physics_frame
+		if v[2] is Array and (pad.stage != 2 or not pad.cost_label.is_visible_in_tree()):  # the view exists for a cost that shows (NEAR) under him
+			printerr("view %d: %s pad %d is in stage %d (cost shown %s), not NEAR with its cost" % [n, v[0], v[1], pad.stage, pad.cost_label.is_visible_in_tree()])
+			fails += 1
+		if v[2] is String and v[2] == "tether" and (pad.stage != 2 or not pad.tether.is_visible_in_tree()):
+			printerr("view %d: %s pad %d does not show its tether (stage %d)" % [n, v[0], v[1], pad.stage])
+			fails += 1
 		if v[2] is String and v[2] == "walk" and pad.stage != 3:
 			printerr("view %d: the pad is in stage %d, not ON" % [n, pad.stage])
 			fails += 1
@@ -137,6 +149,12 @@ func _run() -> void:
 			if not shown:
 				printerr("view %d: the payment ring or the preview ring is not shown" % n)
 				fails += 1
+		if mutate == "tether_over":
+			for id in main.world.branch_pads:
+				for p in main.world.branch_pads[id]:
+					if p.tether != null:
+						p.tether.material_override.render_priority = 5
+						p.tether_ink.material_override.render_priority = 5
 		if mutate == "over_hero":
 			for id in main.world.branch_pads:
 				for p in main.world.branch_pads[id]:
@@ -174,7 +192,7 @@ func _run() -> void:
 		var cam: Camera3D = main.camera_rig.camera
 		var on_pad: bool = v[2] is String and v[2] == "walk" or (v[2] is Vector2 and v[2] == Vector2.ZERO)  # he stands on the pad: only the glyph above his head is a label; no overlap with it is required
 		var r := _compare(pics, Vector2i(cam.unproject_position(main.hero.global_position + Vector3(0, 0.9, 0))), not on_pad)
-		var line := "view %d %s pad %d, hero at %s, %d steaks (%s): silhouette %d px" % [n, v[0], v[1], at, v[3], v[4], r.sil]
+		var line := "view %d %s pad %d, hero asked at %s, stands at %s, %d steaks (%s): silhouette %d px" % [n, v[0], v[1], at, main.hero.xz(), v[3], v[4], r.sil]
 		for k in ["labels", "rings", "shadows", "fx", "all"]:
 			line += ", %s drawn %d / on him %d" % [k, r.drawn[k], r.changed[k]]
 		var ok: bool = r.ok

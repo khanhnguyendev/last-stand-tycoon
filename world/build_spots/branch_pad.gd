@@ -29,6 +29,10 @@ extends Node3D
 ##         shown); the spot's other pad, if farther, stays FAR (ring and glyph). With the flag off the whole spot goes NEAR together, as before.
 ##   FAR / QUIET are the same as with the flag off. With the flag off every stage is exactly as before.
 
+## E6 (flag on): emitted whenever the stage changes (or the pad goes away). The build spot of the pad listens: its level pips hide while one of its own pads
+## shows a cost. A local signal between a spot and its own pads, not an EventBus event.
+signal stage_changed
+
 const FAR := 0
 const FAR_QUIET := 1
 const NEAR := 2
@@ -77,7 +81,7 @@ const ON_SHIFT_RETUNE := {"fence_w:1": Vector2(-0.1, 0.3), "fence_e:0": Vector2(
 ## view of the pad, zero overlaps, 8 px clearance). A pad not listed keeps the cost under its glyph.
 const GLYPH_SHIFT_RETUNE := {"tower_e:0": Vector2(0.1, 0.0), "tower_ne:1": Vector2(-0.05, 0.0), "tower_sw:0": Vector2(0.0, -0.05), "tower_sw:1": Vector2(0.1, 0.0)}
 const COST_SHIFT_RETUNE := {
-	"tower_nw:0": Vector2(1.9, 0.3), "tower_ne:0": Vector2(-1.1, 0.8), "tower_ne:1": Vector2(-1.1, 0.8),
+	"tower_nw:0": Vector2(-1.1, 0.8), "tower_ne:0": Vector2(-1.1, 0.8), "tower_ne:1": Vector2(-1.1, 0.8),
 	"tower_e:0": Vector2(1.9, 0.2),
 	"fence_e:0": Vector2(-1.1, 0.7), "fence_e:1": Vector2(0.4, 0.0), "fence_sw:0": Vector2(-1.1, 0.8), "fence_sw:1": Vector2(-1.1, 0.9),
 	"fence_w:0": Vector2(-1.1, 0.8), "fence_w:1": Vector2(-1.1, 0.8),
@@ -116,28 +120,29 @@ var hint_at := Vector2.ZERO
 ## What the last refund showed: the exact gold (the "+N" label) and how many coins flew for it.
 var last_refund := 0
 var refund_coins := 0
-## The stage shown now (FAR, FAR_QUIET, NEAR, ON, SIBLING_QUIET).
+## The stage shown now (FAR, FAR_QUIET, NEAR, ON, SIBLING_QUIET, UNARMED).
 var stage := FAR
 ## Where the ON clusters stand (ON_MODES); call _layout_items() and re-apply the stage after changing them.
 var row_north := false
 var name_south := false
-## E6: the NEAR cost's shift from its default place (COST_SHIFT_RETUNE), metres on the screen (right, up); call _layout_items() and re-apply the stage after changing it.
+## E6: the NEAR cost's shift from its default place (COST_SHIFT_RETUNE), metres on the screen (right, up); call _layout_items() and re-apply the stage after changing it
+## (the layout reads the glyph's size from Balance.ui.icon_m, not from its current scale, so a re-layout at any stage gives the same place).
 var cost_shift := Vector2.ZERO
 ## E6: the NEAR glyph's shift inside its ring (GLYPH_SHIFT_RETUNE), metres on the screen (right, up).
 var glyph_shift := Vector2.ZERO
-## E6: the tether (D-294.8): a line from a cost's edge to the pad's RING edge, drawn when the cost's nearest edge stands farther than NOTCH_FROM_M from the pad's centre; shown
-## only with the cost. A light line (palette gold) with an ink edge, NOTCH_WIDTH_M wide in all (the ink included), drawn like a label (ink edge at OUTLINE_PRIORITY, light line at
-## LABEL_PRIORITY). `tether_ends` = [ring end, cost end] of its centre line in the pad's local space ([] when there is none), `notch_len` its length in metres on the screen.
-const NOTCH_FROM_M := 0.5
+## E6: the tether (D-294.8): a line from a cost's edge to the pad's RING edge, drawn when the cost's nearest edge stands farther than TETHER_FROM_M from the pad's centre; shown
+## only with the cost. A light line (palette gold) with an ink edge, TETHER_WIDTH_M wide in all (the ink included; the gold line alone is TETHER_WIDTH_M - 2 x TETHER_INK_M = 0.17 m), drawn like a label (ink edge at OUTLINE_PRIORITY, light line at
+## LABEL_PRIORITY). `tether_ends` = [ring end, cost end] of its centre line in the pad's local space ([] when there is none), `tether_len` its length in metres on the screen.
+const TETHER_FROM_M := 0.5
 ## E6: the NEAR glyph's height above the pad's centre (metres on the screen: its box stays inside the ring), and the gap between it and the cost.
 const NEAR_GLYPH_UP_M := 0.0
 const STACK_GAP_NEAR_M := -0.02
-const NOTCH_WIDTH_M := 0.24
-const NOTCH_INK_M := 0.05
+const TETHER_WIDTH_M := 0.27
+const TETHER_INK_M := 0.05
 var tether: MeshInstance3D
 var tether_ink: MeshInstance3D
 var tether_ends: Array = []
-var notch_len := 0.0
+var tether_len := 0.0
 ## E6: the stood glyph's shift (ON_SHIFT_RETUNE), metres on the screen (right, up).
 var on_shift := Vector2.ZERO
 ## E6: the retune flag as read when the pad was made (TierEffects.retune_on): the pad table, the labels and the stages follow it.
@@ -298,6 +303,8 @@ func _ring_under_labels() -> void:
 
 func _exit_tree() -> void:
 	_forget_shown(self)  # also clears _on_pad when it is this pad, and the frame cache
+	stage = FAR  # a pad taken out of the tree shows no cost: its spot gets its pips back
+	stage_changed.emit()
 
 # --- items and their layout --------------------------------------------------------------------------
 
@@ -349,7 +356,7 @@ static func screen_to_y(m: float) -> float:
 func _build_items() -> void:
 	var ui := Balance.ui
 	var pix: float = ui.branch_pad_label_pixel_size
-	icon = _glyph(branch_id, ui.icon_m(retune), "Icon")
+	icon = _glyph(branch_id, ui.icon_m(), "Icon")
 	cost_label = _label(ui.branch_pad_cost_font, ui.branch_pad_cost_pixel_size, "Cost", "000")  # "000": the widest cost fixes the block widths
 	name_label = _label(ui.branch_pad_label_font, pix, "Name", tr(TEXTS[branch_id][0]))
 	var effect := tr(TEXTS[branch_id][1])
@@ -374,7 +381,8 @@ func _build_items() -> void:
 
 ## Lays out the NEAR block and the ON stack (positions only), in screen metres.
 func _layout_items() -> void:
-	var ibox := glyph_box(icon)
+	# the glyph's size at its NEAR/ON stage, not its current scale (the far stage is smaller): a re-layout at any stage gives the same place
+	var ibox := Vector2(icon.mesh.get_aabb().size.x, icon.mesh.get_aabb().size.y) * Balance.ui.icon_m()
 	var cbox := _cost_box()
 	# NEAR: the glyph with the cost centred under it; the block (at most 1.25 m wide) centred on the pad
 	var block_h := ibox.y + STACK_GAP_M + cbox.y
@@ -385,7 +393,7 @@ func _layout_items() -> void:
 			icon: _at(NEAR_GLYPH_UP_M + glyph_shift.y, true) + Vector3(glyph_shift.x, 0.0, 0.0),
 			cost_label: _at(-cost_up, false) + Vector3(cost_shift.x, 0.0, 0.0),
 		}
-		_layout_notch(cbox, cost_up)
+		_layout_tether(cbox, cost_up)
 		_layout_retune(ibox, cbox)
 		return
 	_pos[NEAR] = {
@@ -409,16 +417,16 @@ static func _scr(p: Vector2) -> Vector3:
 	return basis.x * p.x + basis.y * p.y
 
 ## E6: the tether from the NEAR cost to its pad (screen metres from the pad): a line from the cost's edge facing the pad to the RING's edge, light (gold) with an ink edge
-## all round (NOTCH_WIDTH_M wide in all). None while the cost stands within NOTCH_FROM_M of the pad's centre.
-func _layout_notch(cbox: Vector2, cost_up: float) -> void:
+## all round (TETHER_WIDTH_M wide in all). None while the cost stands within TETHER_FROM_M of the pad's centre.
+func _layout_tether(cbox: Vector2, cost_up: float) -> void:
 	tether_ends = []
-	notch_len = 0.0
+	tether_len = 0.0
 	if tether == null:
 		tether_ink = _tether_node("TetherInk", OUTLINE_PRIORITY)
 		tether = _tether_node("Tether", LABEL_PRIORITY)
 	var cpos := Vector2(cost_shift.x, cost_up)  # the cost's centre from the pad's, on the screen
 	var edge := Vector2(maxf(absf(cpos.x) - cbox.x * 0.5, 0.0), maxf(absf(cpos.y) - cbox.y * 0.5, 0.0)).length()  # the cost's nearest edge from the pad's centre
-	if edge <= NOTCH_FROM_M + 0.001:
+	if edge <= TETHER_FROM_M + 0.001:
 		tether.mesh = null
 		tether_ink.mesh = null
 		return
@@ -427,12 +435,12 @@ func _layout_notch(cbox: Vector2, cost_up: float) -> void:
 	var t_ring := 1.0 / sqrt(pow(d.x / MapLayout.BRANCH_PAD_RADIUS, 2.0) + pow(d.y / ry, 2.0))  # the ring's edge from the pad's centre along the line
 	var t_blk := minf(cbox.x * 0.5 / maxf(absf(d.x), 1e-6), cbox.y * 0.5 / maxf(absf(d.y), 1e-6))
 	var tail := cpos + d * t_blk  # on the edge of the cost's box (the outline included)
-	notch_len = maxf(tail.length() - t_ring, 0.0)
-	var tip := tail + d * notch_len  # on the ring's edge
+	tether_len = maxf(tail.length() - t_ring, 0.0)
+	var tip := tail + d * tether_len  # on the ring's edge
 	tether_ends = [_scr(tip), _scr(tail)]
-	var ink := NOTCH_INK_M
-	tether.mesh = _quad_mesh(tip, tail, d, NOTCH_WIDTH_M * 0.5 - ink, Palette.color(&"gold"))
-	tether_ink.mesh = _quad_mesh(tip, tail, d, NOTCH_WIDTH_M * 0.5, Palette.color(&"ink"))
+	var ink := TETHER_INK_M
+	tether.mesh = _quad_mesh(tip, tail, d, TETHER_WIDTH_M * 0.5 - ink, Palette.color(&"gold"))
+	tether_ink.mesh = _quad_mesh(tip, tail, d, TETHER_WIDTH_M * 0.5, Palette.color(&"ink"))
 
 func _tether_node(node_name: String, priority: int) -> MeshInstance3D:
 	var n := MeshInstance3D.new()
@@ -448,7 +456,7 @@ func _tether_node(node_name: String, priority: int) -> MeshInstance3D:
 
 ## A flat strip from `tip` to `tail` (screen metres from the pad), `half` metres to each side of the line; the ink strip is longer than the light one by the same edge.
 func _quad_mesh(tip: Vector2, tail: Vector2, d: Vector2, half: float, c: Color) -> ArrayMesh:
-	var grow := half - (NOTCH_WIDTH_M * 0.5 - NOTCH_INK_M)  # 0 for the light strip, NOTCH_INK_M for the ink strip
+	var grow := half - (TETHER_WIDTH_M * 0.5 - TETHER_INK_M)  # 0 for the light strip, TETHER_INK_M for the ink strip
 	var perp := Vector2(-d.y, d.x) * half
 	var t0 := tip - d * grow
 	var t1 := tail + d * grow
@@ -560,7 +568,7 @@ const HINT_AT_RETUNE := {"tower_w": Vector2(0.0, -1.5), "tower_sw": Vector2(-1.0
 
 ## A glyph and, if `mult` is not empty, its multiplier beside it, in front of the building.
 func _hint(kind: StringName, mult: String) -> void:
-	var g := _glyph(kind, Balance.ui.icon_m(retune), "HintIcon", preview)
+	var g := _glyph(kind, Balance.ui.icon_m(), "HintIcon", preview)
 	hint_icons.append(g)
 	if mult != "":
 		hint_label = WorldLabel.make(mult, Balance.ui.branch_pad_cost_font)
@@ -626,6 +634,10 @@ func _physics_process(_delta: float) -> void:
 		_apply_stage(want)
 	_follow_hero()
 
+## E6 (flag on only): this pad shows its cost (NEAR) or is stood on (ON): the pips of its building are hidden meanwhile (BuildSpot).
+func shows_cost() -> bool:
+	return retune and body != null and body.visible and (stage == NEAR or stage == ON)
+
 func _stage_now() -> int:
 	if _on_pad == self:
 		if retune and not zone.armed:
@@ -659,7 +671,7 @@ func _apply_stage(st: int) -> void:
 		icon.position = Vector3(0, 0.45, 0)
 	else:
 		icon.material_override = _glyph_material()
-		icon.scale = Vector3.ONE * ui.icon_m(retune)
+		icon.scale = Vector3.ONE * ui.icon_m()
 	cost_label.visible = st == NEAR or (st == ON and not retune)  # E6: an unarmed pad cannot be paid yet: no cost
 	cost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if st == NEAR else HORIZONTAL_ALIGNMENT_LEFT
 	if tether != null:
@@ -677,6 +689,7 @@ func _apply_stage(st: int) -> void:
 		for n in _pos[st]:
 			(n as Node3D).position = _pos[st][n]
 	_follow_hero()
+	stage_changed.emit()
 
 ## E6 (flag on): on a stood pad (ON or UNARMED) the glyph keeps its offset from the hero, not from the pad's centre: a hero standing at the pad's
 ## edge has the glyph above his head, not on it. Visual only.
@@ -733,6 +746,7 @@ func refresh() -> void:
 	else:
 		preview.visible = false
 		stage = FAR
+		stage_changed.emit()
 	zone.ring.visible = shown and _paid_seen > 0
 	zone.ring.set_progress(float(_paid_seen) / float(cost) if shown and cost > 0 else 0.0)
 
