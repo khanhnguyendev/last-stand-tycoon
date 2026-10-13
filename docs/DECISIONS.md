@@ -3315,3 +3315,23 @@ recommendations and answered three questions put to them one by one.
 4. **Escalation 14, open with the author:** (a) waive D-290.1 for seed 14, diagnose, one round, hold-out set #2 as
    the final reading; (a2) a round on the tuning seeds only; (b) flip as it is; (c) leave the flag off. The main
    session recommends (a) and does not flip. REVIEW_QUEUE 43.
+
+**D-304 Author's answer to escalation 14; the required-check swap (2026-10-13).**
+1. **Escalation 14: option (a), with guardrails.** Seed 14 moves into the tuning set; it is no longer hold-out data.
+   Hold-out set #1 is retired; its results stay in the report history.
+2. **Diagnose first and classify the cause:** (i) a bot defect (for example the hero leaving its lane): fix the bot,
+   no balance change; (ii) a balance cause: fix it.
+3. **Exactly one round of changes covering both,** then the tuning seeds (now with 14), the bench and the three
+   baselines again.
+4. **Then hold-out set #2 once** (the next 2 seeds per siege lane from the same scan), `--final`, with the commit
+   recorded.
+5. **If set #2 fails any target: stop and escalate** with the per-seed data and 2 to 3 options. No more rounds and no
+   set #3 without the author.
+6. **The pack states plainly** what failed on seed 14, the cause class, what changed and the set #2 verdict.
+7. **Required checks on `main`:** `sim-tiers` is replaced by `sim-tiers-a` and `sim-tiers-b` (authorized by the
+   author under D-274.4; applied by the main session with `gh api`, read back: `unit`, `sim`, `deploy`, `bench`,
+   `sim-tiers-a`, `sim-tiers-b`, strict). PR #66 merges when green; the flag stays off.
+8. **Checkpoint video:** the disclosure is accepted. One clip of at most 20 s is added: the real tier-3 reveal from a
+   tier-2 save with raised fixture gold, through the lane-character step and the banner; debug build, flag on, said
+   to be staged in the README; the edited fixture is not committed, its making is described.
+9. **The checkpoint stays open until hold-out set #2 passes.** No flip (Task 22) before that.
