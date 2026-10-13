@@ -3146,7 +3146,6 @@ run, so the bench has its own wall limits: warn above 150 s, fail above 400 s. I
 required checks when a suite is split or added; D-292 made the full bench a required CI job). This is a deviation
 from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the fast subset). No test was dropped.
 
-<<<<<<< HEAD
 **D-297 Phase-4 tuning rounds 1 and 2, and two changes to the measuring bot (2026-10-13).**
 Tuning set (seeds 1 east, 3 sw, 4 west, 7 north; six policies; real 32-day play; outputs under
 `docs/review/media/e6/tuning/`). Studies: `docs/review/media/e6/study_first_t3.md`, `study_p4_r2.md`,
@@ -3177,8 +3176,6 @@ Tuning set (seeds 1 east, 3 sw, 4 west, 7 north; six policies; real 32-day play;
    state on lanes outside the player's view and has no fence-fall cue; both rules use nothing a player could not know
    (no plan, no future waves, no HP). Before/after numbers for both rules go into the checkpoint pack.
 
-=======
->>>>>>> origin/main
 **D-298 Author's answers on the pads, the HOME framing and the unbranched policy (2026-10-13).**
 1. **Pads (escalation 9): option A.** A building's level pips hide while its pad shows a cost and return when the
    cost hides. Pinned in the overlap test (zero overlap, at least 8 px) and checked at 40%. Phase 3 merges when green.
@@ -3194,8 +3191,6 @@ Tuning set (seeds 1 east, 3 sw, 4 west, 7 north; six policies; real 32-day play;
 4. **Watch item:** the fence tax fell to 4.9% (the Longbow kills brutes before fences break), so the recurring fence
    sink is nearly gone. No new target; the pack reports `unspent_gold_at_closeup` across tier 3 and after the ladder
    completes; if the pile-up grows against E5 T3 it goes to REVIEW_QUEUE as input for tier 4.
-<<<<<<< HEAD
-=======
 
 **D-299 Phase 3 (interface) rulings and the pads as built (2026-10-13; flag on only).**
 1. **Lane badges** (Task 10, four rounds): offsets from the row anchor west (4.2, 3.2), east (-4.2, 3.2), north (-4.0
@@ -3224,4 +3219,3 @@ Tuning set (seeds 1 east, 3 sw, 4 west, 7 north; six policies; real 32-day play;
      (tower_e a: the Freezer label blocks every close position) and has a gold tether to its ring.
    - Scans: near 8.9 px, on 8 px smallest gap; zero findings; no exception list. The lane's telegraph flag is a 3D
      model, not a label, and is not an obstacle (one cost crosses it on fence_w).
->>>>>>> origin/main
