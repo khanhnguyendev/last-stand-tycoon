@@ -11,7 +11,7 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - `world/` main scene, map, stations, build spots, directors, PhaseController; `world/audio/` AudioDirector (S5); `world/warmup.gd` boot warm-up
 - `ui/` HUD, joystick, world labels, overlays; `ui/guide/` onboarding pointer, `ui/settings/` settings panel (S5); `ui/debug/` is debug-only and excluded from release/profile exports
 - `balance/` typed Resource scripts + `balance.tres`, `ui_tuning.tres`
-- `tests/unit/`, `tests/sim/`, `tests/sim_tier/` (GUT; tier sims, D-247), `tests/bench/` (the full lane-type bench, E6, D-292), `tests/bench_report/` (reports, not CI), `tests/support/` (shared test code); `tests/fixtures/` (pinned plans, old-schema saves for migration tests); `tests/sim_ticks.golden.json` is the per-sim tick budget; `tests/sim/out/` is gitignored; `tests/sim/baseline/` is the determinism baseline (S4; re-recorded once for E5, D-237: rows 1 to 7 are the tier-1 identity)
+- `tests/unit/`, `tests/sim/`, `tests/sim_tier_a/` and `tests/sim_tier_b/` (GUT; tier sims in two suites, D-247, D-301), `tests/bench/` (the full lane-type bench, E6, D-292), `tests/bench_report/` (reports, not CI), `tests/support/` (shared test code); `tests/fixtures/` (pinned plans, old-schema saves for migration tests); `tests/sim_ticks.golden.json` is the per-sim tick budget; `tests/sim/out/` is gitignored; `tests/sim/baseline/` is the determinism baseline (S4; re-recorded once for E5, D-237: rows 1 to 7 are the tier-1 identity)
 - `assets/<pack-id>/` third-party CC0 packs (only used files + `LICENSE.txt`, one row per pack in `docs/ASSET_LICENSES.md`); `assets/_candidates/` is gitignored (D-187)
 - `art/` our art: palette, remapped atlases, shared materials, wrappers, procedural builders, icons (D-187, D-188); `art/audio/` audio manifest, `art/fx/` FX atlas, shader, field, pointer (S5); rules in `docs/ART_BIBLE.md`
 - `tools/` headless and editor-only scripts (validator, palette remap, KayKit post-import, shots); excluded from every web export
@@ -24,8 +24,8 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 
 ## Commands
 - `export GODOT=/Users/ryan/Applications/Godot-4.7.2-stable/Godot.app/Contents/MacOS/Godot` (D-116)
-- `./run_tests.sh unit` · `./run_tests.sh sim` · `./run_tests.sh sim-tiers` · `./run_tests.sh bench` (the lane-type bench, `tests/bench/`, about 65 s) · `./run_tests.sh all` · `./run_tests.sh --quick` (unit + night-1 sims)
-- Tick budget update (deliberate, D-247): `TICK_BUDGET_UPDATE=1 ./run_tests.sh sim`, `sim-tiers` or `bench`; commit the diff of `tests/sim_ticks.golden.json`
+- `./run_tests.sh unit` · `./run_tests.sh sim` · `./run_tests.sh sim-tiers-a` · `./run_tests.sh sim-tiers-b` (`sim-tiers` runs both) · `./run_tests.sh bench` (the lane-type bench, `tests/bench/`, about 65 s) · `./run_tests.sh all` · `./run_tests.sh --quick` (unit + night-1 sims)
+- Tick budget update (deliberate, D-247): `TICK_BUDGET_UPDATE=1 ./run_tests.sh sim`, `sim-tiers-a`, `sim-tiers-b` or `bench`; commit the diff of `tests/sim_ticks.golden.json`
 - Sweep: `"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/sweep.gd`
 - Upgrader sweep (E1): the same command with `-- --bot=upgrader`; writes `tests/sim/out/sweep_upgrader.csv`
 - Tier sweep (E5): the same command with `-- --bot=tier --days=30 [--policy=all_a|all_b|mixed|threat|volley_stone] [--tier3=off] [--cols=extra] [--out=<file name>]`; writes `tests/sim/out/sweep_tier.csv`; prints `TIER`, `TIER3`, `TIER3_GATE`, `LADDER` (row-numbered days), `UNSPENT_TARGET: PASS|FAIL|N/A` and `FENCE_TAX: yes|no`; in-memory overrides for studies: `--tier3-cap=`, `--brute-caps=<main>,<side>`, `--brute-hp=`, `--fence-mult=`
@@ -53,8 +53,8 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - The `reviewer` subagent reviews every task; the author reviews the checkpoint phases' PRs.
 - Before CI exists, the PR body carries the local test output. After CI exists, `unit` and `sim` must be green.
 - Every push deploys a web build to GitHub Pages: `main` at https://khanhnguyendev.github.io/last-stand-tycoon/, other branches at `preview/<slug>/` (slug = the branch name with every character outside `[A-Za-z0-9._-]` replaced by `-`) (D-135). Phone tests use those URLs; plain-http LAN doesn't work (D-120).
-- **Merges (D-137).** Merge a phase PR yourself (merge commit, never squash) only when CI is green (before CI: the full local suite output is in the PR body), every task passed its reviewer pass, no escalation is open, and the phase doesn't end at a checkpoint. D-159: CP2 and CP3 are deferred into one FINAL REVIEW after S5, so every phase until then is self-merged; `main` is protected (PR plus `unit`, `sim`, `sim-tiers`, `bench` and Pages `deploy`, strict). After a self-merge, post a PR comment of at most 5 lines (what shipped, tests, decisions).
-- Never push to `main` directly, never change branch protection. (The three authorized changes, D-159, D-247 and D-295, are applied.)
+- **Merges (D-137).** Merge a phase PR yourself (merge commit, never squash) only when CI is green (before CI: the full local suite output is in the PR body), every task passed its reviewer pass, no escalation is open, and the phase doesn't end at a checkpoint. D-159: CP2 and CP3 are deferred into one FINAL REVIEW after S5, so every phase until then is self-merged; `main` is protected (PR plus `unit`, `sim`, `sim-tiers-a`, `sim-tiers-b`, `bench` and Pages `deploy`, strict). After a self-merge, post a PR comment of at most 5 lines (what shipped, tests, decisions).
+- Never push to `main` directly, never change branch protection. (The authorized changes, D-159, D-247, D-295 and D-301, are applied.)
 - **Wiring notes (D-139):** implementers never edit `world/main.gd`, `world/world.gd`, `world/main.tscn`, `autoload/EventBus.gd`, `autoload/GameState.gd`, `balance/*` or `project.godot` unless that file is the task's main purpose; they report the exact lines as a wiring note, and the main session applies it after review.
 - **Look-ahead (D-140):** T21–T24, T27, T28, T30, T31 may run before CP1 is approved, on stacked branches that are not merged into `main` until the author approves CP1; T33, T34 may run alongside T32 before CP2.
 - **Autonomy (D-159):** build v0.1 through S5 without the author. Log every decision; add reversible feel, balance, art and IDEA.md-deviating ones to `docs/REVIEW_QUEUE.md`. Stop and ask only for setup agents can't do, money, license doubt, irreversible actions outside the repo, or a design conflict inside IDEA.md's pillars.
@@ -74,7 +74,8 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - Escalate on facts, not time: a failed check whose pre-agreed fallback also fails (spike); must-hold balance targets that conflict, or 3 tuning rounds without progress (D-103).
 
 ## Sim budget (D-132, D-247)
-- Two sim suites, each its own CI job: `sim` (`tests/sim/`) and `sim-tiers` (`tests/sim_tier/`). The lane-type bench
+- Three sim suites, each its own CI job: `sim` (`tests/sim/`), `sim-tiers-a` (`tests/sim_tier_a/`) and `sim-tiers-b`
+  (`tests/sim_tier_b/`). The lane-type bench
   (`bench`, `tests/bench/`) is a third job under the same tick-budget rule, with its own wall limits: warning above
   150 s, failure above 400 s (D-295).
 - **Tick budget (the gate):** every sim records the physics ticks it simulated; a job fails if a sim exceeds its
@@ -97,10 +98,10 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - Sims and tests read state at matching points after `await get_tree().physics_frame`; `physics_frame` fires before the nodes' `_physics_process` (D-118).
 
 ## CI
-`.github/workflows/ci.yml` runs four parallel jobs, `unit` (`./run_tests.sh unit`), `sim` (`./run_tests.sh sim`),
-`sim-tiers` (`./run_tests.sh sim-tiers`) and `bench` (`./run_tests.sh bench`), on Linux with the pinned, SHA-512-verified Godot (D-116, D-129), for every PR
+`.github/workflows/ci.yml` runs five parallel jobs, `unit` (`./run_tests.sh unit`), `sim` (`./run_tests.sh sim`),
+`sim-tiers-a`, `sim-tiers-b` (`./run_tests.sh sim-tiers-a` / `-b`) and `bench` (`./run_tests.sh bench`), on Linux with the pinned, SHA-512-verified Godot (D-116, D-129), for every PR
 and push to main. Each job also checks that `GODOT_TAG` matches CLAUDE.md and pages.yml. The job names `unit`, `sim`,
-`sim-tiers` and `bench` are required checks for branch protection (D-133, D-247, D-295); don't rename them. CI is canonical for sim
+`sim-tiers-a`, `sim-tiers-b` and `bench` are required checks for branch protection (D-133, D-247, D-295, D-301); don't rename them. CI is canonical for sim
 thresholds (D-105). Sim jobs fail on the tick budget or above 150 s, and warn above 60 s (D-247); never drop tests
 (D-132). The sweep is manual. The `pages` workflow's `deploy` job (release/profile packs free of `ui/debug`, DoD 5)
 is a required check too.

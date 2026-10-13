@@ -3219,3 +3219,22 @@ Tuning set (seeds 1 east, 3 sw, 4 west, 7 north; six policies; real 32-day play;
      (tower_e a: the Freezer label blocks every close position) and has a gold tether to its ring.
    - Scans: near 8.9 px, on 8 px smallest gap; zero findings; no exception list. The lane's telegraph flag is a 3D
      model, not a label, and is not an obstacle (one cost crosses it on fence_w).
+
+**D-301 Task 19 as built: flag-on fixtures, three sims, the tier sims in two suites (2026-10-14).**
+1. **Fixtures from real play** (tuning seed 3: siege south-west, hare west; byte-identical on two runs;
+   `make_save.gd -- --fixture=retune`, tuning seeds only): `retune_siege_night` (day 25: a wave's brutes have the
+   siege lane as neither main nor side; two waves carry an extra hare group), `retune_first_t3_night` (day 23) and
+   `retune_respawn` (the same state at night). Sims 5 and 7 run on a real flag-off recording (`tier3_night1`, day 19);
+   sim 4 keeps a constructed night on the real Baron-night capture's day, stations and plan. The six older tier-3
+   fixtures are re-encoded at schema 7 (identical play).
+2. **The sims count kills by lane and kind against the plan** (after the lane-character step), so brutes on the wrong
+   lane or a missing extra group fail. Siege night: floor 0.90 (threat-matched 0.96; the same night with the siege
+   tower and fence unbranched 0.80). First night: floor 0.85 beside the 25% bar (one seed).
+3. **The flag-on respawn sim is an instrumented scene on a recorded state** (ruling): a 3000 HP diner and a scripted
+   tank knock-out, because at 300 HP the respawn cannot be observed for its window. It proves that protection stops
+   an immediate second knock-out in a crowded siege zone; it does not prove the full window at real diner HP. Sim 7
+   (flag off) fails with `respawn_protect_s = 0` on its new recording, so it is not vacuous.
+4. **`_assert_fresh_plan`** compares the decoded stored plan with the planner's (it compared a plan with itself).
+5. **The tier sims are two suites** (D-274.4): `sim-tiers-a` (`tests/sim_tier_a/`: tiers 1-2 and the retune sims,
+   28 s locally) and `sim-tiers-b` (`tests/sim_tier_b/`: the tier-3 sims, 30 s). `sim-tiers` runs both. The required
+   checks on `main` change from `sim-tiers` to `sim-tiers-a` and `sim-tiers-b` when both are green on the phase PR.
