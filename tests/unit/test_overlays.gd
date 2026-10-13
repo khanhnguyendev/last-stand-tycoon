@@ -402,3 +402,28 @@ func test_the_frozen_perf_line_ends_with_the_budget_line() -> void:
 	for i in 3700:
 		p._tick(1.0 / 60.0, 1.0 / 60.0)
 	assert_true(p.frozen_text().ends_with("(budget 50)"), "the frozen line carries the budget words (a night with no close-up of its own: the resumed budget, was 58 before phase A): " + p.frozen_text())
+
+## E6 phase A (a2.md 4g): `?perfcut=<what>` hides ONE group for a reading and nothing else; an unknown name does nothing. Fails when a cut hides a neighbour group
+## (the HUD with the labels, the diner with the ground) or when the overlay itself goes with the HUD.
+func test_perfcut_hides_one_group_and_leaves_the_rest() -> void:
+	UrlFlags.set_for_tests("perfcut=labels")
+	var host := Node3D.new()
+	add_child_autofree(host)
+	var label := Label3D.new()
+	var mesh := MeshInstance3D.new()
+	host.add_child(label)
+	host.add_child(mesh)
+	var p := PerfOverlay.new()
+	host.add_child(p)
+	p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_false(label.visible, "labels cut: the Label3D is hidden")
+	assert_true(mesh.visible, "and the mesh is not")
+	assert_true(p.visible, "and the overlay stays")
+	UrlFlags.set_for_tests("perfcut=bogus")
+	var label2 := Label3D.new()
+	host.add_child(label2)
+	var q := PerfOverlay.new()
+	host.add_child(q)
+	q._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_true(label2.visible, "an unknown cut hides nothing")
+	UrlFlags.set_for_tests("")

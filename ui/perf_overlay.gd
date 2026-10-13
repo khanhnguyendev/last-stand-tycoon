@@ -68,6 +68,13 @@ var _log_label: Label
 ## `?perfnofade=1` (diagnosis only): switches the diner's occluder fade off, to test whether its first activation is a frame of the night.
 var _glyph_prime := true
 var _nofade := false
+## E6 phase A (D-300, diagnosis only, a2.md 4g): `?perfcut=<what>` removes ONE thing from the picture for a reading, to see what the frame cost is made of. Every cut is visual
+## (nodes hidden, the simulation runs on): diner (the whole diner art), labels (every Label3D), hud (the Hud layer; this overlay stays), ground (terrain, kerb and yard stones),
+## enemies (the enemy pool), half (the window at half size: the canvas buffer has a quarter of the pixels). Applied twice a second (nodes come and go). It writes no game state.
+const CUTS: Array[StringName] = [&"diner", &"labels", &"hud", &"ground", &"enemies", &"half"]
+var _cut: StringName = &""
+var _cut_wait := 0.0
+var _half_done := false
 const GLYPHS := "0123456789 .,:=@()+-%_/ abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 var _seen_fade := true
 var _fades: Array[Node] = []
@@ -104,6 +111,7 @@ func _ready() -> void:
 	EventBus.wave_started.connect(_on_wave_started)
 	_glyph_prime = UrlFlags.get_flag("perfglyph") != "0"
 	_nofade = UrlFlags.get_flag("perfnofade") == "1"
+	_cut = StringName(UrlFlags.get_flag("perfcut")) if StringName(UrlFlags.get_flag("perfcut")) in CUTS else &""
 	_log_s = positive_seconds(UrlFlags.get_flag("perflog"))
 	_close_s = positive_seconds(UrlFlags.get_flag("perfclose"))
 	if _log_s > 0.0:
@@ -267,6 +275,37 @@ func worst_ms() -> float:
 func frozen_text() -> String:
 	return _frozen_label.text
 
+## Hides what `_cut` names (see CUTS). The overlay's parent is Main; anything missing is skipped.
+func _apply_cut() -> void:
+	var main := get_parent()
+	var world: Node = main.get("world") if main != null else null
+	match _cut:
+		&"diner":
+			if world != null and world.get("diner_body") != null:
+				(world.diner_body as Node3D).get_node("Visual").visible = false
+		&"labels":
+			for l in main.find_children("*", "Label3D", true, false):
+				(l as Label3D).visible = false
+		&"hud":
+			var hud := main.get_node_or_null("Hud")
+			if hud != null:
+				hud.visible = false
+		&"ground":
+			if world != null:
+				for n in [world.get("ground"), world.get("edge_stones"), world.get("yard_stones")]:
+					if n != null:
+						(n as Node3D).visible = false
+		&"enemies":
+			var pool: Node = world.get("enemy_pool") if world != null else null
+			if pool != null:
+				for e in pool.get_children():  # the pool shows an enemy when it spawns: hidden again every frame (see _tick)
+					(e as Node3D).visible = false
+		&"half":
+			if not _half_done:
+				_half_done = true
+				var w := get_window()
+				w.size = w.size / 2
+
 func _phase_name() -> String:
 	return "NONE" if _phase < 0 else Phase.name_of(_phase)
 
@@ -278,6 +317,11 @@ func _process(delta: float) -> void:
 
 ## One frame: raw = measured seconds, delta = the engine's (clamped) delta. Split out so tests can inject time.
 func _tick(raw: float, delta: float) -> void:
+	if _cut != &"":
+		_cut_wait -= raw
+		if _cut_wait <= 0.0 or _cut == &"enemies":
+			_cut_wait = 0.5
+			_apply_cut()
 	if _nofade:
 		var fades := get_parent().find_children("*", "OccluderFade", true, false)
 		for f in fades:
