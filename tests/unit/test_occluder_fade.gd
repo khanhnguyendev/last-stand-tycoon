@@ -65,9 +65,9 @@ func test_hero_at_north_zone_center_fades() -> void:
 	assert_true(_fade.is_faded())
 	assert_almost_eq(_fade.current_alpha(), Balance.ui.occluder_alpha, 1e-3)
 	for m in _meshes():
-		var mat := (m as MeshInstance3D).material_override as StandardMaterial3D
-		assert_eq(mat.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
-		assert_almost_eq(mat.albedo_color.a, Balance.ui.occluder_alpha, 1e-3)
+		var mat := (m as MeshInstance3D).material_override
+		assert_true(mat is ShaderMaterial, "a dithered copy in the opaque pass, never a blended material")
+		assert_almost_eq(OccluderFade.alpha_of(mat), Balance.ui.occluder_alpha, 1e-3)
 
 func test_fade_takes_fade_time_not_instant() -> void:
 	var hero := _hero_at_north_center()
@@ -183,15 +183,57 @@ func test_surface_material_meshes_fade_and_restore_to_null() -> void:
 	_aim_camera_at(Vector2(hero.x, hero.z))
 	_targets = [_hero_aim(hero)]
 	_run(Balance.ui.occluder_fade_s)
-	var faded := mi.get_surface_override_material(0) as StandardMaterial3D
-	assert_not_null(faded)
-	assert_eq(faded.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
-	assert_almost_eq(faded.albedo_color.a, Balance.ui.occluder_alpha, 1e-3)
-	assert_eq(faded.albedo_color.r, 1.0, "colour kept")
+	var faded := mi.get_surface_override_material(0) as ShaderMaterial
+	assert_not_null(faded, "a dithered copy in the opaque pass, never a blended material")
+	assert_almost_eq(OccluderFade.alpha_of(faded), Balance.ui.occluder_alpha, 1e-3)
+	assert_eq((faded.get_shader_parameter(&"albedo") as Color).r, 1.0, "colour kept")
 	assert_eq(surface.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED, "the mesh's own material is untouched")
 	_targets = []
 	_run(1.0)
 	assert_null(mi.get_surface_override_material(0), "restored to no override")
+
+## E6 A4 (D-294 review): world.swap_diner_art_keeping detaches the art and later re-attaches it. If the fade forgot a detached
+## (but alive) mesh while faded, the mesh kept the dither copy as its override; on the put-back the new entry took that copy for
+## the original (not a BaseMaterial3D) and skipped it, so the diner stayed dithered. Fails when `_forget_gone_nodes` drops a
+## valid detached node without putting its materials back.
+func test_a_faded_mesh_detached_and_re_attached_gets_its_original_materials_back_and_fades_again() -> void:
+	var surf_mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	var surface := StandardMaterial3D.new()
+	surface.albedo_color = Color.RED
+	bm.material = surface
+	surf_mi.mesh = bm
+	_visual.add_child(surf_mi)
+	var originals := {}
+	for m in _meshes():
+		originals[m] = (m as MeshInstance3D).material_override
+	var hero := _hero_at_north_center()
+	_aim_camera_at(Vector2(hero.x, hero.z))
+	_targets = [_hero_aim(hero)]
+	_run(Balance.ui.occluder_fade_s)
+	assert_true(_fade.is_faded())
+	var kept: MeshInstance3D = _meshes()[0]
+	assert_true(kept.material_override is ShaderMaterial, "faded before the detach")
+	_visual.remove_child(kept)
+	_visual.remove_child(surf_mi)
+	_fade.refresh_bounds()  # faded: the fade forgets the nodes that left
+	_visual.add_child(kept)
+	_visual.add_child(surf_mi)
+	_fade.refresh_bounds()
+	_targets = []
+	_run(1.0)
+	assert_false(_fade.is_faded())
+	for m in _meshes():
+		if m == surf_mi:
+			continue
+		assert_eq((m as MeshInstance3D).material_override, originals[m], "the original material is back on %s" % m.name)
+	assert_null(surf_mi.get_surface_override_material(0), "the surface override is back to none")
+	_targets = [_hero_aim(hero)]
+	_run(Balance.ui.occluder_fade_s)
+	assert_true(_fade.is_faded(), "a new fade works")
+	assert_true(kept.material_override is ShaderMaterial)
+	assert_almost_eq(OccluderFade.alpha_of(kept.material_override), Balance.ui.occluder_alpha, 1e-3)
+	assert_almost_eq(OccluderFade.alpha_of(surf_mi.get_surface_override_material(0)), Balance.ui.occluder_alpha, 1e-3)
 
 func test_mesh_without_any_material_is_skipped_safely() -> void:
 	var mi := MeshInstance3D.new()
@@ -297,7 +339,7 @@ func test_real_diner_bounds_cover_roof_parts_and_board_fades() -> void:
 	assert_not_null(board)
 	assert_almost_eq(board.modulate.a, Balance.ui.occluder_alpha, 1e-3, "the Board's text fades with the walls")
 	for m in _real_meshes(fade):
-		assert_almost_eq(((m as MeshInstance3D).get_surface_override_material(0) as BaseMaterial3D).albedo_color.a, Balance.ui.occluder_alpha, 1e-3)
+		assert_almost_eq(OccluderFade.alpha_of((m as MeshInstance3D).get_surface_override_material(0)), Balance.ui.occluder_alpha, 1e-3)
 	_targets = []
 	_run_fade(fade, 1.0)
 	assert_eq(board.modulate.a, 1.0, "the text is back at full alpha")
@@ -425,10 +467,10 @@ func test_wired_every_mesh_surface_of_the_building_is_faded_at_every_tier() -> v
 			var mi := m as MeshInstance3D
 			for k in mi.mesh.get_surface_count():
 				surfaces += 1
-				var mat := mi.get_surface_override_material(k) as BaseMaterial3D
-				assert_not_null(mat, "tier %d: %s surface %d is in the fade's set" % [tier, mi.get_path(), k])
+				var mat := mi.get_surface_override_material(k) as ShaderMaterial
+				assert_not_null(mat, "tier %d: %s surface %d is in the fade's set (a dithered copy)" % [tier, mi.get_path(), k])
 				if mat != null:
-					assert_almost_eq(mat.albedo_color.a, Balance.ui.occluder_alpha, 0.02)
+					assert_almost_eq(OccluderFade.alpha_of(mat), Balance.ui.occluder_alpha, 0.02)
 		assert_gte(surfaces, 2 if tier >= 2 else 1)
 		var scene: String = (vis.get_node("DinerArt") as Node).scene_file_path
 		assert_eq(scene, World.diner_scene_for(tier).resource_path, "tier %d shows its own building" % tier)
@@ -557,7 +599,7 @@ func test_tier2_diner_fades_for_a_hero_and_a_boar_behind_it() -> void:
 	assert_true(fade.is_faded(), "the hero behind the diner fades it")
 	var body := fade.get_parent().find_child("Body", true, false) as MeshInstance3D
 	for k in body.mesh.get_surface_count():
-		assert_almost_eq((body.get_surface_override_material(k) as BaseMaterial3D).albedo_color.a, Balance.ui.occluder_alpha, 0.02, "surface %d" % k)
+		assert_almost_eq(OccluderFade.alpha_of(body.get_surface_override_material(k)), Balance.ui.occluder_alpha, 0.02, "surface %d" % k)
 	assert_almost_eq(_real_board(fade).modulate.a, Balance.ui.occluder_alpha, 1e-3, "the Board label fades with it")
 	_targets = []
 	_run_fade(fade, 2.0)
@@ -585,3 +627,68 @@ func test_tier2_diner_stays_opaque_for_the_hero_at_home_and_the_counter_and_a_fa
 	for m in fade.get_parent().find_children("*", "MeshInstance3D", true, false):
 		for k in (m as MeshInstance3D).mesh.get_surface_count():
 			assert_null((m as MeshInstance3D).get_surface_override_material(k), "opaque: surface %d untouched" % k)
+
+# --- E6 A2 (D-294): the dithered copy ---
+
+## Mutation: the copy drops the texture, the colour or the culling mode of the original, or is a blended BaseMaterial3D again.
+func test_the_dither_copy_keeps_the_albedo_texture_colour_and_culling_and_is_not_blended() -> void:
+	var src := StandardMaterial3D.new()
+	src.albedo_color = Color(0.2, 0.4, 0.6)
+	var img := Image.create(2, 2, false, Image.FORMAT_RGBA8)
+	img.fill(Color.WHITE)
+	src.albedo_texture = ImageTexture.create_from_image(img)
+	src.cull_mode = BaseMaterial3D.CULL_DISABLED
+	src.roughness = 0.7
+	var c := OccluderFade.dither_copy(src)
+	assert_true(c is ShaderMaterial)
+	assert_eq(c.get_shader_parameter(&"albedo"), Color(0.2, 0.4, 0.6))
+	assert_same(c.get_shader_parameter(&"albedo_tex"), src.albedo_texture)
+	assert_almost_eq(float(c.get_shader_parameter(&"roughness")), 0.7, 1e-6)
+	assert_true(c.shader.code.contains("cull_disabled"), "a two-sided source stays two-sided")
+	assert_true(OccluderFade.dither_copy(StandardMaterial3D.new()).shader.code.contains("cull_back"))
+	assert_false(c.shader.code.contains("ALPHA"), "the shader writes no alpha: nothing is blended")
+	assert_eq(OccluderFade.alpha_of(c), 1.0, "opaque until the fade sets it")
+
+## E6 A4: the dither copy carries albedo, texture, roughness, metallic, specular and culling only. If a diner material (any tier) starts to use
+## a feature the copy drops, the faded diner would change look; this fails first. Mutation: give a diner material an emission, a normal map,
+## vertex-colour albedo, linear filtering, alpha scissor or front-face culling.
+func test_no_diner_material_uses_a_feature_the_dither_copy_drops() -> void:
+	var seen := 0
+	for tier in [1, 2, 3]:
+		var art := World.diner_scene_for(tier).instantiate() as Node3D
+		add_child_autofree(art)
+		for m in art.find_children("*", "MeshInstance3D", true, false):
+			var mi := m as MeshInstance3D
+			var mats: Array = []
+			if mi.material_override != null:
+				mats.append(mi.material_override)
+			elif mi.mesh != null:
+				for i in mi.mesh.get_surface_count():
+					mats.append(mi.get_surface_override_material(i) if mi.get_surface_override_material(i) != null else mi.mesh.surface_get_material(i))
+			for mat in mats:
+				var b := mat as BaseMaterial3D
+				if b == null:
+					continue
+				seen += 1
+				var where := "tier %d %s" % [tier, mi.name]
+				assert_false(b.emission_enabled, where + ": emission")
+				assert_false(b.normal_enabled, where + ": normal map")
+				assert_false(b.vertex_color_use_as_albedo, where + ": vertex colour as albedo")
+				assert_true(b.texture_filter in [BaseMaterial3D.TEXTURE_FILTER_NEAREST, BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS, BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS_ANISOTROPIC], where + ": filtering")
+				assert_ne(b.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR, where + ": alpha scissor")
+				assert_ne(b.cull_mode, BaseMaterial3D.CULL_FRONT, where + ": front-face culling")
+				assert_eq(b.shading_mode, BaseMaterial3D.SHADING_MODE_PER_PIXEL, where + ": the copy drops unshaded sources")
+				assert_eq(b.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED, where + ": the copy drops blended sources")
+	assert_gt(seen, 3, "materials were inspected")
+
+## The shader source is non-empty and declares the `fade` uniform the fade animates (a headless run has no renderer to compile it; the
+## device and desktop runs compile it, and the warm-up draws it once).
+func test_the_dither_shader_has_code_and_the_fade_uniform() -> void:
+	var m := OccluderFade.dither_copy(StandardMaterial3D.new())
+	assert_gt(m.shader.code.length(), 100)
+	var names: Array = []
+	for u in m.shader.get_shader_uniform_list():
+		names.append(String(u.name))
+	assert_true(names.has("fade"), "uniform fade declared: %s" % str(names))
+	for n in ["albedo", "albedo_tex", "roughness"]:
+		assert_true(names.has(n), n)

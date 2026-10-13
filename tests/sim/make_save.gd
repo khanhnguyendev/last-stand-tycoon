@@ -7,9 +7,9 @@ extends SceneTree
 ## tier2_full fixture and real play: fixtures 1, 2 and 5 (the Baron close-up, the same without yard towers, the cap night) come from a TierBot
 ## run of about 155 s on seed 20260930; the others are constructed. The in-script "built twice" check proves the construction is pure; two runs
 ## giving identical md5 prove the whole thing deterministic. It writes
-## tier3_baron_full, tier3_baron_no_yard, tier3_baron_alone, tier3_night1 and tier3_cap_<all_a|all_b|mixed|threat>. `tier3_branch_day` (checkpoint video, recording aid) reads the committed tier3_night1 through the real codec, gives tower_sw and fence_sw the
+## tier3_baron_full, tier3_baron_no_yard, tier3_baron_alone, tier3_night1 and tier3_cap_<all_a|all_b|mixed|threat>. `tier3_branch_day` (checkpoint video; E6 phase A: the committed DAY HOME perf fixture, `PERF_PHASE=DAY export/perf_night3.sh`, deterministic: two runs give identical md5) reads the committed tier3_night1 through the real codec, gives tower_sw and fence_sw the
 ## state of tower_w and fence_w (level 3) and 1500 gold, so a tier-3 DAY has several max-level buildings and the gold to buy branches, and writes
-## export/fixtures/tier3_branch_day.save.json (not committed: reproduce it with this option). `retune` (E6 Task 19, spec 8.3) plays ONE real TierBot run (threat policy, the retune flag
+## export/fixtures/tier3_branch_day.save.json (committed). `retune` (E6 Task 19, spec 8.3) plays ONE real TierBot run (threat policy, the retune flag
 ## ON in memory only, seed 3 by default: a tuning seed, never a hold-out seed) and writes retune_first_t3_night (the first tier-3 day's start, resume DAY), retune_respawn (the same state, resume NIGHT)
 ## and retune_siege_night (the close-up of the first tier-3 night on which a wave's brutes have a siege lane that is neither the drawn main nor side lane and a wave has an extra hare group; resume NIGHT).
 ## `tier3` also records tier3_night1 from the same real run (the first tier-3 day's start, flag off), and builds tier3_baron_alone from the real Baron-night capture. `day3_counter5` writes only that fixture. `night3` rewrites the two night3 fixtures at the current schema and must
@@ -28,8 +28,8 @@ func _run() -> void:
 			_fixture = a.trim_prefix("--fixture=")
 		if a.begins_with("--seed="):
 			_retune_seed = int(a.trim_prefix("--seed="))
-	if _fixture != "day3_counter5" and _fixture != "night3" and _fixture != "tier" and _fixture != "tier3" and _fixture != "tier3_branch_day" and _fixture != "retune":
-		push_error("usage: -- --fixture=day3_counter5|night3|tier|tier3|tier3_branch_day|retune [--seed=N]")
+	if _fixture != "day3_counter5" and _fixture != "night3" and _fixture != "tier" and _fixture != "tier3" and _fixture != "tier3_branch_day" and _fixture != "tier3_cap_day" and _fixture != "retune":
+		push_error("usage: -- --fixture=day3_counter5|night3|tier|tier3|tier3_branch_day|tier3_cap_day|retune [--seed=N]")
 		quit(2)
 		return
 	if _fixture == "retune" and not _retune_seed in SweepMath.set_seeds(SweepMath.TUNING_SET):
@@ -44,6 +44,9 @@ func _run() -> void:
 		return
 	if _fixture == "tier3_branch_day":
 		quit(0 if _run_branch_day() else 1)
+		return
+	if _fixture == "tier3_cap_day":
+		quit(0 if _run_cap_day() else 1)
 		return
 	if _fixture == "retune":
 		quit(0 if await _run_retune() else 1)
@@ -390,6 +393,35 @@ func _run_branch_day() -> bool:
 		return false
 	_write("tier3_branch_day", s)
 	return true
+
+## E6 A2 (perf aid): the tier-3 cap night's close-up as a DAY resume. The committed tier3_cap_threat (decoded through the real codec)
+## with resume_phase DAY, so a profile build resumes into the day and `?perfclose=<s>` enters the same night by play (export/perf_night3.sh PLAY_ENTERED=1).
+## Writes export/fixtures/tier3_cap_threat_day.save.json (the stem is `<night fixture>_day`).
+func _run_cap_day() -> bool:
+	var stem := "tier3_cap_threat"  # `-- --from=tier3_cap_all_a` reads another night fixture (writes <stem>_day)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--from="):
+			stem = a.trim_prefix("--from=")
+	var text := FileAccess.get_file_as_string("res://export/fixtures/%s.save.json" % stem)
+	var bd = root.get_node("Balance").data
+	var codec = load("res://core/save_codec.gd")
+	var r: Dictionary = codec.decode(text, int(root.get_node("GameState").SCHEMA_VERSION), bd)
+	if not bool(r.ok):
+		push_error("%s does not decode: %s" % [stem, String(r.reason)])
+		return false
+	var s: Dictionary = r.state
+	s.resume_phase = "DAY"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--wave1="):  # an experiment: `--wave1=west,east` moves wave 1 onto those lanes (writes <stem>_<main>_<side>_day)
+			var lanes := a.trim_prefix("--wave1=").split(",")
+			s.lane_plan[1].main = lanes[0]
+			s.lane_plan[1].side = lanes[1]
+			stem += "_" + lanes[0] + "_" + lanes[1]
+	var why: String = codec.validate(s, bd)
+	if why != "":
+		push_error("fixture %s_day invalid: %s" % [stem, why])
+		return false
+	_write(stem + "_day", s)
 
 # --- E6 flag-on fixtures (Task 19, spec 8.3) -------------------------------------------------------------------------
 # One real TierBot run (threat policy, the retune flag on in memory only, the bots as they are) on a tuning seed. Captured: the first tier-3 day's start (retune_first_t3_night, resume DAY;

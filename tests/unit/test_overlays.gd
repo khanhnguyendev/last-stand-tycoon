@@ -264,3 +264,164 @@ func test_perf_warmup_tracks_pre3_and_adds_nothing_to_the_window() -> void:
 		p._tick(1.0 / 60.0, 1.0 / 60.0)
 	assert_eq(p.avg_fps(), 0.0, "warm-up frames are not in the window")
 	assert_eq(p.pre3_text().split(" ").size(), 3, "the 3 worst warm-up frames are tracked")
+
+# --- E6 A2: the per-frame log and the play-entered close-up (`?perflog`, `?perfclose`) ---
+
+func test_perf_flag_parsing_is_positive_seconds_only() -> void:
+	assert_eq(PerfOverlay.positive_seconds(""), 0.0, "absent")
+	assert_eq(PerfOverlay.positive_seconds("abc"), 0.0, "not a number")
+	assert_eq(PerfOverlay.positive_seconds("0"), 0.0)
+	assert_eq(PerfOverlay.positive_seconds("-3"), 0.0)
+	assert_eq(PerfOverlay.positive_seconds("25"), 25.0)
+	assert_eq(PerfOverlay.positive_seconds("1.5"), 1.5)
+
+func test_perf_log_is_inert_without_the_flag() -> void:
+	var p := _perf()
+	for i in 300:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(p._log_s, 0.0)
+	assert_eq(p._log_t.size(), 0, "no frame was logged")
+	assert_null(p._log_label)
+
+func test_perf_log_records_every_frame_and_flushes_once() -> void:
+	UrlFlags.set_for_tests("perflog=2")
+	var p := _perf()
+	UrlFlags.set_for_tests("")
+	assert_eq(p._log_s, 2.0)
+	for i in 119:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(p._log_t.size(), 119)
+	assert_false(p._log_done, "1.98 s: still logging")
+	p._tick(0.120, 0.016)  # one slow frame closes the log
+	assert_true(p._log_done)
+	assert_eq(p._log_t.size(), 120)
+	assert_almost_eq(p._log_ms[119], 120.0, 0.01)
+	assert_true(p._log_label.text.contains("2.1:120"), "the slow frame is on screen: " + p._log_label.text)
+	p._tick(0.5, 0.016)
+	assert_eq(p._log_t.size(), 120, "nothing is logged after the flush")
+
+func test_perf_log_stable_frames_and_first_events() -> void:
+	UrlFlags.set_for_tests("perflog=3")
+	var p := _perf()
+	UrlFlags.set_for_tests("")
+	p._tick(0.9, 0.016)  # a load freeze
+	for i in 12:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_gt(p._stable_at, 0.9, "stable after the freeze, 10 frames under the boot fade's limit")
+	assert_lt(p._stable_at, 1.2)
+	EventBus.sfx_requested.emit(&"zzz_test")
+	EventBus.sfx_requested.emit(&"zzz_test")
+	assert_eq(p._first.size(), 1, "a name is recorded once")
+	assert_true(p._first[0].begins_with("sfx_zzz_test@"))
+
+func test_perf_close_emits_closeup_only_in_day_after_the_seconds() -> void:
+	UrlFlags.set_for_tests("perfclose=1")
+	var p := PerfOverlay.new()
+	add_child_autofree(p)
+	UrlFlags.set_for_tests("")
+	var hits := [0]
+	var cb := func() -> void: hits[0] += 1
+	EventBus.closeup_requested.connect(cb)
+	EventBus.phase_changed.emit(Phase.NIGHT, 3)
+	for i in 100:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(hits[0], 0, "not in a night")
+	EventBus.phase_changed.emit(Phase.DAY, 3)
+	for i in 50:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(hits[0], 0, "before the seconds")
+	for i in 20:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(hits[0], 1, "after 1 s of day")
+	for i in 100:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(hits[0], 1, "once")
+	EventBus.closeup_requested.disconnect(cb)
+
+func test_perf_glyph_prime_is_the_default_and_perfglyph_0_turns_it_off() -> void:
+	var on := _perf()
+	on._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_eq(on._label.text, PerfOverlay.GLYPHS, "default: the glyph set is on screen for one frame")
+	on._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_ne(on._label.text, PerfOverlay.GLYPHS, "then the real text")
+	assert_eq(on._frozen_label.text, "", "the prime text on the frozen-line label is cleared on that next tick: it must not stay on screen through the measured window")
+	for ch in "0123456789.%":
+		assert_true(PerfOverlay.GLYPHS.contains(ch), "glyph " + ch)
+	UrlFlags.set_for_tests("perfglyph=0")
+	var off := _perf()
+	UrlFlags.set_for_tests("")
+	off._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_ne(off._label.text, PerfOverlay.GLYPHS, "perfglyph=0: the real text from the first tick (the old reading)")
+
+func test_perf_priming_frame_is_still_counted() -> void:
+	var p := _perf()
+	UrlFlags.set_for_tests("perfglyph=0")
+	var q := _perf()
+	UrlFlags.set_for_tests("")
+	for i in 130:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+		q._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_gt(p._n, 0, "frames past the 2 s warm-up are counted")
+	assert_eq(p._n, q._n, "the same frame count as an overlay with perfglyph=0 (the old behaviour): the prime frame is counted")
+	assert_eq(p._since_reset, q._since_reset, "and the same elapsed window time")
+
+## E6 A3 (D-294), E6 phase A (D-300): the budget line, one budget per reading. Fails when a limit moves (OK at the budget, WARN one above), when a kind reads another's budget,
+## or when the default is not the resumed night. (Before phase A this test pinned one budget of 58 for the resumed night: its 58 became the resumed night's 50, measured 40 + 10.)
+func test_draw_call_budget_line_is_ok_up_to_the_readings_own_budget_and_warns_above() -> void:
+	var P = load("res://ui/perf_overlay.gd")
+	assert_eq(P.budget_text(40.0), "DRAW_CALL_BUDGET: OK 40 (budget 50)", "the default is the resumed night")
+	assert_eq(P.budget_text(50.4, P.BudgetKind.NIGHT_RESUMED), "DRAW_CALL_BUDGET: OK 50 (budget 50)")
+	assert_eq(P.budget_text(50.6, P.BudgetKind.NIGHT_RESUMED), "DRAW_CALL_BUDGET: WARN 51 (budget 50)")
+	assert_eq(P.budget_text(54.0, P.BudgetKind.NIGHT_PLAY), "DRAW_CALL_BUDGET: OK 54 (budget 64)")
+	assert_eq(P.budget_text(64.4, P.BudgetKind.NIGHT_PLAY), "DRAW_CALL_BUDGET: OK 64 (budget 64)")
+	assert_eq(P.budget_text(64.6, P.BudgetKind.NIGHT_PLAY), "DRAW_CALL_BUDGET: WARN 65 (budget 64)")
+	assert_eq(P.budget_text(107.0, P.BudgetKind.DAY_HOME), "DRAW_CALL_BUDGET: OK 107 (budget 117)")
+	assert_eq(P.budget_text(117.0, P.BudgetKind.DAY_HOME), "DRAW_CALL_BUDGET: OK 117 (budget 117)")
+	assert_eq(P.budget_text(118.0, P.BudgetKind.DAY_HOME), "DRAW_CALL_BUDGET: WARN 118 (budget 117)")
+
+## The overlay picks the kind from what it is measuring: a day, a night that follows a day seen in this session (entered by play), a night the session starts in (resumed).
+func test_the_overlay_reads_the_budget_of_its_own_phase_and_mode() -> void:
+	var p := _perf()  # the session starts in a NIGHT: resumed from a save
+	assert_eq(p.budget_kind(), p.BudgetKind.NIGHT_RESUMED, "a night with no day before it")
+	EventBus.phase_changed.emit(Phase.DAY, 3)
+	assert_eq(p.budget_kind(), p.BudgetKind.DAY_HOME)
+	EventBus.phase_changed.emit(Phase.NIGHT, 3)
+	assert_eq(p.budget_kind(), p.BudgetKind.NIGHT_PLAY, "the night after a day of this session: entered by play")
+	EventBus.phase_changed.emit(Phase.DAY, 4)
+	assert_eq(p.budget_kind(), p.BudgetKind.DAY_HOME)
+	var q := _perf()  # a new overlay hears the NIGHT first: resumed again
+	assert_eq(q.budget_kind(), q.BudgetKind.NIGHT_RESUMED, "a fresh session")
+
+func test_the_frozen_perf_line_ends_with_the_budget_line() -> void:
+	var p := _perf()
+	EventBus.phase_changed.emit(Phase.NIGHT, 3)
+	for i in 130:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	for i in 3700:
+		p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_true(p.frozen_text().ends_with("(budget 50)"), "the frozen line carries the budget words (a night with no close-up of its own: the resumed budget, was 58 before phase A): " + p.frozen_text())
+
+## E6 phase A (a2.md 4g): `?perfcut=<what>` hides ONE group for a reading and nothing else; an unknown name does nothing. Only the labels cut is run here (the others look up nodes of the real Main);
+## it fails when the cut hides a neighbour (a mesh) or the overlay itself.
+func test_perfcut_hides_one_group_and_leaves_the_rest() -> void:
+	UrlFlags.set_for_tests("perfcut=labels")
+	var host := Node3D.new()
+	add_child_autofree(host)
+	var label := Label3D.new()
+	var mesh := MeshInstance3D.new()
+	host.add_child(label)
+	host.add_child(mesh)
+	var p := PerfOverlay.new()
+	host.add_child(p)
+	p._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_false(label.visible, "labels cut: the Label3D is hidden")
+	assert_true(mesh.visible, "and the mesh is not")
+	assert_true(p.visible, "and the overlay stays")
+	UrlFlags.set_for_tests("perfcut=bogus")
+	var label2 := Label3D.new()
+	host.add_child(label2)
+	var q := PerfOverlay.new()
+	host.add_child(q)
+	q._tick(1.0 / 60.0, 1.0 / 60.0)
+	assert_true(label2.visible, "an unknown cut hides nothing")
+	UrlFlags.set_for_tests("")

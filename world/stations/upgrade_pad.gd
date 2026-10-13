@@ -30,7 +30,7 @@ func setup(id: StringName, world: World) -> void:
 	add_child(name_label)
 	marker = MARKER_SCENE.instantiate()
 	add_child(marker)
-	_pips = LevelPips.make(self, Balance.data.stations.max_level, PIP_Y)
+	_pips = LevelPips.make(self, Balance.data.stations.max_level, PIP_Y, world.pip_batch)
 	zone = StationZone.new()
 	zone.radius = MapLayout.BUILD_RADIUS
 	zone.drive_ring = false  # the ring shows paid / cost

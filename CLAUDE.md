@@ -36,7 +36,8 @@ Spec: `docs/superpowers/specs/2026-09-30-s1-vertical-slice-design.md`. Decisions
 - Web export: see `export/README.md`
 - S4 shots: `tools/shots.sh <out_dir>` (rendered 720x1280 + 40% copies); determinism: `tools/baseline_diff.sh` (must print `baseline identical`) and `tools/baseline_rows.sh 7` (must print `rows 1-7 identical`: the tier-1 identity, D-237)
 - Tier-3 off-state identity (E6, D-286, until the flag is removed): `tools/baseline_t3_off.sh` (about 4 min; must print `tier-3 off identical <commit>`); its output goes into every E6 phase PR body beside the two baseline outputs
-- Night-3 perf (iOS Simulator, profile build): `export/perf_night3.sh <web_profile_dir> <out_dir>`; read the frozen `PERF phase=NIGHT` line; the gate is the median of 3 runs (D-199)
+- Night-3 perf (iOS Simulator, profile build): `export/perf_night3.sh <web_profile_dir> <out_dir>`; read the frozen `PERF phase=NIGHT` line; the gate is the median of 3 runs (D-199); two readings (D-292): the gate is a night entered by play (`PLAY_ENTERED=1`), the resume hitch a resumed night; the line ends with `DRAW_CALL_BUDGET: OK|WARN <n> (budget <b>)` (a warning only; the budget is the reading's own, D-300); use `perflog=70` or more; `PERF_PHASE=DAY` reads the frozen `PERF phase=DAY` line (the day HOME framing; fixture `tier3_branch_day`, `FIXTURE_DIR=<dir>` serves fixtures from another folder); budgets by reading (D-300): night entered by play 64, resumed night 50, day at HOME 117
+- Perf hygiene (D-294): before every perf run check `pgrep -fl Godot` and `pgrep -fl "perf_night3|serve_nocache|Simulator"` for strays from earlier tasks and stop them; implementers stop every process they started before reporting done.
 
 ## Architecture
 - Autoloads: EventBus (cross-system signals), GameState (the only mutable game data), Balance (typed tuning).

@@ -179,9 +179,9 @@ func covers(xf: Transform3D, project: Callable, hero_pos: Variant, screen := Rec
 				return true
 	# the level pips of every spot and upgrade pad (a pip is in the group `level_pips`; its label may be hidden: a branch spot's cost is on its pads)
 	for n in get_tree().get_nodes_in_group(&"level_pips"):
-		var pip := n as MeshInstance3D
+		var pip := n as LevelPip
 		if pip != null and pip.is_visible_in_tree():
-			var pb: AABB = pip.mesh.get_aabb()
+			var pb: AABB = LevelStar.mesh().get_aabb()
 			if mine.intersects(_quad(xf, project, pip.global_position, Vector2(pb.size.x, pb.size.y))):
 				return true
 	return false

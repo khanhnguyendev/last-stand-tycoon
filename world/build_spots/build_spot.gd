@@ -37,7 +37,7 @@ func setup(id: String, world: World) -> void:
 	add_child(label)
 	marker = MARKER_SCENE.instantiate()
 	add_child(marker)
-	_pips = LevelPips.make(self, Balance.data.build.max_level, _pip_y(1))
+	_pips = LevelPips.make(self, Balance.data.build.max_level, _pip_y(1), world.pip_batch)
 	# Stand-still payment (spec 8.x). The spot drives its own ring: paid / cost, not the stand charge.
 	zone = StationZone.new()
 	zone.radius = MapLayout.BUILD_RADIUS
