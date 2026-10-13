@@ -3335,3 +3335,38 @@ recommendations and answered three questions put to them one by one.
    tier-2 save with raised fixture gold, through the lane-character step and the banner; debug build, flag on, said
    to be staged in the README; the edited fixture is not committed, its making is described.
 9. **The checkpoint stays open until hold-out set #2 passes.** No flip (Task 22) before that.
+
+**D-305 The seed-14 round: cause class, the one change, what was not changed (main session, 2026-10-13).**
+1. **What failed on seed 14** (north siege lane, day 21, the first tier-3 night, pressure 12, one branch owned): the
+   north fence is hit in all three waves and falls in wave 2; in wave 3 the bot's hero leaves the south-west main
+   lane for the breached north lane, arrives when the towers have cleared it, and the south-west fence (120 of 320
+   left) falls behind it. South-west boars deal 220 of the 262 damage. Timeline and every what-if:
+   `docs/review/media/e6/tuning/p4_seed14_diagnosis.md`.
+2. **Cause class (ii), balance.** Tier 3 started at its cap pressure on the night the player owns one branch. With
+   the bot unchanged, a softer start fixes the night for every policy on seed 14 and on seed 7. The hero's walk is a
+   contributing bot weakness (class (i)): three rules were tried in memory (hold the lane, finish the walk, no walk
+   to the far side); each fixed one night and broke or missed another (hold: day 23 falls from 51.0% to 3.7%). The
+   bot is not changed.
+3. **The round's one change (flag on only):** tier 3 starts at pressure 10 and rises one per night to its cap 12
+   (`TierBalance.tier_base_retune = [0, 1, 8, 10]`, read through `TierEffects.base_pressure`). 10 is tier 2's cap:
+   the first tier-3 night adds the fourth lane and one brute at a pressure the player has beaten. 11 was not enough
+   (the unbranched reference reads 7.7% on seed 7). This reverses, with the flag on, the E5 ruling "tier 3 starts at
+   its cap". Spike's numbers stay quoted at pressure 12, so Spike scales below 1 on the first two nights, in step
+   with the monsters' HP (pinned by a unit test).
+4. **Cost, stated:** the first tier-3 night is now easy for a branch build (79.7% to 100% on the tuning set); the
+   at-cap columns and FENCE_TAX count from the third tier-3 night and are not like for like with earlier rounds.
+5. **Seed sets:** tuning is 1, 3, 4, 7 and 14 (north has two seeds; the tuning lead is seed-weighted and says so).
+   Set #1 is retired and refused by the report. Set #2 is unchanged and unplayed.
+6. **Flag-on fixtures regenerated** (seed 3). `retune_respawn` is now a constructed state (the first tier-3 day's
+   buildings, `tier_day` two days back, pressure 12, 3 brutes): at pressure 10 fewer than 6 monsters stood in the
+   south-west zone, so the respawn scenario never happened. Test c's assertions are unchanged; three were added.
+   Tick budget: test b 23652 to 23385 (the softer night), test c 6916 to 8471 (the cap night with 3 brutes).
+7. **Bench at pressures 10 and 11** (a report, `tests/bench_report/test_branch_bench_pressures.gd`): all 36 rules
+   pass at 10, 11 and 12; pressure 12 reproduces the CI bench.
+8. **Tuning set at `f8cea4b`** (30 runs; later commits change tests and printed text only): 6 of 7 verdict lines
+   pass. THREAT_LEAD +1.9 (unmet, accepted, D-302.2). Retry nights 0 for every branch policy; unbranched 3, all on
+   seed 14. Lowest first tier-3 night 79.7%. FENCE_TAX 19.4% (north lane 30.6%). FIXED_SPREAD 5.5.
+   Output: `docs/review/media/e6/tuning/p4_r3_tuning_seed14.txt`.
+9. **A slip found:** merge `d3eb6c4` lost a `return true` in `tests/sim/make_save.gd`, so the script did not parse
+   on `main`. Fixed; a unit test now loads every `-s` script.
+10. **Next:** the suites and the three baselines, then hold-out set #2 once with `--final` (D-304.4).

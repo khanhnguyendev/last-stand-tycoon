@@ -108,4 +108,4 @@ Code and test follow-ups:
 - The unspent-gold comparison with E5 T3 is not like for like (it needs an E5 T3 run to day 32).
 - The Simulator fps readings (night at HOME 54.9, day at HOME 43.2) go to the phone check at the final review.
 - The flag-on respawn sim proves protection against an immediate second knock-out only, not the full window at 300 HP.
-
+- **The tier bot's hero crosses the diner for a breached lane** (D-305): in the last wave it leaves a main lane with monsters arriving, walks about 8 s to the far lane, finds it cleared by the towers and walks back. Three rules were tried in memory and none was better on every night (`docs/review/media/e6/tuning/p4_seed14_diagnosis.md`). Needs a rule that weighs walking time; any change moves every measured number.
