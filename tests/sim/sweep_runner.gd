@@ -38,7 +38,8 @@ extends Node
 ##     night that follows a skipped rebuild shows no rebuild at all), so FENCE_TAX: no is a lower bound.
 ##   RETUNE seed policy siege hare first_t3_frac hare_share_mean hare_share_min guard_hits t3_nights (only with --retune=on; SweepMath.retune_run_stats): siege and hare = the run's lane
 ##   character; first_t3_frac = the diner fraction of the first night that started at tier 3 (-1 none); hare_share_* = the night-level share of the plan's hares on the hare lane
-##   over the tier-3 nights that had hares (mean, min; -1 none); guard_hits = waves whose extra hare group the 3-lane guard skipped (expected 0); t3_nights = tier-3 nights played.
+##   over the tier-3 nights that had hares (mean, min; -1 none); guard_hits = waves whose extra hare group the 3-lane guard skipped (expected 0); t3_nights = tier-3 nights played; (D-298, at the END of the line) max_retries / max_retries_day = the most mercy retries any tier-3 night needed and its day; unspent_before / unspent_after = the closing
+##   gold of each tier-3 day (|-separated, '-' none) before the ladder completes / from its completion day on.
 ##   The `unbranched` policy (the report's floor) buys no branch, so its LADDER counts as done when every level and station is bought (SweepMath.ladder_done need_branches=false).
 ##   `--cols=extra` also appends fence_rebuild_gold (rebuild + rebranch of that row's day phase) at the END of the tier rows.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
@@ -269,9 +270,11 @@ func _run() -> void:
 		print(SweepMath.fence_tax_line(ls))
 		if String(args.retune) == "on":
 			var rt := SweepMath.retune_run_stats(nights)
+			var us := SweepMath.unspent_split(day_records)
 			var ch := LaneCharacter.for_run(int(args.seed))
-			print("RETUNE seed=%s policy=%s siege=%s hare=%s first_t3_frac=%.4f hare_share_mean=%.3f hare_share_min=%.3f guard_hits=%d t3_nights=%d" % [
-				args.seed, args.policy, ch.siege, ch.hare, rt.first_t3_frac, rt.hare_share_mean, rt.hare_share_min, rt.guard_hits, rt.t3_nights])
+			print("RETUNE seed=%s policy=%s siege=%s hare=%s first_t3_frac=%.4f hare_share_mean=%.3f hare_share_min=%.3f guard_hits=%d t3_nights=%d max_retries=%d max_retries_day=%d unspent_before=%s unspent_after=%s" % [
+				args.seed, args.policy, ch.siege, ch.hare, rt.first_t3_frac, rt.hare_share_mean, rt.hare_share_min, rt.guard_hits, rt.t3_nights, rt.max_retries, rt.max_retries_day,
+				_gold_list(us.before), _gold_list(us.after)])
 		if String(args.tier3) == "off" and tier3_events != 0:
 			push_error("tier 3 is not for sale but %d brute kills, south-west spawns and branches were counted" % tier3_events)
 			h.finish()
@@ -283,6 +286,10 @@ func _run() -> void:
 var _gold_sold := 0
 var _fence_hp := {}
 var _policy := ""
+
+## "100|300|200" (the closing gold of each day in order), "-" when empty.
+func _gold_list(a: Array) -> String:
+	return "-" if a.is_empty() else "|".join(a.map(func(v): return str(v)))
 
 ## The night-level share of tonight's hares that walk the hare lane (E6, spec 8.1); -1 with no lane character (below tier 3) or no hares tonight.
 func _night_hare_share(character: Dictionary) -> float:

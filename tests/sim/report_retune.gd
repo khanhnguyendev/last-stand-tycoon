@@ -10,6 +10,7 @@ extends SceneTree
 ## unbranched = no branch) one REAL tier sweep in its own Godot process (`sweep.gd -- --bot=tier --days=32 --retune=on --seed=S --policy=P`), at most --parallel (1 to 3) at once;
 ## the runs' stdout is kept under tests/sim/out/retune/ (T3RUN, LADDER and RETUNE lines are read from it; a run takes about 220 s idle: the tuning set, 24 runs at 3 a time,
 ## is about 30 to 35 min; a hold-out set, 48 runs, about an hour). A missing or failed run (no result line, a hard break, no tier-3 night) prints NO verdict lines and exits 1.
+## D-298: `unbranched` is the floor reference: RETRY_NIGHTS prints its count but does not judge it; UNBRANCHED_RETRIES / UNBRANCHED_FLAG and UNSPENT_T3 / UNSPENT_AFTER_LADDER are report-only lines.
 ## Verdict lines (SweepMath; each followed by its per-seed and per-siege-lane lines): THREAT_LEAD, THREAT_LEAD_BY_LANE, RETRY_NIGHTS, FIRST_T3_NIGHT, FENCE_TAX, FIXED_SPREAD,
 ## HARE_SHARE, LANE_CAP_GUARD. Targets that fail still exit 0 (the output is the verdict); the last line says how many passed.
 ## `--final` is refused with the tuning set, on a dirty tree and on an unknown commit (the recorded commit must identify the values); a record file that does not parse exits 2 and is
@@ -139,7 +140,7 @@ func _initialize() -> void:
 		OS.kill(int(r.pid))  # a failed report leaves no child behind
 	var rows: Array = []
 	var expected: Array = []
-	lines.append("RUN seed policy | " + " ".join(RUN_FIELDS) + " | siege first_t3_frac hare_share_mean guard_hits")
+	lines.append("RUN seed policy | " + " ".join(RUN_FIELDS) + " | siege first_t3_frac hare_share_mean guard_hits max_retries")
 	for s in seeds:
 		for p in SweepMath.RETUNE_POLICIES:
 			expected.append([s, p])
@@ -157,17 +158,20 @@ func _initialize() -> void:
 			var cells: Array = []
 			for f in RUN_FIELDS:
 				cells.append(String(kv.get(f, "?")))
-			lines.append("RUN %d %s | %s | %s %s %s %s" % [s, p, " ".join(cells), rt.get("siege", "?"), rt.get("first_t3_frac", "?"), rt.get("hare_share_mean", "?"), rt.get("guard_hits", "?")])
+			lines.append("RUN %d %s | %s | %s %s %s %s %s" % [s, p, " ".join(cells), rt.get("siege", "?"), rt.get("first_t3_frac", "?"), rt.get("hare_share_mean", "?"), rt.get("guard_hits", "?"), rt.get("max_retries", "?")])
 			var hard := int(kv.get("hard_break_day", "-1")) >= 0
 			if hard:
 				lines.append("RUN %d %s | HARD BREAK on day %s" % [s, p, kv.hard_break_day])
 			rows.append({"seed": s, "lane": SweepMath.seed_lane(seed_set, s), "policy": p, "mean_frac": float(kv.mean), "retry_nights": int(kv.retry_nights),
 				"first_t3_frac": float(rt.get("first_t3_frac", "-1")), "fence_median": int(ld.get("fence_rebuild_gold_median_at_cap", "0")), "income_at_cap": int(ld.get("income_at_cap", "0")),
-				"hare_share": float(rt.get("hare_share_mean", "-1")), "hare_share_min": float(rt.get("hare_share_min", "-1")), "guard_hits": int(rt.get("guard_hits", "0")), "failed": hard})
+				"hare_share": float(rt.get("hare_share_mean", "-1")), "hare_share_min": float(rt.get("hare_share_min", "-1")), "guard_hits": int(rt.get("guard_hits", "0")), "failed": hard,
+				"max_retries": int(rt.get("max_retries", "0")), "max_retries_day": int(rt.get("max_retries_day", "-1")), "unspent_before": _gold_array(rt.get("unspent_before", "-")),
+				"unspent_after": _gold_array(rt.get("unspent_after", "-")), "unspent_last": int(kv.get("unspent_last_day", "0")), "ladder_done": int(ld.get("ladder_done_day", "-1")) >= 0})
 	var res: Dictionary = SweepMath.retune_report(rows, expected, set_id != "tuning")
 	lines.append_array(res.lines)
 	if int(res.exit) == 0:
-		lines.append("TARGETS %s (HARE_SHARE flags are a warning, not a target; read every line, the per-seed and per-lane lines most of all)" % ("ALL PASS" if res.ok else "NOT ALL PASS"))
+		lines.append("TARGETS %s%s (counted: THREAT_LEAD, THREAT_LEAD_BY_LANE, RETRY_NIGHTS, FIRST_T3_NIGHT, FENCE_TAX, FIXED_SPREAD, LANE_CAP_GUARD; HARE_SHARE flags, UNBRANCHED_* and UNSPENT_* are information; read every line, the per-seed and per-lane lines most of all)" % [
+			"ALL PASS" if res.ok else "NOT ALL PASS", "" if res.ok else " (failing: " + ", ".join(res.failed) + ")"])
 	if is_final:
 		_write_record(record_path, SweepMath.final_finish(gate.record, int(res.exit) == 0 and bool(res.ok)))
 	lines.append("WALL %.0f s (parallel=%d, %d runs)" % [(Time.get_ticks_msec() - t0) / 1000.0, parallel, total])
@@ -179,6 +183,14 @@ func _initialize() -> void:
 	quit(int(res.exit))
 
 ## Single-quoted for /bin/sh.
+func _gold_array(text: String) -> Array:
+	var out: Array = []
+	if text == "-" or text == "":
+		return out
+	for t in text.split("|"):
+		out.append(int(t))
+	return out
+
 func _q(s: String) -> String:
 	return "'" + s.replace("'", "'\\''") + "'"
 

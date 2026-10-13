@@ -198,7 +198,7 @@ func test_seed_scan_on_a_synthetic_lane_function() -> void:
 # rows: {seed, lane, policy, mean_frac, retry_nights, first_t3_frac, fence_median, income_at_cap, hare_share, guard_hits}
 func _row(seed: int, lane: String, policy: String, frac: float, extra := {}) -> Dictionary:
 	var r := {"seed": seed, "lane": lane, "policy": policy, "mean_frac": frac, "retry_nights": 0, "first_t3_frac": 0.5, "fence_median": 10, "income_at_cap": 100,
-		"hare_share": 0.7, "hare_share_min": 0.7, "guard_hits": 0}
+		"hare_share": 0.7, "hare_share_min": 0.7, "guard_hits": 0, "max_retries": 0, "max_retries_day": -1, "unspent_before": [], "unspent_after": [], "unspent_last": 0, "ladder_done": false}
 	r.merge(extra, true)
 	return r
 
@@ -283,13 +283,106 @@ func test_per_lane_lead_values_in_the_by_lane_lines() -> void:
 	assert_string_contains(_line(res, "  lane west"), "+10.0")
 	assert_string_contains(_line(res, "  seed 10"), "+8.0")
 
-func test_retry_nights_is_zero_for_every_policy_the_floor_included() -> void:
+func test_retry_nights_is_zero_for_every_policy_except_unbranched_which_is_only_a_reference() -> void:
 	assert_true(SweepMath.retry_nights(_grid()).ok)
 	var rows := _grid()
-	_put(rows, "unbranched", 14, {"retry_nights": 1})
+	_put(rows, "unbranched", 14, {"retry_nights": 3})
 	var res := SweepMath.retry_nights(rows)
-	assert_false(res.ok, "one retry night of the floor policy fails")
-	assert_string_contains(res.lines[0], "unbranched 1")
+	assert_true(res.ok, "unbranched retries never change the verdict")
+	assert_string_contains(res.lines[0], "unbranched 3 (reference, not a target)")
+	_put(rows, "threat", 9, {"retry_nights": 1})
+	var bad := SweepMath.retry_nights(rows)
+	assert_false(bad.ok, "another policy's single retry night still fails it")
+	assert_string_contains(bad.lines[0], "threat 1")
+
+func test_first_t3_night_covers_unbranched_too() -> void:
+	var rows := _grid()
+	_put(rows, "unbranched", 5, {"first_t3_frac": 0.24})
+	assert_false(SweepMath.first_t3_night(rows).ok, "an unbranched first night at 24% fails the verdict")
+	_put(rows, "unbranched", 5, {"first_t3_frac": 0.25})
+	assert_true(SweepMath.first_t3_night(rows).ok)
+
+## UNBRANCHED_FLAG: more than 2 mercy retries on a night, or more than 3 retry nights on a seed.
+func test_unbranched_flag_boundaries() -> void:
+	var rows := _grid()
+	_put(rows, "unbranched", 5, {"retry_nights": 3, "max_retries": 2, "max_retries_day": 22})
+	var no := SweepMath.unbranched_report(rows)
+	assert_string_contains(_line(no, "UNBRANCHED_FLAG:"), "UNBRANCHED_FLAG: no")
+	assert_string_contains(_line(no, "UNBRANCHED_RETRIES"), "5:3")
+	_put(rows, "unbranched", 5, {"max_retries": 3})
+	var yes := SweepMath.unbranched_report(rows)
+	assert_string_contains(_line(yes, "UNBRANCHED_FLAG:"), "UNBRANCHED_FLAG: yes")
+	assert_string_contains(_line(yes, "UNBRANCHED_FLAG:"), "seed 5 night day 22 needed 3 retries")
+	_put(rows, "unbranched", 5, {"max_retries": 2, "retry_nights": 4})
+	var many := SweepMath.unbranched_report(rows)
+	assert_string_contains(_line(many, "UNBRANCHED_FLAG:"), "UNBRANCHED_FLAG: yes")
+	assert_string_contains(_line(many, "UNBRANCHED_FLAG:"), "seed 5 had 4 retry nights")
+	assert_false(SweepMath.unbranched_report(_grid()).flag)
+	_put(rows, "threat", 5, {"retry_nights": 9, "max_retries": 4})
+	_put(rows, "unbranched", 5, {"max_retries": 0, "retry_nights": 0})
+	assert_false(SweepMath.unbranched_report(rows).flag, "only the unbranched rows count")
+
+## Unspent gold at close-up over the tier-3 days: pooled over the seeds; before the ladder completes, from the completion day on, and the last day.
+func test_unspent_lines_pool_the_seeds_and_split_at_the_ladder() -> void:
+	var rows := _grid()
+	for r in rows:
+		r.unspent_before = []
+		r.unspent_after = []
+		r.unspent_last = 0
+	_put(rows, "threat", 2, {"unspent_before": [100, 300, 200], "unspent_after": [400, 500], "unspent_last": 500, "ladder_done": true})
+	_put(rows, "threat", 5, {"unspent_before": [50], "unspent_after": [900, 700], "unspent_last": 700, "ladder_done": true})
+	_put(rows, "threat", 9, {"unspent_before": [10, 20], "unspent_after": [], "unspent_last": 20, "ladder_done": false})
+	var lines := SweepMath.unspent_lines(rows)
+	var before := _line({"lines": lines}, "UNSPENT_T3 threat")
+	assert_string_contains(before, "median 75.0", "100 300 200 50 10 20: sorted 10 20 50 100 200 300")
+	assert_string_contains(before, "max 300")
+	var after := _line({"lines": lines}, "UNSPENT_AFTER_LADDER threat")
+	assert_string_contains(after, "median 600.0", "400 500 900 700")
+	assert_string_contains(after, "max 900")
+	assert_string_contains(after, "ladder completed in 2 of 8 runs")
+	assert_string_contains(after, "last-day median 0.0", "median over the 8 seeds of the last day: 0 0 0 0 0 20 500 700")
+	var none := _line({"lines": lines}, "UNSPENT_AFTER_LADDER all_a")
+	assert_string_contains(none, "n/a")
+	assert_string_contains(none, "ladder completed in 0 of 8 runs")
+
+func test_targets_summary_names_the_failing_targets_and_ignores_hare_share_and_unbranched_lines() -> void:
+	var good := SweepMath.retune_report(_grid(), _expected(), true)
+	assert_eq(good.failed, [])
+	assert_true(good.ok)
+	var rows := _grid()
+	_put(rows, "threat", 9, {"retry_nights": 1})
+	for r in rows:
+		if r.seed == 13:
+			r.hare_share = 0.1
+		r.guard_hits = 0
+	_put(rows, "mixed", 9, {"guard_hits": 1})
+	var res := SweepMath.retune_report(rows, _expected(), true)
+	assert_eq(res.failed, ["RETRY_NIGHTS", "LANE_CAP_GUARD"], "HARE_SHARE flags are not a target")
+	assert_false(res.ok)
+	var unb := _grid()
+	_put(unb, "unbranched", 9, {"retry_nights": 5, "max_retries": 4, "max_retries_day": 3})
+	var r2 := SweepMath.retune_report(unb, _expected(), true)
+	assert_true(r2.ok, "the unbranched flag never changes ALL PASS")
+	assert_ne(_line(r2, "UNBRANCHED_FLAG: yes"), "")
+
+func test_retune_run_stats_max_retries_and_unspent_split() -> void:
+	var nights := [
+		{"day": 3, "tier": 2, "frac": 0.1, "retries": 4},
+		{"day": 22, "tier": 3, "frac": 0.4, "retries": 1},
+		{"day": 23, "tier": 3, "frac": 0.5, "retries": 3},
+		{"day": 24, "tier": 3, "frac": 0.6, "retries": 3},
+	]
+	var s := SweepMath.retune_run_stats(nights)
+	assert_eq(s.max_retries, 3, "tier-3 nights only: the tier-2 night's 4 does not count")
+	assert_eq(s.max_retries_day, 23, "the first night with the maximum")
+	var days := [{"day": 21, "tier": 3, "unspent": 100, "done": false}, {"day": 22, "tier": 3, "unspent": 300, "done": false},
+		{"day": 23, "tier": 3, "unspent": 500, "done": true}, {"day": 24, "tier": 3, "unspent": 900, "done": true}, {"day": 20, "tier": 2, "unspent": 50, "done": false}]
+	var u := SweepMath.unspent_split(days)
+	assert_eq(u.before, [100, 300], "tier-3 days before the completion day")
+	assert_eq(u.after, [500, 900], "from the completion day on")
+	var never := SweepMath.unspent_split([days[0], days[1]])
+	assert_eq(never.before, [100, 300])
+	assert_eq(never.after, [])
 
 func test_first_t3_night_below_25_percent_fails() -> void:
 	var rows := _grid()

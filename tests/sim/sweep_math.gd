@@ -235,6 +235,8 @@ const RETUNE_POLICIES := ["all_a", "all_b", "mixed", "volley_stone", "threat", "
 ## Policies whose towers are Longbow on the siege lane (all_a, mixed: every tower; threat: the tower covering the siege lane, spec 4.4).
 const LONGBOW_POLICIES := ["all_a", "mixed", "threat"]
 const EPS := 1e-9
+## The floor reference (D-298): reported, never a target.
+const REFERENCE_POLICY := "unbranched"
 
 ## The scan. `siege_of`: Callable(seed) -> siege lane name. Returns {tuning, holdout1, holdout2}, each {lane: [seeds]} in scan order.
 static func seed_scan(siege_of: Callable, lanes: Array, per_lane := 5, start := 1) -> Dictionary:
@@ -347,9 +349,9 @@ static func child_failed(exit_code: int, log_text: String) -> bool:
 	return false
 
 ## Per-run facts from the tier-3 nights of a retune-on sweep: `nights` rows {tier, frac, hare_share (-1 when the night has no hares), guard_hits}.
-## first_t3_frac = the diner fraction of the first night that STARTED at tier >= 3 (-1 none); hare_share_mean / _min over the tier-3 nights that had hares (-1 none).
+## max_retries / max_retries_day = the most mercy retries any tier-3 night needed and the day of the first such night (0 / -1 none). first_t3_frac = the diner fraction of the first night that STARTED at tier >= 3 (-1 none); hare_share_mean / _min over the tier-3 nights that had hares (-1 none).
 static func retune_run_stats(nights: Array) -> Dictionary:
-	var out := {"first_t3_frac": -1.0, "hare_share_mean": -1.0, "hare_share_min": -1.0, "guard_hits": 0, "t3_nights": 0}
+	var out := {"first_t3_frac": -1.0, "hare_share_mean": -1.0, "hare_share_min": -1.0, "guard_hits": 0, "t3_nights": 0, "max_retries": 0, "max_retries_day": -1}
 	var shares: Array = []
 	for n in nights:
 		if int(n.tier) < 3:
@@ -357,6 +359,9 @@ static func retune_run_stats(nights: Array) -> Dictionary:
 		if out.t3_nights == 0:
 			out.first_t3_frac = float(n.frac)
 		out.t3_nights += 1
+		if int(n.get("retries", 0)) > out.max_retries:
+			out.max_retries = int(n.retries)
+			out.max_retries_day = int(n.get("day", -1))
 		out.guard_hits += int(n.get("guard_hits", 0))
 		if float(n.get("hare_share", -1.0)) >= 0.0:
 			shares.append(float(n.hare_share))
@@ -366,6 +371,24 @@ static func retune_run_stats(nights: Array) -> Dictionary:
 			sum += float(v)
 		out.hare_share_mean = sum / shares.size()
 		out.hare_share_min = ReportMath.percentile(shares, 0.0)
+	return out
+
+## The tier-3 days' unspent gold at close-up, split at the day the ladder completes: `days` rows {day, tier, unspent, done}. before = the tier >= 3 days before the first done
+## day (all of them when it never completes), after = from the first done day on. Returns {before, after} as arrays of gold.
+static func unspent_split(days: Array) -> Dictionary:
+	var done_day := -1
+	for d in days:
+		if bool(d.done):
+			done_day = int(d.day)
+			break
+	var out := {"before": [], "after": []}
+	for d in days:
+		if int(d.tier) < 3:
+			continue
+		if done_day >= 0 and int(d.day) >= done_day:
+			out.after.append(int(d.unspent))
+		else:
+			out.before.append(int(d.unspent))
 	return out
 
 # Run rows: {seed, lane, policy, mean_frac, retry_nights, first_t3_frac, fence_median, income_at_cap, hare_share, guard_hits, failed (optional)}.
@@ -487,10 +510,53 @@ static func retry_nights(rows: Array) -> Dictionary:
 		var n := 0
 		for r in _of(rows, p):
 			n += int(r.retry_nights)
+		if p == REFERENCE_POLICY:
+			parts.append("%s %d (reference, not a target)" % [p, n])
+			continue
 		ok = ok and n == 0
 		parts.append("%s %d" % [p, n])
-	var head := "RETRY_NIGHTS: %s (tier-3 retry nights summed over the seeds: %s; all must be 0)" % ["PASS" if ok else "FAIL", ", ".join(parts)]
-	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return float(sub.map(func(r): return int(r.retry_nights)).reduce(func(a, b): return a + b, 0)), "%.0f")}
+	var head := "RETRY_NIGHTS: %s (tier-3 retry nights summed over the seeds: %s; every policy but unbranched must be 0, D-298)" % ["PASS" if ok else "FAIL", ", ".join(parts)]
+	var targets := rows.filter(func(r): return r.policy != REFERENCE_POLICY)
+	return {"ok": ok, "lines": [head] + _breakdown(targets, func(sub): return float(sub.map(func(r): return int(r.retry_nights)).reduce(func(a, b): return a + b, 0)), "%.0f")}
+
+## UNBRANCHED_RETRIES / UNBRANCHED_FLAG (D-298, report only): the reference policy's retry nights per seed; the flag is yes when any tier-3 night needed more than 2 mercy
+## retries, or a seed has more than 3 retry nights. Returns {flag, lines}.
+static func unbranched_report(rows: Array) -> Dictionary:
+	var mine := _of(rows, REFERENCE_POLICY)
+	var per_seed: Array = []
+	var why: Array = []
+	for r in mine:
+		per_seed.append("%d:%d" % [r.seed, int(r.retry_nights)])
+		if int(r.get("max_retries", 0)) > 2:
+			why.append("seed %d night day %d needed %d retries" % [r.seed, int(r.get("max_retries_day", -1)), int(r.max_retries)])
+		if int(r.retry_nights) > 3:
+			why.append("seed %d had %d retry nights" % [r.seed, int(r.retry_nights)])
+	var flag := not why.is_empty()
+	return {"flag": flag, "lines": ["UNBRANCHED_RETRIES: retry nights per seed (seed:count, reference, not a target): %s" % " ".join(per_seed),
+		"UNBRANCHED_FLAG: %s (more than 2 mercy retries on a night, or more than 3 retry nights on a seed)%s" % ["yes" if flag else "no", ": " + "; ".join(why) if flag else ""]]}
+
+## UNSPENT_T3 / UNSPENT_AFTER_LADDER (D-298 watch item, information only): per policy, the median and maximum unspent gold at close-up over the tier-3 days of all its runs,
+## before the ladder completes and from the completion day to the end of the run, and the median over the runs of the last day's unspent gold. n/a when no day qualifies
+## (the line says in how many runs the ladder completed). Rows: unspent_before / unspent_after (arrays), unspent_last, ladder_done.
+static func unspent_lines(rows: Array) -> Array:
+	var lines: Array = []
+	for key in ["before", "after"]:
+		for p in RETUNE_POLICIES:
+			var mine := _of(rows, p)
+			var vals: Array = []
+			var done_runs := 0
+			for r in mine:
+				vals.append_array(r.get("unspent_" + key, []))
+				done_runs += 1 if bool(r.get("ladder_done", false)) else 0
+			var last := ReportMath.median(mine.map(func(r): return float(r.get("unspent_last", 0))))
+			var completed := "ladder completed in %d of %d runs" % [done_runs, mine.size()]
+			if key == "before":
+				lines.append("UNSPENT_T3 %s: %s" % [p, "n/a (no tier-3 day before the ladder completed; %s)" % completed if vals.is_empty()
+					else "median %.1f max %d over %d tier-3 days before the ladder completed (%s)" % [ReportMath.median(vals), int(vals.max()), vals.size(), completed]])
+			else:
+				lines.append("UNSPENT_AFTER_LADDER %s: %s; last-day median %.1f" % [p, "n/a (%s)" % completed if vals.is_empty()
+					else "median %.1f max %d over %d days from the completion day to the end (%s)" % [ReportMath.median(vals), int(vals.max()), vals.size(), completed], last])
+	return lines
 
 ## FIRST_T3_NIGHT: no run's first tier-3 night below 25% of the diner's HP (exactly 25% passes).
 static func first_t3_night(rows: Array) -> Dictionary:
@@ -592,8 +658,13 @@ static func retune_report(rows: Array, expected: Array, final := false) -> Dicti
 	if not problems.is_empty():
 		return {"exit": 1, "ok": false, "lines": ["FAILED: a run is missing or failed; no verdict lines"] + problems}
 	var lines: Array = []
-	var all_ok := true
-	for res in [threat_lead(rows, final), threat_lead_by_lane(rows), retry_nights(rows), first_t3_night(rows), fence_tax(rows), fixed_spread(rows), hare_share(rows), lane_cap_guard(rows)]:
-		lines.append_array(res.lines)
-		all_ok = all_ok and res.ok
-	return {"exit": 0, "ok": all_ok, "lines": lines}
+	var failed: Array = []
+	var results := {"THREAT_LEAD": threat_lead(rows, final), "THREAT_LEAD_BY_LANE": threat_lead_by_lane(rows), "RETRY_NIGHTS": retry_nights(rows), "FIRST_T3_NIGHT": first_t3_night(rows),
+		"FENCE_TAX": fence_tax(rows), "FIXED_SPREAD": fixed_spread(rows), "HARE_SHARE": hare_share(rows), "LANE_CAP_GUARD": lane_cap_guard(rows)}
+	for name in results:
+		lines.append_array(results[name].lines)
+		if name != "HARE_SHARE" and not results[name].ok:  # HARE_SHARE only flags (spec 8.1)
+			failed.append(name)
+	lines.append_array(unbranched_report(rows).lines)
+	lines.append_array(unspent_lines(rows))
+	return {"exit": 0, "ok": failed.is_empty(), "failed": failed, "lines": lines}
