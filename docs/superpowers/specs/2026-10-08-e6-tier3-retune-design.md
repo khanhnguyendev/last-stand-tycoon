@@ -192,6 +192,10 @@ A HUD card shown when the hero enters an armed branch pad; hidden on exit or com
 
 ### 5.3 The world side of the pads
 
+> As built (D-299, D-298.1): the near stage is per pad; the cost hides at 3.8 m; the hero is drawn in front of pad
+> labels; a building's level pips are covered while one of its own pads is in use; a cost stands within 0.5 m of its
+> pad (nearest edge) or has a tether (one pad). The text below is the design as first approved.
+
 - On a pad the world shows only the ring, the icon and the preview shape. In the near stage: ring, icon, cost.
 - The pads of `tower_e`, `tower_ne`, `tower_nw` and `fence_sw` move so no near-stage block touches another or clips
   the screen. Pad clearance rules and the layout probe apply.
@@ -201,6 +205,9 @@ A HUD card shown when the hero enters an armed branch pad; hidden on exit or com
   on today's main.
 
 ### 5.4 The reveal and banners
+
+> As built (D-294.5, D-299): the reveal step pops the badges with sound only; the two lines follow the card pick,
+> after the pick banner, 2 s each.
 
 - One new reveal step after the south-west lane step: both markers pop with the build sound and a flavour banner
   shows for 2 s. Six steps at 0.35 s end at 2.35 s, inside the 3.0 s reveal. Tap-to-skip applies all.
