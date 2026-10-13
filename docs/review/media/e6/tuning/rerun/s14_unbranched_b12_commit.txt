@@ -1,0 +1,44 @@
+RUN seed=14 policy=unbranched force=none variant= pin= interval= siege=north hare=east days=26 hold= commit=1 far= base=12
+ROW 1 night_start_tier=1 final_frac=0.617 retries=0 failed=false
+ROW 2 night_start_tier=1 final_frac=1.000 retries=0 failed=false
+ROW 3 night_start_tier=1 final_frac=0.883 retries=0 failed=false
+ROW 4 night_start_tier=1 final_frac=0.933 retries=0 failed=false
+ROW 5 night_start_tier=1 final_frac=1.000 retries=0 failed=false
+ROW 6 night_start_tier=1 final_frac=1.000 retries=0 failed=false
+ROW 7 night_start_tier=1 final_frac=1.000 retries=0 failed=false
+ROW 8 night_start_tier=1 final_frac=0.933 retries=0 failed=false
+ROW 9 night_start_tier=1 final_frac=0.883 retries=0 failed=false
+ROW 10 night_start_tier=1 final_frac=0.967 retries=0 failed=false
+ROW 11 night_start_tier=1 final_frac=0.833 retries=0 failed=false
+ROW 12 night_start_tier=1 final_frac=0.950 retries=0 failed=false
+ROW 13 night_start_tier=1 final_frac=1.000 retries=0 failed=false
+ROW 14 night_start_tier=1 final_frac=0.561 retries=1 failed=false
+ROW 15 night_start_tier=2 final_frac=0.700 retries=0 failed=false
+ROW 16 night_start_tier=2 final_frac=0.783 retries=0 failed=false
+ROW 17 night_start_tier=2 final_frac=0.650 retries=0 failed=false
+ROW 18 night_start_tier=2 final_frac=0.887 retries=0 failed=false
+ROW 19 night_start_tier=2 final_frac=0.877 retries=0 failed=false
+ROW 20 night_start_tier=2 final_frac=0.063 retries=0 failed=false
+ROW 21 night_start_tier=3 final_frac=0.725 retries=1 failed=false
+ROW 22 night_start_tier=3 final_frac=0.490 retries=0 failed=false
+ROW 23 night_start_tier=3 final_frac=0.437 retries=0 failed=false
+ROW 24 night_start_tier=3 final_frac=0.250 retries=0 failed=false
+ROW 25 night_start_tier=3 final_frac=0.310 retries=0 failed=false
+ROW 26 night_start_tier=3 final_frac=0.722 retries=1 failed=false
+PLAN row=21 attempt=1 pressure=12 w0{main=west:7(h1,b0) side=north:7(h1,b0) extra=[{ "lane": "east", "count": 5, "fast": 5 }] hp_mult=2.65 boss=false} w1{main=north:12(h2,b0) side=sw:9(h1,b0) extra=[{ "lane": "east", "count": 8, "fast": 8 }] hp_mult=2.65 boss=false} w2{main=sw:12(h2,b0) side=north:10(h1,b1) extra=[{ "lane": "east", "count": 8, "fast": 8 }] hp_mult=3.44 boss=false}
+HEROMOVE row=21 attempt=1 t=0.0 goal=zone_west hero=0.0,8.0 in_hero_range=0 alive_by_lane={  } diner=300
+FENCE_HP row=21 attempt=1 t=5.0 wave_start=0 fence_w=320/ fence_n=320/ fence_e=320/ fence_sw=320/ diner=300
+HEROMOVE row=21 attempt=1 t=15.0 goal=zone_north hero=-5.2,-0.0 in_hero_range=0 alive_by_lane={ "west": 6, "north": 7, "east": 4 } diner=300
+FENCE_HP row=21 attempt=1 t=36.0 wave_start=1 fence_w=320/ fence_n=155/ fence_e=320/ fence_sw=320/ diner=300
+FENCE_FALL row=21 attempt=1 t=51.4 wave=1 fence=fence_n branch=
+HEROMOVE row=21 attempt=1 t=56.0 goal=zone_sw hero=0.0,-5.2 in_hero_range=0 alive_by_lane={ "sw": 6 } diner=295
+FENCE_HP row=21 attempt=1 t=77.2 wave_start=2 fence_w=320/ fence_n=0/ fence_e=320/ fence_sw=105/ diner=295
+HEROMOVE row=21 attempt=1 t=88.0 goal=zone_north hero=-2.8,5.2 in_hero_range=0 alive_by_lane={ "sw": 11, "north": 9, "east": 6 } diner=295
+FENCE_FALL row=21 attempt=1 t=94.4 wave=2 fence=fence_sw branch=
+HEROMOVE row=21 attempt=1 t=99.0 goal=zone_sw hero=0.0,-5.2 in_hero_range=0 alive_by_lane={ "sw": 7, "north": 1 } diner=128
+NIGHT_END row=21 attempt=1 frac=0.000 failed=true kills=74
+DMG row=21 attempt=1 key=w1|north|boar diner_damage=5 hits=1
+DMG row=21 attempt=1 key=w2|north|boar diner_damage=70 hits=14
+DMG row=21 attempt=1 key=w2|sw|hare diner_damage=4 hits=1
+DMG row=21 attempt=1 key=w2|north|hare diner_damage=8 hits=2
+DMG row=21 attempt=1 key=w2|sw|boar diner_damage=215 hits=43
