@@ -1,15 +1,16 @@
 extends SceneTree
 ## E6 Task 10: the lane-character marker. Run WITH rendering:
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_lane_character.gd -- --out=docs/review/media/e6/interface
-## Flag on, tier 3. For seeds 1, 3, 4, 7, 14 (siege east, sw, west, north, north) the hero stands at the siege lane's attack zone by day
-## (marker_<lane>_siege) and at the hare lane's zone (marker_<lane>_hare; a second seed on the same hare lane gets _s<seed>).
-## marker_pair_s4 / marker_pair_s14: the north zone of the west + north and the north + east runs (E6 fix round 3: the two badges must not be
-## taken for one lane's pair). Also marker_night (seed 3, sw zone, night), marker_home (seed 7, from HOME), icons (the two icons, 4x, side by side), and
-## grayscale copies (_gray) of the icon sheet and of one marker shot. Every file has a _40 copy (40%).
+## Flag on, tier 3. E6 Task 15: the 8 shots marker_<lane>_<siege|hare> for the four entrances (west, north, east, sw) and both characters, each with a
+## grayscale copy marker_<lane>_<kind>_gray (the icons must differ by shape, not only colour). The seeds are the first ones (counting up from 1) whose draw
+## gives a (character, lane) pair not yet shot; the hero stands at that lane's attack zone by day. Fails unless the lane's badge is shown with the right icon
+## and is not hidden by the cover rule. `--extras` adds marker_pair_s4 / marker_pair_s14 (two badges in the north zone), marker_night, marker_home.
+## Also icons (the two icons, 4x, side by side) and icons_gray. Every file has a _40 copy (40%).
 
 var _out := "docs/review/media/e6/interface"
-const SEEDS := [1, 3, 4, 7, 14]
+const LANES := ["west", "north", "east", "sw"]
 var _seen := {}
+var _failed := false
 
 func _initialize() -> void:
 	_run.call_deferred()
@@ -24,7 +25,17 @@ func _run() -> void:
 	var layout = load("res://core/map_layout.gd")
 	var character = load("res://core/lane_character.gd")
 	_icon_sheet()
-	for s in SEEDS:
+	var extras := OS.get_cmdline_user_args().has("--extras")
+	for s in range(1, 200):
+		if _seen.size() == 2 * LANES.size() and not (extras and s <= 14):
+			break
+		var ch: Dictionary = character.for_run(s)
+		var want := []
+		for kind in ["siege", "hare"]:
+			if not _seen.has("marker_%s_%s" % [ch[kind], kind]):
+				want.append(kind)
+		if want.is_empty() and not (extras and (s == 3 or s == 4 or s == 7 or s == 14)):
+			continue
 		bal.reset()
 		bal.ui.shake_enabled = false
 		bal.data.tiers.retune_enabled = true
@@ -52,30 +63,32 @@ func _run() -> void:
 		cam.global_transform = camera_math.camera_transform(camera_math.focus_for(layout.HOME), bal.ui)
 		cam.current = true
 		root.add_child(cam)
-		var ch: Dictionary = character.for_run(s)
 		print("seed ", s, " ", ch)
-		var siege_name := "marker_%s_siege" % ch.siege
-		if _seen.has(siege_name):
-			siege_name += "_s%d" % s
-		_seen[siege_name] = true
-		await _grab(main, cam, camera_math, bal, siege_name, layout.zone_rect(ch.siege).get_center())
-		var hare_name := "marker_%s_hare" % ch.hare
-		if _seen.has(hare_name):
-			hare_name += "_s%d" % s
-		_seen[hare_name] = true
-		await _grab(main, cam, camera_math, bal, hare_name, layout.zone_rect(ch.hare).get_center())
-		if s == 4 or s == 14:
+		for kind in want:
+			var name := "marker_%s_%s" % [ch[kind], kind]
+			_seen[name] = true
+			await _grab(main, cam, camera_math, bal, name, layout.zone_rect(ch[kind]).get_center(), String(ch[kind]), kind)
+			if _failed:
+				break
+			_gray(name)
+		if extras and (s == 4 or s == 14):
 			await _grab(main, cam, camera_math, bal, "marker_pair_s%d" % s, layout.zone_rect("north").get_center())
-		if s == 3:
+		if extras and s == 3:
 			main.phase_controller.debug_skip_to_night()
 			main.world.wave_director.stop()
 			await _grab(main, cam, camera_math, bal, "marker_night", layout.zone_rect(ch.siege).get_center())
-		if s == 7:
+		if extras and s == 7:
 			await _grab(main, cam, camera_math, bal, "marker_home", layout.HOME)
 		cam.free()
 		main.free()
 		await process_frame
-	_gray("marker_east_siege")
+		if _failed:
+			quit(1)
+			return
+	if _seen.size() != 2 * LANES.size():
+		printerr("SHOT FAILED: seeds 1 to 199 did not give all 8 (lane, character) pairs; got %s" % str(_seen.keys()))
+		quit(1)
+		return
 	quit(0)
 
 func _save(img: Image, name: String) -> void:
@@ -87,10 +100,17 @@ func _save(img: Image, name: String) -> void:
 	small.save_png(dir.path_join(name + "_40.png"))
 	print("saved ", name)
 
-func _grab(main, cam: Camera3D, camera_math, bal, name: String, focus: Vector2) -> void:
+## `lane` / `kind` ("" = no check): the badge of that lane must show that icon and not be covered when the picture is taken.
+func _grab(main, cam: Camera3D, camera_math, bal, name: String, focus: Vector2, lane := "", kind := "") -> void:
 	main.hero.teleport(focus)
 	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(focus), bal.ui)
 	await create_timer(3.0).timeout  # the diner's fade and the day banner settle
+	if lane != "":
+		var badge = main.world.telegraph_markers[lane].badge
+		if badge == null or badge.shown_kind() != StringName(kind) or not badge.visible:
+			printerr("SHOT FAILED: %s must show the %s badge of the %s lane, but its badge is %s (kind '%s', covered %s)" % [name, kind, lane, "missing" if badge == null else "there", "" if badge == null else String(badge.shown_kind()), "" if badge == null else str(badge.is_covered())])
+			_failed = true
+			return
 	_save(root.get_texture().get_image(), name)
 
 ## The two icons at 4 x their 64 px size on a mid-grey ground, side by side; and the grayscale copy.

@@ -4,6 +4,7 @@ extends SceneTree
 ## Writes reveal_badges (after step 3, both badges popped), lane_line_pick (the pick banner), lane_line_siege, lane_line_hare, each with a _40 copy.
 
 var _out := ""
+var _failed := false
 
 func _initialize() -> void:
 	_run.call_deferred()
@@ -58,6 +59,13 @@ func _run() -> void:
 		t += 1
 	_drain_banners(main)  # the setup's own banner would cover the frame
 	await process_frame
+	var ch: Dictionary = gs.lane_character()
+	for k in ["siege", "hare"]:
+		var badge = main.world.telegraph_markers[String(ch[k])].badge
+		if badge == null or not badge.visible or badge.held or badge.shown_kind() != StringName(k):
+			printerr("SHOT FAILED: reveal_badges must show both badges popped, but the %s badge on the %s lane is %s" % [k, ch[k], "missing" if badge == null else "visible %s, held %s, kind '%s'" % [badge.visible, badge.held, badge.shown_kind()]])
+			quit(1)
+			return
 	await _grab(main, "reveal_badges")
 	while t < int(3.05 * 60.0):
 		await physics_frame
@@ -72,7 +80,7 @@ func _run() -> void:
 	await _grab_when(main, "", "lane_line_pick")
 	await _grab_when(main, "Heavy", "lane_line_siege")
 	await _grab_when(main, "Quick", "lane_line_hare")
-	quit(0)
+	quit(1 if _failed else 0)
 
 func _drain_banners(main) -> void:
 	main.hud._banner_queue.clear()
@@ -81,10 +89,17 @@ func _drain_banners(main) -> void:
 
 ## Grabs the first frame whose banner text starts with `prefix` ("" = any banner showing), after 20 more frames so the slide-in is done.
 func _grab_when(main, prefix: String, name: String) -> void:
+	if _failed:
+		return
 	var guard := 0
 	while guard < 1200 and not (main.hud.banner.visible and main.hud.banner.text.begins_with(prefix) and (prefix != "" or not main.hud.banner.text.begins_with("Heavy"))):
 		await physics_frame
 		guard += 1
+	if guard >= 1200:
+		printerr("SHOT FAILED: %s: no banner starting with '%s' showed within 1200 frames (banner visible %s, text '%s')" % [name, prefix, main.hud.banner.visible, main.hud.banner.text])
+		quit(1)
+		_failed = true
+		return
 	for i in 20:
 		await process_frame
 	print(name, " banner: ", main.hud.banner.text)

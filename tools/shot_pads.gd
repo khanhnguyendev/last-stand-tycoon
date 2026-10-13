@@ -16,7 +16,9 @@ extends SceneTree
 ##   tethered.png (the hero standing on the tether of tower_e's first pad, the one pad that keeps a tether), tether_tower_e.png (the same tether with the hero away from it), walk_south.png (the hero running north onto tower_e's first pad, mid-stride); `--only=a,b` writes just those,
 ##   unarmed.png (the hero PLACED on tower_e's first pad, not walked in: the card stays hidden; ring and glyph only, no cost, no preview),
 ##   edge_tower_e_a.png (the hero walked onto tower_e's first pad and standing at its north edge, 0.72 m from the centre: the glyph follows him),
-##   far_stage.png (the hero at HOME: every pad shows its ring and glyph only), refund.png (the E5 refund flight, unchanged).
+##   far_stage.png (the camera at HOME, the hero at (3.0, 5.5), every pad in the FAR stage: every pad shows its ring and glyph only), refund.png (the E5 refund flight, unchanged).
+##   near_pad_<spot_id>_a.png / near_pad_<spot_id>_b.png (E6 Task 15: the 18 NEAR views: the hero stands off every pad, near one pad of the spot, which shows ring, glyph and cost;
+##     the camera looks at that pad. Fails unless the focus spot is the named one and the named pad is in its NEAR stage and no pad is ON or UNARMED),
 ## The hero shuffles in place after arriving (a hero standing still would pay into the pad), with a purse that cannot move the bar.
 
 var _out := "docs/review/media/e6/interface"
@@ -84,6 +86,9 @@ func _run() -> void:
 	for id in layout.spots_for_tier(3):
 		for i in 2:
 			await _walk_and_grab(main, camera_math, bal, "pad_%s_%s" % [id, "ab"[i]], table[id][i])
+	for id in layout.spots_for_tier(3):
+		for i in 2:
+			await _near_pad_view(main, camera_math, bal, "near_pad_%s_%s" % [id, "ab"[i]], id, i, table[id][i])
 	await _place_and_grab(main, camera_math, bal, "near_stage", Vector2(6.0, -9.5), "tower_ne")
 	await _walk_and_grab(main, camera_math, bal, "sw_corner", table["fence_sw"][0])
 	await _place_and_grab(main, camera_math, bal, "near_fence_sw_a", Vector2(table["fence_sw"][0].x - 3.0, table["fence_sw"][0].y), "fence_sw")
@@ -93,15 +98,15 @@ func _run() -> void:
 	await _place_and_grab(main, camera_math, bal, "near_tower_ne", Vector2(1.6, -6.9), "tower_ne")
 	await _place_and_grab(main, camera_math, bal, "near_tower_nw", Vector2(-1.6, -6.9), "tower_nw")
 	await _place_and_grab(main, camera_math, bal, "near_tower_sw", Vector2(-6.45, 2.6), "tower_sw")
-	await _place_and_grab(main, camera_math, bal, "hero_front", _cost_stand(main, camera_math, bal, "tower_e", 0), "tower_e")  # his body on the pad's real cost (it stands beside the ring now)
+	await _place_and_grab(main, camera_math, bal, "hero_front", _cost_stand(main, camera_math, bal, "tower_e", 0), "tower_e", -1, 0, 2)  # his body on the pad's real cost (it stands beside the ring now)
 	await _place_and_grab(main, camera_math, bal, "tethered", _tether_stand(main, camera_math, bal, "tower_e", 0), "tower_e", 0)  # the middle of the tether line crosses his body
 	await _place_and_grab(main, camera_math, bal, "tether_tower_e", table["tower_e"][0] + Vector2(0.5, 2.6), "tower_e", 0)  # the same tether with the hero away from it
 	await _pips_pair(main, camera_math, "tower_nw", Vector2(-1.6, -6.9), Vector2(15.0, 8.0), Vector2(-3.2, -6.3))
 	await _walk_shot(main, camera_math, "walk_south", table["tower_e"][0])
 	await _place_and_grab(main, camera_math, bal, "diner_fade", Vector2(0.5, -5.2))  # behind the diner (north of it): the fade is on
-	await _place_and_grab(main, camera_math, bal, "unarmed", table["tower_e"][0])
+	await _place_and_grab(main, camera_math, bal, "unarmed", table["tower_e"][0], "tower_e", -1, 0, 5)
 	await _walk_and_grab(main, camera_math, bal, "edge_tower_e_a", table["tower_e"][0], Vector2(0.0, -0.72))
-	await _place_and_grab(main, camera_math, bal, "far_stage", layout.HOME)
+	await _place_and_grab(main, camera_math, bal, "far_stage", Vector2(3.0, 5.5), "", -1, -1, -1, true, layout.HOME)  # the hero off HOME, the camera at HOME: at HOME itself fence_sw's pad b (1.4 m away) is in reach (NEAR) since the pad moves (E6 Task 15 finding)
 	if not _only.is_empty() and not "refund" in _only:
 		quit(1 if _failed else 0)
 		return
@@ -159,17 +164,31 @@ func _walk_and_grab(main, camera_math, bal, name: String, p: Vector2, edge := Ve
 	await _save(main, name)
 
 ## Places the hero (a teleport: the pad stays unarmed) and saves the picture.
-## `tether_pad` >= 0: that pad of `focus` must show its tether (the shot exists for it).
-func _place_and_grab(main, camera_math, bal, name: String, p: Vector2, focus := "", tether_pad := -1) -> void:
+## `tether_pad` >= 0: that pad of `focus` must show its tether (the shot exists for it). `want_stage` >= 0: pad `stage_pad` of `focus` must be in that stage
+## (BranchPad.NEAR, UNARMED...). `expect_none`: no spot may be in focus (the FAR picture of the whole yard).
+func _place_and_grab(main, camera_math, bal, name: String, p: Vector2, focus := "", tether_pad := -1, stage_pad := -1, want_stage := -1, expect_none := false, cam_at := Vector2.INF) -> void:
 	if _failed or (not _only.is_empty() and not name in _only):
 		return
 	main.hero.teleport(Vector2(15.0, 8.0))
 	for i in 10:
 		await physics_frame
 	main.hero.teleport(p)
-	main.camera_rig.snap_to(camera_math.focus_for(p))
+	main.camera_rig.snap_to(camera_math.focus_for(p if cam_at == Vector2.INF else cam_at))
+	if cam_at != Vector2.INF:
+		main.camera_rig.set_process(false)  # the camera stays where it was put (it would follow the hero)
+	var gs = root.get_node("GameState")
+	gs.gold = 0
+	gs.add_gold(340)  # the same purse in every picture
 	for i in 40:
 		await physics_frame
+	if expect_none:  # the FAR picture: no pad may show a cost, be armed or be stood on (the focus spot can still be named: the nearest spot is the focus)
+		for spot in main.world.branch_pads:
+			for pad in main.world.branch_pads[spot]:
+				if pad.stage != 0 and pad.stage != 1:  # FAR, FAR_QUIET
+					printerr("SHOT FAILED: %s must show every pad in the FAR stage, but pad %d of %s is in stage %d (focus spot '%s', hero at %s)" % [name, pad.index, spot, pad.stage, load("res://world/build_spots/branch_pad.gd").focus_spot(), p])
+					_failed = true
+					quit(1)
+					return
 	if focus != "":  # a picture named after a building must show THAT building's pads (the nearest pad decides the focus spot)
 		var got: String = load("res://world/build_spots/branch_pad.gd").focus_spot()
 		if got != focus:
@@ -182,7 +201,62 @@ func _place_and_grab(main, camera_math, bal, name: String, p: Vector2, focus := 
 			_failed = true
 			quit(1)
 			return
+		if want_stage >= 0 and main.world.branch_pads[focus][stage_pad].stage != want_stage:
+			printerr("SHOT FAILED: %s must show pad %d of %s in stage %d, but it is in stage %d with the hero at %s" % [name, stage_pad, focus, want_stage, main.world.branch_pads[focus][stage_pad].stage, p])
+			_failed = true
+			quit(1)
+			return
 	await _save(main, name)
+	main.camera_rig.set_process(true)
+
+## The NEAR view of pad `idx` of `spot`: the hero stands off every pad at the first of a few offsets from the pad where THIS pad is NEAR (shows its cost) and the spot
+## is in focus; the camera looks at the pad. Fails with a message if no offset gives that.
+func _near_pad_view(main, camera_math, bal, name: String, spot: String, idx: int, pad_at: Vector2) -> void:
+	if _failed or (not _only.is_empty() and not name in _only):
+		return
+	var BP = load("res://world/build_spots/branch_pad.gd")
+	var gs = root.get_node("GameState")
+	gs.gold = 0
+	gs.add_gold(340)  # the purse of the walk-in shots (the hero is off every pad, so nothing is paid)
+	var last := ""
+	for off in [Vector2(0.0, 2.4), Vector2(-2.4, 1.0), Vector2(2.4, 1.0), Vector2(0.0, 3.0), Vector2(-3.0, 0.0), Vector2(3.0, 0.0), Vector2(-2.4, -1.0), Vector2(2.4, -1.0), Vector2(0.0, -2.4), Vector2(-1.4, 2.4), Vector2(1.4, 2.4)]:
+		main.hero.teleport(Vector2(15.0, 8.0))
+		for i in 10:
+			await physics_frame
+		main.hero.teleport(pad_at + off)
+		main.camera_rig.snap_to(camera_math.focus_for(pad_at + Vector2(0.0, 0.8)))
+		for i in 40:
+			await physics_frame
+		var bad := ""
+		if BP.focus_spot() != spot:
+			bad = "focus spot is '%s'" % BP.focus_spot()
+		elif main.world.branch_pads[spot][idx].stage != BP.NEAR:
+			bad = "pad %d is in stage %d" % [idx, main.world.branch_pads[spot][idx].stage]
+		else:
+			for pad in main.world.branch_pads[spot]:
+				if pad.stage == BP.ON or pad.stage == BP.UNARMED or pad.stage == BP.SIBLING_QUIET:
+					bad = "the hero is on a pad of the spot (stage %d)" % pad.stage
+				elif pad.stage == BP.NEAR and _hero_covers_cost(main, camera_math, bal, spot, pad.index, off):
+					bad = "the hero's body covers the cost of pad %d" % pad.index
+		if bad == "":
+			await _save(main, name)
+			return
+		last = "%s (hero at %s)" % [bad, pad_at + off]
+	printerr("SHOT FAILED: %s must show the NEAR stage of pad %d of %s, but no offset gives it; last try: %s" % [name, idx, spot, last])
+	_failed = true
+	quit(1)
+
+## True when the hero, standing `off` metres (world x, z) from pad `idx` of `spot`, hides that pad's NEAR cost on the screen: the cost's centre lies within 0.7 m
+## across and from his feet to 1.2 m above them (screen metres, the same projection as _cost_stand).
+func _hero_covers_cost(main, camera_math, bal, spot: String, idx: int, off: Vector2) -> bool:
+	var pad = main.world.branch_pads[spot][idx]
+	var xf = camera_math.camera_transform(Vector2.ZERO, bal.ui)
+	var cl: Vector3 = pad._pos[pad.NEAR][pad.cost_label]
+	var cx: float = cl.dot(xf.basis.x)
+	var cy: float = cl.dot(xf.basis.y)
+	var hx: float = off.x
+	var hy: float = -off.y * sin(deg_to_rad(absf(bal.ui.camera_pitch)))
+	return absf(cx - hx) < 0.7 and cy > hy - 0.2 and cy < hy + 1.2
 
 ## Where the hero's feet go so that the middle of `spot`'s pad `idx` tether line crosses his body (0.4 m above his feet on the screen).
 func _tether_stand(main, camera_math, bal, spot: String, idx: int) -> Vector2:
@@ -244,6 +318,13 @@ func _walk_shot(main, camera_math, name: String, p: Vector2) -> void:
 		main.camera_rig.snap_to(camera_math.focus_for(main.hero.xz()))
 		await physics_frame
 	main.camera_rig.snap_to(camera_math.focus_for(main.hero.xz()))
+	var got: String = load("res://world/build_spots/branch_pad.gd").focus_spot()
+	if got != "tower_e" or main.world.branch_pads["tower_e"][0].stage != 2:
+		printerr("SHOT FAILED: %s must show the hero running onto tower_e's first pad in its NEAR stage, but the focus spot is '%s' and the pad is in stage %d (hero at %s)" % [name, got, main.world.branch_pads["tower_e"][0].stage, main.hero.xz()])
+		_failed = true
+		main.hero.input.set_move(Vector2.ZERO)
+		quit(1)
+		return
 	await _save(main, name)
 	main.hero.input.set_move(Vector2.ZERO)
 

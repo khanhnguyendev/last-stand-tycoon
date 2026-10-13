@@ -9,6 +9,7 @@ extends SceneTree
 ## The world labels above the hero (name, effect, warning) are still there: a later task removes them behind the flag.
 
 var _out := "docs/review/media/e6/interface"
+var _failed := false
 
 func _initialize() -> void:
 	_run.call_deferred()
@@ -52,14 +53,14 @@ func _run() -> void:
 	for i in 30:
 		await physics_frame
 	print("lane character: ", gs.lane_character())
-	await _card(main, camera_math, layout, "card_longbow", "tower_nw", 0)
-	await _card(main, camera_math, layout, "card_volley", "tower_w", 1)
-	await _card(main, camera_math, layout, "card_stone", "fence_e", 0)
-	await _card(main, camera_math, layout, "card_spike", "fence_n", 1)
+	await _card(main, camera_math, layout, "card_longbow", "tower_nw", 0, &"longbow")
+	await _card(main, camera_math, layout, "card_volley", "tower_w", 1, &"volley")
+	await _card(main, camera_math, layout, "card_stone", "fence_e", 0, &"stone")
+	await _card(main, camera_math, layout, "card_spike", "fence_n", 1, &"spike")
 	gs.gold = 200
 	gs.pay_into_branch("tower_ne", &"volley", 200)
 	gs.gold = 0
-	await _card(main, camera_math, layout, "card_partial", "tower_ne", 1)
+	await _card(main, camera_math, layout, "card_partial", "tower_ne", 1, &"volley")
 	# the Vietnamese sample through a real Translation, the way a locale would arrive
 	var vi := Translation.new()
 	vi.locale = "vi"
@@ -67,12 +68,15 @@ func _run() -> void:
 		vi.add_message(k, {"Stone wall": "Tường đá", "holds brutes": "chặn quái nặng", "west road": "đường phía tây", "lost if broken": "mất nếu bị phá"}[k])
 	TranslationServer.add_translation(vi)
 	TranslationServer.set_locale("vi")
-	await _card(main, camera_math, layout, "card_vietnamese", "fence_w", 0)
+	await _card(main, camera_math, layout, "card_vietnamese", "fence_w", 0, &"stone", "Tường đá")
 	TranslationServer.set_locale("en")
 	TranslationServer.remove_translation(vi)
-	quit(0)
+	quit(1 if _failed else 0)
 
-func _card(main, camera_math, layout, name: String, spot: String, idx: int) -> void:
+## Fails (exit 1) unless the card on screen is the one for `spot` and `branch` (and, if given, its name reads `name_text`).
+func _card(main, camera_math, layout, name: String, spot: String, idx: int, branch: StringName, name_text := "") -> void:
+	if _failed:
+		return
 	var p: Vector2 = layout.branch_pad(spot, idx, true)  # the flag is on here: a moved pad (E6 Task 14)
 	main.hero.teleport(p + Vector2(0, 2.0))
 	for i in 5:
@@ -100,6 +104,18 @@ func _card(main, camera_math, layout, name: String, spot: String, idx: int) -> v
 	main.hero.input.set_move(Vector2.ZERO)
 	await process_frame
 	print(name, ": card visible ", card.visible, " rect ", card.get_global_rect(), " armed ", main.hero.global_position)
+	var bad := ""
+	if not card.visible:
+		bad = "the card is hidden"
+	elif card.spot_id != spot or card.branch_id != branch:
+		bad = "the card is for %s / %s" % [card.spot_id, card.branch_id]
+	elif name_text != "" and card.name_label.text != name_text:
+		bad = "the card's name reads '%s'" % card.name_label.text
+	if bad != "":
+		printerr("SHOT FAILED: %s must show the card of %s (%s), but %s (hero at %s)" % [name, spot, branch, bad, main.hero.xz()])
+		_failed = true
+		quit(1)
+		return
 	var img := root.get_texture().get_image()
 	var dir := ProjectSettings.globalize_path("res://").path_join(_out)
 	DirAccess.make_dir_recursive_absolute(dir)
