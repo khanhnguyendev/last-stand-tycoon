@@ -1,19 +1,16 @@
 class_name LevelPips
 extends RefCounted
-## The row of level stars above a build spot or an upgrade pad (Pillar 1: growth reads).
+## The row of level stars above a build spot or an upgrade pad (Pillar 1: growth reads). Each star is a LevelPip handle; the scene's PipBatch draws them all in one call.
 
 const SPACING := 0.3
 
 static func make(parent: Node3D, count: int, y: float) -> Array:
 	var pips: Array = []
 	for i in count:
-		var pip := MeshInstance3D.new()
+		var pip := LevelPip.new()
 		pip.name = "Pip%d" % i
 		pip.add_to_group(&"level_pips")  # the lane badge's cover rule reads them (visual only)
-		pip.mesh = LevelStar.mesh()
-		pip.material_override = LevelStar.material()
 		pip.rotation.x = deg_to_rad(Balance.ui.camera_pitch)  # the star faces the camera
-		pip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		pip.position = Vector3((i - (count - 1) * 0.5) * SPACING, y, 0)
 		parent.add_child(pip)
 		pips.append(pip)

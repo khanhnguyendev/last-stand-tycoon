@@ -106,7 +106,7 @@ func _run() -> void:
 			nodes.append(n)
 		groups.append(["type:" + t, nodes])
 	var pips: Array = []
-	for n in main.find_children("Pip*", "MeshInstance3D", true, false):
+	for n in main.find_children("LevelPipsBatch", "MultiMeshInstance3D", true, false):
 		if (n as Node3D).is_visible_in_tree():
 			pips.append(n)
 	groups.append(["name:Pip* (level pips)", pips])
