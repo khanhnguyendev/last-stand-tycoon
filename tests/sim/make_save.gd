@@ -10,7 +10,7 @@ extends SceneTree
 ## tier3_baron_full, tier3_baron_no_yard, tier3_baron_alone, tier3_night1 and tier3_cap_<all_a|all_b|mixed|threat>. `tier3_branch_day` (checkpoint video; E6 phase A: the committed DAY HOME perf fixture, `PERF_PHASE=DAY export/perf_night3.sh`, deterministic: two runs give identical md5) reads the committed tier3_night1 through the real codec, gives tower_sw and fence_sw the
 ## state of tower_w and fence_w (level 3) and 1500 gold, so a tier-3 DAY has several max-level buildings and the gold to buy branches, and writes
 ## export/fixtures/tier3_branch_day.save.json (committed). `retune` (E6 Task 19, spec 8.3) plays ONE real TierBot run (threat policy, the retune flag
-## ON in memory only, seed 3 by default: a tuning seed, never a hold-out seed) and writes retune_first_t3_night (the first tier-3 day's start, resume DAY), retune_respawn (the same state, resume NIGHT)
+## ON in memory only, seed 3 by default: a tuning seed, never a hold-out seed) and writes retune_first_t3_night (the first tier-3 day's start, resume DAY), retune_respawn (a CONSTRUCTED state: the same buildings, resume NIGHT, tier_day = day - 2 so the night is at the cap pressure 12; on the real first night at pressure 10 the south-west zone never held CROWD (6) enemies while the tank was posted)
 ## and retune_siege_night (the close-up of the first tier-3 night on which a wave's brutes have a siege lane that is neither the drawn main nor side lane and a wave has an extra hare group; resume NIGHT).
 ## `tier3` also records tier3_night1 from the same real run (the first tier-3 day's start, flag off), and builds tier3_baron_alone from the real Baron-night capture. `day3_counter5` writes only that fixture. `night3` rewrites the two night3 fixtures at the current schema and must
 ## not be used while they serve as schema-3 migration tests. No argument (or an unknown one) is a usage error.
@@ -426,7 +426,7 @@ func _run_cap_day() -> bool:
 
 # --- E6 flag-on fixtures (Task 19, spec 8.3) -------------------------------------------------------------------------
 # One real TierBot run (threat policy, the retune flag on in memory only, the bots as they are) on a tuning seed. Captured: the first tier-3 day's start (retune_first_t3_night, resume DAY;
-# retune_respawn is the same state with resume NIGHT and tier_day moved back so the night is at the tier-3 cap pressure (D-304: the first night is softer, so the guard is not knocked out on it): the south-west spots unbuilt, the zone fills) and the close-up of every tier-3 night for RETUNE_WINDOW_DAYS days, from which
+# retune_respawn is a CONSTRUCTED state: the same state with resume NIGHT and tier_day moved back so the night is at the tier-3 cap pressure (D-304: the first night is softer, and fewer than CROWD (6) enemies reach the south-west zone while the tank is posted, so the knock-out of tests/sim_tier_a/test_retune_sims.gd test c is never forced): the south-west spots unbuilt, the zone fills) and the close-up of every tier-3 night for RETUNE_WINDOW_DAYS days, from which
 # retune_siege_night is chosen by a fixed rule: the EARLIEST close-up AFTER the first tier-3 night (that one is retune_first_t3_night) whose raw plan (LanePlanner.plan, before the lane character) has a wave with brutes whose siege lane is neither its main nor its side lane,
 # and whose flag-on plan has a wave with an extra hare group, and whose threat-matched build stands (tower_sw Longbow, fence_sw Stone). The table of every candidate day is printed. The chosen close-up is written resumed at NIGHT.
 
@@ -511,7 +511,7 @@ func _run_retune() -> bool:
 	var first := _rt_first_day_state.duplicate(true)
 	_common(first)
 	first.night_fails = 0
-	# D-304: the first tier-3 night is softer (pressure tier_base_retune[3]), so the guard is no longer knocked out on it. The respawn state is the same captured state taken at the cap
+	# D-304: the first tier-3 night is softer (pressure tier_base_retune[3]), and the south-west zone no longer holds CROWD (6) enemies while the tank is posted, so test c's forced knock-out never happens on it. The respawn state is CONSTRUCTED: the same captured state taken at the cap
 	# pressure: tier_day moved back by tier_cap[3] - tier_base_retune[3] days, the stored plan recomputed by the real planner (LanePlanner.plan, then the lane character).
 	var respawn := first.duplicate(true)
 	respawn.resume_phase = "NIGHT"
