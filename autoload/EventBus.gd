@@ -81,3 +81,6 @@ signal fx_requested(kind: StringName, position: Vector3)
 
 ## PhaseController -> Autosave. A new restore point was taken (new game, close-up, night-1 retry). Never mutate it.
 signal snapshot_taken(snapshot: Dictionary)
+
+## GameState -> Autosave (E6). The lane-character banner pair has been shown in full; the flag is saved at once.
+signal lane_character_shown_marked

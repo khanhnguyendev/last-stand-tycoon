@@ -244,3 +244,54 @@ func test_warmup_guard_bar_is_the_real_guards_bar_builder() -> void:
 	assert_eq(a.cull_mode, BaseMaterial3D.CULL_BACK)
 	assert_eq(real.cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
 	real.free()
+
+## E6 Task 14 (D-294.8): with the retune flag on the warm-up draws the hero's and his carried pile's draw-after-labels variant (alpha, depth writing: a shader variant the
+## opaque ones are not), at the hero's priority; with the flag off it draws neither (the flag-off warm-up is today's).
+func test_warmup_draws_a_hero_visual_and_a_pile_in_the_front_variant_only_with_the_retune_flag_on() -> void:
+	Balance.data.tiers.retune_enabled = false
+	assert_eq(Warmup.hero_front_visuals().size(), 0, "flag off: nothing")
+	Balance.data.tiers.retune_enabled = true
+	var parts := Warmup.hero_front_visuals()
+	assert_eq(parts.size(), 2, "flag on: a hero visual and a pile")
+	assert_true(parts[0] is HeroVisual)
+	assert_true(parts[1] is MultiMeshInstance3D)
+	var pm := (parts[1] as MultiMeshInstance3D).material_override as BaseMaterial3D
+	assert_eq(pm.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
+	assert_eq(pm.depth_draw_mode, BaseMaterial3D.DEPTH_DRAW_ALWAYS)
+	assert_eq(pm.render_priority, Hero.DRAW_AFTER_LABELS_PRIORITY)
+	for n in parts:
+		n.free()
+	_main()
+	var warmup := Warmup.new()
+	main.add_child(warmup)
+	warmup.run(main)  # no await: the temporary nodes are in the tree
+	var fronts := warmup.get_children().filter(func(c): return c is HeroVisual and _is_front_hero(c))
+	assert_eq(fronts.size(), 1, "flag on: the run draws one hero visual in the front variant (the scene list's own hero is opaque)")
+	var piles := warmup.get_children().filter(func(c): return c is MultiMeshInstance3D and c.material_override is BaseMaterial3D and (c.material_override as BaseMaterial3D).render_priority == Hero.DRAW_AFTER_LABELS_PRIORITY)
+	assert_eq(piles.size(), 1, "flag on: the run draws one front-variant pile")
+	await warmup.finished
+	assert_eq(warmup.get_child_count(), 0)
+	await _flag_off_run_draws_none()
+
+func _flag_off_run_draws_none() -> void:
+	Balance.data.tiers.retune_enabled = false
+	var warmup := Warmup.new()
+	main.add_child(warmup)
+	warmup.run(main)
+	assert_eq(warmup.get_children().filter(func(c): return c is HeroVisual and _is_front_hero(c)).size(), 0, "flag off: the run draws no front-variant hero visual")
+	assert_eq(warmup.get_children().filter(func(c): return c is MultiMeshInstance3D and c.material_override is BaseMaterial3D and (c.material_override as BaseMaterial3D).render_priority == Hero.DRAW_AFTER_LABELS_PRIORITY).size(), 0, "flag off: no front-variant pile")
+	await warmup.finished
+
+## True when every surface of the hero visual is alpha, depth-writing, at the hero's draw-after-labels priority.
+func _is_front_hero(hv: Node) -> bool:
+	var surfaces := 0
+	for mi in hv.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		for k in m.mesh.get_surface_count():
+			var b := m.get_active_material(k) as BaseMaterial3D
+			if b == null or b.transparency != BaseMaterial3D.TRANSPARENCY_ALPHA or b.depth_draw_mode != BaseMaterial3D.DEPTH_DRAW_ALWAYS or b.render_priority != Hero.DRAW_AFTER_LABELS_PRIORITY:
+				return false
+			surfaces += 1
+	return surfaces > 0

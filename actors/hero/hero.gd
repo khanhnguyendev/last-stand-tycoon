@@ -4,6 +4,8 @@ extends CharacterBody3D
 
 ## Height above the feet the camera aims at when checking occlusion (D-151); the body capsule is 1.6 m.
 const AIM_HEIGHT := 1.0
+## E6 (flag on, D-294.8): the render priority of the hero and his carried pile: after the branch pads' labels (-5), label outlines (-6) and rings (-7), before everything else (-1 and up).
+const DRAW_AFTER_LABELS_PRIORITY := -2
 
 var input: HeroInput
 var magnet: Magnet
@@ -54,6 +56,9 @@ func _ready() -> void:
 func setup(world: World) -> void:
 	magnet.setup(world.steak_pool, world.fly_fx)
 	world.shadow_field.register(visual, ShadowField.CHARACTER_RADIUS)  # S4 D-201: one draw for every blob shadow
+	if TierEffects.retune_on(Balance.data.tiers):  # D-294.8: the hero is drawn in front of the pad labels; he owns his materials
+		(visual as HeroVisual).draw_after_labels(DRAW_AFTER_LABELS_PRIORITY)
+		carry_stack.draw_after_labels(DRAW_AFTER_LABELS_PRIORITY)
 	_apply_card_stats()
 	attacker.candidates = world.wave_director.enemy_candidates
 	attacker.projectile_pool = world.projectile_pool

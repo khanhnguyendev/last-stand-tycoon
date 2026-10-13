@@ -3173,3 +3173,47 @@ from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the
    materials (the diner could stay dithered after the tier-3 reveal's put-back); the overlay's prime text stayed on screen during the
    measured window; the day fixture is regenerated at schema 7 with a test; the perf script stops Safari and its
    monitor on interrupt.
+
+**D-298 Author's answers on the pads, the HOME framing and the unbranched policy (2026-10-13).**
+1. **Pads (escalation 9): option A.** A building's level pips hide while its pad shows a cost and return when the
+   cost hides. Pinned in the overlap test (zero overlap, at least 8 px) and checked at 40%. Phase 3 merges when green.
+2. **HOME framing (53.9 fps):** all pips become one draw (MultiMesh); the same batching for other repeated world-UI
+   meshes (pad rings, pad icons, badges) where it is cheap. Thresholds by framing: the night gate (combat) stays at
+   58 fps average and is the one that matters; the day HOME framing needs 55 fps average. If HOME stays under 55
+   after batching: report the draw-call breakdown; no visual change without the author. Phase A merges when its
+   gates pass. The pack notes that Simulator fps is a proxy; the real phone check stays on the final review.
+3. **Zero retry nights excludes `unbranched`:** it is the floor reference, not a player strategy; skipping the tier's
+   main purchases is expected to cost retries (the logic of D-267). Report only: its retry nights per seed; a
+   REVIEW_QUEUE flag if any night needs more than 2 mercy retries, or a seed has more than 3 retry nights in 32 days.
+   Every other policy keeps zero. The first tier-3 night at 25% or more applies to every policy, `unbranched` too.
+4. **Watch item:** the fence tax fell to 4.9% (the Longbow kills brutes before fences break), so the recurring fence
+   sink is nearly gone. No new target; the pack reports `unspent_gold_at_closeup` across tier 3 and after the ladder
+   completes; if the pile-up grows against E5 T3 it goes to REVIEW_QUEUE as input for tier 4.
+
+**D-299 Phase 3 (interface) rulings and the pads as built (2026-10-13; flag on only).**
+1. **Lane badges** (Task 10, four rounds): offsets from the row anchor west (4.2, 3.2), east (-4.2, 3.2), north (-4.0
+   or +4.0 mirrored, 5.0), sw (-1.7, 1.05); size 1.6 m (1.7 did not fit the sw kerb). A badge HIDES while its
+   projected rectangle meets a spot label, a visible star row or the hero, so "zero overlap wherever it is shown"
+   holds from every focus; it is always shown from its own lane zone. Hidden share: 0% own zone, 9.7% other zones,
+   25.0% from HOME.
+2. **Reveal and banners** (Task 11; D-294.5): the lane-character step pops the two badges with sound only. After the
+   card pick: the pick banner 2 s, the siege line 2 s, the hare line 2 s; nothing is cut; a line cut by another banner
+   is shown again; nothing at night; the `lane_character_shown` flag turns true when the hare line ended uncut and is
+   saved at once (bus signal `lane_character_shown_marked`). One banner clock (`core/banner_clock.gd`) serves the HUD
+   and the scheduler.
+3. **Pads** (Task 14, seven rounds; D-294.8, D-298.1):
+   - The near stage is PER PAD: a pad shows its cost only when it is itself within `branch_pad_near_m` of the hero
+     (spec 5.3 said per spot; a far sibling 5 m away would clip the screen).
+   - With the flag on the cost hides at 3.8 m (`branch_pad_leave_m_retune`; 4.5 m with the flag off).
+   - UNARMED (stood on, not payable): ring and icon only. While ON the lone icon follows the hero.
+   - The hero is drawn in front of pad labels by his own materials (`HeroVisual.draw_after_labels`, carried pile
+     included; depth-writing): rings -7, label outlines -6, labels and tether -5, hero -2.
+   - A building's level pips are covered while any of its own pads is in use (near, unarmed, on), and return when
+     every own pad is far (the author's option A; "in use" instead of "shows a cost" removes a one-frame flash on
+     the walk-in).
+   - Pads moved against E5 with the flag on: tower_nw a/b, tower_ne a/b, tower_e a (6.8, 3.0), tower_w b, tower_sw
+     a/b, fence_e b, fence_w a, fence_sw b, fence_n a/b (-2.3 / 2.3, -10.4).
+   - "At most 0.5 m from its pad" is read as the cost's nearest edge to the pad's centre. One cost is farther
+     (tower_e a: the Freezer label blocks every close position) and has a gold tether to its ring.
+   - Scans: near 8.9 px, on 8 px smallest gap; zero findings; no exception list. The lane's telegraph flag is a 3D
+     model, not a label, and is not an obstacle (one cost crosses it on fence_w).
