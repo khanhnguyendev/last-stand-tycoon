@@ -59,3 +59,29 @@ func test_capped_night_kills() -> void:
 		k1 += WaveMath.total_count(7, w, wb)
 		k2 += WaveMath.total_count(10, w, wb)
 	assert_eq([k1, k2], [56, 72])
+
+# --- E6 (D-304): tier 3 starts at pressure 10 with the retune flag on ----------------------------------
+
+func _tiers_flag(on: bool) -> TierBalance:
+	var t: TierBalance = Balance.data.tiers.duplicate()
+	t.retune_enabled = on
+	return t
+
+func test_tier_3_pressure_ramps_10_11_12_with_the_flag_on() -> void:
+	var on := _tiers_flag(true)
+	var got: Array[int] = []
+	for d in [20, 21, 22, 23, 40]:
+		got.append(WaveMath.pressure(d, 3, 20, on))
+	assert_eq(got, [10, 11, 12, 12, 12])
+
+func test_tier_3_pressure_is_12_throughout_with_the_flag_off() -> void:
+	var off := _tiers_flag(false)
+	for d in [20, 21, 22, 23, 40]:
+		assert_eq(WaveMath.pressure(d, 3, 20, off), 12, "day %d flag off" % d)
+
+func test_tiers_1_and_2_pressure_ignores_the_flag() -> void:
+	var on := _tiers_flag(true)
+	var off := _tiers_flag(false)
+	for day in range(1, 40):
+		assert_eq(WaveMath.pressure(day, 1, 1, on), WaveMath.pressure(day, 1, 1, off), "tier 1 day %d" % day)
+		assert_eq(WaveMath.pressure(day, 2, 9, on), WaveMath.pressure(day, 2, 9, off), "tier 2 day %d" % day)

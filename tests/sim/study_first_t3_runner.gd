@@ -78,6 +78,32 @@ class ForcedBot extends TierBot:
 				return
 		if graph.nodes.has("zone_" + pin_lane):
 			go_to("zone_" + pin_lane)
+	## What-if (D-304, the seed-14 diagnosis): the hero keeps the lane of its current zone goal while that lane has live enemies, unless another lane has MORE
+	## breaching enemies than its own lane has live ones. Otherwise the shipped rule.
+	var hold := false
+	var commit := false
+	var far := false
+	func _pick_lane(lanes: Array, counts: Dictionary, wd: WaveDirector) -> String:
+		if commit and not GameState.lane_character().is_empty() and goal.begins_with("zone_") and not arrived():
+			return goal.trim_prefix("zone_")  # what-if 2: finish the walk before choosing again
+		var picked := super(lanes, counts, wd)
+		if far and not GameState.lane_character().is_empty() and goal.begins_with("zone_") and picked != "":
+			var mine := goal.trim_prefix("zone_")  # what-if 3: no walk to the other side of the diner while the own lane has monsters
+			if counts.has(mine) and int(counts[mine]) > 0 and graph.position_of(goal).distance_to(graph.position_of("zone_" + picked)) > 9.0:
+				return mine
+		if not hold or GameState.lane_character().is_empty() or not goal.begins_with("zone_"):
+			return picked
+		var own := goal.trim_prefix("zone_")
+		if not counts.has(own) or int(counts[own]) == 0 or picked == own:
+			return picked
+		var breached := 0
+		for b in wd.alive_enemies():
+			if String(b.lane) != picked:
+				continue
+			var walks_past: bool = not (b.stats().priority as Array).has(&"fence_on_lane")
+			if TierBot.enemy_breached(picked, float(b.dist), float(b.stats().reach), TargetProviders.fence_stop_dist(b) < INF, walks_past):
+				breached += 1
+		return picked if breached > int(counts[own]) else own
 	func _siege_towers() -> Array:
 		var siege := String(GameState.lane_character().get("siege", ""))
 		var out: Array = []
@@ -141,7 +167,7 @@ func _out(s: String) -> void:
 	print(s)
 
 func _run() -> void:
-	_args = {"seed": "1", "policy": "threat", "days": "24", "force": "none", "out": "", "bench": "", "variant": "", "pin": "", "interval": ""}
+	_args = {"seed": "1", "policy": "threat", "days": "24", "force": "none", "out": "", "bench": "", "variant": "", "pin": "", "interval": "", "hold": "", "commit": "", "base": "", "far": ""}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if kv.size() == 2:
@@ -152,6 +178,8 @@ func _run() -> void:
 		return
 	Balance.reset()
 	Balance.data.tiers.retune_enabled = true  # in memory only; production reads it through TierEffects.retune_on
+	if String(_args.base) != "":
+		Balance.data.tiers.tier_base_retune[3] = int(_args.base)  # in memory only (D-304 what-if: a softer first tier-3 night)
 	if String(_args.interval) != "":
 		Balance.data.branches.longbow_interval_retune = float(_args.interval)  # in memory only (round-2 what-if a)
 	if String(_args.get("bench", "")) == "1":
@@ -161,11 +189,14 @@ func _run() -> void:
 	var holder := Node.new()
 	get_tree().root.add_child(holder)
 	_h = SimHarness.new(holder)
-	var forced := String(_args.force) != "none" or String(_args.variant) != "" or String(_args.pin) != ""
+	var forced := String(_args.force) != "none" or String(_args.variant) != "" or String(_args.pin) != "" or String(_args.hold) == "1" or String(_args.commit) == "1" or String(_args.far) == "1"
 	_h.start(int(_args.seed), ForcedBot if forced else TierBot)
 	_h.bot.policy = String(_args.policy)
 	if forced:
 		_h.bot.force = String(_args.force)
+		_h.bot.hold = String(_args.hold) == "1"
+		_h.bot.commit = String(_args.commit) == "1"
+		_h.bot.far = String(_args.far) == "1"
 		_h.bot.variant = String(_args.variant)
 		if String(_args.pin) != "":
 			var pv := String(_args.pin).split(":")

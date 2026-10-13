@@ -52,3 +52,7 @@ static func brute_counts(day: int, tier: int, tier_day: int, wave_index: int, wa
 ## E6 (D-286): is the tier-3 retune on? The ONLY way production code reads the flag; false for a null balance.
 static func retune_on(tb: TierBalance) -> bool:
 	return tb != null and tb.retune_enabled
+
+## E6 (D-304): the pressure at the tier's first night: `tier_base_retune[tier]` with the retune flag on, else `tier_base[tier]` (unchanged).
+static func base_pressure(tier: int, tb: TierBalance) -> int:
+	return tb.tier_base_retune[tier] if retune_on(tb) else tb.tier_base[tier]
