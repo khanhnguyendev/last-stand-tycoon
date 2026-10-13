@@ -5,6 +5,8 @@ extends Node
 ## `--policy=all_a|all_b|mixed|threat|volley_stone|unbranched` sets the tier bot's branch policy (default threat). `--tier3=off` removes the tier-3 cost entry in memory,
 ## and the run then asserts that no brute died, no wave came from the south-west and no branch was chosen (the Task 21 assertion, D-279):
 ## a TIER3_GATE line, exit code 1 on a violation. Tier rows end with brute_kills,sw_waves,branches (per day, appended after the old columns; sw_waves counts waves with a south-west lane, formerly named sw_spawns).
+## `--retune=on` (E6, D-286) sets `Balance.data.tiers.retune_enabled = true` in memory after Balance.reset() and before the game is created (it never writes balance/); the run then
+## plays the retuned tier 3 (lane character, specialists) and prints one more tier line, RETUNE (below), for tests/sim/report_retune.gd. `--retune=off` (the default) prints nothing new.
 ## After the SWEEP line it prints a RETRIES line (days, median, max_before_day8, max, target_ok) for the D-184 retries-per-night target.
 ## Tuning overrides (in memory only, after Balance.reset(); printed on the first output line; they apply to EVERY bot, not only the tier bot (not rejected for the
 ## planner and upgrader bots: a study may run those on a changed balance on purpose)): `--tier3-cap=<n>` (tier_cap[3]),
@@ -34,6 +36,12 @@ extends Node
 ##   FENCE_TAX: yes|no (share of fence_rebuild_gold_median_at_cap in income_at_cap above 30%): both printed with LADDER, asserted nowhere in CI.
 ##     The figure UNDER-COUNTS when a rebuild is deferred to a later day (a fence that fell and was rebuilt after the next night is attributed to the day it was paid in, and a
 ##     night that follows a skipped rebuild shows no rebuild at all), so FENCE_TAX: no is a lower bound.
+##   RETUNE seed policy siege hare first_t3_frac hare_share_mean hare_share_min guard_hits t3_nights (only with --retune=on; SweepMath.retune_run_stats): siege and hare = the run's lane
+##   character; first_t3_frac = the diner fraction of the first night that started at tier 3 (-1 none); hare_share_* = the night-level share of the plan's hares on the hare lane
+##   over the tier-3 nights that had hares (mean, min; -1 none); guard_hits = waves whose extra hare group the 3-lane guard skipped (expected 0); t3_nights = tier-3 nights played; (D-298, at the END of the line) max_retries / max_retries_day = the most mercy retries any tier-3 night needed and its day; unspent_before / unspent_after = the closing
+##   gold of each tier-3 day (|-separated, '-' none) before the ladder completes / from its completion day on; first_t3_retries = the retries the first tier-3 night needed (its
+##   first_t3_frac is then the mercy attempt's); worst_night_frac / worst_night_day = the lowest FIRST-attempt fraction over the tier-3 nights and its day (-1 none).
+##   The `unbranched` policy (the report's floor) buys no branch, so its LADDER counts as done when every level and station is bought (SweepMath.ladder_done need_branches=false).
 ##   `--cols=extra` also appends fence_rebuild_gold (rebuild + rebranch of that row's day phase) at the END of the tier rows.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
 
@@ -41,7 +49,7 @@ func _ready() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	var args := {"seed": "20260930", "days": "14", "bot": "planner", "policy": "threat", "tier3": "on", "tier3-cap": "", "brute-caps": "", "brute-hp": "", "fence-mult": "", "out": "", "cols": ""}
+	var args := {"seed": "20260930", "days": "14", "bot": "planner", "policy": "threat", "tier3": "on", "tier3-cap": "", "brute-caps": "", "brute-hp": "", "fence-mult": "", "out": "", "cols": "", "retune": "off"}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if kv.size() == 2:
@@ -54,6 +62,10 @@ func _run() -> void:
 		push_error("bad --policy=%s (all_a|all_b|mixed|threat|volley_stone|unbranched) or --tier3=%s (on|off)" % [args.policy, args.tier3])
 		get_tree().quit(2)
 		return
+	if not String(args.retune) in ["on", "off"]:
+		push_error("bad --retune=%s (on|off)" % args.retune)
+		get_tree().quit(2)
+		return
 	if not String(args.bot) == "tier" and (args.policy != "threat" or args.tier3 != "on"):
 		print("WARNING: --policy and --tier3 only apply to --bot=tier; ignored for --bot=%s" % args.bot)
 	Balance.reset()
@@ -61,6 +73,10 @@ func _run() -> void:
 		Balance.data.tiers.tier_costs.resize(2)  # in memory only: no sign sells tier 3
 	var tier_mode := String(args.bot) == "tier"
 	var ov: Array = []
+	if String(args.retune) == "on":
+		Balance.data.tiers.retune_enabled = true  # in memory only (never saved), before the game exists; production reads it through TierEffects.retune_on
+		assert(TierEffects.retune_on(Balance.data.tiers))
+		ov.append("retune=on")
 	if String(args["tier3-cap"]) != "":
 		Balance.data.tiers.tier_cap[3] = int(args["tier3-cap"])
 		ov.append("tier3-cap=%d" % int(args["tier3-cap"]))
@@ -86,6 +102,7 @@ func _run() -> void:
 	get_tree().root.add_child(holder)
 	var h := SimHarness.new(holder)
 	_h = h
+	_policy = String(args.policy) if tier_mode else ""
 	h.start(int(args.seed), TierBot if tier_mode else (UpgraderBot if upgrader else PlannerBot))
 	if tier_mode:
 		h.bot.policy = String(args.policy)
@@ -124,12 +141,16 @@ func _run() -> void:
 		var at_cap := start_tier == 2 and GameState.pressure() == int(Balance.data.tiers.tier_cap[2])
 		var at_cap3 := start_tier == 3 and GameState.pressure() == int(Balance.data.tiers.tier_cap[3])
 		var lane_load := _lane_load()
+		var night_character := GameState.lane_character() if String(args.retune) == "on" else {}  # {} below tier 3: nothing is recorded then
+		var hare_share_now := _night_hare_share(night_character)
+		var guard_now := LaneCharacter.guard_hits(GameState.lane_plan) if not night_character.is_empty() else 0
 		_fence_hp = {}
 		_fence_branch = {}
 		var defending := _builds()  # what stands when the night starts (spent during the day before)
 		var stock0 := GameState.freezer_steaks + GameState.carried_steaks
 		var t0 := h.elapsed
 		var n := await h.run_night()
+		var first_attempt_frac: float = n.diner_frac  # the first attempt's result (a retry's mercy attempt overwrites n)
 		if n.failed and first_fail_day < 0:
 			first_fail_day = day
 		# Retries run with mercy (S3, D-175): each retry of the same night is weaker, so a failed night can clear on a later retry.
@@ -148,8 +169,9 @@ func _run() -> void:
 		for fid in _fence_hp:
 			lost_now += 1 if float(_fence_hp[fid]) <= 0.0 else 0
 		_capture_night_end()
-		nights.append({"day": day, "tier": start_tier, "tier_close": start_tier, "boss_night": boss_night, "retries": retries, "at_cap": at_cap, "at_cap3": at_cap3, "frac": n.diner_frac, "failed": n.failed,
-			"fences_lost": lost_now, "branches": _branches, "branch_gold": _branch_gold})
+		nights.append({"day": day, "tier": start_tier, "tier_close": start_tier, "boss_night": boss_night, "retries": retries, "at_cap": at_cap, "at_cap3": at_cap3, "frac": n.diner_frac, "first_frac": first_attempt_frac, "failed": n.failed,
+			"fences_lost": lost_now, "branches": _branches, "branch_gold": _branch_gold,
+			"hare_share": hare_share_now, "guard_hits": guard_now})
 		var night_s := h.elapsed - t0
 		if n.failed:
 			hard_break_day = day
@@ -248,6 +270,13 @@ func _run() -> void:
 			ls.plot_day, ls.ladder_done_day, ls.max_unspent_during_ladder, ls.fence_rebuild_gold_median_at_cap, ls.income_at_cap, ls.t3_days_to_done, ls.max_unspent_while_purchasable])
 		print(SweepMath.unspent_target_line(ls))
 		print(SweepMath.fence_tax_line(ls))
+		if String(args.retune) == "on":
+			var rt := SweepMath.retune_run_stats(nights)
+			var us := SweepMath.unspent_split(day_records)
+			var ch := LaneCharacter.for_run(int(args.seed))
+			print("RETUNE seed=%s policy=%s siege=%s hare=%s first_t3_frac=%.4f hare_share_mean=%.3f hare_share_min=%.3f guard_hits=%d t3_nights=%d max_retries=%d max_retries_day=%d unspent_before=%s unspent_after=%s first_t3_retries=%d worst_night_frac=%.4f worst_night_day=%d" % [
+				args.seed, args.policy, ch.siege, ch.hare, rt.first_t3_frac, rt.hare_share_mean, rt.hare_share_min, rt.guard_hits, rt.t3_nights, rt.max_retries, rt.max_retries_day,
+				_gold_list(us.before), _gold_list(us.after), rt.first_t3_retries, rt.worst_night_frac, rt.worst_night_day])
 		if String(args.tier3) == "off" and tier3_events != 0:
 			push_error("tier 3 is not for sale but %d brute kills, south-west spawns and branches were counted" % tier3_events)
 			h.finish()
@@ -258,6 +287,22 @@ func _run() -> void:
 
 var _gold_sold := 0
 var _fence_hp := {}
+var _policy := ""
+
+## "100|300|200" (the closing gold of each day in order), "-" when empty.
+func _gold_list(a: Array) -> String:
+	return "-" if a.is_empty() else "|".join(a.map(func(v): return str(v)))
+
+## The night-level share of tonight's hares that walk the hare lane (E6, spec 8.1); -1 with no lane character (below tier 3) or no hares tonight.
+func _night_hare_share(character: Dictionary) -> float:
+	if character.is_empty():
+		return -1.0
+	var hares := 0
+	for wave in GameState.lane_plan:
+		hares += int(wave.get("fast_main", 0)) + int(wave.get("fast_side", 0))
+		for e in wave.get("extra", []):
+			hares += int(e.fast)
+	return LaneCharacter.hare_share(GameState.lane_plan, character) if hares > 0 else -1.0
 
 var _h: SimHarness
 
@@ -360,7 +405,7 @@ func _ladder_done() -> bool:
 	var stations: Array = []
 	for sid in StationEffects.IDS:
 		stations.append(GameState.station_level(sid))
-	return SweepMath.ladder_done(spots, stations, int(Balance.data.build.max_level), int(Balance.data.stations.max_level))
+	return SweepMath.ladder_done(spots, stations, int(Balance.data.build.max_level), int(Balance.data.stations.max_level), _policy != "unbranched")
 
 var _picked := ""
 var _knockouts := 0

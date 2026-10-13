@@ -23,9 +23,9 @@ Goals, judged on the final report (section 8):
 | Target | Rule |
 |---|---|
 | Reading pays | threat-matched beats the best fixed pair by a mean of at least 5 points of diner HP, ahead on at least 6 of 8 seeds, and its mean lead is not negative on any siege lane |
-| Non-punishing | zero retry nights at the tier-3 cap for every policy, unbranched included |
+| Non-punishing | zero retry nights at the tier-3 cap for every policy except `unbranched`, the floor reference (D-298) |
 | Balance between pairs | the four fixed pairs are within 15 points |
-| First nights | no first tier-3 night below 25% diner HP |
+| First nights | no first tier-3 night below 25% diner HP, every policy; a first night that needed a retry is a lost night |
 | Fence tax | at most 30% median at the cap; fences stay a recurring sink |
 | Readability | zero label overlaps in the near stage and on the pad; everything checked at about 40% scale |
 | Ramp | restore a modest pressure ramp (cap 13 or 14) if every target above still holds |
@@ -106,6 +106,9 @@ lane; a group's hares never exceed its count.
 | Branch | Today | Change | Start, tuning range |
 |---|---|---|---|
 | Longbow | 120 damage per 3.0 s, range 9.98 | `kind_mult {brute: x}` | 2.0; 1.5 to 3.0 |
+
+> As built with the flag on: the Longbow's interval is 2.4 s after the bench round (D-293), then 2.2 and 2.0 s in the
+> real-play tuning rounds (D-297; the author ratifies or reverts, REVIEW_QUEUE 38). The flag-off value stays 3.0 s.
 | Stone wall | 640 HP, brutes do half damage | none | |
 | Spike fence | pass damage 10 on hares, thorns 6 | pass damage up | 16; 12 to 24 |
 | Volley | 3 targets, 10 damage per 0.5 s | none unless data demands | |
@@ -159,7 +162,12 @@ stands longest against brutes (D-294.6; it replaces "keeps the most fence HP", w
 | Tower covering the siege lane (also when it covers the hare lane) | Longbow |
 | Any other tower | Volley |
 
-The bot reads the lane character, not tonight's plan, with the flag on. With the flag off the policy `threat` keeps
+The bot reads the lane character, not tonight's plan, with the flag on. Every policy that buys branches then buys in
+one order (D-297): towers covering the siege lane, towers covering the hare lane, the siege fence, the hare fence, the
+rest; list order inside a group; each time the first spot whose branch the gold in hand pays in full. Only the branch
+a spot takes differs by policy, so the lead measures the match and not the order. At night the bot's hero ranks lanes
+first by enemies that are at the diner or past a fallen fence (kinds that pass fences: past the fence line), then by
+the most enemies as before (D-297). With the flag off the policy `threat` keeps
 today's meaning.
 
 ## 5. Readability (D-284, D-289)
@@ -260,8 +268,8 @@ These diagnostic runs are extra to the single final reading at the end of the sl
 |---|---|
 | `THREAT_LEAD` | mean lead over the best fixed pair >= 5 points and ahead on >= 6 of 8 seeds |
 | `THREAT_LEAD_BY_LANE` | the mean lead is not negative on any siege lane |
-| `RETRY_NIGHTS` | zero for every policy |
-| `FIRST_T3_NIGHT` | no first tier-3 night below 25% |
+| `RETRY_NIGHTS` | zero for every policy except `unbranched` (D-298: the floor reference; its retry nights are printed per seed; a review-queue flag if a night needs more than 2 mercy retries or a seed has more than 3 retry nights in 32 days) |
+| `FIRST_T3_NIGHT` | no first tier-3 night below 25%, every policy, `unbranched` included (D-298) |
 | `FENCE_TAX` | <= 30% median at the cap, shown with and without Longbow on the siege lane |
 | `FIXED_SPREAD` | the four fixed pairs within 15 points |
 | `HARE_SHARE` | night-level share per seed; flagged below 0.6 |
@@ -334,4 +342,16 @@ author approved in D-281 to D-291 that proves unbuildable or wrong is escalated 
 
 ## 11. Results
 
-Filled at the end of phase 4 and updated at the cleanup.
+Phase 4 (2026-10-13), flag still off. Full pack: `docs/review/E6_RETUNE.md`.
+
+- **Built:** lane character, the Longbow and Spike specialists (Longbow 2.0 s with the flag on, ratified in D-302),
+  the interface, the bench, the retune report, flag-on fixtures and sims.
+- **Bench:** every floor, specialist and identity rule passes.
+- **Hold-out set #1** (eight unseen seeds, run once at `d3eb6c4`): four of the seven counted targets pass (the hare-share flag also passed) (no negative lane,
+  fence tax 12.2%, fixed spread 3.8, lane-cap guard). Three fail: the lead is +2.6 against 5 (accepted as unmet,
+  D-302); the two Volley-tower policies retry one night; the first tier-3 night on north seed 14 reads 12.7% or a
+  retry for every policy. The unbranched reference trips its flag (4 retry nights on seed 14).
+- **Goals not met:** "reading pays" by 5 points, fences as a recurring sink, the ramp above cap 12.
+- **Open:** the flip waits for the author; hold-out set #2 is unplayed.
+
+Updated at the cleanup.

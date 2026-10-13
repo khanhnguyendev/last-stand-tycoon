@@ -533,3 +533,270 @@ func test_a_pad_that_never_pays_is_skipped_once_after_the_cap() -> void:
 	bot.day_think(0.0)
 	assert_eq(bot.skipped_goals, 1)
 	assert_ne(bot.next_purchase(), pad, "not picked again today")
+
+# --- E6 phase 4: the threat-matched bot buys for the marked lanes first (flag on) ------------------------------------
+
+## Buys `n` branches in a row with plenty of gold: returns the pad goals in the order the bot targets them (each target is then marked bought).
+func _targets(bot: TierBot, n: int) -> Array:
+	var out: Array = []
+	for i in n:
+		var p := bot.next_purchase()
+		if p == "":
+			break
+		out.append(p)
+		var t := TierBot._pad_target(p)
+		GameState.buildings[t[0]].branch = String(t[1])  # test-only setup: the branch is bought
+	return out
+
+## A run seed whose lane character has this siege lane (the character is derived from the seed, so the test searches for one).
+func _seed_with_siege(siege: String) -> int:
+	for sd in range(1, 400):
+		if String(LaneCharacter.for_run(sd).get("siege", "")) == siege:
+			return sd
+	return -1
+
+func _bot_for_seed(sd: int, gold: int) -> TierBot:
+	var bot := _one_branch_bot()
+	GameState.new_game(sd)
+	GameState.debug_set_tier(3, 1)
+	for id in MapLayout.spots_for_tier(3):
+		GameState.buildings[id].level = Balance.data.build.max_level  # test-only setup
+		GameState.buildings[id].hp = GameState.fence_max_hp(Balance.data.build.max_level) if MapLayout.spot_kind(id) == "fence" else 0.0
+	GameState.gold = gold  # test-only setup
+	GameState.lane_plan = [_wave("west", 2)]
+	return bot
+
+## A run seed whose lane character is exactly {siege, hare} (the character is derived from the seed, so the test searches for one).
+func _seed_with_character(siege: String, hare: String) -> int:
+	for sd in range(1, 1000):
+		var c := LaneCharacter.for_run(sd)
+		if String(c.siege) == siege and String(c.hare) == hare:
+			return sd
+	return -1
+
+## Hand-written buying orders over spots_for_tier(3) = [tower_nw, tower_ne, fence_w, fence_n, fence_e, tower_w, tower_e, tower_sw, fence_sw]:
+## towers on the siege lane, towers on the hare lane, the siege fence, the hare fence, the rest (list order inside a group). Literals, no oracle.
+const ORDER_LITERALS := [
+	[{"siege": "west", "hare": "north"}, ["tower_nw", "tower_w", "tower_ne", "fence_w", "fence_n", "fence_e", "tower_e", "tower_sw", "fence_sw"]],
+	[{"siege": "north", "hare": "east"}, ["tower_nw", "tower_ne", "tower_e", "fence_n", "fence_e", "fence_w", "tower_w", "tower_sw", "fence_sw"]],
+	[{"siege": "east", "hare": "sw"}, ["tower_ne", "tower_e", "tower_sw", "fence_e", "fence_sw", "tower_nw", "fence_w", "fence_n", "tower_w"]],
+	[{"siege": "sw", "hare": "west"}, ["tower_sw", "tower_nw", "tower_w", "fence_sw", "fence_w", "tower_ne", "fence_n", "fence_e", "tower_e"]],
+	[{"siege": "east", "hare": "west"}, ["tower_ne", "tower_e", "tower_nw", "tower_w", "fence_e", "fence_w", "fence_n", "tower_sw", "fence_sw"]],
+]
+
+func test_the_marked_lane_order_for_literal_characters() -> void:
+	for c in ORDER_LITERALS:
+		assert_eq(TierBot.marked_lane_order(MapLayout.spots_for_tier(3), c[0]), c[1], str(c[0]))
+	assert_eq(TierBot.marked_lane_order(MapLayout.spots_for_tier(3), {}), MapLayout.spots_for_tier(3), "an empty character keeps the list order")
+
+func _pad_for(spot: String, siege: String) -> String:
+	return "pad_%s_%s" % [spot, "a" if _oracle(spot, siege) in [&"longbow", &"stone"] else "b"]
+
+## With gold for exactly one tower branch (500), the first target is a tower covering the siege lane, for each siege lane. Mutation: the list
+## order (siege east then buys tower_nw, which does not cover east; the 300-gold fence is not what is bought either).
+func test_with_gold_for_one_branch_the_threat_bot_buys_a_tower_on_the_siege_lane() -> void:
+	Balance.data.tiers.retune_enabled = true
+	for siege in ["west", "north", "east", "sw"]:
+		var sd := _seed_with_siege(siege)
+		assert_ne(sd, -1, "a seed with siege " + siege)
+		var bot := _bot_for_seed(sd, 500)
+		var ch := GameState.lane_character()
+		assert_eq(ch.siege, siege)
+		assert_ne(ch.hare, siege)
+		var first := bot.next_purchase()
+		var spot: String = TierBot._pad_target(first)[0]
+		assert_true(spot.begins_with("tower") and siege in SPOT_LANES[spot], "siege %s: first target %s" % [siege, first])
+		assert_true(first.ends_with("_a"), "Longbow")
+
+## With gold for everything, the threat bot's targets follow ORDER_LITERALS through the live bot. Mutations: groups 1 and 2 swapped, the hare fence
+## before the siege fence, list order inside a group lost (node or hash order).
+func test_the_threat_bot_buys_in_the_literal_order() -> void:
+	Balance.data.tiers.retune_enabled = true
+	for c in ORDER_LITERALS:
+		var sd := _seed_with_character(c[0].siege, c[0].hare)
+		assert_ne(sd, -1, str(c[0]))
+		var bot := _bot_for_seed(sd, 5000)
+		assert_eq(GameState.lane_character(), c[0])
+		var want: Array = []
+		for spot in c[1]:
+			want.append(_pad_for(spot, c[0].siege))
+		assert_eq(_targets(bot, 9), want, str(c[0]))
+
+## Seed 1's character is {siege east, hare west}. Flag off (empty character): today's list order for every policy (captured before the order change).
+const TODAY_FLAG_OFF := {
+	"all_a": ["pad_tower_nw_a", "pad_tower_ne_a", "pad_fence_w_a"],
+	"all_b": ["pad_tower_nw_b", "pad_tower_ne_b", "pad_fence_w_b"],
+	"mixed": ["pad_tower_nw_a", "pad_tower_ne_a", "pad_fence_w_b"],
+	"volley_stone": ["pad_tower_nw_b", "pad_tower_ne_b", "pad_fence_w_a"],
+	"unbranched": [],
+}
+## Flag on: every policy that buys branches uses the marked-lane order of east / west (tower_ne, tower_e, tower_nw, tower_w, fence_e, fence_w, then
+## fence_n, tower_sw, fence_sw); only the branch differs (a = Longbow / Stone wall, b = Volley / Spike fence). Literals.
+const FLAG_ON_ORDER := ["tower_ne", "tower_e", "tower_nw", "tower_w", "fence_e", "fence_w", "fence_n", "tower_sw", "fence_sw"]
+const FLAG_ON_BRANCH := {
+	"all_a": "aaaaaaaaa",
+	"all_b": "bbbbbbbbb",
+	"mixed": "aaaabbbab",
+	"volley_stone": "bbbbaaaba",
+	"threat": "aabbabbbb",
+}
+
+func test_every_branch_policy_keeps_todays_order_with_an_empty_character() -> void:
+	for pol in TODAY_FLAG_OFF:
+		Balance.reset()
+		var bot := _one_branch_bot()
+		bot.policy = pol
+		GameState.lane_plan = [_wave("west", 2)]
+		assert_true(GameState.lane_character().is_empty())
+		assert_eq(_targets(bot, 3), TODAY_FLAG_OFF[pol], "%s flag off" % pol)
+	Balance.reset()
+	var bot2 := _one_branch_bot()
+	GameState.lane_plan = [_wave("west", 2)]
+	assert_eq(_targets(bot2, 3), ["pad_tower_nw_a", "pad_tower_ne_b", "pad_fence_w_a"], "threat, empty character: the plan decides, list order")
+
+## Flag on, seed 1 (east / west): the same order for every policy. Mutation: the order applied to `threat` only (the 4 other policies keep the list).
+func test_every_branch_policy_buys_in_the_marked_lane_order_with_a_character() -> void:
+	for pol in FLAG_ON_BRANCH:
+		Balance.reset()
+		Balance.data.tiers.retune_enabled = true
+		var bot := _one_branch_bot()
+		bot.policy = pol
+		GameState.lane_plan = [_wave("west", 2)]
+		assert_eq(GameState.lane_character(), {"siege": "east", "hare": "west"})
+		var want: Array = []
+		for i in 9:
+			want.append("pad_%s_%s" % [FLAG_ON_ORDER[i], FLAG_ON_BRANCH[pol][i]])
+		assert_eq(_targets(bot, 9), want, "%s flag on" % pol)
+	Balance.reset()
+	Balance.data.tiers.retune_enabled = true
+	var bot3 := _one_branch_bot()
+	bot3.policy = "unbranched"
+	assert_eq(_targets(bot3, 3), [], "unbranched buys no branch")
+
+# --- E6 phase 4: the hero holds a breached lane ---------------------------------------------------------------------------------------
+
+const _LANES3: Array = ["west", "north", "east", "sw"]  # lanes_for_tier(3) order; north before sw
+const _CHAR := {"siege": "north", "hare": "sw"}
+
+func _counts(n: int, w: int, e: int, sw: int) -> Dictionary:
+	return {"west": w, "north": n, "east": e, "sw": sw}
+
+func _breach(n: int, w: int, e: int, sw: int) -> Dictionary:
+	return {"west": w, "north": n, "east": e, "sw": sw}
+
+func test_with_a_character_the_lane_with_enemies_at_the_diner_wins_over_the_bigger_lane() -> void:
+	# seed 7, night 23, t = 93.0: north 10 (none past the fence), sw 8 (5 at the diner)
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(0, 0, 0, 5), _CHAR), "sw")
+
+func test_with_a_character_and_nothing_breached_the_choice_is_todays() -> void:
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(0, 0, 0, 0), _CHAR), "north")
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(0, 0, 0, 0), _breach(0, 0, 0, 0), _CHAR), "", "zero everywhere: no lane (the caller falls back to the plan's main lane)")
+
+func test_with_a_character_two_breached_lanes_the_one_with_more_at_the_diner_wins() -> void:
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(2, 0, 0, 5), _CHAR), "sw")
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(5, 0, 0, 2), _CHAR), "north")
+
+func test_with_a_character_equal_breach_counts_fall_back_to_the_most_enemies_then_lane_order() -> void:
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(4, 0, 0, 9), _breach(3, 0, 0, 3), _CHAR), "sw", "tied breach: most enemies")
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(6, 0, 0, 6), _breach(3, 0, 0, 3), _CHAR), "north", "tied on both: lane order")
+
+func test_with_an_empty_character_the_breach_is_ignored() -> void:
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(0, 0, 0, 5), {}), "north")
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(2, 0, 0, 5), {}), "north")
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(10, 0, 0, 8), _breach(0, 0, 0, 0), {}), "north")
+	assert_eq(NaiveBot.pick_lane(_LANES3, _counts(1, 0, 0, 8), _breach(1, 0, 0, 0), {}), "sw")
+
+func test_todays_choice_is_pinned_for_three_literals() -> void:
+	# captured from the loop in NaiveBot._night before this change
+	assert_eq(NaiveBot.most_enemies(["west", "north", "east"], {"west": 3, "north": 3, "east": 1}), "west")
+	assert_eq(NaiveBot.most_enemies(["west", "north", "east"], {"west": 0, "north": 2, "east": 5}), "east")
+	assert_eq(NaiveBot.most_enemies(["west", "north", "east", "sw"], {"west": 0, "north": 0, "east": 0, "sw": 0}), "")
+
+## enemy_breached(lane, dist, reach, fence_standing, walks_past)
+func test_a_fence_stopping_kind_is_breached_at_a_fallen_fences_stop_point_or_at_the_diner() -> void:
+	var len := MapLayout.path_length("sw")
+	var stop := len - MapLayout.FENCE_OFFSET_FROM_END - 1.2
+	assert_true(TierBot.enemy_breached("sw", stop, 1.2, false, false), "held at the stop point of a fallen fence")
+	assert_false(TierBot.enemy_breached("sw", stop - 0.1, 1.2, false, false), "short of the stop point")
+	assert_false(TierBot.enemy_breached("sw", stop, 1.2, true, false), "a boar held at a standing fence is not breached")
+	assert_false(TierBot.enemy_breached("sw", len - 1.0, 1.2, true, false), "near the diner but not at it")
+	assert_true(TierBot.enemy_breached("sw", len, 1.2, true, false), "at the diner (the end of the path)")
+
+func test_a_kind_that_walks_past_fences_is_breached_past_the_fence_line_whether_or_not_it_stands() -> void:
+	var line := MapLayout.path_length("sw") - MapLayout.FENCE_OFFSET_FROM_END
+	assert_true(TierBot.enemy_breached("sw", line + 0.1, 1.2, true, true), "a hare past a standing fence")
+	assert_true(TierBot.enemy_breached("sw", line + 0.1, 1.2, false, true), "a hare past a fallen fence")
+	assert_false(TierBot.enemy_breached("sw", line - 0.1, 1.2, true, true), "a hare short of the line")
+
+class _StopProbe:
+	var lane := ""
+	var _kind: StringName
+	func _init(p_lane: String, p_kind: StringName) -> void:
+		lane = p_lane
+		_kind = p_kind
+	func path_length() -> float:
+		return MapLayout.path_length(lane)
+	func stats() -> MonsterStats:
+		return Balance.data.monsters.stats(_kind)
+
+## The bot's stop point is the game's while the fence stands (TargetProviders.fence_stop_dist), for every lane and kind.
+func test_the_stop_point_agrees_with_the_games_for_every_lane_and_kind() -> void:
+	GameState.new_game(1)
+	GameState.debug_set_tier(3, 1)
+	for lane in MapLayout.lanes_for_tier(3):
+		var fence: String = MapLayout.lane_fence(lane)
+		GameState.buildings[fence].level = Balance.data.build.max_level
+		GameState.buildings[fence].hp = GameState.fence_max_hp(Balance.data.build.max_level)
+		for kind in MonsterBalance.KINDS:
+			var probe := _StopProbe.new(lane, kind)
+			assert_eq(TierBot.fence_stop_point(lane, probe.stats().reach), TargetProviders.fence_stop_dist(probe), "%s %s" % [lane, kind])
+
+# --- the live pick (TierBot._pick_lane in a tier-3 world) ----------------------------------------------------------------------------
+
+func _spawn_at(wd: WaveDirector, lane: String, kind: StringName, dist: float) -> void:
+	var b := wd.debug_spawn(lane, 0.0, 1.0, kind)
+	b.dist = dist  # test-only setup
+
+func _live_pick(bot: TierBot) -> String:
+	var wd := bot.main.world.wave_director
+	var lanes := MapLayout.lanes_for_tier(3)
+	var counts := {}
+	for l in lanes:
+		counts[l] = 0
+	for b in wd.alive_enemies():
+		counts[String(b.lane)] += 1
+	return bot._pick_lane(lanes, counts, wd)
+
+## Lane A (west): its fence has fallen and 2 boars stand past its stop point. Lane B (north): its fence stands and 4 boars are far back.
+## Flag on: west. Flag off (no character): north, the most enemies. Fails if `standing` is inverted or `counts` is passed as `breached`.
+func test_the_live_pick_goes_to_the_lane_with_enemies_past_a_fallen_fence() -> void:
+	Balance.data.tiers.retune_enabled = true
+	var bot := await _bot_world(3)
+	assert_false(GameState.lane_character().is_empty())
+	var stop := MapLayout.path_length("west") - MapLayout.FENCE_OFFSET_FROM_END - 1.2
+	GameState.buildings["fence_w"].level = 0  # test-only setup: fallen
+	GameState.buildings["fence_n"].level = Balance.data.build.max_level
+	GameState.buildings["fence_n"].hp = GameState.fence_max_hp(Balance.data.build.max_level)
+	var wd := bot.main.world.wave_director
+	for i in 2:
+		_spawn_at(wd, "west", &"boar", stop + 0.5)
+	for i in 4:
+		_spawn_at(wd, "north", &"boar", 2.0)
+	assert_eq(_live_pick(bot), "west")
+	Balance.data.tiers.retune_enabled = false
+	assert_true(GameState.lane_character().is_empty())
+	assert_eq(_live_pick(bot), "north")
+
+## A hare past the line of a STANDING fence counts as breached; a boar held at a standing fence does not.
+func test_the_live_pick_counts_a_hare_past_a_standing_fence_but_not_a_held_boar() -> void:
+	Balance.data.tiers.retune_enabled = true
+	var bot := await _bot_world(3)
+	var wd := bot.main.world.wave_director
+	for f in ["fence_w", "fence_n"]:
+		GameState.buildings[f].level = Balance.data.build.max_level
+		GameState.buildings[f].hp = GameState.fence_max_hp(Balance.data.build.max_level)
+	var line := MapLayout.path_length("west") - MapLayout.FENCE_OFFSET_FROM_END
+	_spawn_at(wd, "west", &"hare", line + 0.5)
+	for i in 3:
+		_spawn_at(wd, "north", &"boar", MapLayout.path_length("north") - MapLayout.FENCE_OFFSET_FROM_END - 1.2)  # held at the standing fence
+	assert_eq(_live_pick(bot), "west")

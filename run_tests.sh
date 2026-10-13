@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Usage: ./run_tests.sh [unit|sim|sim-tiers|bench|all|--quick]. Requires $GODOT (Godot 4.7 binary, see docs/DECISIONS.md D-116).
-# sim = res://tests/sim, sim-tiers = res://tests/sim_tier (two CI jobs, D-247). bench = res://tests/bench (the full lane-type bench,
+# Usage: ./run_tests.sh [unit|sim|sim-tiers-a|sim-tiers-b|sim-tiers|bench|all|--quick]. Requires $GODOT (Godot 4.7 binary, see docs/DECISIONS.md D-116).
+# sim = res://tests/sim, sim-tiers-a = res://tests/sim_tier_a, sim-tiers-b = res://tests/sim_tier_b (separate CI jobs, D-247; E6 split the tier sims in two), sim-tiers = both, one after the other. bench = res://tests/bench (the full lane-type bench,
 # E6 D-292: its own CI job; tick budget as the sims; wall time warns above 150 s and fails above 400 s because it is 42 one-lane
-# nights, about 75 s on an idle Mac). all = unit, sim, sim-tiers, bench (stops at the first failure).
+# nights, about 75 s on an idle Mac). all = unit, sim, sim-tiers-a, sim-tiers-b, bench (stops at the first failure).
 # --quick = unit + night-1 sims (no tick hook), for local loops (D-132). CI always runs the full suites.
 # Sim budget (D-247): the deterministic check is a per-test physics-tick budget (tests/sim_ticks.golden.json, +20%),
 # enforced by tests/sim/tick_budget_hook.gd. Wall time only warns above SIM_WARN_S (default 60) and fails above
-# SIM_FAIL_S (default 150). Update the golden file deliberately: TICK_BUDGET_UPDATE=1 ./run_tests.sh sim|sim-tiers|bench
+# SIM_FAIL_S (default 150). Update the golden file deliberately: TICK_BUDGET_UPDATE=1 ./run_tests.sh sim|sim-tiers-a|sim-tiers-b|bench
 # (refused in CI). A watchdog kills a sim suite that is still running SIM_FAIL_S + 30 s after it started (a hang).
 # Fails on test failures AND on GUT errors (missing scripts, parse errors, nothing run).
 # .gutconfig.json is ignored by this runner (-gconfig=); dirs come from the flags below.
@@ -44,7 +44,7 @@ run_gut() {
   trap - RETURN INT TERM
   rm -f "$log"; return "$rc"
 }
-# Shared by sim and sim-tiers: tick budget (hard) plus wall time (warn > SIM_WARN_S, fail > SIM_FAIL_S).
+# Shared by sim, sim-tiers-a, sim-tiers-b and bench: tick budget (hard) plus wall time (warn > SIM_WARN_S, fail > SIM_FAIL_S).
 run_sim_suite() {
   local mode="$1" dir="$2" warn="${SIM_WARN_S:-60}" fail="${SIM_FAIL_S:-150}" start elapsed rc=0 msg hook=res://tests/sim/tick_budget_hook.gd
   if [ "${TICK_BUDGET_UPDATE:-}" = "1" ] && [ "${GITHUB_ACTIONS:-}" = "true" ]; then echo "TICK_BUDGET_UPDATE is not allowed in CI; failing"; return 1; fi
@@ -67,10 +67,12 @@ run_sim_suite() {
 case "$SUITE" in
   unit) run_gut -gdir=res://tests/unit ;;
   sim) run_sim_suite sim tests/sim ;;
-  sim-tiers) run_sim_suite sim-tiers tests/sim_tier ;;
+  sim-tiers-a) run_sim_suite sim-tiers-a tests/sim_tier_a ;;
+  sim-tiers-b) run_sim_suite sim-tiers-b tests/sim_tier_b ;;
+  sim-tiers) "$SELF" sim-tiers-a && "$SELF" sim-tiers-b ;;
   bench) SIM_WARN_S="${SIM_WARN_S:-150}" SIM_FAIL_S="${SIM_FAIL_S:-400}" run_sim_suite bench tests/bench ;;
-  all) "$SELF" unit && "$SELF" sim && "$SELF" sim-tiers && "$SELF" bench ;;
+  all) "$SELF" unit && "$SELF" sim && "$SELF" sim-tiers-a && "$SELF" sim-tiers-b && "$SELF" bench ;;
   --quick)
     run_gut -gdir=res://tests/unit && run_gut -gtest=res://tests/sim/test_night_sims.gd ;;
-  *) echo "usage: $0 [unit|sim|sim-tiers|bench|all|--quick]"; exit 2 ;;
+  *) echo "usage: $0 [unit|sim|sim-tiers-a|sim-tiers-b|sim-tiers|bench|all|--quick]"; exit 2 ;;
 esac

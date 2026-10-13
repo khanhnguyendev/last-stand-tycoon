@@ -3174,6 +3174,36 @@ from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the
    measured window; the day fixture is regenerated at schema 7 with a test; the perf script stops Safari and its
    monitor on interrupt.
 
+**D-297 Phase-4 tuning rounds 1 and 2, and two changes to the measuring bot (2026-10-13).**
+Tuning set (seeds 1 east, 3 sw, 4 west, 7 north; six policies; real 32-day play; outputs under
+`docs/review/media/e6/tuning/`). Studies: `docs/review/media/e6/study_first_t3.md`, `study_p4_r2.md`,
+`tuning_p4_r1_bench.md`.
+1. **Round 0 (as built):** 4 of 8 targets. Threat lead +2.2 (west -4.3); retry nights on four policies; lowest first
+   tier-3 night 19.7%; fence tax 19.4%; spread 10.4.
+2. **Round 1:** Longbow flag-on interval 2.4 -> 2.2 s (pre-authorized, D-292). Forcing numbers: in real play a Longbow
+   fired about 23 shots a night against 180 to 207 for a Volley and lost boar-heavy lanes; early tier-3 nights have 1
+   or 2 brutes. Bench at 2.2: siege 233, hare 1092, neutral 82 (every rule passes). Result: 5 of 8; lead +5.6; west
+   -1.6; lowest first night 12.7% (north seed, Longbow-first builds).
+3. **Round 2:** interval 2.2 -> 2.0 s. Bench: Longbow 114 / 828 / 0, Volley 706 / 395 / 100, unbranched 1780 / 1693 /
+   560 (siege / hare / neutral); Volley still beats Longbow on the hare lane by more than 15%. Trial without the bot
+   changes of item 5: 6 of 8; lead +5.0 over Longbow + Spike; every lane positive; fence tax 4.9%; spread 5.3. At 2.0 s
+   the brute multiplier alone no longer decides any bench rule: the Longbow's siege edge is its rate of fire.
+4. **Bot, purchase order.** `_next_branch_pad` bought in list order, so a threat-matched run did not buy for its
+   siege lane first. With a lane character every branch policy now buys in one order: siege-lane towers, hare-lane
+   towers, siege fence, hare fence, the rest. All policies share it so the lead measures the branch match, not the
+   order (a review finding: giving it to `threat` alone would flatter the lead).
+5. **Bot, the hero at night.** Once a second the hero went to the lane with the most enemies, leaving a lane whose
+   fence had just fallen; the diner then fell in about 12 s (east seed, day 22: 19.7%; with the hero pinned 76.7%,
+   the fence falling at the same second). With a lane character lanes are now ranked first by enemies at the diner
+   or past a fallen fence's stop point (kinds that pass fences: past the fence line), then as before. Measured: east
+   seed Volley + Spike day 22 19.7% -> 88.3%; north seed threat day 23 80.7% -> 58.3% (worse on that night, still
+   above 25%; not chased with more rules).
+6. **Scope of both bot rules:** only with a non-empty lane character (tier 3, flag on). With the flag off and at tiers
+   1 and 2 the bots are unchanged, so the three baselines cannot move (and are run to prove it).
+7. **Honesty note (REVIEW_QUEUE):** the bots are the instrument that judges D-281's targets. The hero rule reads fence
+   state on lanes outside the player's view and has no fence-fall cue; both rules use nothing a player could not know
+   (no plan, no future waves, no HP). Before/after numbers for both rules go into the checkpoint pack.
+
 **D-298 Author's answers on the pads, the HOME framing and the unbranched policy (2026-10-13).**
 1. **Pads (escalation 9): option A.** A building's level pips hide while its pad shows a cost and return when the
    cost hides. Pinned in the overlap test (zero overlap, at least 8 px) and checked at 40%. Phase 3 merges when green.
@@ -3218,7 +3248,7 @@ from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the
    - Scans: near 8.9 px, on 8 px smallest gap; zero findings; no exception list. The lane's telegraph flag is a 3D
      model, not a label, and is not an obstacle (one cost crosses it on fence_w).
 
-**D-300 Phase A after the author's answer 2 (D-298.2): pips in one draw, readings by framing (2026-10-14).**
+**D-300 Phase A after the author's answer 2 (D-298.2): pips in one draw, readings by framing (2026-10-13).**
 1. **Every level pip is one draw call** (one MultiMesh; the owner node is created lazily under Main). Pixel-identical
    over 13 compared states. Draw calls on desktop at a fixed tick: night at HOME 78 -> 56; resumed night 47 -> 39;
    day at HOME without pads 102 -> 80.
@@ -3239,3 +3269,69 @@ from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the
 5. **Draw-call budgets by reading** (measured + 10; a warning only): night entered by play 64, resumed night 50,
    day at HOME 117.
 6. **Open with the author:** both fps thresholds are unmet; no visual change was made.
+
+**D-301 Task 19 as built: flag-on fixtures, three sims, the tier sims in two suites (2026-10-13).**
+1. **Fixtures from real play** (tuning seed 3: siege south-west, hare west; byte-identical on two runs;
+   `make_save.gd -- --fixture=retune`, tuning seeds only): `retune_siege_night` (day 25: a wave's brutes have the
+   siege lane as neither main nor side; two waves carry an extra hare group), `retune_first_t3_night` (day 23) and
+   `retune_respawn` (the same state at night). Sims 5 and 7 run on a real flag-off recording (`tier3_night1`, day 19);
+   sim 4 keeps a constructed night on the real Baron-night capture's day, stations and plan. The six older tier-3
+   fixtures are re-encoded at schema 7 (identical play).
+2. **The sims count kills by lane and kind against the plan** (after the lane-character step), so brutes on the wrong
+   lane or a missing extra group fail. Siege night: floor 0.90 (threat-matched 0.96; the same night with the siege
+   tower and fence unbranched 0.80). First night: floor 0.85 beside the 25% bar (one seed).
+3. **The flag-on respawn sim is an instrumented scene on a recorded state** (ruling): a 3000 HP diner and a scripted
+   tank knock-out, because at 300 HP the respawn cannot be observed for its window. It proves that protection stops
+   an immediate second knock-out in a crowded siege zone; it does not prove the full window at real diner HP. Sim 7
+   (flag off) fails with `respawn_protect_s = 0` on its new recording, so it is not vacuous.
+4. **`_assert_fresh_plan`** compares the decoded stored plan with the planner's (it compared a plan with itself).
+5. **The tier sims are two suites** (D-274.4): `sim-tiers-a` (`tests/sim_tier_a/`: tiers 1-2 and the retune sims,
+   28 s locally) and `sim-tiers-b` (`tests/sim_tier_b/`: the tier-3 sims, 30 s). `sim-tiers` runs both. The required
+   checks on `main` change from `sim-tiers` to `sim-tiers-a` and `sim-tiers-b` when both are green on the phase PR.
+
+**D-302 Author's answers to escalations 11, 12 and 13 (2026-10-13).** The author approved the checkpoint draft's
+recommendations and answered three questions put to them one by one.
+1. **Escalation 13: Longbow fires every 2.0 s with the flag on. Ratified.** The steps to 2.2 and 2.0 s went beyond
+   the letter of D-292; the author accepts the value as it stands.
+2. **Escalation 11a: the lead target (threat-matched ahead by 5 or more) is accepted as unmet.** No third tuning
+   round, no Longbow rule against hares, no higher cap. The pack reports +1.7 on the tuning set as a failed target;
+   it is input for tier 4 (REVIEW_QUEUE 41).
+3. **Escalation 11b: the unbranched policy stays inside the first-tier-3-night target** (D-298.3 as written). Its
+   13.0% on the north seed is reported as a failure, in red, with no balance change (REVIEW_QUEUE 42).
+4. **Escalation 12: phase A merges with the Simulator readings as they are** (night at HOME 54.9, day at HOME 43.2;
+   PR #64, merged). Both go to the phone check at the final review.
+5. **The fence sink and the ramp are accepted as unmet for this slice**, as tier-4 input (REVIEW_QUEUE 39, 40).
+6. **Next:** full gates, the hold-out set once (D-290), the final pack, the checkpoint.
+
+**D-303 Hold-out set #1: the final run fails three targets; escalation 14 (main session, 2026-10-13).**
+1. **Run once** with `--final` at `d3eb6c4` after full gates and the three baselines (48 real 32-day runs). Record
+   `tests/sim/retune_final.json`; output `docs/review/media/e6/tuning/p4_holdout1_final.txt` (the plan named
+   `media/e6/balance/final/`; kept beside the tuning outputs).
+2. **Result:** the lead is +2.6 (accepted as unmet, D-302.2). New failures: the two Volley-tower policies retry one
+   night each, and the first tier-3 night on north seed 14 reads 12.7% (a Longbow on the siege lane) or a retry
+   (Volley towers, unbranched). The unbranched reference trips the D-298.3 flag (4 retry nights on seed 14).
+3. **Nothing was tuned after the run, and seed 14 was not studied** (spec 8.1, D-290.1). The same 12.7% had been
+   seen on tuning seed 7 in round 1 and went away at 2.0 s; that did not carry to seed 14.
+4. **Escalation 14, open with the author:** (a) waive D-290.1 for seed 14, diagnose, one round, hold-out set #2 as
+   the final reading; (a2) a round on the tuning seeds only; (b) flip as it is; (c) leave the flag off. The main
+   session recommends (a) and does not flip. REVIEW_QUEUE 43.
+
+**D-304 Author's answer to escalation 14; the required-check swap (2026-10-13).**
+1. **Escalation 14: option (a), with guardrails.** Seed 14 moves into the tuning set; it is no longer hold-out data.
+   Hold-out set #1 is retired; its results stay in the report history.
+2. **Diagnose first and classify the cause:** (i) a bot defect (for example the hero leaving its lane): fix the bot,
+   no balance change; (ii) a balance cause: fix it.
+3. **Exactly one round of changes covering both,** then the tuning seeds (now with 14), the bench and the three
+   baselines again.
+4. **Then hold-out set #2 once** (the next 2 seeds per siege lane from the same scan), `--final`, with the commit
+   recorded.
+5. **If set #2 fails any target: stop and escalate** with the per-seed data and 2 to 3 options. No more rounds and no
+   set #3 without the author.
+6. **The pack states plainly** what failed on seed 14, the cause class, what changed and the set #2 verdict.
+7. **Required checks on `main`:** `sim-tiers` is replaced by `sim-tiers-a` and `sim-tiers-b` (authorized by the
+   author under D-274.4; applied by the main session with `gh api`, read back: `unit`, `sim`, `deploy`, `bench`,
+   `sim-tiers-a`, `sim-tiers-b`, strict). PR #66 merges when green; the flag stays off.
+8. **Checkpoint video:** the disclosure is accepted. One clip of at most 20 s is added: the real tier-3 reveal from a
+   tier-2 save with raised fixture gold, through the lane-character step and the banner; debug build, flag on, said
+   to be staged in the README; the edited fixture is not committed, its making is described.
+9. **The checkpoint stays open until hold-out set #2 passes.** No flip (Task 22) before that.

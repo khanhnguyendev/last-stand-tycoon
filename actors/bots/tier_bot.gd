@@ -54,6 +54,40 @@ func think(delta: float) -> void:
 	_sync_graph()
 	super.think(delta)
 
+## E6 phase 4: with a lane character (tier 3, retune on) the hero's one-second rule ranks lanes by the enemies already breaching (see NaiveBot.pick_lane);
+## otherwise it is today's rule. Reads the enemies' lane, position and path distance, as the bot already does.
+func _pick_lane(lanes: Array, counts: Dictionary, wd: WaveDirector) -> String:
+	var character := GameState.lane_character()
+	if character.is_empty():
+		return super._pick_lane(lanes, counts, wd)
+	var breached := {}
+	for lane in lanes:
+		breached[lane] = 0
+	for b in wd.alive_enemies():
+		var lane := String(b.lane)
+		var walks_past: bool = not (b.stats().priority as Array).has(&"fence_on_lane")  # the game's own test for hares and the Baron
+		if enemy_breached(lane, float(b.dist), float(b.stats().reach), TargetProviders.fence_stop_dist(b) < INF, walks_past):
+			breached[lane] += 1
+	return pick_lane(lanes, counts, breached, character)
+
+## Where a fence-stopping kind of `reach` waits at the fence of `lane`: TargetProviders.fence_stop_dist returns this while the fence stands, but INF once
+## it has fallen, so the bot keeps the formula (a test pins that the two agree for every lane and kind).
+static func fence_stop_point(lane: String, reach: float) -> float:
+	return MapLayout.path_length(lane) - MapLayout.FENCE_OFFSET_FROM_END - reach
+
+## Pure: is an enemy of `lane`, `dist` along its path, breaching. At the diner (the end of the path, Boar.at_path_end) always. A kind that walks
+## past fences (hares, the Baron) once it is past the fence line of its lane, whether the fence stands or has fallen. A fence-stopping kind once it
+## is at or past its stop point of a FALLEN fence (`fence_standing` false, from TargetProviders.fence_stop_dist being INF): a boar held at a
+## standing fence is not breaching. The stop point, not the line: the monsters held at a fence that has just fallen are the breach, one second
+## before they cross the line.
+static func enemy_breached(lane: String, dist: float, reach: float, fence_standing: bool, walks_past: bool) -> bool:
+	var length := MapLayout.path_length(lane)
+	if dist >= length - 1e-4:
+		return true
+	if walks_past:
+		return dist >= length - MapLayout.FENCE_OFFSET_FROM_END
+	return not fence_standing and dist >= fence_stop_point(lane, reach) - 1e-4
+
 ## Pure: {spot_id: branch id} for `spot_ids` under `policy`, from tonight's `plan` (a lane has a brute when composition_by_lane says so).
 ## E6 (spec 4.4, D-283): a non-empty lane `character` ({siege, hare}) makes `threat` read the run's lane character instead of the plan: a fence
 ## on the siege lane takes Stone wall, any other fence Spike fence; a tower covering the siege lane (also when it covers the hare lane too)
@@ -84,6 +118,30 @@ static func branch_choices(p_policy: String, spot_ids: Array, plan: Array, tier 
 					elif int(comp.get(l, {}).get("brute", 0)) > 0:
 						a = true
 		out[id] = opts[0] if a else opts[1]
+	return out
+
+## Pure: `spot_ids` ordered for the buyer of every branch policy when the run has a lane character (E6, D-297): (1) towers covering the siege lane, (2) towers covering the hare lane,
+## (3) the siege lane's fence, (4) the hare lane's fence, (5) the rest. A spot is in the first group that fits; inside a group the input order stays.
+static func marked_lane_order(spot_ids: Array, character: Dictionary) -> Array:
+	var siege := String(character.get("siege", ""))
+	var hare := String(character.get("hare", ""))
+	var groups: Array = [[], [], [], [], []]
+	for id in spot_ids:
+		var tower := MapLayout.spot_kind(id) == "tower"
+		var lanes: Array = MapLayout.tower_lanes(id) if tower else [MapLayout.fence_lane(id)]
+		if tower and siege in lanes:
+			groups[0].append(id)
+		elif tower and hare in lanes:
+			groups[1].append(id)
+		elif not tower and siege in lanes:
+			groups[2].append(id)
+		elif not tower and hare in lanes:
+			groups[3].append(id)
+		else:
+			groups[4].append(id)
+	var out: Array = []
+	for g in groups:
+		out.append_array(g)
 	return out
 
 ## The pad goal name of `branch` at `spot_id` (the graph's `pad_<spot>_<a|b>`).
@@ -204,7 +262,10 @@ func _next_branch_pad() -> String:
 		_blocked_pads.clear()
 	if policy == "unbranched":
 		return ""  # the report's floor: no branch is a goal, so none is a skipped goal either
-	var choices := branch_choices(policy, spots, GameState.lane_plan, GameState.tier, GameState.lane_character())
+	var character := GameState.lane_character()
+	var choices := branch_choices(policy, spots, GameState.lane_plan, GameState.tier, character)
+	if not character.is_empty():  # E6 (D-297): a player reads the lane badges and buys for the marked lanes first, whatever the branch policy
+		spots.assign(marked_lane_order(spots, character))
 	for id in spots:
 		if not GameState.can_branch(id):
 			continue
