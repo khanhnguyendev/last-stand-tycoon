@@ -1,9 +1,10 @@
 extends SceneTree
 ## E6 tier-3 retune report (Task 16, spec 8.1, D-285, D-290, D-292 to D-294). NOT a CI test (the name does not start with test_); asserts nothing, changes no balance value.
-## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|1|2 --final --days=32 --parallel=3 --dry=1]
-## Sets: `tuning` (default; 4 seeds, one per siege lane), `1` and `2` (hold-out sets #1 and #2, 8 seeds each, two per siege lane). The seeds are pinned in SweepMath (TUNING_SET,
-## HOLDOUT_SET_1, HOLDOUT_SET_2); at the start the report scans seeds upward from 1 (the siege lane of a seed is `LaneCharacter.for_run(seed).siege`) and exits 2 if the scan
-## does not give exactly the pinned literals. The hold-out sets run ONLY with `--final` (D-290): without it the report refuses and starts nothing; with it the output header
+## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|2 --final --days=32 --parallel=3 --dry=1]
+## Sets: `tuning` (default; 5 seeds: one per siege lane from the scan, plus the promoted north 14, D-304), `2` (hold-out set #2, 8 seeds, two per siege lane). Hold-out set #1 is
+## RETIRED (D-304: seed 14 failed it, was diagnosed and moved to the tuning set): `--set=1` is refused always, with or without `--final`, exit 2, nothing started; its literal and its
+## results stay for the history. The seeds are pinned in SweepMath (SCAN_TUNING_SET, PROMOTED_TO_TUNING, TUNING_SET, HOLDOUT_SET_1, HOLDOUT_SET_2); at the start the report scans seeds upward from 1
+## (the siege lane of a seed is `LaneCharacter.for_run(seed).siege`) and exits 2 if the scan does not give exactly the pinned literals (the scan's tuning seeds + the promotion = TUNING_SET). The hold-out sets run ONLY with `--final` (D-290): without it the report refuses and starts nothing; with it the output header
 ## carries the commit and the set number, the run is appended to the history in tests/sim/retune_final.json (COMMITTED, so earlier finals survive across worktrees; Task 20 commits it with the output), and every earlier entry is printed (FINAL_EARLIER),
 ## with FINAL_REPEAT when it is a second run (a different commit is spelled out). `--dry=1` prints the header (rule, seeds, gate) and runs nothing.
 ## Runs: for every seed x six policies (all_a = Longbow + Stone, mixed = Longbow + Spike, volley_stone = Volley + Stone, all_b = Volley + Spike, threat = the threat-matched build,
@@ -41,13 +42,21 @@ func _initialize() -> void:
 	var set_id := String(args.set)
 	var seed_set: Dictionary = SweepMath.set_by_id(set_id)
 	if seed_set.is_empty():
-		push_error("bad --set=%s (tuning|1|2)" % set_id)
+		push_error("bad --set=%s (tuning|2; 1 is retired)" % set_id)
 		quit(2)
 		return
 	var lc = load("res://core/lane_character.gd")
 	var scan: Dictionary = SweepMath.seed_scan(func(s): return String(lc.for_run(s).siege), SweepMath.SIEGE_LANES)
-	if scan.tuning != SweepMath.TUNING_SET or scan.holdout1 != SweepMath.HOLDOUT_SET_1 or scan.holdout2 != SweepMath.HOLDOUT_SET_2:
+	if scan.tuning != SweepMath.SCAN_TUNING_SET or scan.holdout1 != SweepMath.HOLDOUT_SET_1 or scan.holdout2 != SweepMath.HOLDOUT_SET_2 \
+			or SweepMath.with_promotion(scan.tuning, SweepMath.PROMOTED_TO_TUNING) != SweepMath.TUNING_SET:
 		push_error("the seed scan no longer gives the pinned sets (LaneCharacter.for_run changed?): %s" % str(scan))
+		quit(2)
+		return
+	var retired: Dictionary = SweepMath.retired_gate(set_id)
+	if retired.refused:
+		print("SEED_PROMOTED north 14 (D-304): failed hold-out #1, diagnosed, now tuning data")
+		print("HOLDOUT_1 retired (D-304): results stay in the history")
+		print("\n".join(retired.lines))
 		quit(2)
 		return
 	var days := int(args.days)
@@ -73,7 +82,9 @@ func _initialize() -> void:
 		return
 	lines.append("RETUNE_REPORT set=%s commit=%s days=%d" % ["tuning" if set_id == "tuning" else "#" + set_id, commit, days])
 	lines.append_array(gate.lines)
-	lines.append("SEED_RULE scan seeds upward from 1; a seed's siege lane is LaneCharacter.for_run(seed).siege; per lane the 1st seed is the tuning set, the next 2 hold-out set #1, the next 2 hold-out set #2")
+	lines.append("SEED_PROMOTED north 14 (D-304): failed hold-out #1, diagnosed, now tuning data")
+	lines.append("HOLDOUT_1 retired (D-304): results stay in the history")
+	lines.append("SEED_RULE scan seeds upward from 1; a seed's siege lane is LaneCharacter.for_run(seed).siege; per lane the 1st seed is the scan's tuning seed, the next 2 hold-out set #1 (RETIRED), the next 2 hold-out set #2; the tuning set run = the scan's tuning seeds + the promoted north 14 (D-304)")
 	for l in SweepMath.SIEGE_LANES:
 		lines.append("SEEDS %s %s: %s" % ["tuning" if set_id == "tuning" else "hold-out #" + set_id, l, str(seed_set[l])])
 	lines.append("NOTE a retried night counts its final (mercy) attempt, EXCEPT the first tier-3 night (FIRST_T3_NIGHT): a retried first night counts as lost, 0%; the night statistics count tier-3 nights only; hare share and the lane-cap guard are read from each run's own plan")

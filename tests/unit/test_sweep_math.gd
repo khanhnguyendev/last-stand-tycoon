@@ -163,29 +163,81 @@ const PAIRS := ["all_a", "all_b", "mixed", "volley_stone"]
 
 ## The pinned sets, written out by hand (the scan of LaneCharacter.for_run from seed 1; set #2 computed once, then pinned).
 func test_seed_sets_are_the_pinned_literals_and_the_scan_reproduces_them() -> void:
-	var tuning := {"east": [1], "sw": [3], "west": [4], "north": [7]}
+	var scan_tuning := {"east": [1], "sw": [3], "west": [4], "north": [7]}
+	var tuning := {"east": [1], "sw": [3], "west": [4], "north": [7, 14]}
 	var h1 := {"east": [2, 5], "sw": [10, 12], "west": [6, 13], "north": [9, 14]}
 	var h2 := {"east": [8, 11], "sw": [21, 23], "west": [18, 25], "north": [16, 19]}
-	assert_eq(SweepMath.TUNING_SET, tuning)
-	assert_eq(SweepMath.HOLDOUT_SET_1, h1)
+	assert_eq(SweepMath.SCAN_TUNING_SET, scan_tuning)
+	assert_eq(SweepMath.PROMOTED_TO_TUNING, {"north": [14]}, "D-304: seed 14 is promoted")
+	assert_eq(SweepMath.TUNING_SET, tuning, "D-304: the tuning set is the scan's tuning seeds plus north 14")
+	assert_eq(SweepMath.HOLDOUT_SET_1, h1, "retired, the literal is kept for the history")
 	assert_eq(SweepMath.HOLDOUT_SET_2, h2)
 	var scan := SweepMath.seed_scan(func(s): return String(LaneCharacter.for_run(s).siege), LANES4)
-	assert_eq(scan.tuning, tuning, "the scan, not the constant, is the rule")
+	assert_eq(scan.tuning, scan_tuning, "the scan, not the constant, is the rule")
 	assert_eq(scan.holdout1, h1)
 	assert_eq(scan.holdout2, h2)
+	assert_eq(SweepMath.with_promotion(scan.tuning, SweepMath.PROMOTED_TO_TUNING), SweepMath.TUNING_SET)
+
+func test_with_promotion_appends_per_lane_once() -> void:
+	var base := {"east": [1], "north": [7]}
+	assert_eq(SweepMath.with_promotion(base, {"north": [14]}), {"east": [1], "north": [7, 14]})
+	assert_eq(SweepMath.with_promotion(base, {"north": [7]}), base, "a seed already there is not added twice")
+	assert_eq(SweepMath.with_promotion(base, {}), base)
+	assert_eq(base, {"east": [1], "north": [7]}, "the input is not changed")
+	assert_eq(SweepMath.set_seeds(SweepMath.TUNING_SET), [1, 3, 4, 7, 14], "lane order east, sw, west, north; two seeds on north")
+
+func test_hold_out_set_1_is_retired_and_set_2_is_not() -> void:
+	var r := SweepMath.retired_gate("1")
+	assert_true(r.refused)
+	assert_string_contains(String(r.lines[0]), "retired (D-304)")
+	for ok_id in ["tuning", "2"]:
+		assert_false(SweepMath.retired_gate(ok_id).refused, ok_id)
+		assert_true(SweepMath.retired_gate(ok_id).lines.is_empty())
+	assert_false(SweepMath.set_by_id("1").is_empty(), "the literal stays readable for the history")
+	assert_eq(SweepMath.RETIRED_SETS, ["1"])
+
+## A lane with two tuning seeds (north 7 and 14): the per-lane lines average over both seeds and list each.
+func test_lane_verdicts_work_with_two_tuning_seeds_on_one_lane() -> void:
+	var rows: Array = []
+	for s in SweepMath.set_seeds(SweepMath.TUNING_SET):
+		var lane := SweepMath.seed_lane(SweepMath.TUNING_SET, s)
+		for p in PAIRS:
+			rows.append(_row(s, lane, p, 0.50))
+		rows.append(_row(s, lane, "threat", 0.60))
+		rows.append(_row(s, lane, "unbranched", 0.40))
+	_put(rows, "threat", 7, {"mean_frac": 0.56})
+	_put(rows, "threat", 14, {"mean_frac": 0.46})  # north: (+6 + -4) / 2 = +1
+	var res := SweepMath.threat_lead_by_lane(rows)
+	assert_true(res.ok, "north mean +1.0 is not negative")
+	assert_string_contains(_line(res, "  lane north"), "+1.0")
+	assert_string_contains(_line(res, "  seed 7"), "+6.0")
+	assert_string_contains(_line(res, "  seed 14"), "-4.0")
+	assert_string_contains(_line(res, "  lane east"), "+10.0")
+	_put(rows, "threat", 14, {"mean_frac": 0.40})  # north: (+6 + -10) / 2 = -2
+	assert_false(SweepMath.threat_lead_by_lane(rows).ok, "north mean -2.0 fails")
+	var lead := SweepMath.threat_lead(rows)
+	assert_string_contains(lead.lines[0], "of 5 seeds")
 
 func test_the_three_sets_are_disjoint_and_in_scan_order() -> void:
+	# D-304: the scan's tuning set, retired set #1 and set #2 are disjoint and in scan order; the run tuning set differs from the scan's only by the promoted seed 14,
+	# which is also in the retired set #1 literal (the one allowed overlap).
 	var seen := {}
-	for set in [SweepMath.TUNING_SET, SweepMath.HOLDOUT_SET_1, SweepMath.HOLDOUT_SET_2]:
+	for set in [SweepMath.SCAN_TUNING_SET, SweepMath.HOLDOUT_SET_1, SweepMath.HOLDOUT_SET_2]:
 		for s in SweepMath.set_seeds(set):
 			assert_false(seen.has(s), "seed %d is in two sets" % s)
 			seen[s] = true
 	assert_eq(seen.size(), 4 + 8 + 8)
 	for lane in LANES4:
-		var all: Array = SweepMath.TUNING_SET[lane] + SweepMath.HOLDOUT_SET_1[lane] + SweepMath.HOLDOUT_SET_2[lane]
+		var all: Array = SweepMath.SCAN_TUNING_SET[lane] + SweepMath.HOLDOUT_SET_1[lane] + SweepMath.HOLDOUT_SET_2[lane]
 		var sorted_all := all.duplicate()
 		sorted_all.sort()
 		assert_eq(all, sorted_all, "%s: tuning, then hold-out #1, then #2, each later in the scan" % lane)
+	var overlap: Array = []
+	for s in SweepMath.set_seeds(SweepMath.TUNING_SET):
+		assert_false(s in SweepMath.set_seeds(SweepMath.HOLDOUT_SET_2), "tuning seed %d must not be in the live hold-out set #2" % s)
+		if s in SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1):
+			overlap.append(s)
+	assert_eq(overlap, [14], "the only seed the run tuning set shares with the retired set #1 is the promoted one")
 	assert_eq(SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1), [2, 5, 10, 12, 6, 13, 9, 14], "lane order east, sw, west, north; scan order inside a lane")
 
 ## A made-up lane function: seed % 4 picks the lane. Mutation: a scan that restarts at a wrong value, or takes seeds in a different order.

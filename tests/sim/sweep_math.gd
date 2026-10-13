@@ -226,10 +226,16 @@ static func two_by_two(runs: Array) -> Dictionary:
 
 const SIEGE_LANES := ["east", "sw", "west", "north"]
 ## The seed sets, pinned as literals (D-285). The rule: scan seeds upward from 1; a seed belongs to the lane `LaneCharacter.for_run(seed).siege`; per lane the first seed is
-## the tuning set, the next two are hold-out set #1, the two after those hold-out set #2. report_retune.gd asserts the scan still gives exactly these.
-const TUNING_SET := {"east": [1], "sw": [3], "west": [4], "north": [7]}
+## the scan's tuning seed, the next two are hold-out set #1, the two after those hold-out set #2. report_retune.gd asserts the scan still gives exactly SCAN_TUNING_SET, HOLDOUT_SET_1 and HOLDOUT_SET_2.
+const SCAN_TUNING_SET := {"east": [1], "sw": [3], "west": [4], "north": [7]}
+## D-304: seed 14 failed hold-out set #1, was diagnosed, and is therefore tuning data now. The tuning set that is RUN is the scan's tuning seeds plus this promotion.
+const PROMOTED_TO_TUNING := {"north": [14]}
+const TUNING_SET := {"east": [1], "sw": [3], "west": [4], "north": [7, 14]}
+## RETIRED (D-304): kept as a literal for the history only (its results stay in tests/sim/retune_final.json); it is never run again, `--set=1` is refused.
 const HOLDOUT_SET_1 := {"east": [2, 5], "sw": [10, 12], "west": [6, 13], "north": [9, 14]}
 const HOLDOUT_SET_2 := {"east": [8, 11], "sw": [21, 23], "west": [18, 25], "north": [16, 19]}
+## The hold-out sets that may no longer be run (D-304).
+const RETIRED_SETS := ["1"]
 const FIXED_PAIRS := ["all_a", "all_b", "mixed", "volley_stone"]
 const RETUNE_POLICIES := ["all_a", "all_b", "mixed", "volley_stone", "threat", "unbranched"]
 ## Policies whose towers are Longbow on the siege lane (all_a, mixed: every tower; threat: the tower covering the siege lane, spec 4.4).
@@ -279,6 +285,23 @@ static func seed_lane(set: Dictionary, seed: int) -> String:
 		if seed in set[l]:
 			return String(l)
 	return ""
+
+## The scan's tuning seeds plus the promoted ones, per lane in the scan's order (a seed already there is not added twice). The tuning set the report runs is this (D-304).
+static func with_promotion(scan_tuning: Dictionary, promoted: Dictionary) -> Dictionary:
+	var out := {}
+	for l in scan_tuning:
+		var list: Array = scan_tuning[l].duplicate()
+		for s in promoted.get(l, []):
+			if not s in list:
+				list.append(s)
+		out[l] = list
+	return out
+
+## D-304: a retired hold-out set is refused always, with or without --final. Returns {refused, lines}; the report prints the lines and exits 2 before it starts anything.
+static func retired_gate(set_id: String) -> Dictionary:
+	if set_id in RETIRED_SETS:
+		return {"refused": true, "lines": ["REFUSED: hold-out set #%s is retired (D-304): its results stay in the history (tests/sim/retune_final.json); no run was started" % set_id]}
+	return {"refused": false, "lines": []}
 
 ## The set the report runs: "tuning", "1" or "2" -> its dictionary ({} for anything else).
 static func set_by_id(set_id: String) -> Dictionary:
