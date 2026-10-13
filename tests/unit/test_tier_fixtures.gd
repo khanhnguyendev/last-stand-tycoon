@@ -188,3 +188,22 @@ func test_tier3_cap_threat_day_decodes_resumes_in_the_day_and_matches_the_night_
 			assert_eq(day.state[k], DAY_FIXTURE_DIFFERS[k], "key %s: the listed expected day value" % k)
 		else:
 			assert_eq(day.state[k], night.state[k], "key %s: same as tier3_cap_threat" % k)
+
+## E6 phase A: the DAY HOME perf fixture (`make_save.gd -- --fixture=tier3_branch_day`, committed, deterministic). It decodes at the current schema, resumes into a tier-3 DAY
+## and shows at least one branch pad (a max-level, unbranched building): the pads' draw calls are what the DAY HOME reading measures.
+func test_tier3_branch_day_decodes_is_a_tier_3_day_and_shows_a_branch_pad() -> void:
+	var r := _decode("tier3_branch_day")
+	assert_true(r.ok, str(r.get("reason", "")))
+	assert_eq(r.state.resume_phase, "DAY")
+	assert_eq(int(r.state.tier), 3)
+	var main := await _resume("tier3_branch_day")
+	await get_tree().physics_frame
+	assert_eq(main.phase_controller.phase, Phase.DAY)
+	var shown := 0
+	for id in main.world.branch_pads:
+		for p in main.world.branch_pads[id]:
+			if (p as BranchPad).is_shown():
+				shown += 1
+	assert_gt(shown, 0, "at least one unbought branch pad shows")
+	main.get_parent().remove_child(main)
+	main.free()

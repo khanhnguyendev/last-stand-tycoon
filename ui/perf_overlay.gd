@@ -47,6 +47,8 @@ const LOG_SHOW_MS := 30.0
 var _log_s := 0.0
 var _close_s := 0.0
 var _closed := false
+## The night in the window began by the overlay's own close-up (`?perfclose=`): a night ENTERED BY PLAY (kept through the phase change; cleared when a day starts).
+var _play_entered := false
 var _log_t: Array[float] = []
 var _log_ms: Array[float] = []
 ## For a frame of LOG_SHOW_MS or more: the previous frame's script time, physics time, draw calls, and the node count and video memory change.
@@ -131,6 +133,8 @@ func _on_wave_started(w: int, _main: StringName, _side: StringName) -> void:
 func _on_phase_changed(p: int, d: int) -> void:
 	_phase = p
 	_day = d
+	if p == Phase.DAY:
+		_play_entered = false
 	_phase_msec = Time.get_ticks_msec()
 	_reset_window()
 
@@ -297,6 +301,7 @@ func _tick(raw: float, delta: float) -> void:
 	_since_reset += raw
 	if _close_s > 0.0 and not _closed and _phase == Phase.DAY and _since_reset >= _close_s:
 		_closed = true
+		_play_entered = true
 		EventBus.closeup_requested.emit()  # the phase changes here and the window resets: this frame is the old phase's last
 		return
 	if _log_s > 0.0 and not _log_done:
@@ -319,18 +324,37 @@ func _tick(raw: float, delta: float) -> void:
 		var line := "PERF phase=%s day=%d window=60s avg_fps=%.1f worst_ms=%.1f proc_ms=%.2f phys_ms=%.2f dc=%.0f slow_pct=%.1f delta_worst_ms=%.1f" % [
 			_phase_name(), _day, avg_fps(), worst_ms(), _proc_sum / _n, _phys_sum / _n, _dc_sum / _n,
 			100.0 * _slow / _n, _delta_worst]
-		line += " top3=" + top3_text() + " pre3=" + pre3_text() + " " + budget_text(_dc_sum / _n)
+		line += " top3=" + top3_text() + " pre3=" + pre3_text() + " " + budget_text(_dc_sum / _n, budget_kind())
 		_frozen_label.text = line
 		print(line)
 
-## E5 T3 checkpoint night 3 = 48 draw calls, plus 10 (E6 A3, D-294). A warning only: WARN never fails a run.
-const DRAW_CALL_BUDGET := 58
+## Draw-call budgets by reading (E6 phase A, D-300): the measured Simulator count plus 10 for each framing (a2.md 4f). A warning only: WARN never fails a run.
+## The three framings differ by what the camera sees, so they have their own budgets: a night entered by play frames the whole diner from HOME (54 + 10), a night
+## resumed from a save frames the hero's saved place (40 + 10), the day at HOME shows the pads (107 + 10, `tier3_branch_day`).
+const BUDGET_NIGHT_PLAY := 64
+const BUDGET_NIGHT_RESUMED := 50
+const BUDGET_DAY_HOME := 117
+enum BudgetKind { NIGHT_RESUMED, NIGHT_PLAY, DAY_HOME }
 
-## `DRAW_CALL_BUDGET: OK 50 (budget 58)` or `WARN 78 (budget 58)`: the frozen line's last words. The budget is for the night RESUMED from a save
-## (the camera frames the hero's saved place); a night entered by play frames the whole diner from HOME and draws about 30 more (a2.md 4e).
-static func budget_text(dc: float) -> String:
+static func budget_for(kind: int) -> int:
+	match kind:
+		BudgetKind.NIGHT_PLAY:
+			return BUDGET_NIGHT_PLAY
+		BudgetKind.DAY_HOME:
+			return BUDGET_DAY_HOME
+	return BUDGET_NIGHT_RESUMED
+
+## The reading the window in progress is: a day, a night entered by play (the overlay sent the close-up), or a night resumed from a save.
+func budget_kind() -> int:
+	if _phase == Phase.DAY:
+		return BudgetKind.DAY_HOME
+	return BudgetKind.NIGHT_PLAY if _play_entered else BudgetKind.NIGHT_RESUMED
+
+## `DRAW_CALL_BUDGET: OK 40 (budget 50)` or `WARN 107 (budget 50)`: the frozen line's last words, with the budget of the reading's own kind.
+static func budget_text(dc: float, kind := BudgetKind.NIGHT_RESUMED) -> String:
 	var n := int(round(dc))
-	return "DRAW_CALL_BUDGET: %s %d (budget %d)" % ["OK" if n <= DRAW_CALL_BUDGET else "WARN", n, DRAW_CALL_BUDGET]
+	var b := budget_for(kind)
+	return "DRAW_CALL_BUDGET: %s %d (budget %d)" % ["OK" if n <= b else "WARN", n, b]
 
 func _track_top(raw: float) -> void:
 	var ms := raw * 1000.0

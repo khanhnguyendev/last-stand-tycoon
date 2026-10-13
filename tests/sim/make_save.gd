@@ -7,9 +7,9 @@ extends SceneTree
 ## tier2_full fixture and real play: fixtures 1, 2 and 5 (the Baron close-up, the same without yard towers, the cap night) come from a TierBot
 ## run of about 155 s on seed 20260930; the others are constructed. The in-script "built twice" check proves the construction is pure; two runs
 ## giving identical md5 prove the whole thing deterministic. It writes
-## tier3_baron_full, tier3_baron_no_yard, tier3_baron_alone, tier3_night1 and tier3_cap_<all_a|all_b|mixed|threat>. `tier3_branch_day` (checkpoint video, recording aid) reads the committed tier3_night1 through the real codec, gives tower_sw and fence_sw the
+## tier3_baron_full, tier3_baron_no_yard, tier3_baron_alone, tier3_night1 and tier3_cap_<all_a|all_b|mixed|threat>. `tier3_branch_day` (checkpoint video; E6 phase A: the committed DAY HOME perf fixture, `PERF_PHASE=DAY export/perf_night3.sh`, deterministic: two runs give identical md5) reads the committed tier3_night1 through the real codec, gives tower_sw and fence_sw the
 ## state of tower_w and fence_w (level 3) and 1500 gold, so a tier-3 DAY has several max-level buildings and the gold to buy branches, and writes
-## export/fixtures/tier3_branch_day.save.json (not committed: reproduce it with this option). `day3_counter5` writes only that fixture. `night3` rewrites the two night3 fixtures at the current schema and must
+## export/fixtures/tier3_branch_day.save.json (committed). `day3_counter5` writes only that fixture. `night3` rewrites the two night3 fixtures at the current schema and must
 ## not be used while they serve as schema-3 migration tests. No argument (or an unknown one) is a usage error.
 
 var _done := false

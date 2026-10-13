@@ -365,13 +365,34 @@ func test_perf_priming_frame_is_still_counted() -> void:
 	assert_eq(p._n, q._n, "the same frame count as an overlay with perfglyph=0 (the old behaviour): the prime frame is counted")
 	assert_eq(p._since_reset, q._since_reset, "and the same elapsed window time")
 
-## E6 A3 (D-294): the budget line. Fails when the limit moves (59 OK, 58 WARN), when WARN is not reported above it, or when the line is not in the frozen text.
-func test_draw_call_budget_line_is_ok_up_to_58_and_warns_above() -> void:
+## E6 A3 (D-294), E6 phase A (D-300): the budget line, one budget per reading. Fails when a limit moves (OK at the budget, WARN one above), when a kind reads another's budget,
+## or when the default is not the resumed night. (Before phase A this test pinned one budget of 58 for the resumed night: its 58 became the resumed night's 50, measured 40 + 10.)
+func test_draw_call_budget_line_is_ok_up_to_the_readings_own_budget_and_warns_above() -> void:
 	var P = load("res://ui/perf_overlay.gd")
-	assert_eq(P.budget_text(48.0), "DRAW_CALL_BUDGET: OK 48 (budget 58)")
-	assert_eq(P.budget_text(58.4), "DRAW_CALL_BUDGET: OK 58 (budget 58)")
-	assert_eq(P.budget_text(58.6), "DRAW_CALL_BUDGET: WARN 59 (budget 58)")
-	assert_eq(P.budget_text(78.0), "DRAW_CALL_BUDGET: WARN 78 (budget 58)")
+	assert_eq(P.budget_text(40.0), "DRAW_CALL_BUDGET: OK 40 (budget 50)", "the default is the resumed night")
+	assert_eq(P.budget_text(50.4, P.BudgetKind.NIGHT_RESUMED), "DRAW_CALL_BUDGET: OK 50 (budget 50)")
+	assert_eq(P.budget_text(50.6, P.BudgetKind.NIGHT_RESUMED), "DRAW_CALL_BUDGET: WARN 51 (budget 50)")
+	assert_eq(P.budget_text(54.0, P.BudgetKind.NIGHT_PLAY), "DRAW_CALL_BUDGET: OK 54 (budget 64)")
+	assert_eq(P.budget_text(64.4, P.BudgetKind.NIGHT_PLAY), "DRAW_CALL_BUDGET: OK 64 (budget 64)")
+	assert_eq(P.budget_text(64.6, P.BudgetKind.NIGHT_PLAY), "DRAW_CALL_BUDGET: WARN 65 (budget 64)")
+	assert_eq(P.budget_text(107.0, P.BudgetKind.DAY_HOME), "DRAW_CALL_BUDGET: OK 107 (budget 117)")
+	assert_eq(P.budget_text(117.0, P.BudgetKind.DAY_HOME), "DRAW_CALL_BUDGET: OK 117 (budget 117)")
+	assert_eq(P.budget_text(118.0, P.BudgetKind.DAY_HOME), "DRAW_CALL_BUDGET: WARN 118 (budget 117)")
+
+## The overlay picks the kind from what it is measuring: a day, a night its own close-up began, a night resumed from a save.
+func test_the_overlay_reads_the_budget_of_its_own_phase_and_mode() -> void:
+	var p := _perf()
+	EventBus.phase_changed.emit(Phase.NIGHT, 3)
+	assert_eq(p.budget_kind(), p.BudgetKind.NIGHT_RESUMED, "a night with no close-up of the overlay's own")
+	EventBus.phase_changed.emit(Phase.DAY, 3)
+	assert_eq(p.budget_kind(), p.BudgetKind.DAY_HOME)
+	p._play_entered = true  # what the overlay's `perfclose` close-up sets just before the phase changes
+	EventBus.phase_changed.emit(Phase.NIGHT, 3)
+	assert_eq(p.budget_kind(), p.BudgetKind.NIGHT_PLAY, "the night the close-up began")
+	EventBus.phase_changed.emit(Phase.DAY, 4)
+	assert_eq(p.budget_kind(), p.BudgetKind.DAY_HOME)
+	EventBus.phase_changed.emit(Phase.NIGHT, 4)
+	assert_eq(p.budget_kind(), p.BudgetKind.NIGHT_RESUMED, "a day clears it")
 
 func test_the_frozen_perf_line_ends_with_the_budget_line() -> void:
 	var p := _perf()
@@ -380,4 +401,4 @@ func test_the_frozen_perf_line_ends_with_the_budget_line() -> void:
 		p._tick(1.0 / 60.0, 1.0 / 60.0)
 	for i in 3700:
 		p._tick(1.0 / 60.0, 1.0 / 60.0)
-	assert_true(p.frozen_text().ends_with("(budget 58)"), "the frozen line carries the budget words: " + p.frozen_text())
+	assert_true(p.frozen_text().ends_with("(budget 50)"), "the frozen line carries the budget words (a night with no close-up of its own: the resumed budget, was 58 before phase A): " + p.frozen_text())
