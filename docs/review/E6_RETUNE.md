@@ -34,9 +34,9 @@ arrived when the towers had cleared it, and the south-west fence fell behind it:
 **Cause class: (ii) balance, by my reading; you may read it as (i).** What the night shows is your own class (i)
 example, the hero leaving its lane. I classed it (ii) because no bot rule I tried fixed it (three rules in memory;
 each fixed one night and broke or missed another), while a softer start fixed it for every policy with the bot
-unchanged. So the bot is unchanged and its weakness is still there. The what-if rows behind this choice came from
-uncommitted study edits and their raw output was not kept; they are being re-run from committed code
-(`media/e6/tuning/p4_seed14_diagnosis.md` says which rows are verified).
+unchanged. So the bot is unchanged and its weakness is still there. The what-if rows behind this choice were
+re-run from committed code (33 runs at `519490e`); every value of the first pass reproduced exactly, and the outputs
+are kept under `media/e6/tuning/rerun/` (`media/e6/tuning/p4_seed14_diagnosis.md`).
 
 **What changed (one round, flag on only):** tier 3 starts at pressure 10 and rises one per night to its cap 12
 (D-305). Nothing else: no Longbow, Spike, cap or bot change.
@@ -134,6 +134,7 @@ rows are at the committed 2.0 s. Notes for you:
 - The Spike floor row is a one-sided guard: Spike keeps the level-3 fence HP, so no Spike number can make it worse.
 - The Longbow's brute multiplier no longer decides any bench rule at 2.0 s: its siege edge is its rate of fire.
 - The Stone wall's bench edge is its HP alone.
+- With the softer start (D-305) the same rules were measured at pressures 10 and 11 as a report: 26 of 26 pass at each of 10, 11 and 12 (`media/e6/tuning/p4_bench_pressures.txt`). The CI bench still runs at 12 only.
 - The bench ranks branches; it does not predict nights. Real play has two towers per lane, the hero and a 300 HP diner.
 
 ## 4. Tuning history (tuning set: seeds 1 east, 3 south-west, 4 west, 7 north, 24 real 32-day runs each; round 3 adds north seed 14, 30 runs)
@@ -178,7 +179,7 @@ the player's view (review queue 37).
 ### 6.0 Hold-out set #2 (the final reading; east 8, 11; south-west 21, 23; west 18, 25; north 16, 19)
 
 Run once at `b820c89`: 48 real 32-day runs, flag on in memory, after the suites and the three baselines
-(unit 1965, sim 14, sim-tiers-a 7, sim-tiers-b 8, bench 8; `rows 1-7 identical`, `baseline identical`,
+(unit 1965 then, 1967 at the head; sim 14, sim-tiers-a 7, sim-tiers-b 8, bench 8; `rows 1-7 identical`, `baseline identical`,
 `tier-3 off identical e149755`; `b820c89` adds docs only). Record `tests/sim/retune_final.json`; full output
 `media/e6/tuning/p4_holdout2_final.txt`. The tuning set before it: `media/e6/tuning/p4_r3_tuning_seed14.txt`.
 
