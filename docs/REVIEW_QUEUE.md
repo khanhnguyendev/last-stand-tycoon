@@ -150,6 +150,7 @@ Reversible decisions from the tier-3 build, in the order they were made; the hig
 40. **At the current difficulty branches are optional:** with the bot's hero rule the unbranched policy clears every tier-3 night of the tuning set without a retry (worst nights 6.0% and 6.7%). The ramp (cap 13 or 14) was tried once at 13 and not adopted — [D-297](DECISIONS.md)
 41. **Reading the lane markers pays only a little** (E6): the threat-matched policy leads the best fixed pair by +1.7 on the tuning set, against a target of 5; differences under about 2 points are noise. Longbow is the right tower everywhere but the hare lane. Accepted as unmet by the author; input for tier 4 — [D-302](DECISIONS.md)
 42. **A player who buys no branch has a hard first tier-3 night** (13.0% diner HP left on the north seed, first attempt; target 25%), yet never needs a retry. Reported as a failed target, no balance change — [D-302](DECISIONS.md)
+43. **On unseen seeds the first tier-3 night on a north siege lane is too hard** (hold-out set #1, seed 14, day 21): 12.7% diner HP left with Longbow towers, a retry with Volley towers; the unbranched reference has 4 retry nights on that seed (limit 3, D-298.3). The tuning set's north seed read 57.0%. Two targets fail; not diagnosed, nothing tuned after the run — `docs/review/E6_RETUNE.md` section 6.1
 
 ## Final review playtest questions (S5)
 

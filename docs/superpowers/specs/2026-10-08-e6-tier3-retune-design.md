@@ -342,4 +342,16 @@ author approved in D-281 to D-291 that proves unbuildable or wrong is escalated 
 
 ## 11. Results
 
-Filled at the end of phase 4 and updated at the cleanup.
+Phase 4 (2026-10-13), flag still off. Full pack: `docs/review/E6_RETUNE.md`.
+
+- **Built:** lane character, the Longbow and Spike specialists (Longbow 2.0 s with the flag on, ratified in D-302),
+  the interface, the bench, the retune report, flag-on fixtures and sims.
+- **Bench:** every floor, specialist and identity rule passes.
+- **Hold-out set #1** (eight unseen seeds, run once at `d3eb6c4`): four of seven targets pass (no negative lane,
+  fence tax 12.2%, fixed spread 3.8, lane-cap guard). Three fail: the lead is +2.6 against 5 (accepted as unmet,
+  D-302); the two Volley-tower policies retry one night; the first tier-3 night on north seed 14 reads 12.7% or a
+  retry for every policy.
+- **Goals not met:** "reading pays" by 5 points, fences as a recurring sink, the ramp above cap 12.
+- **Open:** the flip waits for the author; hold-out set #2 is unplayed.
+
+Updated at the cleanup.

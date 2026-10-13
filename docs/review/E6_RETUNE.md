@@ -1,28 +1,45 @@
-# E6: tier-3 retune and lane character — checkpoint pack (DRAFT)
+# E6: tier-3 retune and lane character — checkpoint pack
 
-Status: DRAFT (second version, after the whole-branch review). Sections 1 and 6 change with the author's answers to escalations 11 and 12 and with the
-final hold-out run, which has NOT been run. Nothing here is a hold-out result.
+Status: FINAL for the phase-4 checkpoint. Hold-out set #1 was run once (`--final`, commit `d3eb6c4`, 2026-10-13);
+nothing was tuned after it. Hold-out set #2 has not been played.
 
-Branch `e6/p4-proof` (phase 4). On `main`: phases 0 to 3 (PRs #61 to #63, #65). Open: phase A (PR #64).
+Branch `e6/p4-proof` (phase 4). On `main`: phases 0 to 3 and A (PRs #61 to #65).
 Spec: `docs/superpowers/specs/2026-10-08-e6-tier3-retune-design.md`. Plan: `docs/superpowers/plans/2026-10-08-e6-tier3-retune.md`.
-Decisions: D-281 to D-301. Media: `docs/review/media/e6/`. Everything ships behind `retune_enabled` (off).
+Decisions: D-281 to D-302. Media: `docs/review/media/e6/`. Everything ships behind `retune_enabled` (off).
 
 ## 1. What to decide
 
-Every number in this pack is from FOUR tuning seeds, one per siege lane. No seed has its hare lane in the east. The
-hold-out set (eight unseen seeds) has not been run. Two runs that differ only by pad positions moved per-lane leads
-by about 1 point and one first night from 4% to 13%: treat differences under 2 points as noise.
+**The hold-out run fails three of seven targets. I recommend NOT flipping the flag yet.**
 
-| # | Question | Evidence | My recommendation |
-|---|---|---|---|
-| 1 | Flip the flag? | Sections 4 to 8 | Not before items 2 to 6 are answered and the hold-out run is in |
-| 2 | Ratify the Longbow at 2.0 s with the flag on (3.0 s off)? Your pre-authorization (D-292) covered widening when the BENCH rules cannot pass; that took it to 2.4 s. I took it to 2.2 and 2.0 s for real-play targets, with every bench rule already passing | Sections 3, 4 | Your call: 2.0 s, 2.2 s, or back to 2.4 s (round 0's results) |
-| 3 | Threat-matched leads the best fixed pair by 1.7 points, not 5; against each seed's own best pair by 1.0 (east -0.7); it is ahead by 1 point or more on 2 of 4 seeds | Section 6 | Decide what "reading pays" must mean; any threshold under about 2 points is inside the noise |
-| 4 | The unbranched reference: first tier-3 night 13% on the north seed; worst nights 6.0% and 6.7%; yet it clears every night without a retry, so at this difficulty branches are optional | Section 6 | Decide whether the reference belongs in the first-night target, and whether tier 3 should be harder |
-| 5 | The ramp was tried once (cap 13) and not adopted; the cap stays 12. The fence sink is gone where a Longbow guards the siege lane (0.0%), and gold piles up after the ladder | Sections 4, 6 | Accept for this slice; input for tier 4 |
-| 6 | The measuring bot was changed twice, on nights of the tuning seeds | Section 5 | Accept; the hold-out is their first unseen test |
-| 7 | Simulator fps: night at HOME 54.9 (58 wanted), day at HOME 43.2 (55 wanted) | Section 8 | Merge phase A; carry both to the phone review |
-| 8 | Spend the third tuning round? | Section 4 | Only if items 2 to 4 ask for a change |
+| Target | Tuning set (4 seeds) | Hold-out #1 (8 unseen seeds) |
+|---|---|---|
+| Threat-matched lead >= 5 | +1.7, fails | +2.6, fails (accepted as unmet, D-302) |
+| No lane negative | passes | passes (south-west +0.3) |
+| Zero retry nights, branch policies | 0, passes | **fails**: Volley + Spike and Volley + Stone each retry one night (north seed 14) |
+| First tier-3 night >= 25%, first attempt | 13.0% unbranched only | **fails for every policy on seed 14**: the three Longbow policies 12.7%, the two Volley policies and unbranched retried; unbranched also retried on seed 10 |
+| Fence tax <= 30% | 4.9%, passes | 12.2%, passes |
+| Fixed pairs within 15 | 5.2, passes | 3.8, passes |
+| Lane-cap guard | 0, passes | 0, passes |
+
+The tuning set did not show this: its one north seed read 57.0% on the first night for every branch policy. The
+unseen north seed 14 reads 12.7% or a retry on the same night (day 21). Both hold-out north seeds are the weakest
+of the eight (threat mean 92.1 and 86.2, against 95.8 or more elsewhere). The cause is not diagnosed: I did not study
+seed 14, because a seed that is studied stops being unseen.
+
+| # | Question | My recommendation |
+|---|---|---|
+| 1 | Flip the flag? | No. Two must-hold targets fail on unseen seeds |
+| 2 | What next? (a) Diagnose seed 14's first night, one tuning round, then hold-out #2 as the final reading: it is the last unseen set. (b) Flip as it is and accept. (c) Leave the flag off and carry everything to tier 4 | (a) |
+| 3 | The unbranched reference trips your flag (D-298.3): 4 retry nights on seed 14 (limit 3); no night needed more than one mercy retry | Review queue 43; no action beyond item 2 |
+| 4 | The measuring bot's two changes (section 5) met unseen seeds for the first time here | Accept; the lead rose from +1.7 to +2.6, so they did not flatter the tuning set |
+| 5 | Gold after the ladder: last-day median 8.3k to 12.3k (unbranched 14.5k), above the tuning set's 6.8k to 11.1k | Tier-4 input (review queue 39) |
+
+Already answered (D-302): Longbow 2.0 s ratified; the lead target accepted as unmet; the unbranched first night
+reported in red without a change; phase A merged with its Simulator readings; the fence sink and the ramp accepted
+as unmet for this slice. No third tuning round was run.
+
+Noise: two tuning runs that differ only by pad positions moved per-lane leads by about 1 point. Read differences
+under 2 points as noise.
 
 ## 2. What was built (flag on)
 
@@ -88,7 +105,43 @@ Both rules read only what a player could know (no plan, no future waves, no HP),
 character, and leave the tier-1 and flag-off baselines identical. The hero rule reads fence state on lanes outside
 the player's view (review queue 37).
 
-## 6. Where the targets stand (tuning set, corrected report at head; NOT the hold-out)
+## 6. Where the targets stand
+
+### 6.1 Hold-out set #1 (the final reading; east 2, 5; south-west 10, 12; west 6, 13; north 9, 14)
+
+Run once at `d3eb6c4`: 48 real 32-day runs, flag on in memory. Record `tests/sim/retune_final.json`; full output
+`docs/review/media/e6/tuning/p4_holdout1_final.txt`.
+
+| Target (D-281, D-285, D-298) | Result | Verdict |
+|---|---|---|
+| Threat-matched lead >= 5 points, ahead on 6 of 8 | +2.6 over Longbow + Stone; ahead by 1.0 or more on 7 of 8 seeds (seed 10: -1.4); against each seed's own best pair +0.9, ahead on 3 | fails (accepted as unmet) |
+| No lane with a negative lead | east +1.7, south-west +0.3, west +4.3, north +4.1 | passes |
+| Zero retry nights (unbranched excluded) | Longbow + Stone 0, Longbow + Spike 0, threat 0; Volley + Spike 1, Volley + Stone 1 (both seed 14, the first tier-3 night) | fails |
+| First tier-3 night >= 25%, every policy, first attempt | seed 14: Longbow + Stone, Longbow + Spike and threat 12.7%; Volley + Spike, Volley + Stone and unbranched retried (0%). Seed 10: unbranched retried. Every other seed 54.7% or more | fails |
+| Fence tax <= 30% median | 12.2%; 0.0% with a Longbow on the siege lane, 25.0% without; north seeds 27.8% and 30.6%; lower bounds | passes |
+| Fixed pairs within 15 points | 3.8 on the means (93.4 / 89.7 / 91.7 / 89.6); 16.7 and 19.7 on the two south-west seeds | passes |
+| Lane-cap guard | 0 hits | passes |
+
+Mean diner HP at dawn: threat 96.0, Longbow + Stone 93.4, Longbow + Spike 91.7, Volley + Spike 89.7, Volley + Stone
+89.6, unbranched 66.9. Threat by seed: 95.8, 98.5 (east); 97.6, 98.3 (south-west); 99.4, 99.9 (west); 92.1, 86.2
+(north).
+
+Worst single night: seed 14, day 21 (its first tier-3 night) for every branch policy: 12.7% for the Longbow
+policies, a retry for the Volley policies. Unbranched: 0.0% (seed 10, day 21).
+
+Unbranched (reference, D-298.3): retry nights per seed 0, 0, 2, 0, 0, 0, 2, 4. Seed 14 has 4 (limit 3): flagged,
+review queue 43. No night needed more than one mercy retry.
+
+Where the Volley tower is the wrong tool it now shows: on the two south-west seeds the Volley pairs trail the
+Longbow pairs by 10 to 20 points (82.3 and 86.2 against 99.0 on seed 10; 84.4 and 79.0 against 96.3 on seed 12).
+
+Unspent gold at close-up (D-298.4): before the ladder completes, median 167 to 176 a day. After it: median 4,207
+to 6,365; last-day median 8,277 to 12,263 (unbranched 14,517). Higher than the tuning set (6,784 to 11,120).
+
+Hare share 0.724 on every seed.
+
+### 6.2 Tuning set (seeds 1, 3, 4, 7; corrected report at the head before the hold-out)
+
 
 | Target (D-281, D-285, D-298) | Result | Verdict |
 |---|---|---|
@@ -124,7 +177,7 @@ column). Review queue 30 to 36. Known and left by design: a badge can be cut by 
 HUD's gold number (hiding clipped badges hid them in 48.6% of other-zone views); the reveal's badges, the third arrow,
 the stars and the one tether are small at 40%; one pad shows its cost while the hero stands at HOME.
 
-## 8. Performance (phase A, PR #64; iOS Simulator: a proxy, the phone check stays on the final review)
+## 8. Performance (phase A, PR #64, merged; iOS Simulator: a proxy, the phone check stays on the final review)
 
 | Reading | fps | Wanted | Worst frame | Draw calls |
 |---|---|---|---|---|
@@ -148,10 +201,9 @@ the stars and the one tether are small at 40%; one pad shows its cost while the 
 - Flag-on sims run on fixtures recorded from real play (seed 3). The flag-on respawn sim is an instrumented scene
   (3000 HP diner): it proves protection against an immediate second knock-out, not the full window at real HP.
 
-## 10. Still to do before this pack is final
+## 10. Not done
 
-- The author's answers to items 2 to 8 of section 1 (escalations 11, 12, 13).
-- The third tuning round or the ramp, if the answers call for one (Task 18).
-- The hold-out run, once (`--set=1 --final`, 32 days, clean tree), and its numbers in section 6.
-- A like-for-like E5 T3 comparison for unspent gold, if wanted (it needs an E5 T3 run to day 32).
-- Task 21's video, spec section 11 (results), and a second whole-branch review pass of this pack.
+- No diagnosis of seed 14's first tier-3 night (it would turn an unseen seed into a tuning seed; your call, item 2).
+- No third tuning round, no ramp (D-302).
+- No like-for-like E5 T3 comparison for unspent gold (it needs an E5 T3 run to day 32).
+- The flip (Task 22) and the cleanup (Task 23) wait for your approval.
