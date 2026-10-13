@@ -16,30 +16,34 @@ Decisions: D-281 to D-302. Media: `docs/review/media/e6/`. Everything ships behi
 | Threat-matched lead >= 5 | +1.7, fails | +2.6, fails (accepted as unmet, D-302) |
 | No lane negative | passes | passes (south-west +0.3) |
 | Zero retry nights, branch policies | 0, passes | **fails**: Volley + Spike and Volley + Stone each retry one night (north seed 14) |
-| First tier-3 night >= 25%, first attempt | 13.0% unbranched only | **fails for every policy on seed 14**: the three Longbow policies 12.7%, the two Volley policies and unbranched retried; unbranched also retried on seed 10 |
-| Fence tax <= 30% | 4.9%, passes | 12.2%, passes |
-| Fixed pairs within 15 | 5.2, passes | 3.8, passes |
+| First tier-3 night >= 25%, first attempt | 13.0% unbranched only | **fails for every policy on seed 14**: the three policies with a Longbow on the siege lane 12.7%, the two Volley policies and unbranched retried; unbranched also retried on seed 10 |
+| Fence tax <= 30% | 4.9%, passes | 12.2%, passes (north lane 30.6%, over the bar on its own) |
+| Fixed pairs within 15 | 5.2, passes (11.8 on one seed) | 3.8 on the means, passes (south-west seeds 16.7 and 19.7) |
 | Lane-cap guard | 0, passes | 0, passes |
 
-The tuning set did not show this: its one north seed read 57.0% on the first night for every branch policy. The
-unseen north seed 14 reads 12.7% or a retry on the same night (day 21). Both hold-out north seeds are the weakest
-of the eight (threat mean 92.1 and 86.2, against 95.8 or more elsewhere). The cause is not diagnosed: I did not study
-seed 14, because a seed that is studied stops being unseen.
+The tuning set at the head did not show this: its one north seed (7) read 57.0% on the first night with a Longbow
+on the siege lane and 73.7% with Volley towers. But the same reading had been seen before: in tuning round 1
+(Longbow 2.2 s) seed 7 read 12.7% for the same three policies (D-297.2). It went away at 2.0 s and with the bot
+changes. That fix did not carry to the unseen north seed 14, which reads 12.7% or a retry on its first tier-3 night
+(day 21). The other unseen north seed (9) passes (83.0% Longbow, 55.3% Volley, 60.0% unbranched). For the threat and
+Longbow policies both hold-out north seeds are the weakest of the eight (threat mean 92.1 and 86.2, against 95.8 or
+more elsewhere). The cause is not diagnosed: I did not study seed 14, because the spec (8.1) and D-290.1 forbid
+tuning against a hold-out seed.
 
 | # | Question | My recommendation |
 |---|---|---|
 | 1 | Flip the flag? | No. Two must-hold targets fail on unseen seeds |
-| 2 | What next? (a) Diagnose seed 14's first night, one tuning round, then hold-out #2 as the final reading: it is the last unseen set. (b) Flip as it is and accept. (c) Leave the flag off and carry everything to tier 4 | (a) |
+| 2 | What next? (a) Diagnose seed 14's first night, one tuning round, then hold-out #2 as the final reading: it is the last unseen set. This needs your waiver of D-290.1 for seed 14 and reverses D-302.2 (no third round); it is the last of the three rounds. (a2) The same inside D-290.1: a round on the tuning seeds only; at the head they no longer show the failure, so the round would be designed blind. (b) Flip as it is and accept. (c) Leave the flag off and carry everything to tier 4 | (a), with the waiver |
 | 3 | The unbranched reference trips your flag (D-298.3): 4 retry nights on seed 14 (limit 3); no night needed more than one mercy retry | Review queue 43; no action beyond item 2 |
-| 4 | The measuring bot's two changes (section 5) met unseen seeds for the first time here | Accept; the lead rose from +1.7 to +2.6, so they did not flatter the tuning set |
-| 5 | Gold after the ladder: last-day median 8.3k to 12.3k (unbranched 14.5k), above the tuning set's 6.8k to 11.1k | Tier-4 input (review queue 39) |
+| 4 | The measuring bot's two changes (section 5) met unseen seeds for the first time here | Open. The lead did not fall (+1.7 to +2.6, inside the noise), but what the bot rules gained on the tuning set did not carry over: unbranched retry nights went 3 to 0 on the tuning set and are 8 on eight unseen seeds; the lowest branch-policy first night went 57.0% to 12.7% or lost; every policy's mean is lower (threat 97.6 to 96.0) |
+| 5 | Gold after the ladder: last-day median 8.3k to 12.3k (unbranched 14.5k), above the tuning set's 6.8k to 11.1k, mostly because these seeds reach tier 3 earlier (12.5 tier-3 nights a run against 10.5); the daily median after the ladder barely moves (4.2k to 6.4k against 3.8k to 6.2k) | Tier-4 input (review queue 39) |
 
 Already answered (D-302): Longbow 2.0 s ratified; the lead target accepted as unmet; the unbranched first night
 reported in red without a change; phase A merged with its Simulator readings; the fence sink and the ramp accepted
 as unmet for this slice. No third tuning round was run.
 
-Noise: two tuning runs that differ only by pad positions moved per-lane leads by about 1 point. Read differences
-under 2 points as noise.
+Noise: two tuning runs that differ only by pad positions moved per-lane leads by about 1 point and one first night
+from 4% to 13%. Read differences under 2 points as noise.
 
 ## 2. What was built (flag on)
 
@@ -92,7 +96,7 @@ tuning rounds are used.
 ## 5. The measuring bot was changed (D-297)
 
 The bots judge the targets, so both changes are shown plainly. Both were designed on nights of the tuning seeds
-(seed 1 day 22, seed 7 day 23); the hold-out run is their first test on unseen seeds.
+(seed 1 day 22, seed 7 day 23); the hold-out run was their first test on unseen seeds: their tuning-set gains did not carry over (pack section 6.1).
 1. **Purchase order.** The bot bought branches in list order. Now, with a lane character, every branch policy buys
    siege-lane towers, hare-lane towers, the siege fence, the hare fence, then the rest. Given to the threat policy
    alone it produced the +5.0 and +5.6 leads of section 4; shared by all policies the lead is +1.6. The earlier
@@ -114,10 +118,10 @@ Run once at `d3eb6c4`: 48 real 32-day runs, flag on in memory. Record `tests/sim
 
 | Target (D-281, D-285, D-298) | Result | Verdict |
 |---|---|---|
-| Threat-matched lead >= 5 points, ahead on 6 of 8 | +2.6 over Longbow + Stone; ahead by 1.0 or more on 7 of 8 seeds (seed 10: -1.4); against each seed's own best pair +0.9, ahead on 3 | fails (accepted as unmet) |
+| Threat-matched lead >= 5 points, ahead on 6 of 8 | +2.6 over Longbow + Stone; ahead by 1.0 or more on 7 of 8 seeds (seed 10: -1.4); against each seed's own best pair +0.9, ahead on 3, behind on 3 (seeds 2, 10, 12: -1.5, -1.4, -0.3) | fails (accepted as unmet) |
 | No lane with a negative lead | east +1.7, south-west +0.3, west +4.3, north +4.1 | passes |
 | Zero retry nights (unbranched excluded) | Longbow + Stone 0, Longbow + Spike 0, threat 0; Volley + Spike 1, Volley + Stone 1 (both seed 14, the first tier-3 night) | fails |
-| First tier-3 night >= 25%, every policy, first attempt | seed 14: Longbow + Stone, Longbow + Spike and threat 12.7%; Volley + Spike, Volley + Stone and unbranched retried (0%). Seed 10: unbranched retried. Every other seed 54.7% or more | fails |
+| First tier-3 night >= 25%, every policy, first attempt | seed 14: Longbow + Stone, Longbow + Spike and threat (a Longbow on the siege lane) 12.7%; Volley + Spike, Volley + Stone and unbranched retried (0%). Seed 10: unbranched retried. Every other seed 54.7% or more | fails |
 | Fence tax <= 30% median | 12.2%; 0.0% with a Longbow on the siege lane, 25.0% without; north seeds 27.8% and 30.6%; lower bounds | passes |
 | Fixed pairs within 15 points | 3.8 on the means (93.4 / 89.7 / 91.7 / 89.6); 16.7 and 19.7 on the two south-west seeds | passes |
 | Lane-cap guard | 0 hits | passes |
@@ -126,17 +130,22 @@ Mean diner HP at dawn: threat 96.0, Longbow + Stone 93.4, Longbow + Spike 91.7, 
 89.6, unbranched 66.9. Threat by seed: 95.8, 98.5 (east); 97.6, 98.3 (south-west); 99.4, 99.9 (west); 92.1, 86.2
 (north).
 
-Worst single night: seed 14, day 21 (its first tier-3 night) for every branch policy: 12.7% for the Longbow
-policies, a retry for the Volley policies. Unbranched: 0.0% (seed 10, day 21).
+Worst single night: seed 14, day 21 (its first tier-3 night) for every branch policy: 12.7% with a Longbow on the
+siege lane, a retry for the Volley policies. Unbranched: 0.0% (seeds 10 and 14, day 21).
 
 Unbranched (reference, D-298.3): retry nights per seed 0, 0, 2, 0, 0, 0, 2, 4. Seed 14 has 4 (limit 3): flagged,
 review queue 43. No night needed more than one mercy retry.
 
-Where the Volley tower is the wrong tool it now shows: on the two south-west seeds the Volley pairs trail the
-Longbow pairs by 10 to 20 points (82.3 and 86.2 against 99.0 on seed 10; 84.4 and 79.0 against 96.3 on seed 12).
+Where the Volley tower is the wrong tool it shows more than on the tuning set (11.8 there): on the two south-west
+seeds the Volley pairs trail the Longbow pairs by 10 to 20 points (82.3 and 86.2 against 99.0 and 96.6 on seed 10;
+84.4 and 79.0 against 96.3 and 98.7 on seed 12). The reverse also holds: on all four east and west seeds Volley +
+Stone beats Longbow + Stone (by 2.7, 1.9, 2.3 and 4.1), so "Longbow everywhere but the hare lane" was a tuning-set
+reading.
 
 Unspent gold at close-up (D-298.4): before the ladder completes, median 167 to 176 a day. After it: median 4,207
-to 6,365; last-day median 8,277 to 12,263 (unbranched 14,517). Higher than the tuning set (6,784 to 11,120).
+to 6,365 (tuning set 3,784 to 6,183); last-day median 8,277 to 12,263 (unbranched 14,517; tuning set 6,784 to
+11,120). The last-day rise is mostly more days after the ladder: these seeds reach tier 3 earlier (12.5 tier-3
+nights a run against 10.5).
 
 Hare share 0.724 on every seed.
 
@@ -157,7 +166,7 @@ Mean diner HP at dawn: threat 97.6, Longbow + Stone 95.9, Longbow + Spike 94.2, 
 90.8, unbranched about 70. Worst single night: threat, Longbow + Stone and Longbow + Spike 57.0% (north seed, day
 23); the two Volley pairs 68.7% (west seed, day 23); unbranched 6.0% (north seed, day 25).
 
-Why the lead is small: Longbow everywhere is the wrong tool on the hare lane only, and being wrong there costs about
+Why the lead is small (on the tuning set): Longbow everywhere is the wrong tool on the hare lane only, and being wrong there costs about
 2 points. A hare has 39.75 to 51.7 HP at pressure 12 and dies to one 120-damage Longbow shot; a second shot would
 need a Longbow multiplier of about 0.3 against hares, which is a new rule, not tuning. With every branch policy
 above 90%, the best fixed pair leaves at most 4 points of headroom. More pressure opened little: cap 13 gave +2.4
@@ -203,7 +212,8 @@ the stars and the one tether are small at 40%; one pad shows its cost while the 
 
 ## 10. Not done
 
-- No diagnosis of seed 14's first tier-3 night (it would turn an unseen seed into a tuning seed; your call, item 2).
+- No diagnosis of seed 14's first tier-3 night (D-290.1 forbids it without your waiver; item 2).
+- The hold-out output is under `media/e6/tuning/`, not `media/e6/balance/final/` as the plan named it.
 - No third tuning round, no ramp (D-302).
 - No like-for-like E5 T3 comparison for unspent gold (it needs an E5 T3 run to day 32).
 - The flip (Task 22) and the cleanup (Task 23) wait for your approval.

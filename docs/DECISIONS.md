@@ -3248,7 +3248,7 @@ Tuning set (seeds 1 east, 3 sw, 4 west, 7 north; six policies; real 32-day play;
    - Scans: near 8.9 px, on 8 px smallest gap; zero findings; no exception list. The lane's telegraph flag is a 3D
      model, not a label, and is not an obstacle (one cost crosses it on fence_w).
 
-**D-300 Phase A after the author's answer 2 (D-298.2): pips in one draw, readings by framing (2026-10-14).**
+**D-300 Phase A after the author's answer 2 (D-298.2): pips in one draw, readings by framing (2026-10-13).**
 1. **Every level pip is one draw call** (one MultiMesh; the owner node is created lazily under Main). Pixel-identical
    over 13 compared states. Draw calls on desktop at a fixed tick: night at HOME 78 -> 56; resumed night 47 -> 39;
    day at HOME without pads 102 -> 80.
@@ -3270,7 +3270,7 @@ Tuning set (seeds 1 east, 3 sw, 4 west, 7 north; six policies; real 32-day play;
    day at HOME 117.
 6. **Open with the author:** both fps thresholds are unmet; no visual change was made.
 
-**D-301 Task 19 as built: flag-on fixtures, three sims, the tier sims in two suites (2026-10-14).**
+**D-301 Task 19 as built: flag-on fixtures, three sims, the tier sims in two suites (2026-10-13).**
 1. **Fixtures from real play** (tuning seed 3: siege south-west, hare west; byte-identical on two runs;
    `make_save.gd -- --fixture=retune`, tuning seeds only): `retune_siege_night` (day 25: a wave's brutes have the
    siege lane as neither main nor side; two waves carry an extra hare group), `retune_first_t3_night` (day 23) and
@@ -3302,3 +3302,16 @@ recommendations and answered three questions put to them one by one.
    PR #64, merged). Both go to the phone check at the final review.
 5. **The fence sink and the ramp are accepted as unmet for this slice**, as tier-4 input (REVIEW_QUEUE 39, 40).
 6. **Next:** full gates, the hold-out set once (D-290), the final pack, the checkpoint.
+
+**D-303 Hold-out set #1: the final run fails three targets; escalation 14 (main session, 2026-10-13).**
+1. **Run once** with `--final` at `d3eb6c4` after full gates and the three baselines (48 real 32-day runs). Record
+   `tests/sim/retune_final.json`; output `docs/review/media/e6/tuning/p4_holdout1_final.txt` (the plan named
+   `media/e6/balance/final/`; kept beside the tuning outputs).
+2. **Result:** the lead is +2.6 (accepted as unmet, D-302.2). New failures: the two Volley-tower policies retry one
+   night each, and the first tier-3 night on north seed 14 reads 12.7% (a Longbow on the siege lane) or a retry
+   (Volley towers, unbranched). The unbranched reference trips the D-298.3 flag (4 retry nights on seed 14).
+3. **Nothing was tuned after the run, and seed 14 was not studied** (spec 8.1, D-290.1). The same 12.7% had been
+   seen on tuning seed 7 in round 1 and went away at 2.0 s; that did not carry to seed 14.
+4. **Escalation 14, open with the author:** (a) waive D-290.1 for seed 14, diagnose, one round, hold-out set #2 as
+   the final reading; (a2) a round on the tuning seeds only; (b) flip as it is; (c) leave the flag off. The main
+   session recommends (a) and does not flip. REVIEW_QUEUE 43.

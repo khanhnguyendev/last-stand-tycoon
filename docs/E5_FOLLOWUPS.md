@@ -101,3 +101,11 @@ Code and test follow-ups:
   slice-1 fixtures of `make_save.gd --fixture=tier` are still schema 5.
 - The tier bot buys tier 3 only after every station level, so it reaches tier 3 on day 18 to 22.
 - From the last fix-wave review: `test_tier_fixtures.gd:59` uses the literal 6 where the sibling test uses `GameState.SCHEMA_VERSION`; `test_branch_identity.gd:101,106` skips the hare HP pins silently if the cap is raised to 13 or 14; `sweep_runner.gd` validates `--out` only after the sweep has run (`--out=dir/` ends in a script error).
+
+## From E6 (phase 4, 2026-10-13)
+- The first tier-3 night on a north siege lane fails on unseen seed 14 (D-303); not diagnosed.
+- The orphan-node total of the unit suite rose by 98 in phase A (28 from a new test file, 70 unattributed).
+- The unspent-gold comparison with E5 T3 is not like for like (it needs an E5 T3 run to day 32).
+- The Simulator fps readings (night at HOME 54.9, day at HOME 43.2) go to the phone check at the final review.
+- The flag-on respawn sim proves protection against an immediate second knock-out only, not the full window at 300 HP.
+
