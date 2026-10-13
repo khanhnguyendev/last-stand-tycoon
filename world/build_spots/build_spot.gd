@@ -11,6 +11,8 @@ var visual: Node3D
 var marker: Node3D
 var _world: World
 var _pips: Array = []
+## E6 (flag on only, visual): the level pips hide while one of this spot's own branch pads is in use (anything but FAR).
+var _pips_covered := false
 var _fx: FlyFx
 ## Paid ticks since the last empty refresh; drives the build dust only (S5 Task 5, visual).
 var _paid_ticks := 0
@@ -84,7 +86,7 @@ func refresh() -> void:
 	if int(b.paid) == 0:
 		_paid_ticks = 0
 	visual.scale = Vector3.ONE * pow(Balance.ui.build_level_scale, maxi(level - 1, 0))
-	LevelPips.show_level(_pips, level, _pip_y(level))
+	LevelPips.show_level(_pips, level, _pip_y(level), _pips_covered)
 	marker.visible = level == 0 and zone != null and zone.is_active()  # DAY only (the zone's phase is already current)
 	if GameState.buildings.has(spot_id):
 		var remaining := GameState.remaining_cost(spot_id)
@@ -101,6 +103,28 @@ func refresh() -> void:
 		var progress := 0.0 if cost <= 0 else float(b.paid) / float(cost)
 		zone.ring.visible = progress > 0.0 and zone.is_active()
 		zone.ring.set_progress(progress)
+	_watch_own_pads()
+
+## E6: the spot owns its pips and listens to its own branch pads (the world makes them after the spot: a refresh finds them). A pad says when its stage changes;
+## the spot decides whether the pips are covered. Nothing here reaches into a pad's nodes.
+func _watch_own_pads() -> void:
+	if _world == null:
+		return
+	for pad: BranchPad in _world.branch_pads.get(spot_id, []):
+		if not pad.stage_changed.is_connected(_on_pad_stage_changed):
+			pad.stage_changed.connect(_on_pad_stage_changed)
+	_on_pad_stage_changed()
+
+func _on_pad_stage_changed() -> void:
+	if _world == null or not is_instance_valid(_world):
+		return
+	var covered := false
+	for pad: BranchPad in _world.branch_pads.get(spot_id, []):
+		covered = covered or pad.in_use()
+	if covered == _pips_covered:
+		return
+	_pips_covered = covered
+	LevelPips.set_covered(_pips, covered, level)
 
 ## Subclasses build their meshes under `visual`.
 func _build_visual() -> void:

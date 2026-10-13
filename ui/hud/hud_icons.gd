@@ -116,8 +116,12 @@ var heavy_drawn: Array[Rect2] = []
 ## Where the brute mark of `a` sits (HudIcons-local): behind the arrow's tail, never on it, so the tip stays clear; it keeps
 ## its size (arrow_heavy_px, at least arrow_heavy_min_px) at the side-arrow scale too.
 func heavy_rect(a: HudArrow) -> Rect2:
+	return heavy_rect_at(a.position, a.rotation, a.scale.y)
+
+## The same for an arrow that is not placed yet (the HUD's separation search): origin, rotation and uniform scale.
+static func heavy_rect_at(pos: Vector2, rot: float, scl: float) -> Rect2:
 	var ui := Balance.ui
 	var sz := maxf(ui.arrow_heavy_px, ui.arrow_heavy_min_px)
-	var tail_y := (ARROW_CENTER.y - ui.arrow_px * 0.5) * a.scale.y  # the arrow's tail edge, in its own frame
-	var c := a.position + Vector2(0.0, tail_y - ui.arrow_heavy_gap_px - sz * 0.5).rotated(a.rotation)
+	var tail_y := (ARROW_CENTER.y - ui.arrow_px * 0.5) * scl  # the arrow's tail edge, in its own frame
+	var c := pos + Vector2(0.0, tail_y - ui.arrow_heavy_gap_px - sz * 0.5).rotated(rot)
 	return Rect2(c - Vector2.ONE * sz * 0.5, Vector2.ONE * sz)

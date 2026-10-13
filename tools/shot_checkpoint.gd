@@ -56,7 +56,7 @@ func _run() -> void:
 		_max(gs, layout.spots_for_tier(t))
 		await _home_grab(main, layout, "growth_tier%d" % t)
 	# tier 3, the corner: the hero on fence_sw's first pad, tower_sw's and fence_sw's four pads in view
-	main.hero.teleport((layout.BRANCH_PADS["fence_sw"] as Array)[0])
+	main.hero.teleport((layout.branch_pads(TierEffects.retune_on(bal.data.tiers))["fence_sw"] as Array)[0])
 	main.camera_rig.snap()
 	_drain_banners(main)
 	for i in 120:

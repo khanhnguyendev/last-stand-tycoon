@@ -24,6 +24,8 @@ var _pad_wait := 0
 var _blocked_pads := {}
 var _blocked_day := -1
 var _graph_tier := 1
+## E6 (spec 5.3): the pad table the graph was built from (TierEffects.retune_on at that time). The flag is read through TierEffects only.
+var _graph_retune := false
 
 func _init() -> void:
 	graph = _make_graph(1)
@@ -31,7 +33,8 @@ func _init() -> void:
 ## The graph of `tier` (create_for_bot) plus the station pads. UpgraderBot._init added its pads to the default graph, which this
 ## replaces; the four pad lines below repeat that _init (known duplication, upgrader untouched).
 func _make_graph(tier: int) -> WaypointGraph:
-	var g := WaypointGraph.create_for_bot(tier)
+	_graph_retune = TierEffects.retune_on(Balance.data.tiers)
+	var g := WaypointGraph.create_for_bot(tier, _graph_retune)  # with the flag on the bot walks to the moved pads (MapLayout.branch_pads)
 	g.add_node("pad_counter", MapLayout.STATION_PADS[&"counter"])
 	g.add_edge("pad_counter", "front_e")
 	g.add_edge("pad_counter", "home")
@@ -43,7 +46,7 @@ func _make_graph(tier: int) -> WaypointGraph:
 ## The graph follows the tier (every old node keeps its name and position, so a goal and a route in progress stay valid).
 func _sync_graph() -> void:
 	var t := clampi(GameState.tier, 1, 3)
-	if t != _graph_tier:
+	if t != _graph_tier or (t == 3 and TierEffects.retune_on(Balance.data.tiers) != _graph_retune):
 		_graph_tier = t
 		graph = _make_graph(t)
 

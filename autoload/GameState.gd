@@ -31,6 +31,9 @@ var boss_pending := false
 ## E6 (D-286.4): non-fatal problems met by the last from_dict (a stored lane character that differs from the derived one).
 ## Cleared at the start of every from_dict; the debug overlay can read it. Not part of the save.
 var load_warnings: Array[String] = []
+## E6 (D-289): true once the player has been shown the lane-character banner (by the tier-3 reveal, or once at the first dawn of a
+## save that was already at tier 3 when the retune switched on). Saved; a reload never shows it again.
+var lane_character_shown := false
 
 func new_game(seed: int = 0) -> void:
 	run_seed = seed if seed != 0 else Rng.new_run_seed()
@@ -47,6 +50,7 @@ func new_game(seed: int = 0) -> void:
 	tier_day = 1
 	tier_paid = 0
 	boss_pending = false
+	lane_character_shown = false
 	buildings = {}
 	for id in MapLayout.spots_for_tier(tier):
 		buildings[id] = _new_building()
@@ -76,6 +80,7 @@ func to_dict() -> Dictionary:
 		"stations": _stations_out(),
 		"tier": tier, "tier_day": tier_day, "tier_paid": tier_paid, "boss_pending": boss_pending,
 		"lane_character": lane_character(),  # E6 schema 7: {} below tier 3 or with the retune flag off
+		"lane_character_shown": lane_character_shown,
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -93,6 +98,7 @@ func from_dict(d: Dictionary) -> void:
 	tier = clampi(int(d.tier), 1, TierEffects.top_tier(Balance.data.tiers))
 	tier_day = int(d.tier_day)
 	boss_pending = bool(d.boss_pending)
+	lane_character_shown = bool(d.get("lane_character_shown", false))  # optional: a v7 save written before it has none
 	var tcost := TierEffects.tier_cost(tier, Balance.data.tiers)
 	# A paid amount at or above the cost would never complete (D-231's rule for pads); 0 at the top or while pending.
 	tier_paid = 0 if (tcost < 0 or boss_pending) else clampi(int(d.tier_paid), 0, maxi(tcost - 1, 0))
@@ -466,6 +472,11 @@ func _plan_today() -> Array:
 	if not character.is_empty():  # E6 (D-287): the single place a fresh plan meets the lane character; flag off = the old code
 		p = LaneCharacter.apply(p, character, Balance.data.tiers)
 	return _with_tonights_boss(p) if boss_pending else p
+
+## E6 (D-289): the lane-character banner pair has been shown. Autosave writes on the signal, so the flag is saved when it is set.
+func mark_lane_character_shown() -> void:
+	lane_character_shown = true
+	EventBus.lane_character_shown_marked.emit()
 
 ## E6 (D-282): the run's lane character ({"siege", "hare"}), or {} below tier 3 or with the retune flag off.
 func lane_character() -> Dictionary:
