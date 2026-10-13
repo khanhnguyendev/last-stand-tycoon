@@ -1,13 +1,58 @@
 # E6: tier-3 retune and lane character — checkpoint pack
 
-Status: FINAL for the phase-4 checkpoint. Hold-out set #1 was run once (`--final`, commit `d3eb6c4`, 2026-10-13);
-nothing was tuned after it. Hold-out set #2 has not been played.
+Status: hold-out set #2 was run once (`--final`, commit `b820c89`, 2026-10-13). It passes five of seven targets
+and fails the two lead targets. Stopped for the author (escalation 15, D-306). Nothing was tuned after the run.
+Hold-out set #1 (`d3eb6c4`) is retired; its reading stays below as history. No unseen set is left.
 
-Branch `e6/p4-proof` (phase 4). On `main`: phases 0 to 3 and A (PRs #61 to #65).
+Branch `e6/p4b-seed14` (the seed-14 round). On `main`: phases 0 to 4 and A (PRs #61 to #66).
 Spec: `docs/superpowers/specs/2026-10-08-e6-tier3-retune-design.md`. Plan: `docs/superpowers/plans/2026-10-08-e6-tier3-retune.md`.
-Decisions: D-281 to D-302. Media: `docs/review/media/e6/`. Everything ships behind `retune_enabled` (off).
+Decisions: D-281 to D-306. Media: `docs/review/media/e6/`. Everything ships behind `retune_enabled` (off).
 
 ## 1. What to decide
+
+**Hold-out set #2 passes every target that failed on set #1. It fails the two lead targets, one of them newly, by
+0.1 point. I stopped, as you ruled (D-304.5).**
+
+| Target | Tuning set (5 seeds, `f8cea4b`) | Hold-out #2 (8 unseen seeds, `b820c89`) |
+|---|---|---|
+| Threat-matched lead >= 5, ahead on 6 of 8 | +1.9, fails | **+1.5, ahead on 5 of 8, fails** (accepted as unmet, D-302.2) |
+| No lane negative | passes (lowest south-west +0.0) | **fails: south-west -0.1** (east +2.3, west +2.9, north +1.0) |
+| Zero retry nights, branch policies | 0, passes | 0, passes (unbranched also 0) |
+| First tier-3 night >= 25%, first attempt | 79.7%, passes | 61.0%, passes (every policy, unbranched included) |
+| Fence tax <= 30% | 19.4%, passes | 9.7%, passes |
+| Fixed pairs within 15 | 5.5, passes | 5.3, passes (seed 16 alone: 15.9) |
+| Lane-cap guard | 0, passes | 0, passes |
+
+**What failed on seed 14** (hold-out #1, north siege lane, day 21, the first tier-3 night): 12.7% diner HP left with
+a Longbow on the siege lane, a lost night with Volley towers or no branch. The north fence was hit in all three
+waves and fell in wave 2. In wave 3 the bot's hero left the south-west main lane for the breached north lane,
+arrived when the towers had cleared it, and the south-west fence fell behind it: south-west boars dealt 220 of the
+262 damage. Timeline and what-ifs: `media/e6/tuning/p4_seed14_diagnosis.md`.
+
+**Cause class: (ii) balance.** Tier 3 started at its cap pressure on the night the player owns one branch. The
+hero's walk is a contributing bot weakness (class (i)); three bot rules were tried in memory, each fixed one night
+and broke or missed another, so the bot is unchanged.
+
+**What changed (one round, flag on only):** tier 3 starts at pressure 10 and rises one per night to its cap 12
+(D-305). Nothing else: no Longbow, Spike, cap or bot change.
+
+**The two failures on set #2:**
+- The lead, +1.5 against 5: the miss you accepted (D-302.2). Per seed: +1.6, +3.0 (east); -0.1, -0.1 (south-west);
+  +1.9, +4.0 (west); +5.2, -3.3 (north).
+- No lane negative: south-west reads -0.1. On both south-west seeds Longbow + Stone already keeps 99.2% and 99.9% of
+  the diner over the tier-3 nights and the threat-matched build 99.0% and 99.8%: there is no room to lead, and the
+  difference is one twentieth of the noise band (2 points). It is still a failed target as written. On north seed 19
+  the threat-matched build is 3.3 points behind Longbow + Stone (93.2 against 96.5); the north lane as a whole is
+  +1.0 and passes.
+
+| # | Question | My recommendation |
+|---|---|---|
+| 1 | The south-west lane reads -0.1. (a) Accept it with the lead as one unmet target (reading the lane markers pays little; tier-4 input) and treat the checkpoint as passed. (b) Restate the rule as "no lane below -1.0" (half the noise band); the same data then passes, no run needed. (c) Do not accept: the flag stays off and lane reading goes to tier 4 | (a). No run can settle it: no unseen set is left |
+| 2 | Flip the flag (Task 22)? | Yes, if 1 is (a) or (b): every must-hold target on survival passes on unseen seeds |
+| 3 | The softer start makes the first tier-3 night easy for a branch build (61.0% is the lowest of 48 first nights; most are 95% or more) | Accept for this slice; review queue 44 |
+| 4 | Seed 16 (north) is the hardest unseen seed: worst nights 29.7% to 50.3% for branch builds, 0.7% unbranched, no retry | Information; tier-4 input |
+
+## 1b. The first reading (hold-out set #1, superseded; kept as history)
 
 **The hold-out run fails three of seven targets. I recommend NOT flipping the flag yet.**
 
@@ -111,7 +156,22 @@ the player's view (review queue 37).
 
 ## 6. Where the targets stand
 
-### 6.1 Hold-out set #1 (the final reading; east 2, 5; south-west 10, 12; west 6, 13; north 9, 14)
+### 6.0 Hold-out set #2 (the final reading; east 8, 11; south-west 21, 23; west 18, 25; north 16, 19)
+
+Run once at `b820c89`: 48 real 32-day runs, flag on in memory, after the suites and the three baselines
+(unit 1965, sim 14, sim-tiers-a 7, sim-tiers-b 8, bench 8; `rows 1-7 identical`, `baseline identical`,
+`tier-3 off identical e149755`; `b820c89` adds docs only). Record `tests/sim/retune_final.json`; full output
+`media/e6/tuning/p4_holdout2_final.txt`. The tuning set before it: `media/e6/tuning/p4_r3_tuning_seed14.txt`.
+
+Mean diner HP kept over the tier-3 nights: Longbow + Stone 95.8, Longbow + Spike 92.8, Volley + Stone 92.6,
+Volley + Spike 90.5; threat-matched 97.4 (the mean of its eight runs). Worst single night of a branch build: 29.7%
+(Longbow + Spike, seed 16, day 32). Unbranched: no retry night on any seed, worst night 0.7% (seed 16).
+Last-day unspent medians 7.2k to 11.5k (unbranched 13.3k).
+
+Not like for like with set #1: the at-cap columns, hence the fence tax, now count from the third tier-3 night
+(the first two are below the cap), and the seeds differ.
+
+### 6.1 Hold-out set #1 (retired; east 2, 5; south-west 10, 12; west 6, 13; north 9, 14)
 
 Run once at `d3eb6c4`: 48 real 32-day runs, flag on in memory. Record `tests/sim/retune_final.json`; full output
 `docs/review/media/e6/tuning/p4_holdout1_final.txt`.
