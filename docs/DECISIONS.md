@@ -3146,6 +3146,22 @@ run, so the bench has its own wall limits: warn above 150 s, fail above 400 s. I
 required checks when a suite is split or added; D-292 made the full bench a required CI job). This is a deviation
 from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the fast subset). No test was dropped.
 
+**D-298 Author's answers on the pads, the HOME framing and the unbranched policy (2026-10-13).**
+1. **Pads (escalation 9): option A.** A building's level pips hide while its pad shows a cost and return when the
+   cost hides. Pinned in the overlap test (zero overlap, at least 8 px) and checked at 40%. Phase 3 merges when green.
+2. **HOME framing (53.9 fps):** all pips become one draw (MultiMesh); the same batching for other repeated world-UI
+   meshes (pad rings, pad icons, badges) where it is cheap. Thresholds by framing: the night gate (combat) stays at
+   58 fps average and is the one that matters; the day HOME framing needs 55 fps average. If HOME stays under 55
+   after batching: report the draw-call breakdown; no visual change without the author. Phase A merges when its
+   gates pass. The pack notes that Simulator fps is a proxy; the real phone check stays on the final review.
+3. **Zero retry nights excludes `unbranched`:** it is the floor reference, not a player strategy; skipping the tier's
+   main purchases is expected to cost retries (the logic of D-267). Report only: its retry nights per seed; a
+   REVIEW_QUEUE flag if any night needs more than 2 mercy retries, or a seed has more than 3 retry nights in 32 days.
+   Every other policy keeps zero. The first tier-3 night at 25% or more applies to every policy, `unbranched` too.
+4. **Watch item:** the fence tax fell to 4.9% (the Longbow kills brutes before fences break), so the recurring fence
+   sink is nearly gone. No new target; the pack reports `unspent_gold_at_closeup` across tier 3 and after the ladder
+   completes; if the pile-up grows against E5 T3 it goes to REVIEW_QUEUE as input for tier 4.
+
 **D-299 Phase 3 (interface) rulings and the pads as built (2026-10-13; flag on only).**
 1. **Lane badges** (Task 10, four rounds): offsets from the row anchor west (4.2, 3.2), east (-4.2, 3.2), north (-4.0
    or +4.0 mirrored, 5.0), sw (-1.7, 1.05); size 1.6 m (1.7 did not fit the sw kerb). A badge HIDES while its
