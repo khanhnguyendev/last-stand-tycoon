@@ -634,9 +634,10 @@ func _physics_process(_delta: float) -> void:
 		_apply_stage(want)
 	_follow_hero()
 
-## E6 (flag on only): this pad shows its cost (NEAR) or is stood on (ON): the pips of its building are hidden meanwhile (BuildSpot).
-func shows_cost() -> bool:
-	return retune and body != null and body.visible and (stage == NEAR or stage == ON)
+## E6 (flag on only): the hero is at or near this pad, or on its sibling: NEAR, UNARMED, ON or SIBLING_QUIET, i.e. anything but FAR / FAR_QUIET. The pips of its
+## building are covered (BuildSpot) while any of its own pads is in use: a walk-in passes NEAR -> UNARMED -> ON, and a rule that skipped UNARMED flashed the stars for a tick.
+func in_use() -> bool:
+	return retune and body != null and body.visible and (stage == NEAR or stage == ON or stage == UNARMED or stage == SIBLING_QUIET)
 
 func _stage_now() -> int:
 	if _on_pad == self:

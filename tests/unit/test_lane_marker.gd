@@ -869,6 +869,7 @@ func _focus_class(f: Vector2, own: String) -> String:
 func test_the_badge_is_hidden_or_clear_of_the_hero_the_labels_and_the_pips_from_every_focus_and_drawn_from_its_own_zone() -> void:
 	var table := {}  # focus class -> [views, hidden]
 	var matrix := {}  # "badge lane from zone of lane" -> [views, hidden]
+	var star_cases := 0  # views where the badge's rect met a star row that shows: it must hide
 	var foci := _foci()
 	for s in PLACEMENT_SEEDS:
 		await _start(s)
@@ -878,11 +879,21 @@ func test_the_badge_is_hidden_or_clear_of_the_hero_the_labels_and_the_pips_from_
 			for aspect_i in ASPECTS.size():
 				for f in foci:
 					var v := View.new(f, ASPECTS[aspect_i])
+					# E6 round 7: a spot's stars hide while one of its own pads is in use, so the hero stands at the modelled focus and every pad runs its frame: the
+					# stars' visibility (and so the obstacle list and the badge rule) is the real one for that focus
+					main.hero.global_position = MapLayout.to3(f)
+					BranchPad._cache_frame = -1
+					for pid in main.world.branch_pads:
+						for pad in main.world.branch_pads[pid]:
+							pad._physics_process(0.0)
 					var obstacles := _cover_obstacles(v, f)
 					for lane in _badges():
 						var b: LaneCharacterMarker = _marker(lane).badge
 						var r: Rect2 = _badge_rect(lane, v)
 						b.evaluate(v.xf, Callable(v, "pt"), Vector3(f.x, 0.0, f.y))
+						if v.screen().intersects(r) and obstacles.any(func(e): return String(e[0]).contains(" pip ") and r.intersects(e[1])):
+							star_cases += 1
+							assert_false(b.visible, "seed %d level %d %s focus %s: the %s badge meets a VISIBLE star row and must hide" % [s, level, ASPECT_NAMES[aspect_i], f, lane])
 						var cls := _focus_class(f, lane)
 						var row: Array = table.get(cls, [0, 0])
 						row[0] += 1
@@ -905,6 +916,8 @@ func test_the_badge_is_hidden_or_clear_of_the_hero_the_labels_and_the_pips_from_
 	gut.p("how often the cover rule hides a badge, by class of camera focus (all seeds, levels 0..3, three aspects):")
 	for cls in table:
 		gut.p("  %-14s %5d views, %5d hidden (%.1f%%)" % [cls, table[cls][0], table[cls][1], 100.0 * table[cls][1] / maxf(table[cls][0], 1)])
+	gut.p("views where the badge met a visible star row (and hid): %d" % star_cases)
+	assert_gt(star_cases, 0, "a visible star row is exercised: the badge hides over it")
 	var other: Array = table.get("other zone", [1, 0])
 	assert_lte(float(other[1]) / float(other[0]), 0.20, "a rule that hides a badge from more than a fifth of the other lanes' zone views over-hides")
 	gut.p("a badge seen from the zone of each lane (hidden / views):")
