@@ -37,7 +37,7 @@ class ForcedBot extends TierBot:
 				if MapLayout.spot_kind(id) == "tower" and hare in MapLayout.tower_lanes(id):
 					choices[id] = BranchBalance.TOWER_BRANCHES[1]
 		if policy == "threat" and not character.is_empty():
-			var order: Array = TierBot.threat_order(spots, character)
+			var order: Array = TierBot.marked_lane_order(spots, character)
 			if "c" in variant:
 				var g0: Array = order.filter(func(i): return MapLayout.spot_kind(i) == "tower" and siege in MapLayout.tower_lanes(i))
 				var g1: Array = order.filter(func(i): return MapLayout.spot_kind(i) == "tower" and not (siege in MapLayout.tower_lanes(i)) and hare in MapLayout.tower_lanes(i))
