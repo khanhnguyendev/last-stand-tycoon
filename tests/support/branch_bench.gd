@@ -198,7 +198,10 @@ static func fast_results() -> Dictionary:
 ##  - hares: HARE lane: round(hare_lane_share x all the wave's hares). NEUTRAL and SIEGE lane: the MAIN group's share of the leftover:
 ##           round((H - round(share x H)) x fast_main / H), with H = fast_main + fast_side.
 ##  - brutes: SIEGE lane: brute_cap_main[3] on every wave (full ramp); 0 otherwise.
-static func mix(lane_type: StringName, pressure: int) -> Array:
+## `brutes` (sensitivity tables only, default -1 = all waves): how many of the night's waves, counted from the LAST one, carry the siege lane's brute
+## (TierEffects.brute_counts: a tier-3 night has 1 brute on its first night, 2 on its second, 3 from the third; brute_cap_main[3] is 1 per wave).
+## `boars_only` (default false): every hare of the mix is a boar instead (same monster count), the "plain boar lane" of the Longbow study.
+static func mix(lane_type: StringName, pressure: int, brutes := -1, boars_only := false) -> Array:
 	var wb: WaveBalance = Balance.data.wave
 	var tb: TierBalance = Balance.data.tiers
 	var share: float = tb.hare_lane_share
@@ -214,16 +217,22 @@ static func mix(lane_type: StringName, pressure: int) -> Array:
 				hares = on_hare_lane
 			_:
 				hares = int(round(float(h_total - on_hare_lane) * float(fast.fast_main) / float(h_total))) if h_total > 0 else 0
+		var boars := int(sp.main) - int(fast.fast_main)
+		if boars_only:
+			boars += hares
+			hares = 0
+		var carries := brutes < 0 or w >= wb.base_counts.size() - brutes
+		var n_brutes: int = tb.brute_cap_main[3] if carries else 0
 		out.append({
-			"boars": int(sp.main) - int(fast.fast_main), "hares": hares,
-			"brutes": tb.brute_cap_main[3] if lane_type == LaneCharacter.SIEGE else 0,
+			"boars": boars, "hares": hares,
+			"brutes": n_brutes if lane_type == LaneCharacter.SIEGE else 0,
 			"hp_mult": WaveMath.hp_mult(pressure, w, wb),
 		})
 	return out
 
-static func plan_for(lane_type: StringName, pressure: int) -> Array:
+static func plan_for(lane_type: StringName, pressure: int, brutes := -1, boars_only := false) -> Array:
 	var waves: Array = []
-	for m in mix(lane_type, pressure):
+	for m in mix(lane_type, pressure, brutes, boars_only):
 		waves.append({
 			"main": LANE, "side": "", "main_count": int(m.boars) + int(m.hares), "side_count": 0, "hp_mult": float(m.hp_mult),
 			"fast_main": int(m.hares), "fast_side": 0, "boss": false, "brute_main": int(m.brutes), "brute_side": 0,
@@ -232,7 +241,7 @@ static func plan_for(lane_type: StringName, pressure: int) -> Array:
 
 ## `overrides` (sensitivity tables only), applied in memory before the world exists and undone on return:
 ## longbow_brute_mult, longbow_damage, longbow_interval (sets the RETUNE field: it does nothing with the flag off), longbow_range, spike_pass, spike_thorn, stone_brute_mult, stone_hp (all floats), and
-## last_wave_only (bool: the director plays only the LAST wave of the mix; GameState.lane_plan keeps the full plan so Spike's scale is unchanged).
+## brutes (int, siege lane: how many waves from the last carry a brute, see mix()), boars_only (bool: no hares, see mix()), last_wave_only (bool: the director plays only the LAST wave of the mix; GameState.lane_plan keeps the full plan so Spike's scale is unchanged).
 ## `&""` as a branch = unbranched.
 static func run(lane_type: StringName, tower_branch: StringName, fence_branch: StringName, pressure: int, overrides := {}) -> Dictionary:
 	var tree := Engine.get_main_loop() as SceneTree
@@ -259,7 +268,7 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	if overrides.has("stone_hp"):
 		bb.stone.hp = float(overrides.stone_hp)
 	Balance.data.build.diner_max_hp = INVULNERABLE_HP
-	var plan := plan_for(lane_type, pressure)
+	var plan := plan_for(lane_type, pressure, int(overrides.get("brutes", -1)), bool(overrides.get("boars_only", false)))
 
 	var main := Main.create()
 	tree.root.add_child(main)
