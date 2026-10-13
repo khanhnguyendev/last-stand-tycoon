@@ -9,8 +9,8 @@ extends SceneTree
 ## with FINAL_REPEAT when it is a second run (a different commit is spelled out). `--dry=1` prints the header (rule, seeds, gate) and runs nothing.
 ## Runs: for every seed x six policies (all_a = Longbow + Stone, mixed = Longbow + Spike, volley_stone = Volley + Stone, all_b = Volley + Spike, threat = the threat-matched build,
 ## unbranched = no branch) one REAL tier sweep in its own Godot process (`sweep.gd -- --bot=tier --days=32 --retune=on --seed=S --policy=P`), at most --parallel (1 to 3) at once;
-## the runs' stdout is kept under tests/sim/out/retune/ (T3RUN, LADDER and RETUNE lines are read from it; a run takes about 220 s idle: the tuning set, 24 runs at 3 a time,
-## is about 30 to 35 min; a hold-out set, 48 runs, about an hour). A missing or failed run (no result line, a hard break, no tier-3 night) prints NO verdict lines and exits 1.
+## the runs' stdout is kept under tests/sim/out/retune/ (T3RUN, LADDER and RETUNE lines are read from it; a run takes about 220 s idle: the tuning set, 30 runs at 3 a time,
+## is about 40 to 45 min; a hold-out set, 48 runs, about an hour). A missing or failed run (no result line, a hard break, no tier-3 night) prints NO verdict lines and exits 1.
 ## D-298: `unbranched` is the floor reference: RETRY_NIGHTS prints its count but does not judge it; UNBRANCHED_RETRIES / UNBRANCHED_FLAG and UNSPENT_T3 / UNSPENT_AFTER_LADDER are report-only lines.
 ## Verdict lines (SweepMath; each followed by its per-seed and per-siege-lane lines): THREAT_LEAD, THREAT_LEAD_BY_LANE, RETRY_NIGHTS, FIRST_T3_NIGHT, FENCE_TAX, FIXED_SPREAD,
 ## HARE_SHARE, LANE_CAP_GUARD. Targets that fail still exit 0 (the output is the verdict); the last line says how many passed.
@@ -87,7 +87,7 @@ func _initialize() -> void:
 	lines.append("SEED_RULE scan seeds upward from 1; a seed's siege lane is LaneCharacter.for_run(seed).siege; per lane the 1st seed is the scan's tuning seed, the next 2 hold-out set #1 (RETIRED), the next 2 hold-out set #2; the tuning set run = the scan's tuning seeds + the promoted north 14 (D-304)")
 	for l in SweepMath.SIEGE_LANES:
 		lines.append("SEEDS %s %s: %s" % ["tuning" if set_id == "tuning" else "hold-out #" + set_id, l, str(seed_set[l])])
-	lines.append("NOTE a retried night counts its final (mercy) attempt, EXCEPT the first tier-3 night (FIRST_T3_NIGHT): a retried first night counts as lost, 0%; the night statistics count tier-3 nights only; hare share and the lane-cap guard are read from each run's own plan")
+	lines.append("NOTE a retried night counts its final (mercy) attempt, EXCEPT the first tier-3 night (FIRST_T3_NIGHT): a retried first night counts as lost, 0%; the night statistics count tier-3 nights only; hare share and the lane-cap guard are read from each run's own plan; with the retune flag on the first two tier-3 nights are below the cap (pressure 10, 11, then 12, D-304/D-305), so the at-cap columns (cap_nights, fence_rebuild_gold_median_at_cap, income_at_cap, hence FENCE_TAX) count from the third tier-3 night and are not like for like with runs before D-305")
 	if String(args.dry) == "1":
 		lines.append("DRY RUN: nothing started")
 		print("\n".join(lines))

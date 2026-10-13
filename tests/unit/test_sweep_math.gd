@@ -542,14 +542,25 @@ func test_retune_run_stats_first_night_hare_share_and_guard() -> void:
 const DATE := "2026-10-13T10:00:00+02:00"
 
 func test_final_gate_refuses_hold_out_sets_without_final() -> void:
-	for set_id in ["1", "2"]:
+	for set_id in ["2"]:
 		var g := SweepMath.final_gate(set_id, false, "abc1234", {"history": []}, DATE)
 		assert_false(g.allowed, "set %s without --final" % set_id)
 		assert_string_contains(g.lines[0], "REFUSED")
+		assert_string_contains(g.lines[0], "--final", "the reason is the missing flag")
 		assert_eq(g.record, {"history": []}, "nothing recorded when refused")
 	var t := SweepMath.final_gate("tuning", false, "abc1234", {"history": []}, DATE)
 	assert_true(t.allowed, "the tuning set needs no flag")
 	assert_eq(t.record, {"history": []})
+
+## D-304: the retired set is refused inside final_gate too, with and without --final, on a clean commit; nothing is recorded.
+func test_final_gate_refuses_the_retired_set_1_always() -> void:
+	for final_flag in [false, true]:
+		var g := SweepMath.final_gate("1", final_flag, "abc1234", {"history": []}, DATE)
+		assert_false(g.allowed, "retired set #1, final=%s" % final_flag)
+		assert_string_contains(g.lines[0], "REFUSED")
+		assert_string_contains(g.lines[0], "retired")
+		assert_eq(g.lines, SweepMath.retired_gate("1").lines, "the same message as retired_gate")
+		assert_eq(g.record, {"history": []}, "nothing recorded")
 
 func test_final_gate_refuses_final_with_the_tuning_set() -> void:
 	var g := SweepMath.final_gate("tuning", true, "abc1234", {"history": []}, DATE)
@@ -560,17 +571,17 @@ func test_final_gate_refuses_final_with_the_tuning_set() -> void:
 
 func test_final_gate_refuses_a_dirty_tree_and_an_unknown_commit() -> void:
 	for c in ["abc1234-dirty", "unknown", ""]:
-		var g := SweepMath.final_gate("1", true, c, {"history": []}, DATE)
+		var g := SweepMath.final_gate("2", true, c, {"history": []}, DATE)
 		assert_false(g.allowed, "commit '%s'" % c)
 		assert_string_contains(g.lines[0], "REFUSED")
 		assert_eq(g.record, {"history": []}, "nothing recorded")
-	assert_true(SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE).allowed, "a clean commit is fine")
+	assert_true(SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE).allowed, "a clean commit is fine")
 
 func test_final_gate_records_set_commit_and_date_then_finish_marks_done_and_ok() -> void:
-	var g := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE)
+	var g := SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE)
 	assert_true(g.allowed)
-	assert_string_contains(g.lines[0], "FINAL set=#1 commit=abc1234")
-	assert_eq(g.record, {"history": [{"set": "1", "commit": "abc1234", "date": DATE, "days": 32, "done": false, "ok": false}]}, "recorded at the start: done is false until the run ends")
+	assert_string_contains(g.lines[0], "FINAL set=#2 commit=abc1234")
+	assert_eq(g.record, {"history": [{"set": "2", "commit": "abc1234", "date": DATE, "days": 32, "done": false, "ok": false}]}, "recorded at the start: done is false until the run ends")
 	var fin := SweepMath.final_finish(g.record, true)
 	assert_eq(fin.history[0].done, true)
 	assert_eq(fin.history[0].ok, true)
@@ -578,20 +589,21 @@ func test_final_gate_records_set_commit_and_date_then_finish_marks_done_and_ok()
 	var bad := SweepMath.final_finish(g.record, false)
 	assert_eq([bad.history[0].done, bad.history[0].ok], [true, false])
 
-## A second --final on set #1 at another commit shows in the output; every earlier entry (any set) is printed.
+## A second --final on set #2 at another commit shows in the output; every earlier entry (any set, here a retired set #1 entry already in the history file) is printed.
 func test_final_gate_shows_every_earlier_entry_and_a_repeat_at_a_different_commit() -> void:
-	var first := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE)
-	var two := SweepMath.final_gate("2", true, "bbb2222", SweepMath.final_finish(first.record, false), DATE)
+	var old := {"history": [{"set": "1", "commit": "abc1234", "date": DATE, "days": 32, "done": true, "ok": false}]}
+	var two := SweepMath.final_gate("2", true, "bbb2222", old, DATE)
+	var first := two
 	assert_eq(_line(two, "FINAL_REPEAT"), "", "set #2 was never run")
 	assert_string_contains(_line(two, "FINAL_EARLIER set=#1 commit=abc1234"), "ok=false")
-	var again := SweepMath.final_gate("1", true, "def5678", two.record, DATE)
+	var again := SweepMath.final_gate("2", true, "def5678", SweepMath.final_finish(two.record, false), DATE)
 	assert_true(again.allowed)
 	var earlier: Array = again.lines.filter(func(l): return String(l).begins_with("FINAL_EARLIER"))
 	assert_eq(earlier.size(), 2, "one line per earlier entry, both sets")
-	assert_string_contains(_line(again, "FINAL_REPEAT"), "abc1234")
+	assert_string_contains(_line(again, "FINAL_REPEAT"), "bbb2222")
 	assert_string_contains(_line(again, "FINAL_REPEAT"), "def5678")
 	assert_eq(again.record.history.size(), 3)
-	var same := SweepMath.final_gate("1", true, "abc1234", first.record, DATE)
+	var same := SweepMath.final_gate("2", true, "bbb2222", first.record, DATE)
 	assert_string_contains(_line(same, "FINAL_REPEAT"), "same commit")
 
 func test_parse_record_accepts_empty_and_valid_text_and_rejects_a_broken_file() -> void:
@@ -733,16 +745,16 @@ func test_retune_run_stats_first_night_retries_and_the_worst_first_attempt() -> 
 
 func test_final_gate_refuses_any_days_but_32_and_records_days() -> void:
 	for d in [31, 33, 14]:
-		var g := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE, d)
+		var g := SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE, d)
 		assert_false(g.allowed, "days %d" % d)
 		assert_string_contains(g.lines[0], "32")
-	var ok := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE, 32)
+	var ok := SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE, 32)
 	assert_true(ok.allowed)
 	assert_eq(ok.record.history[0].days, 32)
 	assert_true(SweepMath.final_gate("tuning", false, "abc1234", {"history": []}, DATE, 5).allowed, "the tuning set may use any days")
 
 func test_final_finish_marks_not_ok_when_the_commit_changed_during_the_run() -> void:
-	var g := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE, 32)
+	var g := SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE, 32)
 	var same := SweepMath.final_finish(g.record, true, "abc1234")
 	assert_true(same.history[0].ok)
 	var moved := SweepMath.final_finish(g.record, true, "def5678")

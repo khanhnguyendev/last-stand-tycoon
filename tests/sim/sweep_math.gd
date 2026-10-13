@@ -316,10 +316,12 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 		return {"allowed": false, "lines": ["REFUSED: " + msg], "record": record}
 	if set_id == "tuning":
 		if final_flag:
-			return refuse.call("--final is for the hold-out sets (--set=1 or --set=2); the tuning set runs without it")
+			return refuse.call("--final is for the hold-out set (--set=2); the tuning set runs without it")
 		return {"allowed": true, "lines": [], "record": record}
-	if not set_id in ["1", "2"]:
-		return refuse.call("unknown set '%s' (tuning|1|2)" % set_id)
+	if set_id in RETIRED_SETS:  # D-304: refused here too, with or without --final (the report also checks retired_gate first)
+		return {"allowed": false, "lines": retired_gate(set_id).lines, "record": record}
+	if not set_id in ["2"]:
+		return refuse.call("unknown set '%s' (tuning|2)" % set_id)
 	if not final_flag:
 		return refuse.call("hold-out set #%s runs only with --final (D-290); no run was started" % set_id)
 	if commit == "" or commit == "unknown" or commit.ends_with("-dirty"):
@@ -557,7 +559,8 @@ static func threat_lead(rows: Array, final := false) -> Dictionary:
 	var head := "THREAT_LEAD: %s (mean lead %s points over %s, ahead (>= %.1f) on %d of %d seeds, level (within +-%.1f) on %d; against each seed's own best pair: mean %s, ahead on %d; %s)" % [
 		"PASS" if ok else "FAIL", _num(mean_lead, "%+.1f"), best, AHEAD_MARGIN, ahead, seeds.size(), AHEAD_MARGIN, level, _num(_mean(own), "%+.1f"), ahead_own, rule]
 	var info := "  info: lead against each seed's own best pair (not the verdict): mean %s, per seed %s" % [_num(_mean(own), "%+.1f"), " ".join(own.map(func(v): return "%+.1f" % v))]
-	return {"ok": ok, "lines": [head, info] + _breakdown(rows, func(sub): return _lead_of(sub, best), "%+.1f")}
+	var weight := [] if final else ["  info: seed-weighted: the mean counts every seed once, and north has 2 of the 5 tuning seeds (14 was promoted, D-304), so north weighs double; THREAT_LEAD_BY_LANE is the per-lane view"]
+	return {"ok": ok, "lines": [head] + weight + [info] + _breakdown(rows, func(sub): return _lead_of(sub, best), "%+.1f")}
 
 ## THREAT_LEAD_BY_LANE: the mean lead (against the same best pair) is not negative on any siege lane.
 static func threat_lead_by_lane(rows: Array) -> Dictionary:
