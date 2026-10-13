@@ -4,6 +4,7 @@ extends Node3D
 ## transform and the group `level_pips` are what the spot, the tests and the lane badge read; the PipBatch of the scene draws every handle as one instance of
 ## ONE MultiMesh. The handle tells the batch when it enters or leaves the tree, shows or hides, or moves.
 
+## The batch that draws this pip (set by LevelPips.make before the pip enters the tree).
 var _batch: PipBatch
 
 func _init() -> void:
@@ -11,14 +12,15 @@ func _init() -> void:
 	visibility_changed.connect(_sync)
 
 func _enter_tree() -> void:
-	_batch = PipBatch.for_node(self)
-	if _batch != null:
+	if _batch != null and is_instance_valid(_batch):
 		_batch.attach(self)
 
 func _exit_tree() -> void:
 	if _batch != null and is_instance_valid(_batch):
 		_batch.detach(self)
-	_batch = null
+
+func use_batch(b: PipBatch) -> void:
+	_batch = b
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSFORM_CHANGED:

@@ -3,7 +3,7 @@ extends GutTest
 
 const TIER1_CHILDREN := ["EnemyPool", "SteakPool", "ProjectilePool", "FxPool", "WaveDirector", "TravelerPool", "TravelerSpawner",
 	"LightingDirector", "ShadowField", "Ground", "EdgeStones", "Props", "Diner", "Lane_west", "Lane_north", "Lane_east", "PickupField",
-	"FlyFx", "Spot_tower_nw", "Spot_tower_ne", "Spot_fence_w", "Spot_fence_n", "Spot_fence_e", "Freezer", "FreezerBody", "Counter",
+	"FlyFx", "LevelPipsBatch", "Spot_tower_nw", "Spot_tower_ne", "Spot_fence_w", "Spot_fence_n", "Spot_fence_e", "Freezer", "FreezerBody", "Counter",
 	"CounterBody", "Pad_counter", "Pad_freezer", "GoldPile", "CloseUpSign", "TierSign", "Telegraph_west", "Telegraph_north",
 	"Telegraph_east", "GuardRoster", "FxField", "Reactions", "TierReveal"]
 const SW_NODES := ["Lane_sw", "Telegraph_sw", "Spot_tower_sw", "Spot_fence_sw"]
@@ -57,7 +57,7 @@ func _sw_plan() -> Array:
 
 func test_tier_1_scene_is_exactly_as_before() -> void:
 	assert_eq(_names(), TIER1_CHILDREN, "same names in the same tree order")
-	assert_eq(main.world.get_child_count(), 41, "the 39 named children plus the light and the environment")
+	assert_eq(main.world.get_child_count(), 42, "the 39 named children plus LevelPipsBatch (E6 phase A) plus the light and the environment")
 	assert_eq(main.world.lanes.keys(), ["west", "north", "east"])
 	assert_eq(main.world.telegraph_markers.keys(), ["west", "north", "east"])
 	assert_eq(main.world.build_spots.keys(), ["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e"])
@@ -70,7 +70,7 @@ func test_tier_2_adds_only_the_yards_and_never_a_south_west_node() -> void:
 	var want := TIER1_CHILDREN.duplicate()
 	want.append_array(["YardStones", "Spot_tower_w", "Spot_tower_e"])
 	assert_eq(names, want)
-	assert_eq(main.world.get_child_count(), 44)
+	assert_eq(main.world.get_child_count(), 45)
 	assert_eq(main.world.lanes.keys(), ["west", "north", "east"])
 	assert_eq(main.world.telegraph_markers.keys(), ["west", "north", "east"])
 
@@ -85,7 +85,7 @@ func test_tier_3_builds_the_south_west_lane_marker_and_spots() -> void:
 	for n in SW_NODES:
 		assert_true(n in _names(), n)
 	var count: int = main.world.get_child_count()
-	assert_eq(count, 44 + 4 + 18, "tier 2's 44 plus Lane_sw, Telegraph_sw, the two spots and the 18 branch pads (two for each of the nine spots)")
+	assert_eq(count, 45 + 4 + 18, "tier 2's 45 (44 + LevelPipsBatch) plus Lane_sw, Telegraph_sw, the two spots and the 18 branch pads (two for each of the nine spots)")
 	main.world.rebuild_for_tier()
 	main.world.rebuild_for_tier()
 	main.world._sync_lanes()

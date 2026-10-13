@@ -22,11 +22,15 @@
 #   SHOT_WAIT (default 100 s, plus PERF_SETTLE) and screenshots `$OUT/day_home.png`: the screen carries the frozen `PERF phase=DAY ...` line (the overlay freezes one line per phase, 60 s after
 #   its warm-up, like a night; the day has no end of its own, so the window is a whole day window). Read the line from the shot as for a night.
 # FIXTURE_DIR (optional, E6 phase A; default `export/fixtures`): the directory the fixtures are read from and served (a fixture that is not committed can live outside the tree).
-# DRAW_CALL_BUDGET (E6 A3, D-294): the frozen PERF line ends with `DRAW_CALL_BUDGET: OK|WARN <n> (budget 58)` (58 = the E5 T3 count 48 + 10; WARN never fails
-# the run). The budget describes the RESUMED night; a PLAY_ENTERED night frames the whole diner from HOME and reads about 30 higher (WARN is expected there).
+# DRAW_CALL_BUDGET (E6 A3, D-294; per reading since E6 phase A, D-300): the frozen PERF line ends with `DRAW_CALL_BUDGET: OK|WARN <n> (budget <b>)`; the budget is the reading's own: a night
+# entered by play (PLAY_ENTERED: the night follows a day of the session) 64, a night resumed from a save 50, the day at HOME (PERF_PHASE=DAY) 117 (each the measured Simulator count + 10).
+# WARN never fails the run.
 set -euo pipefail
 BUILD="$1"; OUT="$2"; PORT=8765
 FIX="${FIXTURE_DIR:-$(dirname "$0")/fixtures}"
+if [ "${PERF_PHASE:-}" = "DAY" ] && { [ -n "${PLAY_ENTERED:-}" ] || [ -n "${NIGHT_ONLY:-}" ]; }; then
+  echo "PERF_PHASE=DAY measures a day: it cannot be combined with PLAY_ENTERED or NIGHT_ONLY (both measure a night)" >&2; exit 2
+fi
 if [ "${PERF_PHASE:-}" = "DAY" ]; then
   DAY_ONLY=1; DAY_FIXTURE="${DAY_FIXTURE:-tier3_branch_day}"; SHOT_WAIT="${SHOT_WAIT:-$((100 + ${PERF_SETTLE:-0}))}"
 fi

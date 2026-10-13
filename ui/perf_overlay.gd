@@ -47,8 +47,9 @@ const LOG_SHOW_MS := 30.0
 var _log_s := 0.0
 var _close_s := 0.0
 var _closed := false
-## The night in the window began by the overlay's own close-up (`?perfclose=`): a night ENTERED BY PLAY (kept through the phase change; cleared when a day starts).
+## The night in the window follows a day seen in this session: a night ENTERED BY PLAY (the player's close-up or `?perfclose=`).
 var _play_entered := false
+var _day_seen := false
 var _log_t: Array[float] = []
 var _log_ms: Array[float] = []
 ## For a frame of LOG_SHOW_MS or more: the previous frame's script time, physics time, draw calls, and the node count and video memory change.
@@ -70,11 +71,10 @@ var _glyph_prime := true
 var _nofade := false
 ## E6 phase A (D-300, diagnosis only, a2.md 4g): `?perfcut=<what>` removes ONE thing from the picture for a reading, to see what the frame cost is made of. Every cut is visual
 ## (nodes hidden, the simulation runs on): diner (the whole diner art), labels (every Label3D), hud (the Hud layer; this overlay stays), ground (terrain, kerb and yard stones),
-## enemies (the enemy pool), half (the window at half size: the canvas buffer has a quarter of the pixels). Applied twice a second (nodes come and go). It writes no game state.
-const CUTS: Array[StringName] = [&"diner", &"labels", &"hud", &"ground", &"enemies", &"half"]
+## enemies (the enemy pool). (A half-size switch was tried and dropped: a window resize is not a drawing-buffer scale, a2.md 4g.) Applied twice a second (nodes come and go). It writes no game state.
+const CUTS: Array[StringName] = [&"diner", &"labels", &"hud", &"ground", &"enemies"]
 var _cut: StringName = &""
 var _cut_wait := 0.0
-var _half_done := false
 const GLYPHS := "0123456789 .,:=@()+-%_/ abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 var _seen_fade := true
 var _fades: Array[Node] = []
@@ -141,8 +141,10 @@ func _on_wave_started(w: int, _main: StringName, _side: StringName) -> void:
 func _on_phase_changed(p: int, d: int) -> void:
 	_phase = p
 	_day = d
+	# A night that follows a day SEEN IN THIS SESSION was entered by play (a close-up, or the overlay's own `perfclose`); a night the session starts in was resumed from a save.
+	_play_entered = p == Phase.NIGHT and _day_seen
 	if p == Phase.DAY:
-		_play_entered = false
+		_day_seen = true
 	_phase_msec = Time.get_ticks_msec()
 	_reset_window()
 
@@ -300,11 +302,6 @@ func _apply_cut() -> void:
 			if pool != null:
 				for e in pool.get_children():  # the pool shows an enemy when it spawns: hidden again every frame (see _tick)
 					(e as Node3D).visible = false
-		&"half":
-			if not _half_done:
-				_half_done = true
-				var w := get_window()
-				w.size = w.size / 2
 
 func _phase_name() -> String:
 	return "NONE" if _phase < 0 else Phase.name_of(_phase)
@@ -345,7 +342,6 @@ func _tick(raw: float, delta: float) -> void:
 	_since_reset += raw
 	if _close_s > 0.0 and not _closed and _phase == Phase.DAY and _since_reset >= _close_s:
 		_closed = true
-		_play_entered = true
 		EventBus.closeup_requested.emit()  # the phase changes here and the window resets: this frame is the old phase's last
 		return
 	if _log_s > 0.0 and not _log_done:

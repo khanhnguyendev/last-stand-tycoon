@@ -3,35 +3,18 @@ extends MultiMeshInstance3D
 ## E6 phase A (D-298.2, visual only): every level pip of the scene in ONE draw call. One MultiMesh of the shared star mesh and material; one instance per LevelPip
 ## handle, at the handle's global transform (the star is not a billboard: its pitch is the handle's rotation). A hidden or covered pip is an instance with zero
 ## scale (never rasterised); a removed pip's slot is filled by the last one, so `visible_instance_count` always equals the number of handles.
-## The first handle creates the batch lazily, at the origin, under the node ABOVE its spots' parent (Main, when the spots live in the World): the tests pin the
-## World's children (names and counts), and the batch is not a part of the world's layout. A spot whose parent is the scene root gets it beside the spot.
+## The WORLD owns the one batch (`World.pip_batch`, made in its _ready before the spots) and hands it down spot -> LevelPips.make -> each LevelPip. A LevelPips built
+## without a world (an isolated unit test) makes a private batch as a child of its parent, which frees it with the parent.
 
 const NODE_NAME := &"LevelPipsBatch"
-const META := &"level_pips_batch"
-const MIN_CAPACITY := 32
+## The tiers hold 25 / 31 / 37 handles: the buffer is never reallocated by a tier change.
+const MIN_CAPACITY := 64
 ## Pips are tiny and spread over the whole map: culling is per draw, so the box covers the playfield with a margin.
 const CULL_BOX := AABB(Vector3(-100, -10, -100), Vector3(200, 40, 200))
 
 var _handles: Array[LevelPip] = []
 var _slots := {}  # LevelPip -> slot
 var _xforms: Array[Transform3D] = []  # what each slot holds (a copy: the headless renderer keeps no multimesh buffer, so tests read this)
-
-## The batch for a handle: found (or made) under the node above its spot's parent. null when the spot has no parent (nothing to draw into).
-static func for_node(handle: Node) -> PipBatch:
-	var spot := handle.get_parent()
-	var host: Node = spot.get_parent() if spot != null else null
-	if host == null:
-		return null
-	if host.get_parent() != null:
-		host = host.get_parent()
-	if host.has_meta(META):
-		var found = host.get_meta(META)
-		if is_instance_valid(found):
-			return found
-	var made := PipBatch.new()
-	host.set_meta(META, made)  # found again at once, before it is in the tree
-	host.add_child.call_deferred(made)  # the host is often still busy setting up its children (the world is built inside Main's own setup)
-	return made
 
 func _init() -> void:
 	name = NODE_NAME

@@ -192,6 +192,9 @@ func test_tier3_cap_threat_day_decodes_resumes_in_the_day_and_matches_the_night_
 ## E6 phase A: the DAY HOME perf fixture (`make_save.gd -- --fixture=tier3_branch_day`, committed, deterministic). It decodes at the current schema, resumes into a tier-3 DAY
 ## and shows at least one branch pad (a max-level, unbranched building): the pads' draw calls are what the DAY HOME reading measures.
 func test_tier3_branch_day_decodes_is_a_tier_3_day_and_shows_a_branch_pad() -> void:
+	var wrapper = JSON.parse_string(FileAccess.get_file_as_string("res://export/fixtures/tier3_branch_day.save.json"))
+	var raw = JSON.parse_string(String(wrapper.state_json))
+	assert_eq(int(raw.v), GameState.SCHEMA_VERSION, "the file is written at the current schema (a stale file fails here, before the migration hides it)")
 	var r := _decode("tier3_branch_day")
 	assert_true(r.ok, str(r.get("reason", "")))
 	assert_eq(r.state.resume_phase, "DAY")

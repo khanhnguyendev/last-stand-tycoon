@@ -379,20 +379,18 @@ func test_draw_call_budget_line_is_ok_up_to_the_readings_own_budget_and_warns_ab
 	assert_eq(P.budget_text(117.0, P.BudgetKind.DAY_HOME), "DRAW_CALL_BUDGET: OK 117 (budget 117)")
 	assert_eq(P.budget_text(118.0, P.BudgetKind.DAY_HOME), "DRAW_CALL_BUDGET: WARN 118 (budget 117)")
 
-## The overlay picks the kind from what it is measuring: a day, a night its own close-up began, a night resumed from a save.
+## The overlay picks the kind from what it is measuring: a day, a night that follows a day seen in this session (entered by play), a night the session starts in (resumed).
 func test_the_overlay_reads_the_budget_of_its_own_phase_and_mode() -> void:
-	var p := _perf()
-	EventBus.phase_changed.emit(Phase.NIGHT, 3)
-	assert_eq(p.budget_kind(), p.BudgetKind.NIGHT_RESUMED, "a night with no close-up of the overlay's own")
+	var p := _perf()  # the session starts in a NIGHT: resumed from a save
+	assert_eq(p.budget_kind(), p.BudgetKind.NIGHT_RESUMED, "a night with no day before it")
 	EventBus.phase_changed.emit(Phase.DAY, 3)
 	assert_eq(p.budget_kind(), p.BudgetKind.DAY_HOME)
-	p._play_entered = true  # what the overlay's `perfclose` close-up sets just before the phase changes
 	EventBus.phase_changed.emit(Phase.NIGHT, 3)
-	assert_eq(p.budget_kind(), p.BudgetKind.NIGHT_PLAY, "the night the close-up began")
+	assert_eq(p.budget_kind(), p.BudgetKind.NIGHT_PLAY, "the night after a day of this session: entered by play")
 	EventBus.phase_changed.emit(Phase.DAY, 4)
 	assert_eq(p.budget_kind(), p.BudgetKind.DAY_HOME)
-	EventBus.phase_changed.emit(Phase.NIGHT, 4)
-	assert_eq(p.budget_kind(), p.BudgetKind.NIGHT_RESUMED, "a day clears it")
+	var q := _perf()  # a new overlay hears the NIGHT first: resumed again
+	assert_eq(q.budget_kind(), q.BudgetKind.NIGHT_RESUMED, "a fresh session")
 
 func test_the_frozen_perf_line_ends_with_the_budget_line() -> void:
 	var p := _perf()
@@ -403,8 +401,8 @@ func test_the_frozen_perf_line_ends_with_the_budget_line() -> void:
 		p._tick(1.0 / 60.0, 1.0 / 60.0)
 	assert_true(p.frozen_text().ends_with("(budget 50)"), "the frozen line carries the budget words (a night with no close-up of its own: the resumed budget, was 58 before phase A): " + p.frozen_text())
 
-## E6 phase A (a2.md 4g): `?perfcut=<what>` hides ONE group for a reading and nothing else; an unknown name does nothing. Fails when a cut hides a neighbour group
-## (the HUD with the labels, the diner with the ground) or when the overlay itself goes with the HUD.
+## E6 phase A (a2.md 4g): `?perfcut=<what>` hides ONE group for a reading and nothing else; an unknown name does nothing. Only the labels cut is run here (the others look up nodes of the real Main);
+## it fails when the cut hides a neighbour (a mesh) or the overlay itself.
 func test_perfcut_hides_one_group_and_leaves_the_rest() -> void:
 	UrlFlags.set_for_tests("perfcut=labels")
 	var host := Node3D.new()

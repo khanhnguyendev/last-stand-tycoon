@@ -10,7 +10,6 @@ func before_each() -> void:
 	add_child_autofree(main)
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(8)
-	await get_tree().process_frame  # the batch joins the tree deferred (its host is busy while the world is built)
 
 func after_each() -> void:
 	Balance.reset()
@@ -136,3 +135,68 @@ func test_a_tier_drop_and_rise_keeps_the_batch_in_step() -> void:
 	main.world.rebuild_for_tier()
 	assert_eq((_batch() as PipBatch).instance_total(), _handles().size())
 	assert_eq(_batches().size(), 1)
+
+func test_tier_3_fits_the_buffer_without_a_reallocation() -> void:
+	main.phase_controller.debug_skip_to_day()
+	GameState.debug_set_tier(3, GameState.day)
+	main.world.rebuild_for_tier()
+	var b := _batch() as PipBatch
+	var want := 9 * Balance.data.build.max_level + 2 * Balance.data.stations.max_level
+	assert_eq(want, 37, "setup: nine spots and two pads")
+	assert_eq(_handles().size(), 37)
+	assert_eq(b.instance_total(), 37)
+	assert_eq(b.multimesh.visible_instance_count, 37)
+	assert_gte(b.multimesh.instance_count, 37)
+	assert_eq(b.multimesh.instance_count, PipBatch.MIN_CAPACITY, "no reallocation at the tier-3 reveal")
+	var seen := {}
+	for h in _handles():
+		var slot := b.slot_of(h)
+		assert_false(seen.has(slot), "unique slots")
+		seen[slot] = true
+
+func test_a_reallocation_keeps_every_earlier_pip_intact() -> void:
+	_pay_full("tower_nw", 2)
+	var b := _batch() as PipBatch
+	var before := {}
+	for h in _handles():
+		before[h] = [b.transform_of(h), (h as Node3D).is_visible_in_tree()]
+	var extra := Node3D.new()
+	main.world.add_child(extra)
+	var n := PipBatch.MIN_CAPACITY - b.instance_total() + 5
+	var made: Array = LevelPips.make(extra, n, 1.0, b)  # more than the capacity: the buffer grows
+	assert_gt(b.multimesh.instance_count, PipBatch.MIN_CAPACITY, "the buffer was reallocated")
+	assert_eq(b.instance_total(), _handles().size())
+	for h in before:
+		assert_true(b.transform_of(h) == before[h][0], "%s keeps its transform" % h.get_parent().name)
+		assert_eq((h as Node3D).is_visible_in_tree(), before[h][1])
+	assert_eq(_drawn(main.world.build_spots.tower_nw._pips), 2, "levels still drawn after the growth")
+	extra.free()
+	assert_eq(b.instance_total(), _handles().size() - 0, "the extra pips left with their parent")
+
+func test_a_lone_pip_row_without_a_world_owns_a_private_batch() -> void:
+	var host := Node3D.new()
+	add_child(host)
+	var pips: Array = LevelPips.make(host, 3, 1.0)
+	var batches := host.find_children("*", "PipBatch", true, false)
+	assert_eq(batches.size(), 1, "its own batch, a child of the parent")
+	assert_eq((batches[0] as PipBatch).instance_total(), 3)
+	host.free()
+	assert_eq(pips.size(), 3)
+
+## A Main built and freed with no frame in between leaves no PipBatch behind (an orphan would be a batch added later, to a host that is gone).
+func test_building_and_freeing_a_main_synchronously_leaves_no_pip_batch_orphan() -> void:
+	var before := _pip_batch_orphans()
+	var m := Main.create()
+	add_child(m)
+	m.phase_controller.start_new_game(3)
+	remove_child(m)
+	m.free()
+	assert_eq(_pip_batch_orphans(), before, "no PipBatch orphan")
+
+func _pip_batch_orphans() -> int:
+	var n := 0
+	for id in Node.get_orphan_node_ids():
+		var o := instance_from_id(id)
+		if o is PipBatch:
+			n += 1
+	return n
