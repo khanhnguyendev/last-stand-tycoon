@@ -1,7 +1,7 @@
 extends SceneTree
 ## Writes export/fixtures/night3_start.save.json (resume_phase NIGHT: resume_from enters night 3 at once) and
 ## night3_closeup.save.json (resume_phase DAY, day-peak reading) from a PlannerBot run (seed 20260930), using the
-## close-up snapshot that precedes night 3. Run: "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/make_save.gd -- --fixture=day3_counter5|night3|tier|tier3|tier3_branch_day
+## close-up snapshot that precedes night 3. Run: "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/make_save.gd -- --fixture=day3_counter5|night3|tier|tier3|tier3_branch_day|retune [--seed=N]
 ## `tier` (E5 spec 8.1) runs a TierBot from seed 20260930 to the first boss-night close-up and writes boss_night_tier1,
 ## boss_only, tier2_night1, tier2_full and tier2_night. `tier3` (E5 tier 3, Task 23, schema 6) builds its eight states from the committed
 ## tier2_full fixture and real play: fixtures 1, 2 and 5 (the Baron close-up, the same without yard towers, the cap night) come from a TierBot
@@ -9,11 +9,15 @@ extends SceneTree
 ## giving identical md5 prove the whole thing deterministic. It writes
 ## tier3_baron_full, tier3_baron_no_yard, tier3_baron_alone, tier3_night1 and tier3_cap_<all_a|all_b|mixed|threat>. `tier3_branch_day` (checkpoint video, recording aid) reads the committed tier3_night1 through the real codec, gives tower_sw and fence_sw the
 ## state of tower_w and fence_w (level 3) and 1500 gold, so a tier-3 DAY has several max-level buildings and the gold to buy branches, and writes
-## export/fixtures/tier3_branch_day.save.json (not committed: reproduce it with this option). `day3_counter5` writes only that fixture. `night3` rewrites the two night3 fixtures at the current schema and must
+## export/fixtures/tier3_branch_day.save.json (not committed: reproduce it with this option). `retune` (E6 Task 19, spec 8.3) plays ONE real TierBot run (threat policy, the retune flag
+## ON in memory only, seed 3 by default: a tuning seed, never a hold-out seed) and writes retune_first_t3_night (the first tier-3 day's start, resume DAY), retune_respawn (the same state, resume NIGHT)
+## and retune_siege_night (the close-up of the first tier-3 night on which a wave's brutes have a siege lane that is neither the drawn main nor side lane and a wave has an extra hare group; resume NIGHT).
+## `tier3` also records tier3_night1 from the same real run (the first tier-3 day's start, flag off), and builds tier3_baron_alone from the real Baron-night capture. `day3_counter5` writes only that fixture. `night3` rewrites the two night3 fixtures at the current schema and must
 ## not be used while they serve as schema-3 migration tests. No argument (or an unknown one) is a usage error.
 
 var _done := false
 var _fixture := ""
+var _retune_seed := 3
 
 func _initialize() -> void:
 	_run.call_deferred()
@@ -22,8 +26,10 @@ func _run() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--fixture="):
 			_fixture = a.trim_prefix("--fixture=")
-	if _fixture != "day3_counter5" and _fixture != "night3" and _fixture != "tier" and _fixture != "tier3" and _fixture != "tier3_branch_day":
-		push_error("usage: -- --fixture=day3_counter5|night3|tier|tier3|tier3_branch_day")
+		if a.begins_with("--seed="):
+			_retune_seed = int(a.trim_prefix("--seed="))
+	if _fixture != "day3_counter5" and _fixture != "night3" and _fixture != "tier" and _fixture != "tier3" and _fixture != "tier3_branch_day" and _fixture != "retune":
+		push_error("usage: -- --fixture=day3_counter5|night3|tier|tier3|tier3_branch_day|retune [--seed=N]")
 		quit(2)
 		return
 	if _fixture == "tier":
@@ -34,6 +40,9 @@ func _run() -> void:
 		return
 	if _fixture == "tier3_branch_day":
 		quit(0 if _run_branch_day() else 1)
+		return
+	if _fixture == "retune":
+		quit(0 if await _run_retune() else 1)
 		return
 	root.get_node("Balance").reset()
 	var main = load("res://world/main.gd").create()
@@ -133,7 +142,11 @@ func _run_tier() -> void:
 
 func _plan(s: Dictionary) -> Array:
 	var bd = root.get_node("Balance").data
-	return load("res://core/lane_planner.gd").plan(int(s.run_seed), int(s.day), bd.wave, int(s.tier), int(s.tier_day), bd.tiers)
+	var p: Array = load("res://core/lane_planner.gd").plan(int(s.run_seed), int(s.day), bd.wave, int(s.tier), int(s.tier_day), bd.tiers)
+	var character: Dictionary = s.get("lane_character", {})  # E6: a plan under the retune flag carries the run's lane character (empty with the flag off)
+	if not character.is_empty():
+		p = load("res://core/lane_character.gd").apply(p, character, bd.tiers)
+	return p
 
 func _common(s: Dictionary) -> void:
 	s.gold_pile = 0
@@ -209,20 +222,9 @@ func _write_tier_fixtures(base: Dictionary) -> bool:
 	return true
 
 # --- E5 tier-3 fixtures (Task 23, spec 9.4) --------------------------------------------------------------------------
-# Fixtures 1, 2 and 5 come from a TierBot real-play run (the Baron close-up, the same without yard towers, the four cap nights); 3 and 4
-# are constructed from the committed tier2_full fixture (decoded and migrated to schema 6 through the real codec): the
-# tier-1 boss night was won on day 12, tier 2 entered on day 13 (tier_day 13), pressure caps on day 16 (the fixture's day).
-# Stations (counter 4, freezer 4), cards (archer 2, tank 5, hero_damage 3, gold_per_steak 1), the tank guard and gold 47 are
-# the bot run's, kept as they are.
-
-func _load_tier2_full() -> Dictionary:
-	var text := FileAccess.get_file_as_string("res://export/fixtures/tier2_full.save.json")
-	var gs = root.get_node("GameState")
-	var r: Dictionary = load("res://core/save_codec.gd").decode(text, int(gs.SCHEMA_VERSION), root.get_node("Balance").data)
-	if not bool(r.ok):
-		push_error("tier2_full does not decode: " + String(r.reason))
-		return {}
-	return r.state
+# Fixtures 1, 2, 4 and 5 come from a TierBot real-play run (the Baron close-up, the same without yard towers, the first tier-3 day's start, the
+# four cap nights; E6 Task 19, D-281: fixture 4 used to be constructed). Fixture 3 (the Baron alone) is the one constructed night: the real Baron-night
+# capture with every building, card, guard and wave member taken out (the slice-1 boss_only recipe, at tier 2).
 
 func _full_buildings(s: Dictionary, ids: Array, branches: Dictionary) -> void:
 	var gs = root.get_node("GameState")
@@ -233,24 +235,11 @@ func _full_buildings(s: Dictionary, ids: Array, branches: Dictionary) -> void:
 		s.buildings[id] = {"level": ml, "paid": 0, "hp": gs.fence_max_hp(ml, StringName(br)) if fence else 0.0, "branch": br, "branch_paid": {}}
 
 ## Every fixture as [stem, state, description], built from scratch each call.
-func _build_tier3(real_baron: Dictionary, real_cap: Dictionary) -> Array:
+func _build_tier3(real_baron: Dictionary, real_cap: Dictionary, real_t3n1: Dictionary) -> Array:
 	var bd = root.get_node("Balance").data
 	var planner = load("res://core/lane_planner.gd")
 	var layout = load("res://core/map_layout.gd")
-	var base := _load_tier2_full()
-	if base.is_empty():
-		return []
 	var out: Array = []
-	# (0) not written: the constructed Baron night, full tier-2 build (the base of fixtures 3 and 4): tier 2, day 16 (the tier-2 cap), the sign paid, every tier-1 and yard spot at level 3
-	var baron := base.duplicate(true)
-	baron.resume_phase = "NIGHT"
-	baron.night_fails = 0
-	baron.boss_pending = true
-	baron.tier_paid = 0
-	_common(baron)
-	_full_buildings(baron, layout.spots_for_tier(2), {})
-	baron.diner_hp = float(bd.build.diner_max_hp)
-	baron.lane_plan = planner.with_boss(_plan(baron))
 	# (1) REAL PLAY: the close-up snapshot of the Baron night (tier 2, sign paid) of a TierBot run, resumed at NIGHT
 	var real := real_baron.duplicate(true)
 	real.resume_phase = "NIGHT"
@@ -263,7 +252,7 @@ func _build_tier3(real_baron: Dictionary, real_cap: Dictionary) -> Array:
 		noyard.buildings[id] = {"level": 0, "paid": 0, "hp": 0.0, "branch": "", "branch_paid": {}}
 	out.append(["tier3_baron_no_yard", noyard, "(1) with tower_w and tower_e at level 0"])
 	# (3) the Baron alone: no building, no card, no guard, no other enemy (the slice-1 boss_only recipe, at tier 2)
-	var alone := baron.duplicate(true)  # constructed from tier2_full, not from the real run
+	var alone := real.duplicate(true)  # the real Baron-night capture (its day, stations, gold and lane plan with the Baron on the last wave), emptied below
 	for id in alone.buildings:
 		alone.buildings[id] = {"level": 0, "paid": 0, "hp": 0.0, "branch": "", "branch_paid": {}}
 	alone.cards = {}
@@ -274,21 +263,13 @@ func _build_tier3(real_baron: Dictionary, real_cap: Dictionary) -> Array:
 		w.fast_main = 0
 		w.fast_side = 0
 		w.side = ""
-	out.append(["tier3_baron_alone", alone, "constructed: (0) with no building, card or guard; every wave empty, the Baron on the last"])
-	# (4) the first tier-3 night: the dawn after the Baron night (day 17, tier_day 17); the two new spots unbuilt, the rest full
-	var t3 := baron.duplicate(true)
-	t3.tier = 3
-	t3.boss_pending = false
-	t3.day = int(baron.day) + 1
-	t3.tier_day = t3.day
-	for id in layout.TIER_SPOTS[3]:
-		t3.buildings[id] = {"level": 0, "paid": 0, "hp": 0.0, "branch": "", "branch_paid": {}}
-	t3.lane_plan = _plan(t3)
-	# resume DAY: the bot plays the first tier-3 day (builds the two new spots) and then the night. Gold 47 + the Baron's 150 steaks sold
-	# at 3 gold each = 497, which pays both new spots to level 3 (tower 40+80+160, fence 20+40+80 = 420) with a little left.
+	out.append(["tier3_baron_alone", alone, "constructed from (1): no building, card or guard; every wave empty, the Baron on the last"])
+	# (4) REAL PLAY: the start of the first tier-3 day (the dawn after the Baron night, card picked), resume DAY: the bot plays the day (builds the two new spots) and then the night
+	var t3 := real_t3n1.duplicate(true)
 	t3.resume_phase = "DAY"
-	t3.gold = int(baron.gold) + int(bd.monsters.stats(&"baron").steaks_per_kill) * int(bd.economy.gold_per_steak)
-	out.append(["tier3_night1", t3, "constructed: (0) one dawn later, tier 3, resume DAY; gold 47 + 150 Baron steaks x 3; tower_sw and fence_sw unbuilt; no branches"])
+	t3.night_fails = 0
+	_common(t3)
+	out.append(["tier3_night1", t3, "real play (TierBot, seed 20260930, threat) at the start of the first tier-3 day (day %d); resume DAY; gold %d; tower_sw and fence_sw unbuilt" % [int(t3.day), int(t3.gold)]])
 	# (5) REAL PLAY: the close-up of a tier-3 cap night at least 5 nights after the cap was first reached, resumed at NIGHT; one copy per policy
 	var tb = bd.tiers
 	var spots: Array = layout.spots_for_tier(3)
@@ -300,7 +281,7 @@ func _build_tier3(real_baron: Dictionary, real_cap: Dictionary) -> Array:
 		if load("res://core/wave_math.gd").pressure(int(cap.day), 3, int(cap.tier_day), tb) != int(tb.tier_cap[3]):
 			push_error("tier3_cap_%s is not at the pressure cap" % policy)
 			return []
-		var choice: Dictionary = load("res://actors/bots/tier_bot.gd").branch_choices(policy, spots, cap.lane_plan, 3)
+		var choice: Dictionary = load("res://actors/bots/tier_bot.gd").branch_choices(policy, spots, cap.lane_plan, 3, cap.get("lane_character", {}))
 		for id in spots:
 			if int(cap.buildings[id].level) != int(bd.build.max_level):
 				push_error("tier3_cap_%s: %s is not at max level in the real-play state (level %d)" % [policy, id, int(cap.buildings[id].level)])
@@ -311,7 +292,15 @@ func _build_tier3(real_baron: Dictionary, real_cap: Dictionary) -> Array:
 
 var _real_baron: Dictionary = {}
 var _real_cap: Dictionary = {}
+var _real_t3n1: Dictionary = {}
 var _cap_first_day := -1
+
+## The start of the first tier-3 day: the day phase begins (after the dawn's card pick), tier 3, no boss pending, the tier's first day.
+func _on_t3_phase(p: int, _day: int) -> void:
+	var gs = root.get_node("GameState")
+	if _real_t3n1.is_empty() and p == Phase.DAY and int(gs.tier) == 3 and not bool(gs.boss_pending) and int(gs.day) == int(gs.tier_day):
+		_real_t3n1 = gs.to_dict()
+		_real_t3n1.resume_phase = "DAY"
 
 func _on_t3_snapshot(state: Dictionary) -> void:
 	if String(state.resume_phase) != "DAY":
@@ -336,18 +325,20 @@ func _play_real() -> bool:
 	main.add_child(bot)
 	bot.setup(main)
 	root.get_node("EventBus").snapshot_taken.connect(_on_t3_snapshot)
+	root.get_node("EventBus").phase_changed.connect(_on_t3_phase)
 	main.phase_controller.start_new_game(20260930)
 	for i in 60 * 3600 * 4:
-		if not _real_baron.is_empty() and not _real_cap.is_empty():
+		if not _real_baron.is_empty() and not _real_cap.is_empty() and not _real_t3n1.is_empty():
 			break
 		await physics_frame
-	var ok := not _real_baron.is_empty() and not _real_cap.is_empty()
+	var ok := not _real_baron.is_empty() and not _real_cap.is_empty() and not _real_t3n1.is_empty()
 	if not ok:
-		push_error("real play did not reach both states: baron %s cap %s (day %d tier %d)" % [not _real_baron.is_empty(), not _real_cap.is_empty(), gs.day, gs.tier])
-	print("real play: Baron night close-up day %d; tier-3 cap night day %d (cap first reached day %d)" % [int(_real_baron.get("day", -1)), int(_real_cap.get("day", -1)), _cap_first_day])
+		push_error("real play did not reach all three states: baron %s cap %s first tier-3 day %s (day %d tier %d)" % [not _real_baron.is_empty(), not _real_cap.is_empty(), not _real_t3n1.is_empty(), gs.day, gs.tier])
+	print("real play: Baron night close-up day %d; first tier-3 day start day %d gold %d; tier-3 cap night day %d (cap first reached day %d)" % [int(_real_baron.get("day", -1)), int(_real_t3n1.get("day", -1)), int(_real_t3n1.get("gold", -1)), int(_real_cap.get("day", -1)), _cap_first_day])
 	main.get_parent().remove_child(main)
 	main.free()
 	root.get_node("EventBus").snapshot_taken.disconnect(_on_t3_snapshot)
+	root.get_node("EventBus").phase_changed.disconnect(_on_t3_phase)
 	return ok
 
 func _run_tier3() -> bool:
@@ -355,8 +346,8 @@ func _run_tier3() -> bool:
 		return false
 	var bd = root.get_node("Balance").data
 	var codec = load("res://core/save_codec.gd")
-	var a := _build_tier3(_real_baron, _real_cap)
-	var b := _build_tier3(_real_baron, _real_cap)
+	var a := _build_tier3(_real_baron, _real_cap, _real_t3n1)
+	var b := _build_tier3(_real_baron, _real_cap, _real_t3n1)
 	if a.is_empty() or a.size() != b.size():
 		push_error("tier3 fixtures were not built")
 		return false
@@ -398,4 +389,106 @@ func _run_branch_day() -> bool:
 		push_error("fixture tier3_branch_day invalid: " + why)
 		return false
 	_write("tier3_branch_day", s)
+	return true
+
+# --- E6 flag-on fixtures (Task 19, spec 8.3) -------------------------------------------------------------------------
+# One real TierBot run (threat policy, the retune flag on in memory only, the bots as they are) on a tuning seed. Captured: the first tier-3 day's start (retune_first_t3_night, resume DAY;
+# retune_respawn is the same state with resume NIGHT, the state the respawn sim needs: the south-west spots unbuilt, the zone fills) and the close-up of every tier-3 night for RETUNE_WINDOW_DAYS days, from which
+# retune_siege_night is chosen by a fixed rule: the EARLIEST close-up whose raw plan (LanePlanner.plan, before the lane character) has a wave with brutes whose siege lane is neither its main nor its side lane,
+# and whose flag-on plan has a wave with an extra hare group, with at least RETUNE_MIN_BRUTES brutes in the night. The table of every candidate day is printed. The chosen close-up is written resumed at NIGHT.
+
+const RETUNE_WINDOW_DAYS := 9
+const RETUNE_MIN_BRUTES := 2
+var _rt_first_day_state: Dictionary = {}
+var _rt_closeups: Dictionary = {}  # day -> close-up state (tier 3, not a boss night)
+
+func _on_rt_phase(p: int, _day: int) -> void:
+	var gs = root.get_node("GameState")
+	if _rt_first_day_state.is_empty() and p == Phase.DAY and int(gs.tier) == 3 and not bool(gs.boss_pending) and int(gs.day) == int(gs.tier_day):
+		_rt_first_day_state = gs.to_dict()
+		_rt_first_day_state.resume_phase = "DAY"
+
+func _on_rt_snapshot(state: Dictionary) -> void:
+	if String(state.resume_phase) == "DAY" and int(state.tier) == 3 and not bool(state.boss_pending):
+		_rt_closeups[int(state.day)] = state.duplicate(true)
+
+## [brutes in the night, waves whose brutes' siege lane is neither raw main nor raw side, waves with an extra group] of a close-up under today's rules.
+func _rt_stats(s: Dictionary) -> Array:
+	var bd = root.get_node("Balance").data
+	var raw: Array = load("res://core/lane_planner.gd").plan(int(s.run_seed), int(s.day), bd.wave, int(s.tier), int(s.tier_day), bd.tiers)
+	var siege := String(s.lane_character.siege)
+	var brutes := 0
+	var siege_neither := 0
+	for w in raw:
+		var b := int(w.brute_main) + int(w.brute_side)
+		brutes += b
+		if b > 0 and String(w.main) != siege and String(w.side) != siege:
+			siege_neither += 1
+	var extra_waves := 0
+	for w in s.lane_plan:
+		if not (w.get("extra", []) as Array).is_empty():
+			extra_waves += 1
+	return [brutes, siege_neither, extra_waves]
+
+func _run_retune() -> bool:
+	var gs = root.get_node("GameState")
+	var bal = root.get_node("Balance")
+	bal.reset()
+	bal.data.tiers.retune_enabled = true  # in memory only: balance/ is never written
+	var main = load("res://world/main.gd").create()
+	root.add_child(main)
+	var bot = load("res://actors/bots/tier_bot.gd").new()
+	main.add_child(bot)
+	bot.setup(main)
+	root.get_node("EventBus").snapshot_taken.connect(_on_rt_snapshot)
+	root.get_node("EventBus").phase_changed.connect(_on_rt_phase)
+	main.phase_controller.start_new_game(_retune_seed)
+	var first_t3_day := -1
+	for i in 60 * 3600 * 4:
+		await physics_frame
+		if first_t3_day < 0 and not _rt_first_day_state.is_empty():
+			first_t3_day = int(_rt_first_day_state.day)
+		if first_t3_day >= 0 and _rt_closeups.has(first_t3_day + RETUNE_WINDOW_DAYS):
+			break
+	main.get_parent().remove_child(main)
+	main.free()
+	root.get_node("EventBus").snapshot_taken.disconnect(_on_rt_snapshot)
+	root.get_node("EventBus").phase_changed.disconnect(_on_rt_phase)
+	if _rt_first_day_state.is_empty() or not _rt_closeups.has(first_t3_day + RETUNE_WINDOW_DAYS):
+		push_error("the retune run did not reach tier 3 plus %d days (day %d tier %d)" % [RETUNE_WINDOW_DAYS, int(gs.day), int(gs.tier)])
+		return false
+	var bd = bal.data
+	var codec = load("res://core/save_codec.gd")
+	var days: Array = _rt_closeups.keys()
+	days.sort()
+	var chosen := -1
+	print("RETUNE_RUN seed=%d character=%s first tier-3 day=%d (gold %d)" % [_retune_seed, str(_rt_first_day_state.lane_character), first_t3_day, int(_rt_first_day_state.gold)])
+	for d in days:
+		var st: Array = _rt_stats(_rt_closeups[d])
+		print("CANDIDATE day=%d brutes=%d waves_siege_neither=%d waves_with_extra=%d" % [d, st[0], st[1], st[2]])
+		if chosen < 0 and d <= first_t3_day + RETUNE_WINDOW_DAYS and st[0] >= RETUNE_MIN_BRUTES and st[1] >= 1 and st[2] >= 1:
+			chosen = d
+	if chosen < 0:
+		push_error("no close-up in the window has a siege lane that is neither main nor side together with an extra hare group (seed %d): STOP and report the search" % _retune_seed)
+		return false
+	var first := _rt_first_day_state.duplicate(true)
+	_common(first)
+	first.night_fails = 0
+	var respawn := first.duplicate(true)
+	respawn.resume_phase = "NIGHT"
+	var siege: Dictionary = _rt_closeups[chosen].duplicate(true)
+	siege.resume_phase = "NIGHT"
+	siege.night_fails = 0
+	_common(siege)
+	var out: Array = [["retune_first_t3_night", first], ["retune_respawn", respawn], ["retune_siege_night", siege]]
+	for pair in out:
+		var why: String = codec.validate(pair[1], bd)
+		if why != "":
+			push_error("fixture %s invalid: %s" % [pair[0], why])
+			return false
+		var s: Dictionary = pair[1]
+		print("FIXTURE %s v=%d seed=%d day=%d tier_day=%d gold=%d phase=%s character=%s" % [pair[0], int(s.v), int(s.run_seed), int(s.day), int(s.tier_day), int(s.gold), s.resume_phase, str(s.lane_character)])
+	print("CHOSEN siege-lane night: seed=%d day=%d stats(brutes, waves_siege_neither, waves_with_extra)=%s" % [_retune_seed, chosen, str(_rt_stats(_rt_closeups[chosen]))])
+	for pair in out:
+		_write(pair[0], pair[1])
 	return true

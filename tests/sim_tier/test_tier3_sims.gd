@@ -1,7 +1,7 @@
 extends GutTest
 ## E5 tier 3, Task 23: spec 9.2 sims 2 to 8 (sim 1 and sim 6's multi-seed ranking are report scripts, D-274.4). Slice 1's sims are in
 ## test_tier_sims.gd; this file is separate so the job can be split into sim-tiers-a / sim-tiers-b by moving one file.
-## Every state starts from a schema-6 fixture written by `tests/sim/make_save.gd -- --fixture=tier3` (fixtures 1, 2 and 5 come from a ~155 s TierBot real-play run, the rest are constructed; the in-script "built twice" check proves the construction is pure and two runs with identical md5 prove determinism).
+## Every state starts from a fixture written by `tests/sim/make_save.gd -- --fixture=tier3` (all come from one ~155 s TierBot real-play run except the Baron alone of sim 4, the one constructed night, built from the real Baron-night capture; E6 Task 19 replaced the constructed first-tier-3 night of sims 5 and 7 by a recording; two runs with identical md5 prove determinism).
 ## Wall-clock prints are information only, never asserted. Reads only signals and GameState (D-113), plus the pool `grew` signals.
 
 ## Sim 8: slice 1's tier2_night1 played by the tier bot, measured before this task's code existed on this branch's base (7484180):
@@ -66,12 +66,31 @@ func _spot_levels(ids: Array) -> Array:
 	return ids.map(func(id): return int(GameState.buildings[id].level) if GameState.buildings.has(id) else -1)
 
 ## Stale-fixture guard: the fixtures carry a SAVED lane plan, so a later change to wave counts, hare share, wave size or the lane draw would leave
-## the sims playing the old night and green. Pure computation: the saved plan must equal what the planner makes today.
-func _assert_fresh_plan(boss_night: bool) -> void:
-	var fresh := LanePlanner.plan(GameState.run_seed, GameState.day, Balance.data.wave, GameState.tier, GameState.tier_day, Balance.data.tiers)
+## the sims playing the old night and green. Pure computation: the plan STORED in the fixture file (decoded through the codec, never read back from GameState,
+## which could re-derive it) must equal what the planner makes today for the fixture's run, day and tier. Whole-number floats of the decoded JSON are
+## compared as ints. Mutation: change a wave count or the hare share in the planner and this fails for every fixture; a self-comparison would not.
+func _assert_fresh_plan(stem: String, boss_night: bool) -> void:
+	var stored: Dictionary = SaveCodec.decode(FileAccess.get_file_as_string("res://export/fixtures/%s.save.json" % stem), GameState.SCHEMA_VERSION, Balance.data).state
+	var fresh := LanePlanner.plan(int(stored.run_seed), int(stored.day), Balance.data.wave, int(stored.tier), int(stored.tier_day), Balance.data.tiers)
 	if boss_night:
 		fresh = LanePlanner.with_boss(fresh)
-	assert_eq(GameState.lane_plan, fresh, "stale fixture: re-run make_save.gd -- --fixture=tier3")
+	assert_eq(_canon(stored.lane_plan), _canon(fresh), "stale fixture %s: re-run make_save.gd -- --fixture=tier3" % stem)
+	assert_eq(_canon(GameState.lane_plan), _canon(fresh), "%s: the game started from the fixture plays the planner's plan" % stem)
+
+func _canon(plan: Array) -> Array:
+	return plan.map(func(w): return JSON.stringify(_norm(w), "", true))
+
+func _norm(v: Variant) -> Variant:
+	if v is Dictionary:
+		var d := {}
+		for k in v:
+			d[k] = _norm(v[k])
+		return d
+	if v is Array:
+		return v.map(func(x): return _norm(x))
+	if v is float and is_equal_approx(v, roundf(v)):
+		return int(roundf(v))
+	return v
 
 # ---- sim 2: the Baron night, full tier-2 build ----------------------------------------------------------------------
 
@@ -79,7 +98,7 @@ func test_2_the_baron_night_with_the_full_tier2_build_is_held_with_0_retries() -
 	_start("tier3_baron_full", TierBot)
 	assert_eq(GameState.tier, 2)
 	assert_true(GameState.is_boss_night(), "tonight is the Baron night")
-	_assert_fresh_plan(true)
+	_assert_fresh_plan("tier3_baron_full", true)
 	assert_eq(GameState.night_fails, 0, "a first attempt")
 	assert_eq(_spot_levels(MapLayout.spots_for_tier(2)), [3, 3, 3, 3, 3, 3, 3], "the full tier-2 build (precondition)")
 	var n := await h.run_night()
@@ -96,7 +115,7 @@ func test_2_the_baron_night_with_the_full_tier2_build_is_held_with_0_retries() -
 func test_3_the_baron_night_without_the_yard_towers_is_lost() -> void:
 	_start("tier3_baron_no_yard", TierBot)
 	assert_true(GameState.is_boss_night())
-	_assert_fresh_plan(true)
+	_assert_fresh_plan("tier3_baron_no_yard", true)
 	# It is sim 2's night with only the yard towers taken out: decode both fixtures and compare everything but those two levels.
 	var a: Dictionary = SaveCodec.decode(FileAccess.get_file_as_string("res://export/fixtures/tier3_baron_full.save.json"), GameState.SCHEMA_VERSION, Balance.data).state.duplicate(true)
 	var b: Dictionary = SaveCodec.decode(FileAccess.get_file_as_string("res://export/fixtures/tier3_baron_no_yard.save.json"), GameState.SCHEMA_VERSION, Balance.data).state.duplicate(true)
@@ -181,16 +200,16 @@ func test_4_the_hero_at_the_zone_reaches_the_baron_before_it_reaches_the_zone() 
 
 # ---- sim 5: the first tier-3 night ----------------------------------------------------------------------------------
 
-## The real flow is dawn reveal, card pick, a day, then the night, so the fixture starts at the DAY of the first tier-3 night. Its gold,
-## 497, is the 47 the tier-2 run left plus the Baron's 150 steaks sold at 3 gold each (make_save.gd); it pays tower_sw (40+80+160) and
-## fence_sw (20+40+80) to level 3, which the bot buys in the day.
+## The real flow is dawn reveal, card pick, a day, then the night, so the fixture starts at the DAY of the first tier-3 night. E6 Task 19 (D-281): the
+## fixture is a RECORDING of the TierBot's own run (the start of its first tier-3 day, gold 31: the real run had spent what the constructed one still held,
+## 497 = 47 + the Baron's 150 steaks x 3), not a construction. The bot buys tower_sw (40+80+160) and fence_sw (20+40+80) to level 3 from the day's own income.
 func test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries() -> void:
 	_start("tier3_night1", TierBot)
 	assert_eq(h.main.phase_controller.phase, Phase.DAY, "the fixture loads in the DAY (precondition)")
-	assert_eq(GameState.gold, 497, "47 + 150 Baron steaks x 3 gold (precondition)")
+	assert_eq(GameState.gold, 31, "the gold the real TierBot run held at the start of the first tier-3 day (precondition; was 497 on the constructed fixture)")
 	assert_eq(GameState.tier, 3)
 	assert_eq(GameState.tier_day, GameState.day, "the first night of the tier")
-	_assert_fresh_plan(false)
+	_assert_fresh_plan("tier3_night1", false)
 	assert_eq(_spot_levels(["tower_sw", "fence_sw"]), [0, 0], "the new spots are unbuilt (precondition)")
 	# Sim 9 (the ruling), a plan-level check inside this sim so it adds no golden entry: a tier-3 night at the full brute ramp
 	# (tier_day + brute_ramp_days or later) has brutes on the main lane only, exactly brute_cap_main per wave (read from balance, plus
@@ -241,7 +260,7 @@ func test_6_every_branch_policy_holds_the_tier3_cap_with_0_retries() -> void:
 		_start("tier3_cap_" + policy, TierBot)
 		(h.bot as TierBot).policy = policy
 		assert_eq(GameState.tier, 3)
-		_assert_fresh_plan(false)
+		_assert_fresh_plan("tier3_cap_" + policy, false)
 		assert_eq(GameState.pressure(), Balance.data.tiers.tier_cap[3], "%s: at the tier-3 cap" % policy)
 		assert_eq(GameState.pressure(), 12, "%s: the ruling's cap, as a literal (the saved plan is fixed, so the balance alone would not move this sim)" % policy)
 		assert_almost_eq(float(GameState.lane_plan[0].hp_mult), WaveMath.hp_mult(12, 0, Balance.data.wave), 1e-9, "%s: the plan is the pressure-12 plan" % policy)
