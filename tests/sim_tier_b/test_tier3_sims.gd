@@ -1,6 +1,6 @@
 extends GutTest
 ## E5 tier 3, Task 23: spec 9.2 sims 2 to 8 (sim 1 and sim 6's multi-seed ranking are report scripts, D-274.4). Slice 1's sims are in
-## test_tier_sims.gd; this file is separate so the job can be split into sim-tiers-a / sim-tiers-b by moving one file.
+## test_tier_sims.gd; this file lives in tests/sim_tier_b (the sim-tiers-b job; test_tier_sims.gd and test_retune_sims.gd are sim-tiers-a).
 ## Every state starts from a fixture written by `tests/sim/make_save.gd -- --fixture=tier3` (all come from one ~155 s TierBot real-play run except the Baron alone of sim 4, the one constructed night, built from the real Baron-night capture; E6 Task 19 replaced the constructed first-tier-3 night of sims 5 and 7 by a recording; two runs with identical md5 prove determinism).
 ## Wall-clock prints are information only, never asserted. Reads only signals and GameState (D-113), plus the pool `grew` signals.
 
@@ -135,6 +135,9 @@ func test_3_the_baron_night_without_the_yard_towers_is_lost() -> void:
 
 # ---- sim 4: the Baron alone is catchable ------------------------------------------------------------------------------
 
+## The night is constructed (E6 Task 19, D-281, spec 8.3): "real gear" means the day, stations, gold and lane plan of the real Baron-night capture (the TierBot run's close-up);
+## its buildings, cards and guard are stripped and every wave but the Baron's is emptied.
+
 ## Holds the hero at the Baron lane's zone centre until the Baron spawns, then runs at it (hero speed, straight line).
 class ChaseBot extends BotBase:
 	var zone_center := Vector2.ZERO
@@ -201,8 +204,8 @@ func test_4_the_hero_at_the_zone_reaches_the_baron_before_it_reaches_the_zone() 
 # ---- sim 5: the first tier-3 night ----------------------------------------------------------------------------------
 
 ## The real flow is dawn reveal, card pick, a day, then the night, so the fixture starts at the DAY of the first tier-3 night. E6 Task 19 (D-281): the
-## fixture is a RECORDING of the TierBot's own run (the start of its first tier-3 day, gold 31: the real run had spent what the constructed one still held,
-## 497 = 47 + the Baron's 150 steaks x 3), not a construction. The bot buys tower_sw (40+80+160) and fence_sw (20+40+80) to level 3 from the day's own income.
+## fixture is a RECORDING of the TierBot's own run (the start of its first tier-3 day, gold 31: the Baron night's gold; the Baron's 278 steaks sit unsold in
+## the freezer at that moment, where the constructed fixture had already sold 150 of them for 497 = 47 + 150 x 3), not a construction. The bot buys tower_sw (40+80+160) and fence_sw (20+40+80) to level 3 from the day's own income.
 func test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries() -> void:
 	_start("tier3_night1", TierBot)
 	assert_eq(h.main.phase_controller.phase, Phase.DAY, "the fixture loads in the DAY (precondition)")

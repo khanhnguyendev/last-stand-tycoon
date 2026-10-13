@@ -32,6 +32,10 @@ func _run() -> void:
 		push_error("usage: -- --fixture=day3_counter5|night3|tier|tier3|tier3_branch_day|retune [--seed=N]")
 		quit(2)
 		return
+	if _fixture == "retune" and not _retune_seed in SweepMath.set_seeds(SweepMath.TUNING_SET):
+		push_error("--fixture=retune: seed %d is not in the tuning set %s (hold-out seeds are never used)" % [_retune_seed, str(SweepMath.set_seeds(SweepMath.TUNING_SET))])
+		quit(2)
+		return
 	if _fixture == "tier":
 		await _run_tier()
 		return
@@ -142,11 +146,7 @@ func _run_tier() -> void:
 
 func _plan(s: Dictionary) -> Array:
 	var bd = root.get_node("Balance").data
-	var p: Array = load("res://core/lane_planner.gd").plan(int(s.run_seed), int(s.day), bd.wave, int(s.tier), int(s.tier_day), bd.tiers)
-	var character: Dictionary = s.get("lane_character", {})  # E6: a plan under the retune flag carries the run's lane character (empty with the flag off)
-	if not character.is_empty():
-		p = load("res://core/lane_character.gd").apply(p, character, bd.tiers)
-	return p
+	return load("res://core/lane_planner.gd").plan(int(s.run_seed), int(s.day), bd.wave, int(s.tier), int(s.tier_day), bd.tiers)
 
 func _common(s: Dictionary) -> void:
 	s.gold_pile = 0
@@ -394,11 +394,10 @@ func _run_branch_day() -> bool:
 # --- E6 flag-on fixtures (Task 19, spec 8.3) -------------------------------------------------------------------------
 # One real TierBot run (threat policy, the retune flag on in memory only, the bots as they are) on a tuning seed. Captured: the first tier-3 day's start (retune_first_t3_night, resume DAY;
 # retune_respawn is the same state with resume NIGHT, the state the respawn sim needs: the south-west spots unbuilt, the zone fills) and the close-up of every tier-3 night for RETUNE_WINDOW_DAYS days, from which
-# retune_siege_night is chosen by a fixed rule: the EARLIEST close-up whose raw plan (LanePlanner.plan, before the lane character) has a wave with brutes whose siege lane is neither its main nor its side lane,
-# and whose flag-on plan has a wave with an extra hare group, with at least RETUNE_MIN_BRUTES brutes in the night. The table of every candidate day is printed. The chosen close-up is written resumed at NIGHT.
+# retune_siege_night is chosen by a fixed rule: the EARLIEST close-up AFTER the first tier-3 night (that one is retune_first_t3_night) whose raw plan (LanePlanner.plan, before the lane character) has a wave with brutes whose siege lane is neither its main nor its side lane,
+# and whose flag-on plan has a wave with an extra hare group, and whose threat-matched build stands (tower_sw Longbow, fence_sw Stone). The table of every candidate day is printed. The chosen close-up is written resumed at NIGHT.
 
 const RETUNE_WINDOW_DAYS := 9
-const RETUNE_MIN_BRUTES := 2
 var _rt_first_day_state: Dictionary = {}
 var _rt_closeups: Dictionary = {}  # day -> close-up state (tier 3, not a boss night)
 
@@ -429,6 +428,11 @@ func _rt_stats(s: Dictionary) -> Array:
 		if not (w.get("extra", []) as Array).is_empty():
 			extra_waves += 1
 	return [brutes, siege_neither, extra_waves]
+
+## The threat-matched build the sim needs: Longbow on tower_sw and Stone wall on fence_sw, both at level 3.
+func _rt_build_stands(s: Dictionary) -> bool:
+	var b: Dictionary = s.buildings
+	return int(b.tower_sw.level) == 3 and String(b.tower_sw.branch) == "longbow" and int(b.fence_sw.level) == 3 and String(b.fence_sw.branch) == "stone"
 
 func _run_retune() -> bool:
 	var gs = root.get_node("GameState")
@@ -466,7 +470,7 @@ func _run_retune() -> bool:
 	for d in days:
 		var st: Array = _rt_stats(_rt_closeups[d])
 		print("CANDIDATE day=%d brutes=%d waves_siege_neither=%d waves_with_extra=%d" % [d, st[0], st[1], st[2]])
-		if chosen < 0 and d <= first_t3_day + RETUNE_WINDOW_DAYS and st[0] >= RETUNE_MIN_BRUTES and st[1] >= 1 and st[2] >= 1:
+		if chosen < 0 and d <= first_t3_day + RETUNE_WINDOW_DAYS and d > first_t3_day and _rt_build_stands(_rt_closeups[d]) and st[1] >= 1 and st[2] >= 1:
 			chosen = d
 	if chosen < 0:
 		push_error("no close-up in the window has a siege lane that is neither main nor side together with an extra hare group (seed %d): STOP and report the search" % _retune_seed)

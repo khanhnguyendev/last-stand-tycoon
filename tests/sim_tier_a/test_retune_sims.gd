@@ -9,13 +9,14 @@ extends GutTest
 ## path re-derives it: a stored plan replaced by the unapplied one comes back equal to the planner's after GameState.from_dict (flag on, spec 3.4).
 ## Wall-clock prints are information only, never asserted. Reads only signals and GameState (D-113), plus the pool `grew` signals.
 
-## The tolerance below the recorded minimum diner fraction of (a): three recorded runs of the sim (see the comment at BOUND_A) minus this margin, rounded down to 0.05.
-const MARGIN_A := 0.15
-## (a)'s lower bound on the minimum diner fraction during the night. Three recorded runs of this sim gave 0.96, 0.96 and 0.96 (the game is deterministic, so they agree);
-## 0.96 - MARGIN_A = 0.81, rounded down to 0.05 = 0.80. Not an exact float: a floor with a margin.
-const BOUND_A := 0.80
+## (a)'s lower bound on the minimum diner fraction during the night. Three recorded runs of this sim gave 0.96, 0.96 and 0.96 (the game is deterministic, so they agree).
+## The same night with tower_sw and fence_sw unbranched in memory (held, but worse) ended at 0.8033, so 0.90 sits between the two measured values: the threat-matched
+## build passes, the unbranched one fails. Not an exact float: a floor.
+const BOUND_A := 0.90
 ## D-281: no first tier-3 night below 25% diner HP.
 const FIRST_NIGHT_MIN := 0.25
+## (b)'s recorded floor: the run gave 1.00; 1.00 - 0.15 = 0.85 (never above 0.85).
+const FLOOR_B := 0.85
 const SIEGE_STEM := "retune_siege_night"
 const FIRST_STEM := "retune_first_t3_night"
 const RESPAWN_STEM := "retune_respawn"
@@ -30,6 +31,7 @@ var _t0 := 0
 var growth: Array = []
 var _knock_times: Dictionary = {}
 var _revive_times: Dictionary = {}
+var _kills: Dictionary = {}  # lane -> {boar, hare, brute}: every enemy_killed of the night
 
 func before_each() -> void:
 	Balance.reset()
@@ -38,8 +40,32 @@ func before_each() -> void:
 	h = SimHarness.new(self)
 	_t0 = Time.get_ticks_msec()
 	growth = []
+	_kills = {}
+
+func _on_kill(_i: int, lane: StringName, _p: Vector3, kind: StringName) -> void:
+	var row: Dictionary = _kills.get(String(lane), {"boar": 0, "hare": 0, "brute": 0})
+	row[String(kind)] = int(row.get(String(kind), 0)) + 1
+	_kills[String(lane)] = row
+
+## The night's planned enemies per lane ({boar, hare, brute}) from the plan AFTER the lane-character step; the kill tally must equal it
+## (a cleared night kills every enemy), so brutes off the siege lane or a dropped extra group fail.
+func _planned() -> Dictionary:
+	var out := {}
+	var comp := LanePlanner.composition_by_lane(GameState.lane_plan, 3)
+	for lane in comp:
+		out[String(lane)] = {"boar": int(comp[lane].boar), "hare": int(comp[lane].hare), "brute": int(comp[lane].brute)}
+	return out
+
+func _killed() -> Dictionary:
+	var out := {}
+	for lane in ["west", "north", "east", "sw"]:
+		var row: Dictionary = _kills.get(lane, {})
+		out[lane] = {"boar": int(row.get("boar", 0)), "hare": int(row.get("hare", 0)), "brute": int(row.get("brute", 0))}
+	return out
 
 func after_each() -> void:
+	if EventBus.enemy_killed.is_connected(_on_kill):
+		EventBus.enemy_killed.disconnect(_on_kill)
 	for pair in [[EventBus.guard_knocked_out, _on_ko], [EventBus.guard_revived, _on_revive]]:
 		var sig: Signal = pair[0]
 		if sig.is_connected(pair[1]):
@@ -57,6 +83,7 @@ func _watch_pools() -> void:
 func _start(stem: String, phase := "") -> void:
 	h.start_from(stem, TierBot, 0, phase)
 	_watch_pools()
+	EventBus.enemy_killed.connect(_on_kill)
 
 func _spot_levels(ids: Array) -> Array:
 	return ids.map(func(id): return int(GameState.buildings[id].level) if GameState.buildings.has(id) else -1)
@@ -151,7 +178,6 @@ func test_a_the_night_whose_siege_lane_is_neither_main_nor_side_is_held() -> voi
 		extra_waves += 1
 		assert_eq(ex.size(), 1, "one extra group")
 		assert_eq(String(ex[0].lane), "west", "the extra group is on the hare lane")
-		assert_eq([w.main, w.side, ex[0].lane].size(), 3)
 		assert_false(ex[0].lane == w.main or ex[0].lane == w.side, "the extra group's lane is a third lane")
 		assert_gt(int(ex[0].count), 0, "the extra group has boars (hares)")
 	assert_gte(extra_waves, 1, "the plan carries an extra group (the hare lane is neither main nor side in a wave)")
@@ -175,11 +201,15 @@ func test_a_the_night_whose_siege_lane_is_neither_main_nor_side_is_held() -> voi
 	assert_eq(d, [3, 3], "the threat-matched build stands on the siege lane (precondition)")
 	assert_eq(String(GameState.buildings.tower_sw.branch), "longbow", "Longbow on the siege lane's tower (the threat-matched purchase)")
 	assert_eq(String(GameState.buildings.fence_sw.branch), "stone", "Stone wall on the siege lane's fence")
+	var planned := _planned()
 	var n := await h.run_night()
+	gut.p("RECORD sim a: planned %s killed %s" % [planned, _killed()])
 	gut.p("RECORD sim a: %s; minimum diner fraction %.4f; pool growth %s" % [n, n.diner_frac, growth])
 	assert_false(n.failed, "the siege night is held without a retry")
 	assert_true(n.cleared, "the siege night is cleared on the first attempt")
 	assert_eq(GameState.night_fails, 0, "0 retries")
+	assert_eq(_killed(), planned, "the night killed exactly the planned enemies per lane and kind: every brute on sw, the extra group's hares on west")
+	assert_eq(int(planned.sw.brute), brutes_now, "all of the night's brutes are planned on the siege lane")
 	assert_gte(n.diner_frac, BOUND_A, "the diner stays at or above the bound taken from the recorded runs minus a margin (never an exact float)")
 	assert_eq(growth, [], "the enemy, steak and projectile pools never grew at runtime")
 
@@ -197,12 +227,19 @@ func test_b_the_first_tier3_night_is_survived_at_or_above_25_percent_by_the_thre
 	assert_eq(_spot_levels(["tower_sw", "fence_sw"]), [0, 0], "the new spots are unbuilt (precondition)")
 	var dday := await h.run_day()
 	assert_true(dday.closed, "the bot closes up")
+	assert_eq(_spot_levels(["tower_sw", "fence_sw"]), [3, 3], "the bot built the two new spots to level 3 in the day")
+	var planned := _planned()
 	var n := await h.run_night()
+	gut.p("RECORD sim b: planned %s killed %s" % [planned, _killed()])
 	gut.p("RECORD sim b: first tier-3 night, new spots %s; %s; minimum diner fraction %.4f; pool growth %s" % [_spot_levels(["tower_sw", "fence_sw"]), n, n.diner_frac, growth])
 	assert_false(n.failed, "no loss")
 	assert_true(n.cleared, "held on the first attempt")
 	assert_eq(GameState.night_fails, 0, "0 retries")
+	assert_eq(_killed(), planned, "the night killed exactly the planned enemies per lane and kind")
 	assert_gte(n.diner_frac, FIRST_NIGHT_MIN, "D-281: the first tier-3 night is survived at or above 25% diner HP")
+	assert_gte(n.diner_frac, FLOOR_B, "and at or above the recorded floor (measured minus 0.15)")
+	assert_eq(h.bot.stuck_count, 0, "the bot never got stuck")
+	assert_eq(h.bot.skipped_goals, 0, "the bot skipped no goal")
 	assert_eq(growth, [], "the enemy, steak and projectile pools never grew at runtime")
 
 # ---- (c) respawn, flag on ---------------------------------------------------------------------------------------------
@@ -221,9 +258,14 @@ func _enemies_in_zone(lane: String) -> int:
 			n += 1
 	return n
 
-## Sim 7 of test_tier3_sims.gd with the flag on: the first tier-3 night of seed 3 from its start (resume NIGHT, tower_sw and fence_sw unbuilt: the worst case for the zone). The tank dies to any hit in
-## memory (max_hp 1, no growth), so only the respawn protection keeps it alive after it respawns; the sim knocks it out once through GameState.damage_guard while enemies stand in the south-west zone.
-## The south-west lane is this run's siege lane, so brutes and boars fill that zone.
+## Sim (c): sim 7 of test_tier3_sims.gd with the flag on. WHAT IS RECORDED: the first tier-3 day's start of seed 3 from real flag-on bot play (retune_respawn: its plan, cards, tank guard and
+## buildings; tower_sw and fence_sw unbuilt). WHAT IS INSTRUMENTED (this is an instrumented scene, as sim 7 always was): the phase is overridden to NIGHT (the fixture resumes at
+## once, no day is played); the tank's max HP is 1 in memory (any hit kills it, so only the respawn protection can keep it alive); the knock-out is scripted through
+## GameState.damage_guard once >= CROWD enemies stand in the south-west zone; the diner has DINER_HP_C HP in memory. WHAT IT PROVES: in a crowded siege-lane zone (the south-west lane is this
+## run's siege lane) a respawned guard is not knocked out again within 5 s while an enemy stands within its reach (respawn_protect_s = 0 makes it fail: the tank falls 0.13 s after the respawn).
+## WHAT IT DOES NOT: the full 5 s window at the real 300 HP diner (that night is lost about 94 s in with the south-west spots unbuilt, before a respawn into the second wave has been watched 5 s),
+## nor a held night: on the held night (retune_siege_night, real 300 HP, tower_sw and fence_sw built) the south-west zone never holds a crowd long enough to observe a respawn into it (tried at CROWD 1 to 4: the zone is empty 3 s after
+## the knock-out, or never reaches 3).
 func test_c_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again_within_5_s_with_the_flag_on() -> void:
 	_knock_times = {}
 	_revive_times = {}
