@@ -186,6 +186,13 @@ column). Review queue 30 to 36. Known and left by design: a badge can be cut by 
 HUD's gold number (hiding clipped badges hid them in 48.6% of other-zone views); the reveal's badges, the third arrow,
 the stars and the one tether are small at 40%; one pad shows its cost while the hero stands at HOME.
 
+**Video (86 s, iOS Simulator, debug build with `?retune=1`, bot play):** `media/e6/checkpoint/e6_retune.mp4`, contact
+sheet `e6_retune_frames.png`, notes in `README.md` there. It shows a tier-3 dawn with the three banners, the lane
+badges, the pads and the branch cards with gold falling as pads are paid. It does NOT show the tier-3 reveal (the
+save is already at tier 3), and it is not unmodified play: the fixture's gold was raised to 1,500 for the recording,
+the dawn is from the session's second night (the first attempt ended with the diner falling), and the later
+segments are cut from different moments of the day.
+
 ## 8. Performance (phase A, PR #64, merged; iOS Simulator: a proxy, the phone check stays on the final review)
 
 | Reading | fps | Wanted | Worst frame | Draw calls |
