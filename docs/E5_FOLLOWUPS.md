@@ -22,7 +22,7 @@ it is done.
 
 ## Before tier 3
 
-4. **Sim budget**: done (D-247). New tier sims go in `tests/sim_tier/` with an entry in `tests/sim_ticks.golden.json`.
+4. **Sim budget**: done (D-247). New tier sims go in `tests/sim_tier_a/` or `tests/sim_tier_b/` (two suites since E6, D-301) with an entry in `tests/sim_ticks.golden.json`.
 5. `tests/sim/sweep_runner.gd` `at_cap` and `actors/bots/tier_bot.gd` `create_for_tier(2)` hard-code tier 2.
 6. `world/tier_reveal.gd`: `yard_stones` is one MultiMesh for every open yard; a tier that opens more yards must split
    it per tier before reusing the stones step.

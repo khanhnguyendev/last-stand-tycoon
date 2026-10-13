@@ -23,9 +23,9 @@ Goals, judged on the final report (section 8):
 | Target | Rule |
 |---|---|
 | Reading pays | threat-matched beats the best fixed pair by a mean of at least 5 points of diner HP, ahead on at least 6 of 8 seeds, and its mean lead is not negative on any siege lane |
-| Non-punishing | zero retry nights at the tier-3 cap for every policy, unbranched included |
+| Non-punishing | zero retry nights at the tier-3 cap for every policy except `unbranched`, the floor reference (D-298) |
 | Balance between pairs | the four fixed pairs are within 15 points |
-| First nights | no first tier-3 night below 25% diner HP |
+| First nights | no first tier-3 night below 25% diner HP, every policy; a first night that needed a retry is a lost night |
 | Fence tax | at most 30% median at the cap; fences stay a recurring sink |
 | Readability | zero label overlaps in the near stage and on the pad; everything checked at about 40% scale |
 | Ramp | restore a modest pressure ramp (cap 13 or 14) if every target above still holds |
@@ -106,6 +106,9 @@ lane; a group's hares never exceed its count.
 | Branch | Today | Change | Start, tuning range |
 |---|---|---|---|
 | Longbow | 120 damage per 3.0 s, range 9.98 | `kind_mult {brute: x}` | 2.0; 1.5 to 3.0 |
+
+> As built with the flag on: the Longbow's interval is 2.4 s after the bench round (D-293), then 2.2 and 2.0 s in the
+> real-play tuning rounds (D-297; the author ratifies or reverts, REVIEW_QUEUE 38). The flag-off value stays 3.0 s.
 | Stone wall | 640 HP, brutes do half damage | none | |
 | Spike fence | pass damage 10 on hares, thorns 6 | pass damage up | 16; 12 to 24 |
 | Volley | 3 targets, 10 damage per 0.5 s | none unless data demands | |
