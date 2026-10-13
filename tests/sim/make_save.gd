@@ -422,10 +422,11 @@ func _run_cap_day() -> bool:
 		push_error("fixture %s_day invalid: %s" % [stem, why])
 		return false
 	_write(stem + "_day", s)
+	return true
 
 # --- E6 flag-on fixtures (Task 19, spec 8.3) -------------------------------------------------------------------------
 # One real TierBot run (threat policy, the retune flag on in memory only, the bots as they are) on a tuning seed. Captured: the first tier-3 day's start (retune_first_t3_night, resume DAY;
-# retune_respawn is the same state with resume NIGHT, the state the respawn sim needs: the south-west spots unbuilt, the zone fills) and the close-up of every tier-3 night for RETUNE_WINDOW_DAYS days, from which
+# retune_respawn is the same state with resume NIGHT and tier_day moved back so the night is at the tier-3 cap pressure (D-304: the first night is softer, so the guard is not knocked out on it): the south-west spots unbuilt, the zone fills) and the close-up of every tier-3 night for RETUNE_WINDOW_DAYS days, from which
 # retune_siege_night is chosen by a fixed rule: the EARLIEST close-up AFTER the first tier-3 night (that one is retune_first_t3_night) whose raw plan (LanePlanner.plan, before the lane character) has a wave with brutes whose siege lane is neither its main nor its side lane,
 # and whose flag-on plan has a wave with an extra hare group, and whose threat-matched build stands (tower_sw Longbow, fence_sw Stone). The table of every candidate day is printed. The chosen close-up is written resumed at NIGHT.
 
@@ -510,8 +511,15 @@ func _run_retune() -> bool:
 	var first := _rt_first_day_state.duplicate(true)
 	_common(first)
 	first.night_fails = 0
+	# D-304: the first tier-3 night is softer (pressure tier_base_retune[3]), so the guard is no longer knocked out on it. The respawn state is the same captured state taken at the cap
+	# pressure: tier_day moved back by tier_cap[3] - tier_base_retune[3] days, the stored plan recomputed by the real planner (LanePlanner.plan, then the lane character).
 	var respawn := first.duplicate(true)
 	respawn.resume_phase = "NIGHT"
+	respawn.tier_day = int(respawn.day) - (int(bd.tiers.tier_cap[3]) - int(bd.tiers.tier_base_retune[3]))
+	respawn.lane_plan = load("res://core/lane_character.gd").apply(_plan(respawn), load("res://core/lane_character.gd").for_run(int(respawn.run_seed)), bd.tiers)
+	if load("res://core/wave_math.gd").pressure(int(respawn.day), 3, int(respawn.tier_day), bd.tiers) != int(bd.tiers.tier_cap[3]):
+		push_error("retune_respawn is not at the tier-3 cap pressure")
+		return false
 	var siege: Dictionary = _rt_closeups[chosen].duplicate(true)
 	siege.resume_phase = "NIGHT"
 	siege.night_fails = 0
