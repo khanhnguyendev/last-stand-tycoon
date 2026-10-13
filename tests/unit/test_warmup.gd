@@ -73,11 +73,12 @@ func test_music_track_follows_the_resume_phase() -> void:
 	assert_eq(Warmup.music_for("DAY"), &"day")
 	assert_eq(Warmup.music_for("CARD_PICK"), &"day")
 
-func test_fade_material_is_a_transparent_copy() -> void:
+func test_fade_material_is_a_dithered_copy() -> void:
 	_main()
 	var m := main.world.occluder_fade.fade_material_for_warmup()
 	assert_not_null(m)
-	assert_eq((m as BaseMaterial3D).transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
+	assert_true(m is ShaderMaterial, "a dithered copy, drawn in the opaque pass")
+	assert_almost_eq(OccluderFade.alpha_of(m), Balance.ui.occluder_alpha, 1e-3)
 
 # --- BootFade (D-215 amendment) ---
 
@@ -213,6 +214,36 @@ func test_warmup_prebuilds_the_tier_3_reveals_first_step_mesh() -> void:
 	assert_true(GroundArt._cache.has(first_step), "the lot's paving with the tier-2 lanes")
 	assert_true(GroundArt._cache.has(full), "the tier-3 terrain too")
 	assert_true(GroundArt.is_cached(World.ground_rect(), MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(2), spread))
+
+## E6 A2. Mutation: the warm-up draws no guard bar, or draws it unshaded (the boss bar's variant, not the guard's), or with shadows on.
+func test_warmup_draws_the_guard_hp_bar_variant() -> void:
+	_main()
+	var warmup := Warmup.new()
+	main.add_child(warmup)
+	warmup.run(main)  # no await: the temporary nodes are in the tree
+	var guard_mats: Array = []
+	for c in warmup.get_children():
+		if c is MeshInstance3D and c.material_override is StandardMaterial3D and c.mesh is BoxMesh:
+			var m := c.material_override as StandardMaterial3D
+			if m.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL and [Palette.color(&"ink"), Palette.color(&"guard_green")].has(m.albedo_color):
+				assert_eq(c.cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "like the guard's bar")
+				assert_eq(m.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED, "the placed bar box is opaque like the guard's")
+				assert_eq(m.cull_mode, BaseMaterial3D.CULL_BACK, "the placed bar box is single-sided like the guard's")
+				guard_mats.append(m.albedo_color)
+	assert_true(guard_mats.has(Palette.color(&"ink")), "the bar's ink backing")
+	assert_true(guard_mats.has(Palette.color(&"guard_green")), "the bar's fill")
+	await warmup.finished
+
+## The warm-up builds its guard bars with the guard's own static builder, so they share every material feature that picks the shader.
+## Fails if the builder starts to use an unshaded, blended or two-sided material (the warm-up would then compile the wrong variant).
+func test_warmup_guard_bar_is_the_real_guards_bar_builder() -> void:
+	var real := Guard.bar_box(Vector3.ONE, &"ink")
+	var a := real.material_override as StandardMaterial3D
+	assert_eq(a.shading_mode, BaseMaterial3D.SHADING_MODE_PER_PIXEL)
+	assert_eq(a.transparency, BaseMaterial3D.TRANSPARENCY_DISABLED)
+	assert_eq(a.cull_mode, BaseMaterial3D.CULL_BACK)
+	assert_eq(real.cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+	real.free()
 
 ## E6 Task 14 (D-294.8): with the retune flag on the warm-up draws the hero's and his carried pile's draw-after-labels variant (alpha, depth writing: a shader variant the
 ## opaque ones are not), at the hero's priority; with the flag off it draws neither (the flag-off warm-up is today's).

@@ -15,6 +15,8 @@ var lighting: LightingDirector
 var props: Props
 var diner_body: StaticBody3D
 var build_spots := {}
+## E6 phase A: the one MultiMesh that draws every level pip (visual only); made before the spots, handed down to their LevelPips.
+var pip_batch: PipBatch
 ## E5 tier 3 Task 17: spot id -> its two BranchPads (index 0 = the first branch option). Empty below tier 3.
 var branch_pads := {}
 var upgrade_pads := {}
@@ -94,6 +96,8 @@ func _ready() -> void:
 	_build_lanes()
 	_setup_pools()
 	wave_director.setup(enemy_pool, steak_pool)
+	pip_batch = PipBatch.new()
+	add_child(pip_batch)
 	_build_spots()
 	_build_stations()
 	guard_roster = GuardRoster.new()

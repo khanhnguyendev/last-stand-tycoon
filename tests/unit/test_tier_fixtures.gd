@@ -155,3 +155,58 @@ func test_every_fixture_survives_five_seconds_of_night() -> void:
 			assert_gt(main.phase_controller.wave_director.alive_count(), 0, "%s: monsters are out" % stem)
 		main.get_parent().remove_child(main)
 		main.free()
+
+## Keys of the decoded day fixture allowed to differ from tier3_cap_threat, with the value the day fixture must hold (none so far: the test fails
+## on any other difference and names the key; add a key here with the reason it legitimately differs, e.g. a dawn-only card offer).
+const DAY_FIXTURE_DIFFERS := {}
+
+## E6 A4: the day fixture the PLAY_ENTERED perf runs resume (`make_save.gd -- --fixture=tier3_cap_day`, written at the current schema).
+## It must decode, resume into the DAY, and differ from the night fixture it was made from in `resume_phase` only.
+## Fails when the file is stale (a schema the codec rejects), is a night, or differs from tier3_cap_threat in any key but resume_phase (or the listed DAY_FIXTURE_DIFFERS).
+func test_tier3_cap_threat_day_decodes_resumes_in_the_day_and_matches_the_night_fixture() -> void:
+	var day := _decode("tier3_cap_threat_day")
+	var night := _decode("tier3_cap_threat")
+	var wrapper = JSON.parse_string(FileAccess.get_file_as_string("res://export/fixtures/tier3_cap_threat_day.save.json"))
+	var raw = JSON.parse_string(String(wrapper.state_json))
+	assert_eq(int(raw.v), GameState.SCHEMA_VERSION, "the file is written at the current schema (the documented command reproduces it)")
+	assert_true(day.ok, str(day.get("reason", "")))
+	assert_true(night.ok, str(night.get("reason", "")))
+	assert_eq(day.state.resume_phase, "DAY")
+	assert_eq(night.state.resume_phase, "NIGHT", "the source is the night fixture")
+	# Every key of both decoded saves except resume_phase (checked above) must be equal, unless it is listed in DAY_FIXTURE_DIFFERS.
+	var keys := {}
+	for k in day.state.keys():
+		keys[k] = true
+	for k in night.state.keys():
+		keys[k] = true
+	for k in keys.keys():
+		if k == "resume_phase":
+			continue
+		assert_true(day.state.has(k), "the day fixture has key %s" % k)
+		assert_true(night.state.has(k), "tier3_cap_threat has key %s" % k)
+		if DAY_FIXTURE_DIFFERS.has(k):
+			assert_eq(day.state[k], DAY_FIXTURE_DIFFERS[k], "key %s: the listed expected day value" % k)
+		else:
+			assert_eq(day.state[k], night.state[k], "key %s: same as tier3_cap_threat" % k)
+
+## E6 phase A: the DAY HOME perf fixture (`make_save.gd -- --fixture=tier3_branch_day`, committed, deterministic). It decodes at the current schema, resumes into a tier-3 DAY
+## and shows at least one branch pad (a max-level, unbranched building): the pads' draw calls are what the DAY HOME reading measures.
+func test_tier3_branch_day_decodes_is_a_tier_3_day_and_shows_a_branch_pad() -> void:
+	var wrapper = JSON.parse_string(FileAccess.get_file_as_string("res://export/fixtures/tier3_branch_day.save.json"))
+	var raw = JSON.parse_string(String(wrapper.state_json))
+	assert_eq(int(raw.v), GameState.SCHEMA_VERSION, "the file is written at the current schema (a stale file fails here, before the migration hides it)")
+	var r := _decode("tier3_branch_day")
+	assert_true(r.ok, str(r.get("reason", "")))
+	assert_eq(r.state.resume_phase, "DAY")
+	assert_eq(int(r.state.tier), 3)
+	var main := await _resume("tier3_branch_day")
+	await get_tree().physics_frame
+	assert_eq(main.phase_controller.phase, Phase.DAY)
+	var shown := 0
+	for id in main.world.branch_pads:
+		for p in main.world.branch_pads[id]:
+			if (p as BranchPad).is_shown():
+				shown += 1
+	assert_gt(shown, 0, "at least one unbought branch pad shows")
+	main.get_parent().remove_child(main)
+	main.free()

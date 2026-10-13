@@ -3146,6 +3146,34 @@ run, so the bench has its own wall limits: warn above 150 s, fail above 400 s. I
 required checks when a suite is split or added; D-292 made the full bench a required CI job). This is a deviation
 from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the fast subset). No test was dropped.
 
+**D-296 Phase A results: the fade hitch, the two perf readings and the "regression" (2026-10-13).**
+1. **Night-start prewarm: dropped.** One invisible faded frame at night start left the first-fade frame at 122 and
+   117 ms. The frame is render-side and happens once per night, at the first fade.
+2. **Dithered fade: kept (pre-approved, D-294).** `OccluderFade` installs a screen-door copy of each material in the
+   opaque pass (4x4 Bayer on the pixel position, `fade` = share of pixels kept; same trigger, ramp and restore).
+   Gate reading (night entered by play, median of 3): worst frame 117 ms -> 24 ms (first fade 21 to 22 ms), 50.5 ->
+   53.9 fps, 78 draw calls. Resumed night: 34 -> 21 ms, 58.9 -> 59.9 fps, 50 draw calls. The worst-frame gate
+   (under 60 ms) passes. The main session checked the tier-3 night pair at 40%: accepted. REVIEW_QUEUE 29.
+3. **The draw-call gap is camera framing, not a regression (draw calls measured; the fps half is inferred: there
+   is no fps reading of the E5 T3 build at HOME).** The camera follows the hero. Draw
+   calls on desktop at a fixed tick, three identical runs each: hero at HOME (0, 9.5): this build with the flag off
+   78, flag on 78, the E5 T3 build (697cb1a) 78; hero at the resumed place (-2.5, -7): 47, 47, 47. The E5 T3
+   checkpoint reading (58.8 fps, 48 draws) was a resumed night. No day-only object is drawn at night. The count
+   follows the fight (67 to 83 across one night), which explains the earlier 69-against-78 spread.
+4. **The 58 fps target at the HOME framing is not met (53.9).** Star batching tops out near 56; other levers (HUD,
+   labels, build-spot models) were not examined. The
+   level stars are 20 to 23 of the 78 draw calls; hiding all of them (a test, not kept) reads 56.0 fps and 55 draws.
+   Options for the author: batch each spot's stars into one draw (about 55 fps, 64 draws, same picture); one draw
+   for all stars (about 56 fps, 59 draws); set the fps reference and the draw-call budget by framing. Open with the
+   author; nothing was changed.
+5. **Draw-call budget line:** the frozen PERF line ends with `DRAW_CALL_BUDGET: OK|WARN <n> (budget 58)` (48 + 10,
+   a warning only). It describes the resumed framing; a night entered by play at HOME reads WARN by construction
+   until item 4 is decided.
+6. **Found by review and fixed:** a detached, kept art node was forgotten by the fade without restoring its
+   materials (the diner could stay dithered after the tier-3 reveal's put-back); the overlay's prime text stayed on screen during the
+   measured window; the day fixture is regenerated at schema 7 with a test; the perf script stops Safari and its
+   monitor on interrupt.
+
 **D-298 Author's answers on the pads, the HOME framing and the unbranched policy (2026-10-13).**
 1. **Pads (escalation 9): option A.** A building's level pips hide while its pad shows a cost and return when the
    cost hides. Pinned in the overlap test (zero overlap, at least 8 px) and checked at 40%. Phase 3 merges when green.
@@ -3189,3 +3217,25 @@ from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the
      (tower_e a: the Freezer label blocks every close position) and has a gold tether to its ring.
    - Scans: near 8.9 px, on 8 px smallest gap; zero findings; no exception list. The lane's telegraph flag is a 3D
      model, not a label, and is not an obstacle (one cost crosses it on fence_w).
+
+**D-300 Phase A after the author's answer 2 (D-298.2): pips in one draw, readings by framing (2026-10-14).**
+1. **Every level pip is one draw call** (one MultiMesh; the owner node is created lazily under Main). Pixel-identical
+   over 13 compared states. Draw calls on desktop at a fixed tick: night at HOME 78 -> 56; resumed night 47 -> 39;
+   day at HOME without pads 102 -> 80.
+2. **Not batched:** pad rings (15 draws), pad glyphs (12), lane flags (4), spot models (7): per-stage materials,
+   the D-299 draw order, or per-level swaps. All of them together would reach about 72 draws by day.
+3. **Simulator readings (median of 3; a proxy: the real phone check stays on the final review):** night gate
+   (entered by play, hero at HOME) 54.9 fps, worst frame 26 ms, 54 draws: UNDER the 58 fps threshold; resumed night
+   59.9 fps, 25 ms, 40 draws; day at HOME (tier 3, pads shown) 43.2 fps, 28 ms, 107 draws: UNDER the 55 fps
+   threshold. Hiding every star in one session gave at most 2.1 fps (D-296); the readings before and after batching (53.9 and
+   54.9) are from different sessions and differ by about the session noise: the HOME framing is not limited by the
+   draw count.
+4. **Attribution (one run per switch; noise about 1.5 fps; baseline that session 56.3 night, 42.5 day):** diner art
+   hidden 58.0 / 43.9; fade off 56.3 / 42.4; every Label3D hidden 57.9 / 48.6; HUD hidden 57.5 / 44.3; ground art
+   hidden 59.2 / 46.1; enemies hidden 56.9 (night). Night: four of the six gains are inside the noise; only
+   ground (+2.9) and the diner (+1.7 to +2) stand out: the night's cost is NOT attributed to one part (process time
+   12.7 ms of a 17.8 ms frame). Day: the 29 Label3D are the one large item (+6.1 fps; hiding them removed 20
+   draws and also switches off the badge cover checks), and the day still reads 48.6 without them.
+5. **Draw-call budgets by reading** (measured + 10; a warning only): night entered by play 64, resumed night 50,
+   day at HOME 117.
+6. **Open with the author:** both fps thresholds are unmet; no visual change was made.

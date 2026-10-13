@@ -7,8 +7,11 @@ extends Node
 ## base boxes (D-164: he stands on them), but ARE tested against `roof_part_boxes` (the tier-3 camera ruling, D-279), the boxes of the parts that rise
 ## above the roof (the tier-3 storey and lanterns): when one stands between the camera and him the building fades.
 ## Visual only: runs in _process and never touches GameState.
-## A mesh with a material_override gets a transparent duplicate of it as its override; a mesh without one gets
-## transparent duplicates of its surface materials as surface overrides. At full opacity the originals are
+## A mesh with a material_override gets a dithered duplicate of it as its override; a mesh without one gets
+## dithered duplicates of its surface materials as surface overrides. E6 A2 (D-294): the duplicate is a ShaderMaterial that draws the same
+## albedo (colour x texture, nearest filter, roughness, metallic) in the OPAQUE pass and discards a screen-door (4x4 Bayer) share of the
+## pixels, `fade` = the share kept (1.0 opaque): no blending, no sorting, no transparent pass (the first blended draw of the merged diner was a
+## 113 to 148 ms frame in the iOS Simulator). BaseMaterial3D's alpha hash does nothing in the Compatibility renderer. At full opacity the originals are
 ## put back (the override, or null surface overrides), so nothing transparent is left behind.
 
 ## The merge of the occluder boxes (or of the parent's visuals when it provides none), plus any box passed to setup().
@@ -24,7 +27,7 @@ var _targets: Callable
 const ROOF_BODY_OFFSETS := [-0.7, 0.0, 1.0]
 var _alpha := 1.0
 var _warned := false
-## MeshInstance3D -> {"override": Material or null, "fade": BaseMaterial3D or null, "surfaces": {i: {"prior", "fade"}}}
+## MeshInstance3D -> {"override": Material or null, "fade": ShaderMaterial or null, "surfaces": {i: {"prior", "fade"}}}
 var _meshes := {}
 ## Label3D -> {"a": modulate.a, "outline_a": outline_modulate.a} while faded.
 var _labels := {}
@@ -131,15 +134,81 @@ func _on_own_roof(p: Vector3) -> bool:
 		origin = parent.global_position
 	return p.y >= MapLayout.DINER_HEIGHT and absf(p.x - origin.x) <= MapLayout.DINER_HALF and absf(p.z - origin.z) <= MapLayout.DINER_HALF
 
-## Drops the meshes and labels that left the tree (an art swap) so nothing keeps a stale entry.
+## Drops the meshes and labels that left the tree (an art swap) so nothing keeps a stale entry. A node that is still alive (the
+## world detaches the diner's art and puts it back later, swap_diner_art_keeping) gets its own materials / alpha back first: a dither copy
+## left on it would later be taken for its original material and the diner would stay dithered.
 func _forget_gone_nodes() -> void:
 	var parent := get_parent()
 	for mi in _meshes.keys():
 		if not is_instance_valid(mi) or parent == null or not parent.is_ancestor_of(mi):
+			if is_instance_valid(mi):
+				_restore_mesh(mi, _meshes[mi])
 			_meshes.erase(mi)
 	for l in _labels.keys():
 		if not is_instance_valid(l) or parent == null or not parent.is_ancestor_of(l):
+			if is_instance_valid(l):
+				_restore_label(l, _labels[l])
 			_labels.erase(l)
+
+## The dither shaders (one per culling mode), built once.
+static var _shaders := {}
+
+const _SHADER_CODE := """shader_type spatial;
+render_mode %s;
+uniform vec4 albedo : source_color = vec4(1.0);
+uniform sampler2D albedo_tex : source_color, filter_nearest, repeat_enable, hint_default_white;
+uniform vec3 uv_scale = vec3(1.0);
+uniform vec3 uv_offset = vec3(0.0);
+uniform float roughness = 1.0;
+uniform float metallic = 0.0;
+uniform float specular = 0.5;
+uniform float fade = 1.0;
+const float BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+void fragment() {
+	int x = int(mod(FRAGCOORD.x, 4.0));
+	int y = int(mod(FRAGCOORD.y, 4.0));
+	if (fade < 0.9999 && fade <= (BAYER[y * 4 + x] + 0.5) / 16.0) {
+		discard;
+	}
+	vec4 c = albedo * texture(albedo_tex, UV * uv_scale.xy + uv_offset.xy);
+	ALBEDO = c.rgb;
+	ROUGHNESS = roughness;
+	METALLIC = metallic;
+	SPECULAR = specular;
+}
+"""
+
+static func _shader_for(cull: int) -> Shader:
+	var mode := "cull_disabled" if cull == BaseMaterial3D.CULL_DISABLED else "cull_back"
+	if not _shaders.has(mode):
+		var sh := Shader.new()
+		sh.code = _SHADER_CODE % mode
+		_shaders[mode] = sh
+	return _shaders[mode]
+
+## The dithered stand-in for `src`: the same albedo, texture, roughness and culling, drawn in the opaque pass.
+## It DROPS emission, the normal map, vertex colour as albedo, non-nearest filtering, alpha scissor and front-face culling;
+## tests/unit/test_occluder_fade.gd pins that no diner material (tiers 1 to 3) uses any of them, so a material change fails there.
+static func dither_copy(src: BaseMaterial3D) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = _shader_for(src.cull_mode)
+	m.set_shader_parameter(&"albedo", src.albedo_color)
+	if src.albedo_texture != null:
+		m.set_shader_parameter(&"albedo_tex", src.albedo_texture)
+	m.set_shader_parameter(&"uv_scale", src.uv1_scale)
+	m.set_shader_parameter(&"uv_offset", src.uv1_offset)
+	m.set_shader_parameter(&"roughness", src.roughness)
+	m.set_shader_parameter(&"metallic", src.metallic)
+	m.set_shader_parameter(&"specular", src.metallic_specular)
+	m.set_shader_parameter(&"fade", 1.0)
+	return m
+
+## The share of pixels a faded copy keeps (1.0 = opaque).
+static func alpha_of(m: Material) -> float:
+	return float((m as ShaderMaterial).get_shader_parameter(&"fade"))
+
+static func set_alpha(m: Material, a: float) -> void:
+	(m as ShaderMaterial).set_shader_parameter(&"fade", a)
 
 func _apply() -> void:
 	if _alpha >= 1.0:
@@ -155,9 +224,9 @@ func _apply() -> void:
 			_meshes[mi] = _make_entry(mi)
 		var e: Dictionary = _meshes[mi]
 		if e.fade != null:
-			(e.fade as BaseMaterial3D).albedo_color.a = _alpha
+			set_alpha(e.fade, _alpha)
 		for i in e.surfaces:
-			(e.surfaces[i].fade as BaseMaterial3D).albedo_color.a = _alpha
+			set_alpha(e.surfaces[i].fade, _alpha)
 	for n in parent.find_children("*", "Label3D", true, false):
 		var l := n as Label3D
 		if not _labels.has(l):
@@ -165,8 +234,8 @@ func _apply() -> void:
 		l.modulate.a = _labels[l].a * _alpha
 		l.outline_modulate.a = _labels[l].outline_a * _alpha
 
-## One faded copy of a material the diner uses, for the boot warm-up (D-215): drawing it once compiles the transparent
-## pipeline before the first occlusion fade. Nothing is applied to the diner.
+## One faded copy of a material the diner uses, for the boot warm-up (D-215): drawing it once compiles the dither shader
+## program before the first occlusion fade. Nothing is applied to the diner.
 func fade_material_for_warmup() -> Material:
 	var src := StandardMaterial3D.new()
 	var parent := get_parent()
@@ -180,13 +249,11 @@ func fade_material_for_warmup() -> Material:
 				src = base
 				break
 	var f := _fade_copy(src)
-	f.albedo_color.a = Balance.ui.occluder_alpha
+	set_alpha(f, Balance.ui.occluder_alpha)
 	return f
 
-func _fade_copy(src: BaseMaterial3D) -> BaseMaterial3D:
-	var f := src.duplicate() as BaseMaterial3D
-	f.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	return f
+func _fade_copy(src: BaseMaterial3D) -> Material:
+	return dither_copy(src)
 
 func _make_entry(mi: MeshInstance3D) -> Dictionary:
 	var e := {"override": null, "fade": null, "surfaces": {}}
@@ -209,18 +276,22 @@ func _make_entry(mi: MeshInstance3D) -> Dictionary:
 		push_warning("OccluderFade: %s has no BaseMaterial3D to fade; it stays opaque" % mi.get_path())
 	return e
 
+func _restore_mesh(mi: MeshInstance3D, e: Dictionary) -> void:
+	if e.fade != null:
+		mi.material_override = e.override
+	for i in e.surfaces:
+		mi.set_surface_override_material(i, e.surfaces[i].prior)
+
+func _restore_label(l: Label3D, e: Dictionary) -> void:
+	l.modulate.a = e.a
+	l.outline_modulate.a = e.outline_a
+
 func _restore() -> void:
 	for mi in _meshes:
-		if not is_instance_valid(mi):
-			continue
-		var e: Dictionary = _meshes[mi]
-		if e.fade != null:
-			(mi as MeshInstance3D).material_override = e.override
-		for i in e.surfaces:
-			(mi as MeshInstance3D).set_surface_override_material(i, e.surfaces[i].prior)
+		if is_instance_valid(mi):
+			_restore_mesh(mi, _meshes[mi])
 	_meshes.clear()
 	for l in _labels:
 		if is_instance_valid(l):
-			(l as Label3D).modulate.a = _labels[l].a
-			(l as Label3D).outline_modulate.a = _labels[l].outline_a
+			_restore_label(l, _labels[l])
 	_labels.clear()

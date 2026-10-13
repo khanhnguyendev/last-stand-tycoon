@@ -35,10 +35,10 @@ func setup(p_id: StringName, world: World) -> void:
 	add_child(visual)
 	# S4 D-201: the shadow field skips a hidden visual (a knocked-out guard) and follows the poof's scale.
 	world.shadow_field.register(visual, ShadowField.CHARACTER_RADIUS)
-	_bar_back = _bar_box(Vector3(BAR_WIDTH + 0.08, 0.14, 0.06), &"ink")
+	_bar_back = bar_box(Vector3(BAR_WIDTH + 0.08, 0.14, 0.06), &"ink")
 	_bar_back.position.y = BAR_Y
 	add_child(_bar_back)
-	_bar = _bar_box(Vector3(BAR_WIDTH, 0.08, 0.08), &"guard_green")
+	_bar = bar_box(Vector3(BAR_WIDTH, 0.08, 0.08), &"guard_green")
 	_bar.position.y = BAR_Y
 	add_child(_bar)
 	_set_bar_visible(false)
@@ -206,8 +206,8 @@ func _set_bar_visible(on: bool) -> void:
 	_bar.visible = on
 	_bar_back.visible = on
 
-## A palette-coloured box for the HP bar (art stays off the S1 Visuals helpers).
-func _bar_box(size: Vector3, palette_name: StringName) -> MeshInstance3D:
+## A palette-coloured box for the HP bar (art stays off the S1 Visuals helpers). Static and visual-only: the boot warm-up builds its bars with it.
+static func bar_box(size: Vector3, palette_name: StringName) -> MeshInstance3D:
 	var m := BoxMesh.new()
 	m.size = size
 	var mat := StandardMaterial3D.new()

@@ -1713,7 +1713,7 @@ func _lone_ray(id: String, i: int) -> Vector2:
 func _visible_pips(id: String) -> int:
 	var n := 0
 	for pip in (main.world.build_spots[id] as BuildSpot)._pips:
-		n += int((pip as MeshInstance3D).visible)
+		n += int((pip as LevelPip).visible)
 	return n
 
 ## Author's decision (task 14 round 7, flag on only): a building's level pips HIDE while one of its own pads shows a cost (NEAR or ON) and come back with the cost.
