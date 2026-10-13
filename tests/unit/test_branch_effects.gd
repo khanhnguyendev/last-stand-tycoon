@@ -397,6 +397,33 @@ func test_retune_on_spike_pass_damage_is_24_times_the_scale() -> void:
 	_first_wave_mult(WaveMath.hp_mult(15, 0, Balance.data.wave))
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 28.0755, 0.001)
 
+## D-304: with the flag on the FIRST tier-3 night (day == tier_day) is at pressure 10, below Spike's base (pressure 12, spike_base_mult), so Spike
+## scales by hp_mult(10) / hp_mult(12) = 2.35 / 2.65 = 0.886792: pass 24 x 0.886792 = 21.2830, thorns 6 x 0.886792 = 5.3208.
+## Mutation: spike_base_mult follows base_pressure (2.35, scale 1.0 on the first night) or the scale is ignored.
+func test_retune_on_first_tier_3_night_scales_spike_by_pressure_10_over_12() -> void:
+	var tb := Balance.data.tiers
+	var saved_day := GameState.day
+	tb.retune_enabled = true
+	GameState.day = 9
+	GameState.debug_set_tier(3, 9)
+	_branch(FENCE, &"spike")
+	assert_eq(GameState.pressure(), 10, "first tier-3 night, flag on")
+	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 2.35, 1e-6, "the plan's first wave is the pressure-10 multiplier")
+	var base := BranchMath.spike_base_mult(Balance.data.wave, tb)
+	assert_almost_eq(base, 2.65, 1e-9, "spike_base_mult stays the pressure-12 multiplier with the flag on")
+	var scale := 2.35 / 2.65
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 24.0 * scale, 1e-6)
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 21.283, 0.001)
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"baron"), 21.283, 0.001)
+	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0 * scale, 1e-6)
+	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 5.3208, 0.0001)
+	# The same night with the flag off is at pressure 12, scale 1.0 (the old behaviour).
+	tb.retune_enabled = false
+	GameState.debug_set_tier(3, 9)
+	assert_eq(GameState.pressure(), 12)
+	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0, 1e-6)
+	GameState.day = saved_day
+
 ## Flag-off pins: mutation = the retune value leaks into the default path.
 func test_retune_off_pins_longbow_120_and_pass_damage_10() -> void:
 	assert_false(TierEffects.retune_on(Balance.data.tiers))
