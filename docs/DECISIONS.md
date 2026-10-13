@@ -3145,3 +3145,49 @@ run, so the bench has its own wall limits: warn above 150 s, fail above 400 s. I
 `bench` joins `unit`, `sim`, `sim-tiers` and `deploy` as a required check on `main` (D-274.4 authorized updating the
 required checks when a suite is split or added; D-292 made the full bench a required CI job). This is a deviation
 from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the fast subset). No test was dropped.
+
+**D-297 Phase-4 tuning rounds 1 and 2, and two changes to the measuring bot (2026-10-13).**
+Tuning set (seeds 1 east, 3 sw, 4 west, 7 north; six policies; real 32-day play; outputs under
+`docs/review/media/e6/tuning/`). Studies: `docs/review/media/e6/study_first_t3.md`, `study_p4_r2.md`,
+`tuning_p4_r1_bench.md`.
+1. **Round 0 (as built):** 4 of 8 targets. Threat lead +2.2 (west -4.3); retry nights on four policies; lowest first
+   tier-3 night 19.7%; fence tax 19.4%; spread 10.4.
+2. **Round 1:** Longbow flag-on interval 2.4 -> 2.2 s (pre-authorized, D-292). Forcing numbers: in real play a Longbow
+   fired about 23 shots a night against 180 to 207 for a Volley and lost boar-heavy lanes; early tier-3 nights have 1
+   or 2 brutes. Bench at 2.2: siege 233, hare 1092, neutral 82 (every rule passes). Result: 5 of 8; lead +5.6; west
+   -1.6; lowest first night 12.7% (north seed, Longbow-first builds).
+3. **Round 2:** interval 2.2 -> 2.0 s. Bench: Longbow 114 / 828 / 0, Volley 706 / 395 / 100, unbranched 1780 / 1693 /
+   560 (siege / hare / neutral); Volley still beats Longbow on the hare lane by more than 15%. Trial without the bot
+   changes of item 5: 6 of 8; lead +5.0 over Longbow + Spike; every lane positive; fence tax 4.9%; spread 5.3. At 2.0 s
+   the brute multiplier alone no longer decides any bench rule: the Longbow's siege edge is its rate of fire.
+4. **Bot, purchase order.** `_next_branch_pad` bought in list order, so a threat-matched run did not buy for its
+   siege lane first. With a lane character every branch policy now buys in one order: siege-lane towers, hare-lane
+   towers, siege fence, hare fence, the rest. All policies share it so the lead measures the branch match, not the
+   order (a review finding: giving it to `threat` alone would flatter the lead).
+5. **Bot, the hero at night.** Once a second the hero went to the lane with the most enemies, leaving a lane whose
+   fence had just fallen; the diner then fell in about 12 s (east seed, day 22: 19.7%; with the hero pinned 76.7%,
+   the fence falling at the same second). With a lane character lanes are now ranked first by enemies at the diner
+   or past a fallen fence's stop point (kinds that pass fences: past the fence line), then as before. Measured: east
+   seed Volley + Spike day 22 19.7% -> 88.3%; north seed threat day 23 80.7% -> 58.3% (worse on that night, still
+   above 25%; not chased with more rules).
+6. **Scope of both bot rules:** only with a non-empty lane character (tier 3, flag on). With the flag off and at tiers
+   1 and 2 the bots are unchanged, so the three baselines cannot move (and are run to prove it).
+7. **Honesty note (REVIEW_QUEUE):** the bots are the instrument that judges D-281's targets. The hero rule reads fence
+   state on lanes outside the player's view and has no fence-fall cue; both rules use nothing a player could not know
+   (no plan, no future waves, no HP). Before/after numbers for both rules go into the checkpoint pack.
+
+**D-298 Author's answers on the pads, the HOME framing and the unbranched policy (2026-10-13).**
+1. **Pads (escalation 9): option A.** A building's level pips hide while its pad shows a cost and return when the
+   cost hides. Pinned in the overlap test (zero overlap, at least 8 px) and checked at 40%. Phase 3 merges when green.
+2. **HOME framing (53.9 fps):** all pips become one draw (MultiMesh); the same batching for other repeated world-UI
+   meshes (pad rings, pad icons, badges) where it is cheap. Thresholds by framing: the night gate (combat) stays at
+   58 fps average and is the one that matters; the day HOME framing needs 55 fps average. If HOME stays under 55
+   after batching: report the draw-call breakdown; no visual change without the author. Phase A merges when its
+   gates pass. The pack notes that Simulator fps is a proxy; the real phone check stays on the final review.
+3. **Zero retry nights excludes `unbranched`:** it is the floor reference, not a player strategy; skipping the tier's
+   main purchases is expected to cost retries (the logic of D-267). Report only: its retry nights per seed; a
+   REVIEW_QUEUE flag if any night needs more than 2 mercy retries, or a seed has more than 3 retry nights in 32 days.
+   Every other policy keeps zero. The first tier-3 night at 25% or more applies to every policy, `unbranched` too.
+4. **Watch item:** the fence tax fell to 4.9% (the Longbow kills brutes before fences break), so the recurring fence
+   sink is nearly gone. No new target; the pack reports `unspent_gold_at_closeup` across tier 3 and after the ladder
+   completes; if the pile-up grows against E5 T3 it goes to REVIEW_QUEUE as input for tier 4.

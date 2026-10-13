@@ -159,7 +159,12 @@ stands longest against brutes (D-294.6; it replaces "keeps the most fence HP", w
 | Tower covering the siege lane (also when it covers the hare lane) | Longbow |
 | Any other tower | Volley |
 
-The bot reads the lane character, not tonight's plan, with the flag on. With the flag off the policy `threat` keeps
+The bot reads the lane character, not tonight's plan, with the flag on. Every policy that buys branches then buys in
+one order (D-297): towers covering the siege lane, towers covering the hare lane, the siege fence, the hare fence, the
+rest; list order inside a group; each time the first spot whose branch the gold in hand pays in full. Only the branch
+a spot takes differs by policy, so the lead measures the match and not the order. At night the bot's hero ranks lanes
+first by enemies that are at the diner or past a fallen fence (kinds that pass fences: past the fence line), then by
+the most enemies as before (D-297). With the flag off the policy `threat` keeps
 today's meaning.
 
 ## 5. Readability (D-284, D-289)
@@ -253,8 +258,8 @@ These diagnostic runs are extra to the single final reading at the end of the sl
 |---|---|
 | `THREAT_LEAD` | mean lead over the best fixed pair >= 5 points and ahead on >= 6 of 8 seeds |
 | `THREAT_LEAD_BY_LANE` | the mean lead is not negative on any siege lane |
-| `RETRY_NIGHTS` | zero for every policy |
-| `FIRST_T3_NIGHT` | no first tier-3 night below 25% |
+| `RETRY_NIGHTS` | zero for every policy except `unbranched` (D-298: the floor reference; its retry nights are printed per seed; a review-queue flag if a night needs more than 2 mercy retries or a seed has more than 3 retry nights in 32 days) |
+| `FIRST_T3_NIGHT` | no first tier-3 night below 25%, every policy, `unbranched` included (D-298) |
 | `FENCE_TAX` | <= 30% median at the cap, shown with and without Longbow on the siege lane |
 | `FIXED_SPREAD` | the four fixed pairs within 15 points |
 | `HARE_SHARE` | night-level share per seed; flagged below 0.6 |
