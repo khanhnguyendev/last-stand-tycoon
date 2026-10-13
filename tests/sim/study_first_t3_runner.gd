@@ -5,6 +5,9 @@ extends Node
 ## tower covering the siege lane before any other branch. Everything after that is the threat rule unchanged. The bot waits (buys no other branch) until it can pay.
 ## Output lines (stdout, one fact per line, parsed by hand into docs/review/media/e6/study_first_t3.md):
 ##   RUN, ROW, GOAL, BUY, STATE, PLAN, NIGHT_BEGIN, NIGHT_END, SPAWN, DMG, FENCE_FALL, FENCE_HP, SHOTS, SRC, BOT.
+## Phase-4 round-2 additions (all in memory, study runner only): --interval=<s> sets the flag-on Longbow interval; --variant=<letters> changes the threat bot's branch choice
+## (b: a tower that covers the hare lane takes Volley even if it also covers the siege lane; c: purchase order first ONE siege-lane tower, then the hare-lane towers, then the
+## other siege-lane towers); --pin=<lane>:<from_s>:<row> pins the hero's night lane choice to <lane> from <from_s> seconds after the night of row <row> starts to the end of that night (attempt 1 and retries).
 ## No global rand call is made here (the unit suite bans them).
 
 const DELTA := 1.0 / 60.0
@@ -12,6 +15,69 @@ const DELTA := 1.0 / 60.0
 ## Q6: the threat policy with a forced start. Overrides ONE method of the shipped bot; nothing else.
 class ForcedBot extends TierBot:
 	var force := "none"
+	var variant := ""
+	var pin_lane := ""
+	var pin_active := Callable()  # () -> bool, set by the runner (the night clock lives there)
+	## Round 2 (b, c): the shipped _next_branch_pad with the choice (b) and/or the order (c) changed. Same affordability rule, same blocked-pad handling.
+	func _variant_pad() -> String:
+		if GameState.tier < 3:
+			return ""
+		var spots := MapLayout.spots_for_tier(GameState.tier)
+		if _blocked_day != GameState.day:
+			_blocked_day = GameState.day
+			_blocked_pads.clear()
+		if policy == "unbranched":
+			return ""
+		var character := GameState.lane_character()
+		var choices := TierBot.branch_choices(policy, spots, GameState.lane_plan, GameState.tier, character)
+		var siege := String(character.get("siege", ""))
+		var hare := String(character.get("hare", ""))
+		if "b" in variant:
+			for id in spots:
+				if MapLayout.spot_kind(id) == "tower" and hare in MapLayout.tower_lanes(id):
+					choices[id] = BranchBalance.TOWER_BRANCHES[1]
+		if policy == "threat" and not character.is_empty():
+			var order: Array = TierBot.threat_order(spots, character)
+			if "c" in variant:
+				var g0: Array = order.filter(func(i): return MapLayout.spot_kind(i) == "tower" and siege in MapLayout.tower_lanes(i))
+				var g1: Array = order.filter(func(i): return MapLayout.spot_kind(i) == "tower" and not (siege in MapLayout.tower_lanes(i)) and hare in MapLayout.tower_lanes(i))
+				var head: Array = []
+				if not g0.is_empty():
+					head.append(g0[0])
+				head.append_array(g1)
+				head.append_array(g0.slice(1))
+				var rest: Array = order.filter(func(i): return not i in head)
+				order = head + rest
+			spots.assign(order)
+		for id in spots:
+			if not GameState.can_branch(id):
+				continue
+			var pad := TierBot.pad_goal(id, choices[id])
+			if not graph.nodes.has(pad):
+				skipped_goals += 1
+				continue
+			if _blocked_pads.has(pad):
+				continue
+			if GameState.branch_remaining(id, choices[id]) <= GameState.gold:
+				return pad
+		return ""
+	## Q4 (the hero pin): NaiveBot._night with the lane choice replaced by pin_lane while pin_active returns true. The 1 s decision timer, the stay-if-in-range rule and
+	## the go_to are the shipped ones; only `best` differs.
+	func _night(delta: float) -> void:
+		if pin_lane == "" or not pin_active.is_valid() or not pin_active.call():
+			super(delta)
+			return
+		_decide_timer -= delta
+		if _decide_timer > 0.0:
+			return
+		_decide_timer = 1.0
+		var r := Balance.data.hero.attack_range
+		for c in main.world.wave_director.enemy_candidates():
+			var p: Vector3 = c.position
+			if Vector2(p.x, p.z).distance_to(hero.xz()) <= r:
+				return
+		if graph.nodes.has("zone_" + pin_lane):
+			go_to("zone_" + pin_lane)
 	func _siege_towers() -> Array:
 		var siege := String(GameState.lane_character().get("siege", ""))
 		var out: Array = []
@@ -25,6 +91,8 @@ class ForcedBot extends TierBot:
 				return true
 		return false
 	func _next_branch_pad() -> String:
+		if variant != "" and force == "none":
+			return _variant_pad()
 		if force == "none" or GameState.tier < 3:
 			return super()
 		var towers := _siege_towers()
@@ -73,7 +141,7 @@ func _out(s: String) -> void:
 	print(s)
 
 func _run() -> void:
-	_args = {"seed": "1", "policy": "threat", "days": "24", "force": "none", "out": "", "bench": ""}
+	_args = {"seed": "1", "policy": "threat", "days": "24", "force": "none", "out": "", "bench": "", "variant": "", "pin": "", "interval": ""}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if kv.size() == 2:
@@ -84,6 +152,8 @@ func _run() -> void:
 		return
 	Balance.reset()
 	Balance.data.tiers.retune_enabled = true  # in memory only; production reads it through TierEffects.retune_on
+	if String(_args.interval) != "":
+		Balance.data.branches.longbow_interval_retune = float(_args.interval)  # in memory only (round-2 what-if a)
 	if String(_args.get("bench", "")) == "1":
 		await _bench()
 		get_tree().quit(0)
@@ -91,13 +161,21 @@ func _run() -> void:
 	var holder := Node.new()
 	get_tree().root.add_child(holder)
 	_h = SimHarness.new(holder)
-	var forced := String(_args.force) != "none"
+	var forced := String(_args.force) != "none" or String(_args.variant) != "" or String(_args.pin) != ""
 	_h.start(int(_args.seed), ForcedBot if forced else TierBot)
 	_h.bot.policy = String(_args.policy)
 	if forced:
 		_h.bot.force = String(_args.force)
+		_h.bot.variant = String(_args.variant)
+		if String(_args.pin) != "":
+			var pv := String(_args.pin).split(":")
+			_h.bot.pin_lane = pv[0]
+			var from_s := float(pv[1])
+			var pin_row := int(pv[2])  # the pin holds in the night of this row only
+			_h.bot.pin_active = func() -> bool:
+				return _in_night and _row == pin_row and _h.elapsed - _nt0 >= from_s and _h.main.world.wave_director.wave_index <= 2
 	var ch := LaneCharacter.for_run(int(_args.seed))
-	_out("RUN seed=%s policy=%s force=%s siege=%s hare=%s days=%s" % [_args.seed, _args.policy, _args.force, ch.siege, ch.hare, _args.days])
+	_out("RUN seed=%s policy=%s force=%s variant=%s pin=%s interval=%s siege=%s hare=%s days=%s" % [_args.seed, _args.policy, _args.force, _args.variant, _args.pin, _args.interval, ch.siege, ch.hare, _args.days])
 	EventBus.gold_changed.connect(_on_gold)
 	EventBus.branch_chosen.connect(_on_branch)
 	EventBus.building_changed.connect(_on_building)
