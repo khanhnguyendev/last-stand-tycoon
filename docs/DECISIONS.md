@@ -3227,12 +3227,15 @@ from the spec's "about 10 s in the unit suite" (D-292 logged it; D-294.7 set the
 3. **Simulator readings (median of 3; a proxy: the real phone check stays on the final review):** night gate
    (entered by play, hero at HOME) 54.9 fps, worst frame 26 ms, 54 draws: UNDER the 58 fps threshold; resumed night
    59.9 fps, 25 ms, 40 draws; day at HOME (tier 3, pads shown) 43.2 fps, 28 ms, 107 draws: UNDER the 55 fps
-   threshold. Removing 22 to 24 draws bought about 1 fps: the HOME framing is not limited by the draw count.
+   threshold. Hiding every star in one session gave at most 2.1 fps (D-296); the readings before and after batching (53.9 and
+   54.9) are from different sessions and differ by about the session noise: the HOME framing is not limited by the
+   draw count.
 4. **Attribution (one run per switch; noise about 1.5 fps; baseline that session 56.3 night, 42.5 day):** diner art
    hidden 58.0 / 43.9; fade off 56.3 / 42.4; every Label3D hidden 57.9 / 48.6; HUD hidden 57.5 / 44.3; ground art
-   hidden 59.2 / 46.1; enemies hidden 56.9 (night). Night: no single part is worth more than 2.9 fps; the cost is
-   spread (process time 12.7 ms of a 17.8 ms frame). Day: the 29 Label3D are the one large item (+6.1 fps), and the
-   day still reads 48.6 without them.
+   hidden 59.2 / 46.1; enemies hidden 56.9 (night). Night: four of the six gains are inside the noise; only
+   ground (+2.9) and the diner (+1.7 to +2) stand out: the night's cost is NOT attributed to one part (process time
+   12.7 ms of a 17.8 ms frame). Day: the 29 Label3D are the one large item (+6.1 fps; hiding them removed 20
+   draws and also switches off the badge cover checks), and the day still reads 48.6 without them.
 5. **Draw-call budgets by reading** (measured + 10; a warning only): night entered by play 64, resumed night 50,
    day at HOME 117.
 6. **Open with the author:** both fps thresholds are unmet; no visual change was made.
