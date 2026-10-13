@@ -3353,7 +3353,8 @@ recommendations and answered three questions put to them one by one.
    (the unbranched reference reads 7.7% on seed 7). This reverses, with the flag on, the E5 ruling "tier 3 starts at
    its cap". Spike's numbers stay quoted at pressure 12, so Spike scales below 1 on the first two nights, in step
    with the monsters' HP (pinned by a unit test).
-4. **Cost, stated:** the first tier-3 night is now easy for a branch build (79.7% to 100% on the tuning set); the
+4. **Cost, stated:** the first tier-3 night is now easy for a branch build (84.3% to 100% on the tuning set;
+   unbranched lowest 79.7%); the
    at-cap columns and FENCE_TAX count from the third tier-3 night and are not like for like with earlier rounds.
 5. **Seed sets:** tuning is 1, 3, 4, 7 and 14 (north has two seeds; the tuning lead is seed-weighted and says so).
    Set #1 is retired and refused by the report. Set #2 is unchanged and unplayed.
@@ -3361,23 +3362,26 @@ recommendations and answered three questions put to them one by one.
    buildings, `tier_day` two days back, pressure 12, 3 brutes): at pressure 10 fewer than 6 monsters stood in the
    south-west zone, so the respawn scenario never happened. Test c's assertions are unchanged; three were added.
    Tick budget: test b 23652 to 23385 (the softer night), test c 6916 to 8471 (the cap night with 3 brutes).
-7. **Bench at pressures 10 and 11** (a report, `tests/bench_report/test_branch_bench_pressures.gd`): all 36 rules
-   pass at 10, 11 and 12; pressure 12 reproduces the CI bench.
+7. **Bench at pressures 10 and 11** (a report, `tests/bench_report/test_branch_bench_pressures.gd`): all 26 rules
+   per pressure (12 floor, 4 specialist, 10 identity; 78 in all) pass at 10, 11 and 12; pressure 12 reproduces the CI bench.
 8. **Tuning set at `f8cea4b`** (30 runs; later commits change tests and printed text only): 6 of 7 verdict lines
    pass. THREAT_LEAD +1.9 (unmet, accepted, D-302.2). Retry nights 0 for every branch policy; unbranched 3, all on
    seed 14. Lowest first tier-3 night 79.7%. FENCE_TAX 19.4% (north lane 30.6%). FIXED_SPREAD 5.5.
    Output: `docs/review/media/e6/tuning/p4_r3_tuning_seed14.txt`.
 9. **A slip found:** merge `d3eb6c4` lost a `return true` in `tests/sim/make_save.gd`, so the script did not parse
-   on `main`. Fixed; a unit test now loads every `-s` script.
+   on `main`. Fixed; a unit test now loads six of the `-s` scripts.
 10. **Next:** the suites and the three baselines, then hold-out set #2 once with `--final` (D-304.4).
 
 **D-306 Hold-out set #2: five of seven targets pass, the two lead targets fail; escalation 15 (main session, 2026-10-14).**
 1. **Run once** with `--final` at `b820c89` (48 real 32-day runs) after the suites and the three baselines. Record
    `tests/sim/retune_final.json`; output `docs/review/media/e6/tuning/p4_holdout2_final.txt`.
 2. **Pass:** retry nights 0 for every policy (unbranched too); lowest first tier-3 night 61.0% over all 48 runs;
-   fence tax 9.7%; fixed pairs within 5.3; lane-cap guard 0. Everything that failed on set #1 passes.
-3. **Fail:** the threat-matched lead is +1.5, ahead on 5 of 8 (the miss accepted in D-302.2). New: "no lane
-   negative" fails, south-west -0.1 (both south-west seeds -0.1; Longbow + Stone already keeps 99.2% and 99.9%
+   fence tax 9.7% (north lane 30.6%); fixed pairs within 5.3; lane-cap guard 0. The two survival targets that
+   failed on set #1 (retry nights, first night) pass. (Corrected after review: an earlier wording said "everything
+   that failed on set #1 passes"; the lead failed on set #1 and fails again.)
+3. **Fail:** the threat-matched lead is +1.5, ahead on 5 of 8: the weakest reading so far (set #1: +2.6, 7 of 8).
+   D-302.2 accepted the mean miss; the ahead-count miss is new. Against each seed's own best pair: +0.5, ahead on 3.
+   New: "no lane negative" fails, south-west -0.1 (both south-west seeds -0.1; Longbow + Stone already keeps 99.2% and 99.9%
    there). North seed 19 is -3.3; the north lane is +1.0.
 4. **Stopped** (D-304.5): nothing tuned after the run, no further round, no set #3. No unseen set is left.
 5. **Escalation 15, open with the author:** (a) accept the lane line with the lead as one unmet target and treat

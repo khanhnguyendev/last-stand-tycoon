@@ -1,7 +1,7 @@
 # E6: tier-3 retune and lane character — checkpoint pack
 
 Status: hold-out set #2 was run once (`--final`, commit `b820c89`, 2026-10-13). It passes five of seven targets
-and fails the two lead targets. Stopped for the author (escalation 15, D-306). Nothing was tuned after the run.
+and fails the two lead targets; the lead is the weakest reading so far. Stopped for the author (escalation 15, D-306). Nothing was tuned after the run.
 Hold-out set #1 (`d3eb6c4`) is retired; its reading stays below as history. No unseen set is left.
 
 Branch `e6/p4b-seed14` (the seed-14 round). On `main`: phases 0 to 4 and A (PRs #61 to #66).
@@ -10,16 +10,18 @@ Decisions: D-281 to D-306. Media: `docs/review/media/e6/`. Everything ships behi
 
 ## 1. What to decide
 
-**Hold-out set #2 passes every target that failed on set #1. It fails the two lead targets, one of them newly, by
-0.1 point. I stopped, as you ruled (D-304.5).**
+**Hold-out set #2 passes the two survival targets that failed on set #1 (retry nights, first night). The lead
+fails again and is the weakest reading so far: +1.5, ahead on 5 of 8 (set #1: +2.6, ahead on 7 of 8; the
+6-of-8 part fails for the first time). "No lane negative" fails newly, by 0.1 point. I stopped, as you ruled
+(D-304.5).**
 
 | Target | Tuning set (5 seeds, `f8cea4b`) | Hold-out #2 (8 unseen seeds, `b820c89`) |
 |---|---|---|
-| Threat-matched lead >= 5, ahead on 6 of 8 | +1.9, fails | **+1.5, ahead on 5 of 8, fails** (accepted as unmet, D-302.2) |
+| Threat-matched lead >= 5, ahead on 6 of 8 | +1.9, fails | **+1.5, ahead on 5 of 8, fails.** The mean miss was accepted at +1.7 (D-302.2); the ahead-count miss is new |
 | No lane negative | passes (lowest south-west +0.0) | **fails: south-west -0.1** (east +2.3, west +2.9, north +1.0) |
 | Zero retry nights, branch policies | 0, passes | 0, passes (unbranched also 0) |
-| First tier-3 night >= 25%, first attempt | 79.7%, passes | 61.0%, passes (every policy, unbranched included) |
-| Fence tax <= 30% | 19.4%, passes | 9.7%, passes |
+| First tier-3 night >= 25%, first attempt | 79.7%, passes (unbranched; branch builds 84.3% to 100%) | 61.0%, passes (unbranched; branch builds 90.0% to 100%) |
+| Fence tax <= 30% | 19.4%, passes (north lane 30.6%; not like for like with round 2's 4.9%) | 9.7%, passes (north lane 30.6%, over the bar on its own) |
 | Fixed pairs within 15 | 5.5, passes | 5.3, passes (seed 16 alone: 15.9) |
 | Lane-cap guard | 0, passes | 0, passes |
 
@@ -29,27 +31,42 @@ waves and fell in wave 2. In wave 3 the bot's hero left the south-west main lane
 arrived when the towers had cleared it, and the south-west fence fell behind it: south-west boars dealt 220 of the
 262 damage. Timeline and what-ifs: `media/e6/tuning/p4_seed14_diagnosis.md`.
 
-**Cause class: (ii) balance.** Tier 3 started at its cap pressure on the night the player owns one branch. The
-hero's walk is a contributing bot weakness (class (i)); three bot rules were tried in memory, each fixed one night
-and broke or missed another, so the bot is unchanged.
+**Cause class: (ii) balance, by my reading; you may read it as (i).** What the night shows is your own class (i)
+example, the hero leaving its lane. I classed it (ii) because no bot rule I tried fixed it (three rules in memory;
+each fixed one night and broke or missed another), while a softer start fixed it for every policy with the bot
+unchanged. So the bot is unchanged and its weakness is still there. The what-if rows behind this choice came from
+uncommitted study edits and their raw output was not kept; they are being re-run from committed code
+(`media/e6/tuning/p4_seed14_diagnosis.md` says which rows are verified).
 
 **What changed (one round, flag on only):** tier 3 starts at pressure 10 and rises one per night to its cap 12
 (D-305). Nothing else: no Longbow, Spike, cap or bot change.
 
-**The two failures on set #2:**
-- The lead, +1.5 against 5: the miss you accepted (D-302.2). Per seed: +1.6, +3.0 (east); -0.1, -0.1 (south-west);
-  +1.9, +4.0 (west); +5.2, -3.3 (north).
-- No lane negative: south-west reads -0.1. On both south-west seeds Longbow + Stone already keeps 99.2% and 99.9% of
-  the diner over the tier-3 nights and the threat-matched build 99.0% and 99.8%: there is no room to lead, and the
-  difference is one twentieth of the noise band (2 points). It is still a failed target as written. On north seed 19
-  the threat-matched build is 3.3 points behind Longbow + Stone (93.2 against 96.5); the north lane as a whole is
-  +1.0 and passes.
+**The two failures on set #2, per seed** (mean diner HP kept over the tier-3 nights):
+
+| seed | lane | threat | Longbow + Stone | lead | the seed's own best pair | lead over it |
+|---|---|---|---|---|---|---|
+| 8 | east | 99.6 | 97.9 | +1.6 | Volley + Stone 99.9 | -0.3 |
+| 11 | east | 96.9 | 93.9 | +3.0 | Volley + Stone 95.4 | +1.5 |
+| 21 | south-west | 99.0 | 99.2 | -0.1 | Longbow + Stone | -0.1 |
+| 23 | south-west | 99.8 | 99.9 | -0.1 | Longbow + Stone | -0.1 |
+| 18 | west | 99.7 | 97.8 | +1.9 | Volley + Stone 98.4 | +1.3 |
+| 25 | west | 100.0 | 96.0 | +4.0 | Volley + Spike 99.8 | +0.2 |
+| 16 | north | 90.7 | 85.5 | +5.2 | Longbow + Stone | +5.2 |
+| 19 | north | 93.2 | 96.5 | -3.3 | Longbow + Stone | -3.3 |
+
+- The lead is +1.5 against 5, ahead on 5 of 8 against 6. Against each seed's own best pair it is +0.5, ahead on 3
+  of 8 (set #1: +0.9).
+- South-west reads -0.1 on both seeds. Longbow + Stone already keeps over 99% there, so there is no room to lead;
+  and the threat-matched build paid more for it (4000 against 3700 gold on seed 21, 4300 against 3700 on seed 23).
+- Noise cuts both ways. Differences under 2 points are noise: that covers the -0.1, and it equally covers the
+  overall +1.5 and the north lane's +1.0. Seed 19 at -3.3 and seed 16 at +5.2 are outside it.
+- Plainly: on unseen seeds, reading the lane markers is not shown to pay.
 
 | # | Question | My recommendation |
 |---|---|---|
-| 1 | The south-west lane reads -0.1. (a) Accept it with the lead as one unmet target (reading the lane markers pays little; tier-4 input) and treat the checkpoint as passed. (b) Restate the rule as "no lane below -1.0" (half the noise band); the same data then passes, no run needed. (c) Do not accept: the flag stays off and lane reading goes to tier 4 | (a). No run can settle it: no unseen set is left |
+| 1 | The south-west lane reads -0.1. (a) Accept it with the lead as one unmet target (reading the lane markers pays little; tier-4 input) and treat the checkpoint as passed. (b) Restate the rule as "no lane below -1.0" (half the noise band); the same data then passes, no run needed. Be aware this is a rule rewritten after reading the last unseen set. (c) Do not accept: the flag stays off and lane reading goes to tier 4 | (a). No run can settle it: no unseen set is left |
 | 2 | Flip the flag (Task 22)? | Yes, if 1 is (a) or (b): every must-hold target on survival passes on unseen seeds |
-| 3 | The softer start makes the first tier-3 night easy for a branch build (61.0% is the lowest of 48 first nights; most are 95% or more) | Accept for this slice; review queue 44 |
+| 3 | The softer start makes the first tier-3 night easy for a branch build: 90.0% to 100% on set #2, 84.3% to 100% on the tuning set (unbranched lowest 61.0% and 79.7%) | Accept for this slice; review queue 44 |
 | 4 | Seed 16 (north) is the hardest unseen seed: worst nights 29.7% to 50.3% for branch builds, 0.7% unbranched, no retry | Information; tier-4 input |
 
 ## 1b. The first reading (hold-out set #1, superseded; kept as history)
@@ -119,7 +136,7 @@ rows are at the committed 2.0 s. Notes for you:
 - The Stone wall's bench edge is its HP alone.
 - The bench ranks branches; it does not predict nights. Real play has two towers per lane, the hero and a 300 HP diner.
 
-## 4. Tuning history (tuning set: seeds 1 east, 3 south-west, 4 west, 7 north; 24 real 32-day runs each)
+## 4. Tuning history (tuning set: seeds 1 east, 3 south-west, 4 west, 7 north, 24 real 32-day runs each; round 3 adds north seed 14, 30 runs)
 
 | Step | What changed | Lead over best fixed | Retry nights (branch policies) | Lowest first tier-3 night | Fence tax | Spread |
 |---|---|---|---|---|---|---|
@@ -129,14 +146,16 @@ rows are at the committed 2.0 s. Notes for you:
 | Round 2 | 2.0 s; ONE purchase order for every policy; the hero holds a breached lane | +1.6 | 0 | 58.3% (4.0% unbranched) | 4.9% | 5.0 |
 | Trial | round 2 with the pressure cap at 13 | +2.4 (east -0.8) | 0 | 58.3% (4.0% unbranched) | 0.0% | 9.3 |
 | Round 2 on the merged branch | phase 3's pad moves included | +1.7 | 0 | 57.0% (13.0% unbranched) | 4.9% | 5.2 |
+| Round 3 (D-305), five seeds | tier 3 starts at pressure 10, 11, then 12 | +1.9 | 0 | 84.3% (79.7% unbranched) | 19.4% | 5.5 |
 
 The "lowest first night" column for round 0, round 1 and the two trials was read from the report before a fault was
 fixed: a retried first night was reported by its mercy attempt, and on the north seed the unbranched run's first
 night was LOST on the first attempt in those rounds. Round 2 turned that loss into a survived night (4.0%, then 13.0%
 with the pad moves); it is an improvement, not a regression. The last row is from the corrected report.
 
-Outputs: `docs/review/media/e6/tuning/` (`p4_r2_tuning_head.txt` is the corrected report at head). Two of three
-tuning rounds are used.
+Outputs: `docs/review/media/e6/tuning/` (`p4_r2_tuning_head.txt` is the corrected report at head). All three
+tuning rounds are used. Round 3's fence tax counts from the third tier-3 night and has five seeds: not like for
+like with the rows above.
 
 ## 5. The measuring bot was changed (D-297)
 
@@ -279,8 +298,9 @@ segments are cut from different moments of the day.
 
 ## 10. Not done
 
-- No diagnosis of seed 14's first tier-3 night (D-290.1 forbids it without your waiver; item 2).
+- Seed 14 was diagnosed after your waiver (D-304); the bot weakness it showed is not fixed (D-305).
+- No unseen seed set is left: both hold-out sets are spent.
 - The hold-out output is under `media/e6/tuning/`, not `media/e6/balance/final/` as the plan named it.
-- No third tuning round, no ramp (D-302).
+- The third tuning round is used (D-305). No ramp above the cap (D-302).
 - No like-for-like E5 T3 comparison for unspent gold (it needs an E5 T3 run to day 32).
 - The flip (Task 22) and the cleanup (Task 23) wait for your approval.

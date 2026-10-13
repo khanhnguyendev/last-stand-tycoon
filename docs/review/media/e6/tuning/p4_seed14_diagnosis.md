@@ -2,8 +2,10 @@
 
 Tool: `tests/sim/study_first_t3.gd` (one real tier-bot run from day 1, flag on in memory, read-only logging).
 What-if arguments change the run in memory only: `--hold=1`, `--commit=1`, `--far=1`, `--base=<n>`.
-The raw study outputs were not kept; every row below is reproducible with the command and the commit named.
-Rows marked (before) were run at `7f4ee46` plus the what-if arguments, before the change of D-305.
+The raw study outputs of the first pass were NOT kept, and the what-if switches were uncommitted edits on top of
+`7f4ee46` at the time (they are committed since `397b4ef`). Rows marked (before) are from that pass and cannot be
+checked against a committed file. Verified against committed report outputs: the two "shipped bot" rows and the two
+`--base=10` rows. A re-run of every row from committed code is under `rerun/` when present (see the end).
 In those rows `--base` set `tier_base[3]`, which also moved Spike's quoted base; the shipped change keeps Spike's base at 12,
 so a Volley + Spike figure may differ slightly once a Spike fence is owned (not on the first night: one tower branch only).
 
