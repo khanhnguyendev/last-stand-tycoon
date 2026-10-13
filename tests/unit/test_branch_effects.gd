@@ -427,7 +427,7 @@ func test_spike_pass_base_accessor() -> void:
 	assert_eq(BranchMath.spike_pass_base(bb.spike, bb, true), 24.0)
 	assert_eq(BranchMath.spike_pass_base(bb.stone, bb, true), 0.0, "another fence keeps its own number")
 
-# --- E6 tuning round 1 (D-292): Longbow interval 2.0 s behind the flag ---------------------------------------
+# --- E6 tuning rounds 1 and 2 (D-297): Longbow interval 2.0 s behind the flag ---------------------------------------
 
 ## Mutation: the interval accessor returns the old value with the flag on (3.0), or the field is not read.
 func test_retune_on_longbow_interval_is_2_0_through_apply_level() -> void:

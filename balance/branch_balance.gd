@@ -16,8 +16,8 @@ const FENCE_BRANCHES: Array[StringName] = [&"stone", &"spike"]
 ## which pick it by the retune flag. Removed with the old set at the E6 cleanup. Stone wall and Volley have no new value.
 ## Longbow damage x this by the kind of the monster it hits (an absent kind = 1.0; no entry for the Baron or the Boar King).
 @export var longbow_kind_mult_retune: Dictionary[StringName, float] = {&"brute": 2.0}
-## Tuning round 1 (D-292, author pre-authorized): the lane-type bench forced two values.
-## Longbow interval 2.0 s (old set: 3.0 on `longbow`). On the hare lane the Longbow lost 2313 diner HP against the unbranched
+## Tuning rounds 1 and 2 (D-297, tuning on real play under the D-292 pre-authorization; the lane-type bench of D-292 is the measuring tool, not the reason for 2.0 s).
+## Longbow interval 2.0 s (old set: 3.0 on `longbow`; round 1 took it to 2.2 s, round 2 to 2.0 s, D-297). On the hare lane the Longbow lost 2313 diner HP against the unbranched
 ## tower's 1693 at every kind multiplier (2 to 4) and every damage (120 to 240); only the interval moves it. At 2.4 s: siege 412,
 ## hare 1387, neutral 202 (2.6 s fails the floor); at 2.2 s: siege 233, hare 1092, neutral 82; at the committed 2.0 s: siege 114, hare 828, neutral 0, all bench rules pass.
 ## Damage 120, range 9.98 and the brute multiplier 2.0 are unchanged.

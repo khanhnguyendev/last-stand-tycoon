@@ -1,7 +1,7 @@
 {
   "res://tests/bench/test_branch_bench_full.gd::test_1_the_wave_mixes_at_pressure_12_are_the_real_formulas": 11,
   "res://tests/bench/test_branch_bench_full.gd::test_2_the_bench_is_deterministic": 10979,
-  "res://tests/bench/test_branch_bench_full.gd::test_3_matrix_flag_on_pressure_12": 214058,
+  "res://tests/bench/test_branch_bench_full.gd::test_3_matrix_flag_on_pressure_12": 206321,
   "res://tests/bench/test_branch_bench_full.gd::test_4_floor_pressure_12": 11,
   "res://tests/bench/test_branch_bench_full.gd::test_5_specialist_margin_pressure_12": 11,
   "res://tests/bench/test_branch_bench_full.gd::test_6_identity_pressure_12": 11,

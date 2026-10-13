@@ -198,7 +198,7 @@ func test_seed_scan_on_a_synthetic_lane_function() -> void:
 # rows: {seed, lane, policy, mean_frac, retry_nights, first_t3_frac, fence_median, income_at_cap, hare_share, guard_hits}
 func _row(seed: int, lane: String, policy: String, frac: float, extra := {}) -> Dictionary:
 	var r := {"seed": seed, "lane": lane, "policy": policy, "mean_frac": frac, "retry_nights": 0, "first_t3_frac": 0.5, "fence_median": 10, "income_at_cap": 100,
-		"hare_share": 0.7, "hare_share_min": 0.7, "guard_hits": 0, "max_retries": 0, "max_retries_day": -1, "unspent_before": [], "unspent_after": [], "unspent_last": 0, "ladder_done": false}
+		"hare_share": 0.7, "hare_share_min": 0.7, "guard_hits": 0, "max_retries": 0, "max_retries_day": -1, "unspent_before": [], "unspent_after": [], "unspent_last": 0, "ladder_done": false, "first_t3_retries": 0, "worst_night_frac": 0.5, "worst_night_day": 20}
 	r.merge(extra, true)
 	return r
 
@@ -258,7 +258,7 @@ func test_threat_lead_compares_with_the_best_pair_by_mean() -> void:
 	_put(rows, "all_a", seeds[0], {"mean_frac": 0.62})  # all_a: mean 0.515, the best pair; on seed 0 it is above threat's 0.60
 	var res := SweepMath.threat_lead(rows)
 	assert_string_contains(res.lines[0], "all_a")
-	assert_string_contains(res.lines[0], "ahead on 7 of 8", "seed 0 is behind all_a (0.60 < 0.62)")
+	assert_string_contains(res.lines[0], "on 7 of 8", "seed 0 is behind all_a (0.60 < 0.62)")
 	assert_string_contains(res.lines[0], "mean lead +8.5", "(60 - 51.5)")
 
 func test_threat_lead_by_lane_is_not_negative_on_any_lane() -> void:
@@ -518,7 +518,7 @@ func test_final_gate_records_set_commit_and_date_then_finish_marks_done_and_ok()
 	var g := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE)
 	assert_true(g.allowed)
 	assert_string_contains(g.lines[0], "FINAL set=#1 commit=abc1234")
-	assert_eq(g.record, {"history": [{"set": "1", "commit": "abc1234", "date": DATE, "done": false, "ok": false}]}, "recorded at the start: done is false until the run ends")
+	assert_eq(g.record, {"history": [{"set": "1", "commit": "abc1234", "date": DATE, "days": 32, "done": false, "ok": false}]}, "recorded at the start: done is false until the run ends")
 	var fin := SweepMath.final_finish(g.record, true)
 	assert_eq(fin.history[0].done, true)
 	assert_eq(fin.history[0].ok, true)
@@ -594,7 +594,7 @@ func test_threat_lead_on_the_tuning_set_needs_only_the_mean() -> void:
 		i += 1
 	var res := SweepMath.threat_lead(rows)
 	assert_true(res.ok, res.lines[0])
-	assert_string_contains(res.lines[0], "ahead on 2 of 4")
+	assert_string_contains(res.lines[0], "on 2 of 4")
 	assert_false(SweepMath.threat_lead(rows, true).ok, "the same rows as a final set: ahead on 2 of 4 fails the final rule")
 	rows[4].mean_frac = 0.52  # lane 1: lead 20 -> 2, lane 2: 20 -> 0: the mean falls to 0.5
 	rows[10].mean_frac = 0.50
@@ -648,3 +648,108 @@ func test_ladder_done_for_the_unbranched_policy_needs_no_branches() -> void:
 	spots[2].level = 2
 	assert_false(SweepMath.ladder_done(spots, [3, 3], 3, 3, false), "a level still to buy")
 	assert_false(SweepMath.ladder_done(spots.slice(0, 2), [3, 2], 3, 3, false), "a station still to buy")
+
+
+# --- Whole-branch review round: a retried first tier-3 night is lost; --final needs 32 days; honest lead lines ---
+
+func test_first_t3_night_that_needed_a_retry_counts_as_lost_whatever_the_mercy_result() -> void:
+	var rows := _grid()
+	_put(rows, "unbranched", 5, {"first_t3_frac": 0.912, "first_t3_retries": 1})
+	var res := SweepMath.first_t3_night(rows)
+	assert_false(res.ok, "attempt 1 lost, the mercy attempt cleared at 91.2%: still a lost night")
+	assert_string_contains(_line(res, "  retried first night: seed 5 unbranched"), "1 retries")
+	_put(rows, "unbranched", 5, {"first_t3_frac": 0.26, "first_t3_retries": 0})
+	assert_true(SweepMath.first_t3_night(rows).ok, "no retry at 26% passes")
+	_put(rows, "unbranched", 5, {"first_t3_frac": 0.24, "first_t3_retries": 0})
+	assert_false(SweepMath.first_t3_night(rows).ok, "no retry at 24% fails")
+	assert_eq(_line(SweepMath.first_t3_night(_grid()), "  retried first night"), "", "no retried line without a retry")
+
+func test_retune_run_stats_first_night_retries_and_the_worst_first_attempt() -> void:
+	var nights := [
+		{"day": 21, "tier": 2, "frac": 0.1, "retries": 0, "first_frac": 0.1},
+		{"day": 22, "tier": 3, "frac": 0.912, "retries": 2, "first_frac": 0.0},
+		{"day": 23, "tier": 3, "frac": 0.8, "retries": 0, "first_frac": 0.8},
+		{"day": 24, "tier": 3, "frac": 0.3, "retries": 0, "first_frac": 0.3},
+	]
+	var s := SweepMath.retune_run_stats(nights)
+	assert_eq(s.first_t3_retries, 2, "the first tier-3 night's own retries")
+	assert_almost_eq(s.first_t3_frac, 0.912, 1e-9, "the final attempt's number is kept (the verdict zeroes it when retried)")
+	assert_almost_eq(s.worst_night_frac, 0.0, 1e-9, "the lowest FIRST attempt over the tier-3 nights")
+	assert_eq(s.worst_night_day, 22)
+	var none := SweepMath.retune_run_stats([nights[0]])
+	assert_eq([none.first_t3_retries, none.worst_night_frac, none.worst_night_day], [0, -1.0, -1])
+
+func test_final_gate_refuses_any_days_but_32_and_records_days() -> void:
+	for d in [31, 33, 14]:
+		var g := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE, d)
+		assert_false(g.allowed, "days %d" % d)
+		assert_string_contains(g.lines[0], "32")
+	var ok := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE, 32)
+	assert_true(ok.allowed)
+	assert_eq(ok.record.history[0].days, 32)
+	assert_true(SweepMath.final_gate("tuning", false, "abc1234", {"history": []}, DATE, 5).allowed, "the tuning set may use any days")
+
+func test_final_finish_marks_not_ok_when_the_commit_changed_during_the_run() -> void:
+	var g := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE, 32)
+	var same := SweepMath.final_finish(g.record, true, "abc1234")
+	assert_true(same.history[0].ok)
+	var moved := SweepMath.final_finish(g.record, true, "def5678")
+	assert_false(moved.history[0].ok, "HEAD changed during the run")
+	assert_eq(moved.history[0].changed_to, "def5678")
+	var dirty := SweepMath.final_finish(g.record, true, "abc1234-dirty")
+	assert_false(dirty.history[0].ok, "the tree changed during the run")
+	assert_true(SweepMath.final_finish(g.record, true).history[0].ok, "no end commit given: no check")
+
+func test_a_run_without_a_ladder_line_is_a_failed_run_not_a_dropped_one() -> void:
+	var kv := {"mean": "0.5", "retry_nights": "0", "hard_break_day": "-1", "unspent_last_day": "10"}
+	var rt := {"siege": "east", "first_t3_frac": "0.5", "hare_share_mean": "0.7", "hare_share_min": "0.7", "guard_hits": "0"}
+	var ld := {"fence_rebuild_gold_median_at_cap": "10", "income_at_cap": "100", "ladder_done_day": "21"}
+	var good := SweepMath.run_row(5, "east", "threat", kv, ld, rt)
+	assert_false(good.failed)
+	assert_eq(good.income_at_cap, 100)
+	assert_eq(good.first_t3_retries, 0, "an absent new field defaults to 0")
+	var bad := SweepMath.run_row(5, "east", "threat", kv, {}, rt)
+	assert_true(bad.failed)
+	assert_string_contains(bad.failed_reason, "LADDER")
+	var rows := _grid()
+	_put(rows, "threat", 5, {"failed": true, "failed_reason": "LADDER line missing"})
+	var res := SweepMath.retune_report(rows, _expected(), true)
+	assert_eq(res.exit, 1)
+	assert_eq(_line(res, "THREAT_LEAD"), "", "no verdict lines")
+	assert_string_contains("\n".join(res.lines), "LADDER line missing")
+
+func test_fence_tax_notes_the_lower_bound() -> void:
+	assert_string_contains(_line(SweepMath.fence_tax(_grid()), "  note:"), "lower bound")
+
+func test_worst_night_and_spread_by_seed_lines() -> void:
+	var rows := _grid()
+	_put(rows, "mixed", 6, {"worst_night_frac": 0.21, "worst_night_day": 25})
+	_put(rows, "mixed", 9, {"worst_night_frac": 0.33, "worst_night_day": 23})
+	var lines := SweepMath.worst_night_lines(rows)
+	assert_string_contains(_line({"lines": lines}, "WORST_NIGHT mixed"), "21.0% (seed 6, day 25)")
+	assert_string_contains(_line({"lines": lines}, "WORST_NIGHT threat"), "50.0%")
+	_put(rows, "all_a", 13, {"mean_frac": 0.62})  # fixed pairs on seed 13: 62, 50, 50, 50 -> spread 12
+	var sp := _line({"lines": lines}, "SPREAD_BY_SEED")
+	assert_string_contains(sp, "max 0.0 points")
+	var lines2 := SweepMath.worst_night_lines(rows)
+	assert_string_contains(_line({"lines": lines2}, "SPREAD_BY_SEED"), "max 12.0 points (seed 13)")
+	var res := SweepMath.retune_report(rows, _expected(), true)
+	assert_ne(_line(res, "WORST_NIGHT"), "")
+
+## "Ahead" needs a lead of at least AHEAD_MARGIN (1.0); the count of level seeds (within +-1.0) is printed; the own-best-pair lead is on the main line.
+func test_threat_lead_counts_ahead_only_from_one_point_and_prints_level_seeds() -> void:
+	var rows := _grid(0.50, 10.0)
+	var seeds := SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1)
+	_put(rows, "threat", seeds[0], {"mean_frac": 0.509})  # lead 0.9: level
+	_put(rows, "threat", seeds[1], {"mean_frac": 0.51})   # lead 1.0: ahead
+	_put(rows, "threat", seeds[2], {"mean_frac": 0.491})  # lead -0.9: level
+	_put(rows, "threat", seeds[3], {"mean_frac": 0.49})   # lead -1.0: behind
+	var res := SweepMath.threat_lead(rows, true)
+	var head := String(res.lines[0])
+	assert_string_contains(head, "ahead (>= 1.0) on 5 of 8")
+	assert_string_contains(head, "level (within +-1.0) on 2")
+	assert_string_contains(head, "own best pair")
+	assert_eq(SweepMath.AHEAD_MARGIN, 1.0)
+	# the final rule counts the margin: 5 of 8 ahead fails even though 6 have a positive lead
+	assert_false(res.ok)
+

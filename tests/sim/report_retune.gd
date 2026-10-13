@@ -64,7 +64,7 @@ func _initialize() -> void:
 		push_error("%s exists but does not parse as a record ({\"history\": [...]}); fix or restore it by hand: the report never overwrites it" % record_path)
 		quit(2)
 		return
-	var gate: Dictionary = SweepMath.final_gate(set_id, String(args.final) == "1", commit, parsed.record, _commit_date(proj))
+	var gate: Dictionary = SweepMath.final_gate(set_id, String(args.final) == "1", commit, parsed.record, _commit_date(proj), days)
 	var seeds: Array = SweepMath.set_seeds(seed_set)
 	var lines: Array = []
 	if not gate.allowed:
@@ -76,7 +76,7 @@ func _initialize() -> void:
 	lines.append("SEED_RULE scan seeds upward from 1; a seed's siege lane is LaneCharacter.for_run(seed).siege; per lane the 1st seed is the tuning set, the next 2 hold-out set #1, the next 2 hold-out set #2")
 	for l in SweepMath.SIEGE_LANES:
 		lines.append("SEEDS %s %s: %s" % ["tuning" if set_id == "tuning" else "hold-out #" + set_id, l, str(seed_set[l])])
-	lines.append("NOTE a retried night counts its final (mercy) attempt; the night statistics count tier-3 nights only; hare share and the lane-cap guard are read from each run's own plan")
+	lines.append("NOTE a retried night counts its final (mercy) attempt, EXCEPT the first tier-3 night (FIRST_T3_NIGHT): a retried first night counts as lost, 0%; the night statistics count tier-3 nights only; hare share and the lane-cap guard are read from each run's own plan")
 	if String(args.dry) == "1":
 		lines.append("DRY RUN: nothing started")
 		print("\n".join(lines))
@@ -140,7 +140,7 @@ func _initialize() -> void:
 		OS.kill(int(r.pid))  # a failed report leaves no child behind
 	var rows: Array = []
 	var expected: Array = []
-	lines.append("RUN seed policy | " + " ".join(RUN_FIELDS) + " | siege first_t3_frac hare_share_mean guard_hits max_retries")
+	lines.append("RUN seed policy | " + " ".join(RUN_FIELDS) + " | siege first_t3_frac hare_share_mean guard_hits max_retries first_t3_retries")
 	for s in seeds:
 		for p in SweepMath.RETUNE_POLICIES:
 			expected.append([s, p])
@@ -158,22 +158,20 @@ func _initialize() -> void:
 			var cells: Array = []
 			for f in RUN_FIELDS:
 				cells.append(String(kv.get(f, "?")))
-			lines.append("RUN %d %s | %s | %s %s %s %s %s" % [s, p, " ".join(cells), rt.get("siege", "?"), rt.get("first_t3_frac", "?"), rt.get("hare_share_mean", "?"), rt.get("guard_hits", "?"), rt.get("max_retries", "?")])
-			var hard := int(kv.get("hard_break_day", "-1")) >= 0
-			if hard:
-				lines.append("RUN %d %s | HARD BREAK on day %s" % [s, p, kv.hard_break_day])
-			rows.append({"seed": s, "lane": SweepMath.seed_lane(seed_set, s), "policy": p, "mean_frac": float(kv.mean), "retry_nights": int(kv.retry_nights),
-				"first_t3_frac": float(rt.get("first_t3_frac", "-1")), "fence_median": int(ld.get("fence_rebuild_gold_median_at_cap", "0")), "income_at_cap": int(ld.get("income_at_cap", "0")),
-				"hare_share": float(rt.get("hare_share_mean", "-1")), "hare_share_min": float(rt.get("hare_share_min", "-1")), "guard_hits": int(rt.get("guard_hits", "0")), "failed": hard,
-				"max_retries": int(rt.get("max_retries", "0")), "max_retries_day": int(rt.get("max_retries_day", "-1")), "unspent_before": _gold_array(rt.get("unspent_before", "-")),
-				"unspent_after": _gold_array(rt.get("unspent_after", "-")), "unspent_last": int(kv.get("unspent_last_day", "0")), "ladder_done": int(ld.get("ladder_done_day", "-1")) >= 0})
+			lines.append("RUN %d %s | %s | %s %s %s %s %s %s" % [s, p, " ".join(cells), rt.get("siege", "?"), rt.get("first_t3_frac", "?"), rt.get("hare_share_mean", "?"), rt.get("guard_hits", "?"), rt.get("max_retries", "?"), rt.get("first_t3_retries", "?")])
+			var row: Dictionary = SweepMath.run_row(s, SweepMath.seed_lane(seed_set, s), p, kv, ld, rt)
+			if row.failed:
+				lines.append("RUN %d %s | FAILED (%s)" % [s, p, row.failed_reason])
+			rows.append(row)
 	var res: Dictionary = SweepMath.retune_report(rows, expected, set_id != "tuning")
 	lines.append_array(res.lines)
 	if int(res.exit) == 0:
 		lines.append("TARGETS %s%s (counted: THREAT_LEAD, THREAT_LEAD_BY_LANE, RETRY_NIGHTS, FIRST_T3_NIGHT, FENCE_TAX, FIXED_SPREAD, LANE_CAP_GUARD; HARE_SHARE flags, UNBRANCHED_* and UNSPENT_* are information; read every line, the per-seed and per-lane lines most of all)" % [
 			"ALL PASS" if res.ok else "NOT ALL PASS", "" if res.ok else " (failing: " + ", ".join(res.failed) + ")"])
+	if is_final and _commit(proj) != commit:
+		lines.append("FINAL_COMMIT_CHANGED: the commit was %s at the start and is %s now: HEAD or the tree changed during the run; the record says ok=false" % [commit, _commit(proj)])
 	if is_final:
-		_write_record(record_path, SweepMath.final_finish(gate.record, int(res.exit) == 0 and bool(res.ok)))
+		_write_record(record_path, SweepMath.final_finish(gate.record, int(res.exit) == 0 and bool(res.ok), _commit(proj)))
 	lines.append("WALL %.0f s (parallel=%d, %d runs)" % [(Time.get_ticks_msec() - t0) / 1000.0, parallel, total])
 	var text := "\n".join(lines)
 	print(text)
@@ -183,14 +181,6 @@ func _initialize() -> void:
 	quit(int(res.exit))
 
 ## Single-quoted for /bin/sh.
-func _gold_array(text: String) -> Array:
-	var out: Array = []
-	if text == "-" or text == "":
-		return out
-	for t in text.split("|"):
-		out.append(int(t))
-	return out
-
 func _q(s: String) -> String:
 	return "'" + s.replace("'", "'\\''") + "'"
 
@@ -204,7 +194,7 @@ func _commit(proj: String) -> String:
 		return "unknown"
 	var h := String(out[0]).strip_edges()
 	var st: Array = []
-	if OS.execute("git", ["-C", proj, "status", "--porcelain", "--untracked-files=no"], st) == 0 and not st.is_empty() and String(st[0]).strip_edges() != "":
+	if OS.execute("git", ["-C", proj, "status", "--porcelain", "--untracked-files=no", "--", ".", ":(exclude)tests/sim/retune_final.json"], st) == 0 and not st.is_empty() and String(st[0]).strip_edges() != "":
 		h += "-dirty"
 	return h
 

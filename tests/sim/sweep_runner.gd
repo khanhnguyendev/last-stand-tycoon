@@ -39,7 +39,8 @@ extends Node
 ##   RETUNE seed policy siege hare first_t3_frac hare_share_mean hare_share_min guard_hits t3_nights (only with --retune=on; SweepMath.retune_run_stats): siege and hare = the run's lane
 ##   character; first_t3_frac = the diner fraction of the first night that started at tier 3 (-1 none); hare_share_* = the night-level share of the plan's hares on the hare lane
 ##   over the tier-3 nights that had hares (mean, min; -1 none); guard_hits = waves whose extra hare group the 3-lane guard skipped (expected 0); t3_nights = tier-3 nights played; (D-298, at the END of the line) max_retries / max_retries_day = the most mercy retries any tier-3 night needed and its day; unspent_before / unspent_after = the closing
-##   gold of each tier-3 day (|-separated, '-' none) before the ladder completes / from its completion day on.
+##   gold of each tier-3 day (|-separated, '-' none) before the ladder completes / from its completion day on; first_t3_retries = the retries the first tier-3 night needed (its
+##   first_t3_frac is then the mercy attempt's); worst_night_frac / worst_night_day = the lowest FIRST-attempt fraction over the tier-3 nights and its day (-1 none).
 ##   The `unbranched` policy (the report's floor) buys no branch, so its LADDER counts as done when every level and station is bought (SweepMath.ladder_done need_branches=false).
 ##   `--cols=extra` also appends fence_rebuild_gold (rebuild + rebranch of that row's day phase) at the END of the tier rows.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
@@ -149,6 +150,7 @@ func _run() -> void:
 		var stock0 := GameState.freezer_steaks + GameState.carried_steaks
 		var t0 := h.elapsed
 		var n := await h.run_night()
+		var first_attempt_frac: float = n.diner_frac  # the first attempt's result (a retry's mercy attempt overwrites n)
 		if n.failed and first_fail_day < 0:
 			first_fail_day = day
 		# Retries run with mercy (S3, D-175): each retry of the same night is weaker, so a failed night can clear on a later retry.
@@ -167,7 +169,7 @@ func _run() -> void:
 		for fid in _fence_hp:
 			lost_now += 1 if float(_fence_hp[fid]) <= 0.0 else 0
 		_capture_night_end()
-		nights.append({"day": day, "tier": start_tier, "tier_close": start_tier, "boss_night": boss_night, "retries": retries, "at_cap": at_cap, "at_cap3": at_cap3, "frac": n.diner_frac, "failed": n.failed,
+		nights.append({"day": day, "tier": start_tier, "tier_close": start_tier, "boss_night": boss_night, "retries": retries, "at_cap": at_cap, "at_cap3": at_cap3, "frac": n.diner_frac, "first_frac": first_attempt_frac, "failed": n.failed,
 			"fences_lost": lost_now, "branches": _branches, "branch_gold": _branch_gold,
 			"hare_share": hare_share_now, "guard_hits": guard_now})
 		var night_s := h.elapsed - t0
@@ -272,9 +274,9 @@ func _run() -> void:
 			var rt := SweepMath.retune_run_stats(nights)
 			var us := SweepMath.unspent_split(day_records)
 			var ch := LaneCharacter.for_run(int(args.seed))
-			print("RETUNE seed=%s policy=%s siege=%s hare=%s first_t3_frac=%.4f hare_share_mean=%.3f hare_share_min=%.3f guard_hits=%d t3_nights=%d max_retries=%d max_retries_day=%d unspent_before=%s unspent_after=%s" % [
+			print("RETUNE seed=%s policy=%s siege=%s hare=%s first_t3_frac=%.4f hare_share_mean=%.3f hare_share_min=%.3f guard_hits=%d t3_nights=%d max_retries=%d max_retries_day=%d unspent_before=%s unspent_after=%s first_t3_retries=%d worst_night_frac=%.4f worst_night_day=%d" % [
 				args.seed, args.policy, ch.siege, ch.hare, rt.first_t3_frac, rt.hare_share_mean, rt.hare_share_min, rt.guard_hits, rt.t3_nights, rt.max_retries, rt.max_retries_day,
-				_gold_list(us.before), _gold_list(us.after)])
+				_gold_list(us.before), _gold_list(us.after), rt.first_t3_retries, rt.worst_night_frac, rt.worst_night_day])
 		if String(args.tier3) == "off" and tier3_events != 0:
 			push_error("tier 3 is not for sale but %d brute kills, south-west spawns and branches were counted" % tier3_events)
 			h.finish()

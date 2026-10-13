@@ -237,6 +237,10 @@ const LONGBOW_POLICIES := ["all_a", "mixed", "threat"]
 const EPS := 1e-9
 ## The floor reference (D-298): reported, never a target.
 const REFERENCE_POLICY := "unbranched"
+## A per-seed lead counts as "ahead" from this many points (and as "behind" from minus this); in between the seed is level.
+const AHEAD_MARGIN := 1.0
+## The only length a final run may have (the 32-day runs the targets are stated for).
+const FINAL_DAYS := 32
 
 ## The scan. `siege_of`: Callable(seed) -> siege lane name. Returns {tuning, holdout1, holdout2}, each {lane: [seeds]} in scan order.
 static func seed_scan(siege_of: Callable, lanes: Array, per_lane := 5, start := 1) -> Dictionary:
@@ -284,7 +288,7 @@ static func set_by_id(set_id: String) -> Dictionary:
 ## is refused (it would run without a FINAL line or a record). The record is {"history": [{set, commit, date, done, ok}]} (tests/sim/retune_final.json, committed with the
 ## output); `date` is passed in (the commit's date from git: no clock in the maths). Returns {allowed, lines, record}: the header lines and the record with this run appended
 ## (done=false, ok=false until final_finish). Every earlier entry is printed as FINAL_EARLIER; a repeat of the same set adds FINAL_REPEAT.
-static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary, date := "") -> Dictionary:
+static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary, date := "", days := FINAL_DAYS) -> Dictionary:
 	var refuse := func(msg: String) -> Dictionary:
 		return {"allowed": false, "lines": ["REFUSED: " + msg], "record": record}
 	if set_id == "tuning":
@@ -297,7 +301,9 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 		return refuse.call("hold-out set #%s runs only with --final (D-290); no run was started" % set_id)
 	if commit == "" or commit == "unknown" or commit.ends_with("-dirty"):
 		return refuse.call("a final run needs a clean tree at a known commit (got '%s'): the recorded commit must identify the values (D-290)" % commit)
-	var lines: Array = ["FINAL set=#%s commit=%s date=%s" % [set_id, commit, date]]
+	if days != FINAL_DAYS:
+		return refuse.call("a final run is %d days (--days=%d given): the targets are stated for the 32-day runs" % [FINAL_DAYS, days])
+	var lines: Array = ["FINAL set=#%s commit=%s date=%s days=%d" % [set_id, commit, date, days]]
 	var history: Array = record.get("history", [])
 	var differs := ""
 	var same_set := false
@@ -314,17 +320,22 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 			lines.append("FINAL_REPEAT: set #%s was already run at the same commit %s" % [set_id, commit])
 	var out := record.duplicate(true)
 	var list: Array = out.get("history", [])
-	list.append({"set": set_id, "commit": commit, "date": date, "done": false, "ok": false})
+	list.append({"set": set_id, "commit": commit, "date": date, "days": days, "done": false, "ok": false})
 	out["history"] = list
 	return {"allowed": true, "lines": lines, "record": out}
 
-## The record with its last entry marked finished (`done` true, `ok` = every target passed). The input is not changed.
-static func final_finish(record: Dictionary, ok: bool) -> Dictionary:
+## The record with its last entry marked finished (`done` true, `ok` = every target passed). `end_commit` (the commit string read at the END of the run, "-dirty" included;
+## "" = no check): when it differs from the entry's commit, HEAD or the tree changed during the run, `ok` is false and the entry says `changed_to`. The input is not changed.
+static func final_finish(record: Dictionary, ok: bool, end_commit := "") -> Dictionary:
 	var out := record.duplicate(true)
 	var list: Array = out.get("history", [])
 	if not list.is_empty():
-		list[list.size() - 1]["done"] = true
-		list[list.size() - 1]["ok"] = ok
+		var e: Dictionary = list[list.size() - 1]
+		e["done"] = true
+		e["ok"] = ok
+		if end_commit != "" and end_commit != String(e.commit):
+			e["ok"] = false
+			e["changed_to"] = end_commit
 	return out
 
 ## The record file's text -> {valid, record}. No text = a fresh record; text that is not {"history": [...]} is invalid (the report exits 2 and never overwrites the file).
@@ -349,15 +360,21 @@ static func child_failed(exit_code: int, log_text: String) -> bool:
 	return false
 
 ## Per-run facts from the tier-3 nights of a retune-on sweep: `nights` rows {tier, frac, hare_share (-1 when the night has no hares), guard_hits}.
+## first_t3_retries = the retries the first tier-3 night needed (its first_t3_frac is then the MERCY attempt's); worst_night_frac / _day = the lowest FIRST-attempt fraction over the tier-3 nights and its day (-1 none).
 ## max_retries / max_retries_day = the most mercy retries any tier-3 night needed and the day of the first such night (0 / -1 none). first_t3_frac = the diner fraction of the first night that STARTED at tier >= 3 (-1 none); hare_share_mean / _min over the tier-3 nights that had hares (-1 none).
 static func retune_run_stats(nights: Array) -> Dictionary:
-	var out := {"first_t3_frac": -1.0, "hare_share_mean": -1.0, "hare_share_min": -1.0, "guard_hits": 0, "t3_nights": 0, "max_retries": 0, "max_retries_day": -1}
+	var out := {"first_t3_frac": -1.0, "hare_share_mean": -1.0, "hare_share_min": -1.0, "guard_hits": 0, "t3_nights": 0, "max_retries": 0, "max_retries_day": -1, "first_t3_retries": 0, "worst_night_frac": -1.0, "worst_night_day": -1}
 	var shares: Array = []
 	for n in nights:
 		if int(n.tier) < 3:
 			continue
 		if out.t3_nights == 0:
 			out.first_t3_frac = float(n.frac)
+			out.first_t3_retries = int(n.get("retries", 0))
+		var ff := float(n.get("first_frac", n.frac))
+		if out.worst_night_frac < 0.0 or ff < out.worst_night_frac:
+			out.worst_night_frac = ff
+			out.worst_night_day = int(n.get("day", -1))
 		out.t3_nights += 1
 		if int(n.get("retries", 0)) > out.max_retries:
 			out.max_retries = int(n.retries)
@@ -389,6 +406,30 @@ static func unspent_split(days: Array) -> Dictionary:
 			out.after.append(int(d.unspent))
 		else:
 			out.before.append(int(d.unspent))
+	return out
+
+## One run row for the verdicts from the parsed T3RUN (`kv`), LADDER (`ld`) and RETUNE (`rt`) lines of a log. A run without a LADDER line is a FAILED run (its fence figures would be
+## silently dropped from FENCE_TAX): failed, with the reason. The caller handles a missing T3RUN / RETUNE line (no row).
+static func run_row(seed: int, lane: String, policy: String, kv: Dictionary, ld: Dictionary, rt: Dictionary) -> Dictionary:
+	var hard := int(kv.get("hard_break_day", "-1")) >= 0
+	var row := {"seed": seed, "lane": lane, "policy": policy, "mean_frac": float(kv.get("mean", "0")), "retry_nights": int(kv.get("retry_nights", "0")),
+		"first_t3_frac": float(rt.get("first_t3_frac", "-1")), "fence_median": int(ld.get("fence_rebuild_gold_median_at_cap", "0")), "income_at_cap": int(ld.get("income_at_cap", "0")),
+		"hare_share": float(rt.get("hare_share_mean", "-1")), "hare_share_min": float(rt.get("hare_share_min", "-1")), "guard_hits": int(rt.get("guard_hits", "0")),
+		"failed": hard, "failed_reason": "hard break on day %s" % kv.get("hard_break_day", "?") if hard else "",
+		"max_retries": int(rt.get("max_retries", "0")), "max_retries_day": int(rt.get("max_retries_day", "-1")), "unspent_before": _gold_array(String(rt.get("unspent_before", "-"))),
+		"unspent_after": _gold_array(String(rt.get("unspent_after", "-"))), "unspent_last": int(kv.get("unspent_last_day", "0")), "ladder_done": int(ld.get("ladder_done_day", "-1")) >= 0,
+		"first_t3_retries": int(rt.get("first_t3_retries", "0")), "worst_night_frac": float(rt.get("worst_night_frac", "-1")), "worst_night_day": int(rt.get("worst_night_day", "-1"))}
+	if ld.is_empty():
+		row.failed = true
+		row.failed_reason = "LADDER line missing"
+	return row
+
+static func _gold_array(text: String) -> Array:
+	var out: Array = []
+	if text == "-" or text == "":
+		return out
+	for t in text.split("|"):
+		out.append(int(t))
 	return out
 
 # Run rows: {seed, lane, policy, mean_frac, retry_nights, first_t3_frac, fence_median, income_at_cap, hare_share, guard_hits, failed (optional)}.
@@ -461,17 +502,22 @@ static func _lead_of(rows: Array, best: String) -> float:
 	return _mean(leads)
 
 ## THREAT_LEAD (D-285): the mean lead of threat over the best fixed pair (best by mean over all seeds, one pair for every seed) >= 5 points. The FINAL set (`final`, 8 seeds)
-## also needs threat strictly ahead on at least 6 of the 8 seeds; on the tuning set "ahead on k of n" is printed as information only. The lead against each seed's own best
-## fixed pair is printed as information too (never the verdict).
+## also needs threat ahead on at least 6 of the 8 seeds, "ahead" meaning a per-seed lead of at least AHEAD_MARGIN (1.0) points; on the tuning set "ahead" is information only.
+## The headline also prints how many seeds are level (within +-AHEAD_MARGIN) and the lead against each seed's OWN best fixed pair (information, never the verdict).
 static func threat_lead(rows: Array, final := false) -> Dictionary:
 	var best := best_fixed(rows)
 	var seeds := _distinct(rows, "seed")
 	var ahead := 0
+	var level := 0
+	var ahead_own := 0
 	var own: Array = []
 	for s in seeds:
 		var sub := rows.filter(func(r): return r.seed == s)
-		if _lead_of(sub, best) > EPS:
+		var lead := _lead_of(sub, best)
+		if lead >= AHEAD_MARGIN - EPS:
 			ahead += 1
+		elif lead > -AHEAD_MARGIN + EPS:
+			level += 1
 		var top := -INF
 		for p in FIXED_PAIRS:
 			var b := _of(sub, p)
@@ -480,10 +526,13 @@ static func threat_lead(rows: Array, final := false) -> Dictionary:
 		var t := _of(sub, "threat")
 		if not t.is_empty() and top > -INF:
 			own.append(_pts(t[0]) - top)
+			if _pts(t[0]) - top >= AHEAD_MARGIN - EPS:
+				ahead_own += 1
 	var mean_lead := _lead_of(rows, best)
 	var ok := not best.is_empty() and _ge(mean_lead, 5.0) and (not final or ahead >= 6)
 	var rule := "needs >= 5.0 and ahead on >= 6 of 8 (final set)" if final else "needs >= 5.0 (the tuning set is judged by the mean; ahead is information)"
-	var head := "THREAT_LEAD: %s (mean lead %s points over %s, ahead on %d of %d seeds; %s)" % ["PASS" if ok else "FAIL", _num(mean_lead, "%+.1f"), best, ahead, seeds.size(), rule]
+	var head := "THREAT_LEAD: %s (mean lead %s points over %s, ahead (>= %.1f) on %d of %d seeds, level (within +-%.1f) on %d; against each seed's own best pair: mean %s, ahead on %d; %s)" % [
+		"PASS" if ok else "FAIL", _num(mean_lead, "%+.1f"), best, AHEAD_MARGIN, ahead, seeds.size(), AHEAD_MARGIN, level, _num(_mean(own), "%+.1f"), ahead_own, rule]
 	var info := "  info: lead against each seed's own best pair (not the verdict): mean %s, per seed %s" % [_num(_mean(own), "%+.1f"), " ".join(own.map(func(v): return "%+.1f" % v))]
 	return {"ok": ok, "lines": [head, info] + _breakdown(rows, func(sub): return _lead_of(sub, best), "%+.1f")}
 
@@ -502,7 +551,7 @@ static func threat_lead_by_lane(rows: Array) -> Dictionary:
 	var head := "THREAT_LEAD_BY_LANE: %s (mean lead per siege lane over %s: %s; none may be negative)" % ["PASS" if ok else "FAIL", best, ", ".join(parts)]
 	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return _lead_of(sub, best), "%+.1f")}
 
-## RETRY_NIGHTS: zero for every policy (unbranched included).
+## RETRY_NIGHTS: zero for every policy but unbranched.
 static func retry_nights(rows: Array) -> Dictionary:
 	var ok := true
 	var parts: Array = []
@@ -558,14 +607,48 @@ static func unspent_lines(rows: Array) -> Array:
 					else "median %.1f max %d over %d days from the completion day to the end (%s)" % [ReportMath.median(vals), int(vals.max()), vals.size(), completed], last])
 	return lines
 
-## FIRST_T3_NIGHT: no run's first tier-3 night below 25% of the diner's HP (exactly 25% passes).
+## The first tier-3 night's fraction as the verdict reads it: a night that needed ANY retry was LOST on its first attempt (the sweep's number is the mercy attempt's), so it counts 0%.
+static func _first_night(r: Dictionary) -> float:
+	return 0.0 if int(r.get("first_t3_retries", 0)) > 0 else float(r.first_t3_frac) * 100.0
+
+## FIRST_T3_NIGHT: no run's first tier-3 night below 25% of the diner's HP (exactly 25% passes), every policy included; a first night that needed a retry counts as lost (0%).
 static func first_t3_night(rows: Array) -> Dictionary:
 	var lowest := INF
 	for r in rows:
-		lowest = minf(lowest, float(r.first_t3_frac) * 100.0)
+		lowest = minf(lowest, _first_night(r))
 	var ok := not rows.is_empty() and _ge(lowest, 25.0)
-	var head := "FIRST_T3_NIGHT: %s (lowest first tier-3 night %s%% over %d runs; needs >= 25.0)" % ["PASS" if ok else "FAIL", _num(lowest if lowest < INF else NAN, "%.1f"), rows.size()]
-	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return sub.map(func(r): return float(r.first_t3_frac) * 100.0).min(), "min %.1f%%")}
+	var head := "FIRST_T3_NIGHT: %s (lowest first tier-3 night %s%% over %d runs, first attempt: a retried night counts 0%%; needs >= 25.0)" % ["PASS" if ok else "FAIL", _num(lowest if lowest < INF else NAN, "%.1f"), rows.size()]
+	var lines: Array = [head] + _breakdown(rows, func(sub): return sub.map(func(r): return _first_night(r)).min(), "min %.1f%%")
+	for r in rows:
+		if int(r.get("first_t3_retries", 0)) > 0:
+			lines.append("  retried first night: seed %d %s needed %d retries (the mercy attempt read %.1f%%; counted as 0%%)" % [r.seed, r.policy, int(r.first_t3_retries), float(r.first_t3_frac) * 100.0])
+	return {"ok": ok, "lines": lines}
+
+## WORST_NIGHT per policy (the lowest tier-3 night over all seeds, FIRST attempt, with seed and day) and SPREAD_BY_SEED (the fixed pairs' spread per seed, the largest named): information only.
+static func worst_night_lines(rows: Array) -> Array:
+	var lines: Array = []
+	for p in RETUNE_POLICIES:
+		var worst := INF
+		var at := ""
+		for r in _of(rows, p):
+			var f := float(r.get("worst_night_frac", -1.0))
+			if f >= 0.0 and f < worst:
+				worst = f
+				at = "seed %d, day %d" % [r.seed, int(r.get("worst_night_day", -1))]
+		lines.append("WORST_NIGHT %s: %s" % [p, "%.1f%% (%s)" % [worst * 100.0, at] if worst < INF else "n/a"])
+	var best_sp := -INF
+	var best_seed := -1
+	var per: Array = []
+	for s in _distinct(rows, "seed"):
+		var sp := _spread(rows.filter(func(r): return r.seed == s))
+		if is_nan(sp):
+			continue
+		per.append("%d:%.1f" % [s, sp])
+		if sp > best_sp + EPS:
+			best_sp = sp
+			best_seed = s
+	lines.append("SPREAD_BY_SEED: max %s points (seed %d); per seed %s (information, FIXED_SPREAD judges the means)" % [_num(best_sp if best_sp > -INF else NAN, "%.1f"), best_seed, " ".join(per)])
+	return lines
 
 static func _fence_shares(rows: Array) -> Array:
 	var out: Array = []
@@ -590,6 +673,7 @@ static func fence_tax(rows: Array) -> Dictionary:
 	var lines: Array = [head,
 		"  with Longbow on the siege lane (all_a, mixed, threat): median %s%%" % _num(_median_or_nan(with_lb), "%.1f"),
 		"  without Longbow on the siege lane (all_b, volley_stone, unbranched): median %s%%" % _num(_median_or_nan(without_lb), "%.1f")]
+	lines.append("  note: each per-run figure is a lower bound (a rebuild deferred to a later day is not counted, see the sweep_runner header)")
 	lines.append_array(_breakdown(rows, func(sub): return _median_or_nan(_fence_shares(sub)), "median %.1f%%"))
 	return {"ok": ok, "lines": lines}
 
@@ -652,7 +736,7 @@ static func retune_report(rows: Array, expected: Array, final := false) -> Dicti
 		if found.is_empty():
 			problems.append("seed %d %s: missing" % [e[0], e[1]])
 		elif bool(found[0].get("failed", false)):
-			problems.append("seed %d %s: failed (hard break or no result)" % [e[0], e[1]])
+			problems.append("seed %d %s: failed (%s)" % [e[0], e[1], found[0].get("failed_reason", "hard break or no result")])
 		elif float(found[0].first_t3_frac) < 0.0:
 			problems.append("seed %d %s: no tier-3 night" % [e[0], e[1]])
 	if not problems.is_empty():
@@ -666,5 +750,6 @@ static func retune_report(rows: Array, expected: Array, final := false) -> Dicti
 		if name != "HARE_SHARE" and not results[name].ok:  # HARE_SHARE only flags (spec 8.1)
 			failed.append(name)
 	lines.append_array(unbranched_report(rows).lines)
+	lines.append_array(worst_night_lines(rows))
 	lines.append_array(unspent_lines(rows))
 	return {"exit": 0, "ok": failed.is_empty(), "failed": failed, "lines": lines}
