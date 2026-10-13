@@ -17,10 +17,19 @@
 #   needs SHOT_WAIT >= load + <s> + 60). For a night RESUMED from a save: the first seconds hold the load freeze and its tail (the overlay's glyph prime is drawn in its first frame and cleared on the next, inside the warm-up).
 # SHOT_WAIT (optional) is the seconds between opening the night page and the screenshot (default 100; with PLAY_ENTERED the default shot wait is 125 s + PERF_SETTLE).
 # Safari in the Simulator is terminated on every exit, normal or interrupted (the exit trap).
+# PERF_PHASE=DAY (optional, E6 phase A, D-298.2; default off, the script is then unchanged): measure the DAY HOME framing instead of a night. Only the day half runs
+#   (no night page): it loads DAY_FIXTURE (default `tier3_branch_day`: a tier-3 day with pads shown, `make_save.gd -- --fixture=tier3_branch_day`; the hero stands at HOME), waits
+#   SHOT_WAIT (default 100 s, plus PERF_SETTLE) and screenshots `$OUT/day_home.png`: the screen carries the frozen `PERF phase=DAY ...` line (the overlay freezes one line per phase, 60 s after
+#   its warm-up, like a night; the day has no end of its own, so the window is a whole day window). Read the line from the shot as for a night.
+# FIXTURE_DIR (optional, E6 phase A; default `export/fixtures`): the directory the fixtures are read from and served (a fixture that is not committed can live outside the tree).
 # DRAW_CALL_BUDGET (E6 A3, D-294): the frozen PERF line ends with `DRAW_CALL_BUDGET: OK|WARN <n> (budget 58)` (58 = the E5 T3 count 48 + 10; WARN never fails
 # the run). The budget describes the RESUMED night; a PLAY_ENTERED night frames the whole diner from HOME and reads about 30 higher (WARN is expected there).
 set -euo pipefail
 BUILD="$1"; OUT="$2"; PORT=8765
+FIX="${FIXTURE_DIR:-$(dirname "$0")/fixtures}"
+if [ "${PERF_PHASE:-}" = "DAY" ]; then
+  DAY_ONLY=1; DAY_FIXTURE="${DAY_FIXTURE:-tier3_branch_day}"; SHOT_WAIT="${SHOT_WAIT:-$((100 + ${PERF_SETTLE:-0}))}"
+fi
 if [ -n "${PLAY_ENTERED:-}" ]; then
   NIGHT_ONLY=1; NIGHT_FIXTURE="${NIGHT_FIXTURE:-night3_start}_day"; SHOT_WAIT="${SHOT_WAIT:-$((125 + ${PERF_SETTLE:-0}))}"
   QUERY="${QUERY:+$QUERY&}perfclose=${PERF_CLOSE:-8}"
@@ -31,11 +40,13 @@ fi
 SHOT_WAIT="${SHOT_WAIT:-100}"
 TO="/"; [ -z "${QUERY:-}" ] || TO="/%3F${QUERY//&/%26}"
 DAY_FIXTURE="${DAY_FIXTURE:-night3_closeup}"
-[ -f "$(dirname "$0")/fixtures/$DAY_FIXTURE.save.json" ] || { echo "no fixture $DAY_FIXTURE" >&2; exit 1; }
+[ -f "$FIX/$DAY_FIXTURE.save.json" ] || { echo "no fixture $DAY_FIXTURE" >&2; exit 1; }
 echo "day_fixture=$DAY_FIXTURE"
 NIGHT_FIXTURE="${NIGHT_FIXTURE:-night3_start}"
-[ -f "$(dirname "$0")/fixtures/$NIGHT_FIXTURE.save.json" ] || { echo "no fixture $NIGHT_FIXTURE" >&2; exit 1; }
+if [ -z "${DAY_ONLY:-}" ]; then
+[ -f "$FIX/$NIGHT_FIXTURE.save.json" ] || { echo "no fixture $NIGHT_FIXTURE" >&2; exit 1; }
 echo "night_fixture=$NIGHT_FIXTURE"
+fi
 # The reading depends on what else the Mac is doing (S4: 59.5 fps idle vs 51.9 with an editor at 53% CPU), so wait
 # for an idle machine (PERF_MIN_IDLE, default 75%) and print the idle figure next to the reading (D-209).
 cpu_idle() { top -l 2 -n 0 | awk '/CPU usage/ {v=$7} END {gsub("%","",v); print int(v)}'; }
@@ -47,7 +58,7 @@ echo "cpu_idle_before=${IDLE}%"
 mkdir -p "$OUT"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 cp "$(dirname "$0")/seed_save.html" "$BUILD/"
-mkdir -p "$BUILD/fixtures" && cp "$(dirname "$0")"/fixtures/*.save.json "$BUILD/fixtures/"
+mkdir -p "$BUILD/fixtures" && cp "$FIX"/*.save.json "$BUILD/fixtures/"
 grep -q LST_BUILD "$BUILD/index.html" || sed -i '' 's#</head>#<script>window.LST_BUILD="local";</script></head>#' "$BUILD/index.html"
 if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then echo "port $PORT is busy" >&2; exit 1; fi
 python3 "$(dirname "$0")/serve_nocache.py" "$PORT" "$BUILD" >/dev/null 2>&1 & SRV=$!
@@ -66,6 +77,10 @@ xcrun simctl terminate "$UDID" com.apple.mobilesafari 2>/dev/null || true
 if [ -z "${NIGHT_ONLY:-}" ]; then
 xcrun simctl openurl "$UDID" "http://localhost:$PORT/seed_save.html?f=$DAY_FIXTURE&to=$TO"
 ( sleep 45; echo "cpu_idle_mid=$(cpu_idle)% phase=day" ) & MID=$!   # sampled in the background: timings unchanged
+if [ -n "${DAY_ONLY:-}" ]; then
+sleep "$SHOT_WAIT"; xcrun simctl io "$UDID" screenshot "$OUT/day_home.png" >/dev/null; wait $MID; MID=""
+echo "ios: $OUT/day_home.png"; echo "cpu_idle_after=$(cpu_idle)%"; exit 0   # PERF_PHASE=DAY: no night page
+fi
 sleep 90; xcrun simctl io "$UDID" screenshot "$OUT/day_peak.png" >/dev/null; wait $MID; MID=""
 xcrun simctl terminate "$UDID" com.apple.mobilesafari 2>/dev/null || true   # no hidden tab flushing its DAY save
 fi
