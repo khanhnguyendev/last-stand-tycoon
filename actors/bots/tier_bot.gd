@@ -51,6 +51,32 @@ func think(delta: float) -> void:
 	_sync_graph()
 	super.think(delta)
 
+## E6 phase 4: with a lane character (tier 3, retune on) the hero's one-second rule ranks lanes by the enemies already breaching (see NaiveBot.pick_lane);
+## otherwise it is today's rule. Reads the enemies' lane, position and path distance, as the bot already does.
+func _pick_lane(lanes: Array, counts: Dictionary, wd: WaveDirector) -> String:
+	var character := GameState.lane_character()
+	if character.is_empty():
+		return super._pick_lane(lanes, counts, wd)
+	var breached := {}
+	for lane in lanes:
+		breached[lane] = 0
+	for b in wd.alive_enemies():
+		var lane := String(b.lane)
+		var fence: Dictionary = GameState.buildings[MapLayout.lane_fence(lane)]
+		var standing: bool = int(fence.level) >= 1 and float(fence.hp) > 0.0
+		if enemy_breached(lane, Vector2(b.position.x, b.position.z), float(b.dist), float(b.stats().reach), standing):
+			breached[lane] += 1
+	return pick_lane(lanes, counts, breached, character)
+
+## Pure: is an enemy of `lane` at `pos` (xz), `dist` along the path, inside the diner's attack zone (the lane's zone rect, grown 5 cm as the bench
+## does), or at or past the fence's stop point (path length - FENCE_OFFSET_FROM_END - `reach`, TargetProviders.fence_stop_dist) of a lane whose
+## fence does not stand (`fence_standing` false: fallen or never built). The stop point, not the fence line: the monsters held at a fence that has
+## just fallen are the breach, one second before they cross the line.
+static func enemy_breached(lane: String, pos: Vector2, dist: float, reach: float, fence_standing: bool) -> bool:
+	if MapLayout.zone_rect(lane).grow(0.05).has_point(pos):
+		return true
+	return not fence_standing and dist >= MapLayout.path_length(lane) - MapLayout.FENCE_OFFSET_FROM_END - reach
+
 ## Pure: {spot_id: branch id} for `spot_ids` under `policy`, from tonight's `plan` (a lane has a brute when composition_by_lane says so).
 ## E6 (spec 4.4, D-283): a non-empty lane `character` ({siege, hare}) makes `threat` read the run's lane character instead of the plan: a fence
 ## on the siege lane takes Stone wall, any other fence Spike fence; a tower covering the siege lane (also when it covers the hare lane too)
