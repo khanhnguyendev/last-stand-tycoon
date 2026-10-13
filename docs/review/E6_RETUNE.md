@@ -265,6 +265,14 @@ column). Review queue 30 to 36. Known and left by design: a badge can be cut by 
 HUD's gold number (hiding clipped badges hid them in 48.6% of other-zone views); the reveal's badges, the third arrow,
 the stars and the one tether are small at 40%; one pad shows its cost while the hero stands at HOME.
 
+**Reveal clip (19.9 s, D-304.8, staged):** `media/e6/checkpoint/e6_tier3_reveal.mp4`, contact sheet
+`e6_tier3_reveal_frames.png`. It shows the last instalment of the lot at the sign, "The diner grows!", the card
+pick, and the two lane-character lines with their banners and badges. Staged: debug build, flag on, bot play, a
+local copy of the committed `tier3_baron_full` fixture with five fields edited (resume phase, boss flags, 1400 of
+the 1500 already paid, gold 31 to 300); the edited fixture is not committed. One hard cut removes the Baron night
+(about 100 s) between the payment and the reveal; nothing is cut inside the reveal. Details and commands: the
+README beside it.
+
 **Video (86 s, iOS Simulator, debug build with `?retune=1`, bot play):** `media/e6/checkpoint/e6_retune.mp4`, contact
 sheet `e6_retune_frames.png`, notes in `README.md` there. It shows a tier-3 dawn with the three banners, the lane
 badges, the pads and the branch cards with gold falling as pads are paid. It does NOT show the tier-3 reveal (the
