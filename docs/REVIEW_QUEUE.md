@@ -142,7 +142,7 @@ Reversible decisions from the tier-3 build, in the order they were made; the hig
 33. **A building's stars disappear while one of its pads is in use** and return when the hero walks away (the author's choice; shots `pips_far` / `pips_near`) — [D-298](DECISIONS.md)
 34. **One cost stands away from its pad with a gold tether** (tower_e a, beside the Freezer). At 100% the tether reads; at 40% it is a speck and nearness carries the link; with the hero standing on it the tether is hidden — [D-299](DECISIONS.md)
 35. **The hero is drawn in front of pad labels**; a cost can be partly hidden behind him while he walks onto a pad (before/after shots in the pads folder) — [D-294](DECISIONS.md)
-36. **Small things seen in shots:** the third lane arrow and the branch card's third-row heading are small at 40%; one cost ("300" at fence_w) crosses the red lane flag model — [D-299](DECISIONS.md)
+36. **Seen in the final shot pack** (`docs/review/media/e6/interface/final/INDEX.md`, 57 images, "Defects seen"): a badge can be cut by the screen edge (the south-west hare badge at the bottom from the home spot) or pass under the HUD's gold number: hiding clipped badges was measured and withdrawn (hidden from other zones 48.6% instead of 9.7%, and 3.7% from the badge's own zone); at 40% the reveal's two badges, the third lane arrow, the stars (3 px) and the tether (8 px) are small; HOME is 1.4 m from fence_sw pad b, so that pad shows its cost at HOME; costs behind the faded diner are washed out on the north pads; the branch card's third-row heading is small; one cost ("300" at fence_w) crosses the red lane flag model — [D-299](DECISIONS.md)
 
 ## Final review playtest questions (S5)
 
