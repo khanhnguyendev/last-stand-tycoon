@@ -20,6 +20,10 @@ var _diner_base := Vector3.ONE
 var _staged := false  ## the ground, kerb and edge stones show the tier before
 var _diner_old := false  ## the diner shows the previous tier's art
 var _hidden_markers: Array[TelegraphMarker] = []
+## E6 (D-289, spec 5.4): the lane-character step. The markers whose badge the reveal holds (and each badge's scale). The step only pops the
+## badges: the two flavour lines are scheduled by the controller after the card pick (D-294.5). Empty with no lane character: no step.
+var _badge_markers: Array[TelegraphMarker] = []
+var _badge_base := {}
 var _diner_kept: Node3D  ## tier 3: the new storey's art, taken out of the diner for the first steps and put back at step 5 (no second instantiation)
 
 func setup(world: World) -> void:
@@ -62,8 +66,10 @@ static func lane_stretch_points(stretch: float) -> Array[Vector2]:
 
 ## Pure: the reveal camera for `tier`: the focus is the centre of the subject points' bounding rectangle, the zoom the
 ## smallest in [1.0, ui.tier_reveal_zoom] (steps of 0.05) that shows every point at `aspect`; the cap when none does.
-static func frame_for(tier: int, ui: UiTuning, aspect := CameraMath.ASPECT) -> Dictionary:
+## `extra` (E6, spec 5.4): more points the frame must show (the lane character's badges); empty leaves the E5 frame.
+static func frame_for(tier: int, ui: UiTuning, aspect := CameraMath.ASPECT, extra: Array[Vector3] = []) -> Dictionary:
 	var pts := subject_points(tier)
+	pts.append_array(extra)
 	var lo := Vector2(INF, INF)
 	var hi := Vector2(-INF, -INF)
 	for p in pts:
@@ -86,6 +92,27 @@ static func frame_for(tier: int, ui: UiTuning, aspect := CameraMath.ASPECT) -> D
 			return {"focus": focus, "zoom": z}
 		z += 0.05
 	return {"focus": focus, "zoom": cap}
+
+## E6: the corners of the two lane badges (centre +-BADGE_M/2 across and up) of `character` ({} gives none), where the badges stand.
+static func badge_points(character: Dictionary) -> Array[Vector3]:
+	var centres: Array[Vector3] = []
+	if character.is_empty():
+		return centres
+	for k in ["siege", "hare"]:
+		var lane := String(character.get(k, ""))
+		var other := String(character.get("hare" if k == "siege" else "siege", ""))
+		var a: Vector2 = TelegraphMarker.ROW_ANCHORS[lane]
+		centres.append(LaneCharacterMarker.place(lane, Vector3(a.x, Balance.ui.telegraph_row_height_m, a.y), other))
+	return badge_corners(centres)
+
+## The four edge points of a badge centred at each of `centres`.
+static func badge_corners(centres: Array[Vector3]) -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	var h := LaneCharacterMarker.BADGE_M * 0.5
+	for c in centres:
+		for d in [Vector3(h, 0, 0), Vector3(-h, 0, 0), Vector3(0, h, 0), Vector3(0, -h, 0)]:
+			out.append(c + d)
+	return out
 
 func running() -> bool:
 	return _tween != null and _tween.is_valid() and _tween.is_running()
@@ -130,6 +157,13 @@ func _restore() -> void:
 		if is_instance_valid(m):
 			m.refresh()
 	_hidden_markers.clear()
+	for m in _badge_markers:
+		if is_instance_valid(m) and m.badge != null and is_instance_valid(m.badge):
+			m.badge.scale = _badge_base.get(m.badge, Vector3.ONE)
+			m.badge.hold(false)
+			m.refresh()  # the badge shows what the lane character says
+	_badge_markers.clear()
+	_badge_base.clear()
 
 func _on_tier_reached(tier: int) -> void:
 	_cancel()
@@ -150,7 +184,10 @@ func _on_tier_reached(tier: int) -> void:
 		_plan_default(tier, yards)
 	var ui := Balance.ui
 	var hold := minf(float(_steps.size()) * ui.tier_reveal_step_s, Balance.data.tiers.tier_reveal_time - ui.tier_reveal_in_s - ui.tier_reveal_out_s)
-	var frame := frame_for(tier, ui)
+	var centres: Array[Vector3] = []
+	for m in _badge_markers:
+		centres.append(m.badge.position)  # the badges this reveal holds: none with the flag off
+	var frame := frame_for(tier, ui, CameraMath.ASPECT, badge_corners(centres))
 	EventBus.camera_reveal_requested.emit(ui.tier_reveal_in_s, maxf(hold, 0.0), ui.tier_reveal_out_s, frame.zoom, frame.focus)
 	_tween = create_tween()
 	_tween.set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
@@ -200,6 +237,9 @@ func _plan_tier3() -> void:
 	var lane_mid: Vector2 = stretch[0].lerp(stretch[stretch.size() - 1], 0.5)
 	_steps.append({"kind": &"lot", "at": MapLayout.to3(MapLayout.yard_rect("front").get_center())})
 	_steps.append({"kind": &"lane", "at": MapLayout.to3(lane_mid)})
+	var character_step := _plan_lane_character()
+	if not character_step.is_empty():
+		_steps.append(character_step)
 	_steps.append({"kind": &"spot", "id": "fence_sw", "at": MapLayout.to3(MapLayout.spot_position("fence_sw"), 1.0)})
 	_steps.append({"kind": &"spot", "id": "tower_sw", "at": MapLayout.to3(MapLayout.spot_position("tower_sw"), 1.0)})
 	_steps.append({"kind": &"diner", "at": Vector3(0.0, MapLayout.DINER_HEIGHT + 0.5, 0.0)})
@@ -217,6 +257,27 @@ func _plan_tier3() -> void:
 			s.marker.visible = false
 			_hidden_spots.append(s)
 
+## E6 (spec 5.4): with a lane character, the step after the lane's where both badges pop. Hides the badges until then. Returns the step, or
+## {} with no badge (flag off: the list stays the five steps of E5).
+func _plan_lane_character() -> Dictionary:
+	# The badges (made by the tier-up's refresh, only with a lane character) say which lane is which: this node reads and writes no game
+	# data. The controller schedules the lines after the pick.
+	var sum := Vector3.ZERO
+	for id in LanePlanner.lanes_for_tier(3):
+		var m: TelegraphMarker = _world.telegraph_markers.get(id)
+		if m == null or m.badge == null:
+			continue
+		var kind: StringName = m.badge.shown_kind()
+		if kind == &"":
+			continue
+		_badge_markers.append(m)
+		_badge_base[m.badge] = m.badge.scale
+		m.badge.hold(true)  # the marker's cover rule re-shows a badge every tick: only a hold keeps it hidden
+		sum += m.badge.position
+	if _badge_markers.is_empty():
+		return {}
+	return {"kind": &"character", "at": sum / float(_badge_markers.size())}
+
 func _step() -> void:
 	if _steps.is_empty():
 		return
@@ -233,6 +294,12 @@ func _apply(st: Dictionary, animate: bool) -> void:
 			# On the tier-2 list the kerb is ONE MultiMesh for every open yard; the tier-3 list stages its multimesh instead (show_map_stage).
 			if _world.yard_stones != null and is_instance_valid(_world.yard_stones):
 				_world.yard_stones.visible = true
+		&"character":
+			for m in _badge_markers:
+				if is_instance_valid(m) and m.badge != null and is_instance_valid(m.badge):
+					m.badge.hold(false)
+					if animate:
+						_pops.append(PopFx.pop(self, m.badge, _badge_base.get(m.badge, Vector3.ONE), null))
 		&"diner":
 			if _diner_old:
 				_diner_old = false

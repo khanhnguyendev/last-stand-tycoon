@@ -8,6 +8,9 @@ extends SceneTree
 ##   E  the SW path against towers and the diner; the service layout against the SW lane, zone and fence bar;
 ##   the tier-3 sign against today's west exit line; the front plot; the 18 branch pads (current MapLayout.BRANCH_PADS with their
 ##   smallest clearance and what limits it) and, last, a SEARCH (env PAD_KEEP=id,id keeps those spots' committed pads) for pad pairs per spot printed as BRANCH_PADS source text.
+## E6: env RETUNE=1 runs it with the retune flag on: the committed section reads MapLayout.branch_pads(true) (BRANCH_PADS_RETUNE over BRANCH_PADS),
+##   pad_clear also applies the front lot's kerb as laid out, its props (footprint, and the lean for a prop south of the pad) and the south-west lane's edge stones, and the
+##   SEARCH prints BRANCH_PADS_RETUNE source text. Without RETUNE every number and line is as before.
 ## Information only: the oracles are the unit tests (test_tier3_layout, test_branch_pad_layout, test_longbow_reach).
 
 const ASPECTS := [0.30, 9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0, 21.0 / 9.0, 32.0 / 9.0]
@@ -64,6 +67,10 @@ func fence_bar(lane: String) -> Array:
 
 var _kerb: Array = []  ## [centre-line a, b] of every kerb piece of the tier-2 yards
 var _props: Array = []  ## {pos, radius, height} of every owned-land prop of the tier-2 yards
+var retune := false  ## env RETUNE=1: the flag-on pad table and the lot rules
+var _lot_kerb: Array = []  ## [a, b] of every kerb piece of the front lot as laid out (retune only)
+var _lot_props: Array = []  ## the front lot's props (retune only)
+var _stones: Array = []  ## the south-west lane's edge stones (retune only)
 
 func load_yard_obstacles() -> void:
 	for id in MapLayout.yards_for_tier(2):
@@ -73,6 +80,16 @@ func load_yard_obstacles() -> void:
 			_kerb.append([c - half, c + half])
 		for it in PropsLayout.OWNED.get(id, []):
 			_props.append({"pos": it.pos, "radius": Props.owned_radius(it.kind, float(it.scale)), "height": Props.owned_height(it.kind, float(it.scale)), "what": "%s %s" % [it.kind, id]})
+
+func load_lot_obstacles() -> void:
+	for xf in YardStones.transforms(MapLayout.yard_rect("front"), true, bd.enemy.lateral_spread, true):
+		var half := Vector2(xf.basis.x.x, xf.basis.x.z) * 0.5
+		var c := Vector2(xf.origin.x, xf.origin.z)
+		_lot_kerb.append([c - half, c + half])
+	for it in PropsLayout.OWNED.get("front", []):
+		_lot_props.append({"pos": it.pos, "radius": Props.owned_radius(it.kind, float(it.scale)), "height": Props.owned_height(it.kind, float(it.scale)), "what": "%s front" % it.kind})
+	for xf in LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true, true):
+		_stones.append(Vector2(xf.origin.x, xf.origin.z))
 
 func visibility(lane: String) -> Dictionary:
 	var out := {}
@@ -135,6 +152,13 @@ func pad_clear(p: Vector2, own: String, others: Array) -> Array:
 		checks.append([p.distance_to(pr.pos) - r - pr.radius - pr.height * lean_k, "owned prop " + pr.what])
 	for k in _kerb:
 		checks.append([Geometry.dist_point_segment(p, k[0], k[1]) - r - YardStones.WIDTH * 0.5, "yard kerb"])
+	if retune:
+		for pr in _lot_props:  # as test_branch_pad_layout: the lean only for a prop SOUTH of the pad
+			checks.append([p.distance_to(pr.pos) - r - pr.radius - (pr.height * lean_k if pr.pos.y > p.y else 0.0), "owned prop " + pr.what])
+		for k in _lot_kerb:
+			checks.append([Geometry.dist_point_segment(p, k[0], k[1]) - r - YardStones.WIDTH * 0.5, "front lot kerb"])
+		for q in _stones:
+			checks.append([p.distance_to(q) - r - LaneStrip.STONE_RADIUS, "south-west lane stone"])
 	checks.append([minf(minf(p.x - MapLayout.BOUNDS_MIN.x, MapLayout.BOUNDS_MAX.x - p.x), minf(p.y - MapLayout.BOUNDS_MIN.y, MapLayout.BOUNDS_MAX.y - p.y)) - r, "bounds"])
 	var best := INF
 	var what := ""
@@ -193,7 +217,10 @@ func _initialize() -> void:
 	root.get_node("Balance").reset()
 	ui = root.get_node("Balance").ui
 	bd = root.get_node("Balance").data
+	retune = OS.get_environment("RETUNE") == "1"
 	load_yard_obstacles()
+	if retune:
+		load_lot_obstacles()
 	spread = bd.enemy.lateral_spread
 	fade = bd.enemy.offset_fade_distance
 	var sw_path: Array = MapLayout.lane_path("sw")
@@ -295,15 +322,16 @@ func _initialize() -> void:
 	var plot := MapLayout.yard_rect("front")
 	print("plot ", plot, " contains tower_sw ", plot.has_point(MapLayout.tower_spot("tower_sw")), " fence ", plot.has_point(MapLayout.fence_spot("sw")), " tier-3 sign ", plot.has_point(MapLayout.tier_sign(3)), "; overlaps west yard ", plot.intersects(MapLayout.YARDS["west"]))
 	# the committed pads
-	print("committed BRANCH_PADS (radius %.1f): pad, distance to the spot, smallest clearance, limiting item, building on screen from the pad (3 aspects)" % MapLayout.BRANCH_PAD_RADIUS)
+	var table := MapLayout.branch_pads(retune)
+	print("committed %s (radius %.1f): pad, distance to the spot, smallest clearance, limiting item, building on screen from the pad (3 aspects)" % ["BRANCH_PADS with the retune flag on (BRANCH_PADS_RETUNE over it)" if retune else "BRANCH_PADS", MapLayout.BRANCH_PAD_RADIUS])
 	var sp := spots()
 	var placed: Array = []
-	for id in MapLayout.BRANCH_PADS:
-		for p in MapLayout.BRANCH_PADS[id]:
+	for id in table:
+		for p in table[id]:
 			placed.append(p)
 	var worst_all := INF
-	for id in MapLayout.BRANCH_PADS:
-		var pads: Array = MapLayout.BRANCH_PADS[id]
+	for id in table:
+		var pads: Array = table[id]
 		for i in 2:
 			var others := placed.duplicate()
 			others.erase(pads[i])
@@ -318,8 +346,8 @@ func _initialize() -> void:
 	var ids := ["fence_sw", "fence_w", "tower_e", "tower_w", "tower_sw", "fence_e", "fence_n", "tower_nw", "tower_ne"]  # the most crowded spots first
 	# PAD_KEEP=tower_nw,tower_ne keeps those spots' committed pads fixed (they are placed first and not searched)
 	for id in OS.get_environment("PAD_KEEP").split(",", false):
-		placed2.append_array(MapLayout.BRANCH_PADS[id])
-		found.append([id, MapLayout.BRANCH_PADS[id]])
+		placed2.append_array(table[id])
+		found.append([id, table[id]])
 		ids.erase(id)
 	for id in ids:
 		var r := {}
@@ -335,7 +363,7 @@ func _initialize() -> void:
 		placed2.append_array(r.pair)
 		found.append([id, r.pair])
 		print("  %-9s %d candidates at clearance >= %.1f, best pair %s %s" % [id, r.cands, used, r.pair[0], r.pair[1]])
-	print("const BRANCH_PADS := {")
+	print("const BRANCH_PADS_RETUNE := {" if retune else "const BRANCH_PADS := {")
 	for f in found:
 		print("\t\"%s\": [Vector2(%.1f, %.1f), Vector2(%.1f, %.1f)]," % [f[0], f[1][0].x, f[1][0].y, f[1][1].x, f[1][1].y])
 	print("}")

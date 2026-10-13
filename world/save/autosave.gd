@@ -27,6 +27,7 @@ func _ready() -> void:
 	EventBus.tier_changed.connect(_mark_dirty.unbind(3))
 	EventBus.tier_paid_up.connect(_on_tier_paid_up)
 	EventBus.tier_reached.connect(_on_tier_reached)
+	EventBus.lane_character_shown_marked.connect(_on_lane_character_shown)
 	if OS.has_feature("web"):
 		var doc := JavaScriptBridge.get_interface("document")
 		var win := JavaScriptBridge.get_interface("window")
@@ -87,6 +88,11 @@ func _on_tier_paid_up(_next_tier: int) -> void:
 func _on_tier_reached(_tier: int) -> void:
 	if phase == Phase.DAWN and not failing:
 		_write_live("CARD_PICK" if not GameState.card_offer.is_empty() else "DAY")
+
+## E6: the lane character's banner pair has been shown: the flag is saved when it is set (a tab closed early must not repeat the pair).
+func _on_lane_character_shown() -> void:
+	if phase == Phase.DAY and not failing:
+		_write_live("DAY")
 
 func _mark_dirty() -> void:
 	if store == null:
