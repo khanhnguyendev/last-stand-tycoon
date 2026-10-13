@@ -69,7 +69,7 @@ const ORDER_SIEGE_FENCE := [["fence_stands_s", true], ["diner_lost", false]]
 const ORDER_HARE := [["diner_lost", false], ["hares_in_zone", false], ["clear_s", false]]
 ## [lane, specialist [tower, fence], reference [tower, fence], name, order, the mutation that fails the rule]
 const SPECIALISTS: Array = [
-	[&"siege", [&"longbow", &""], [&"volley", &""], "Longbow over Volley", ORDER_SIEGE_TOWER, "Longbow kind multiplier 1.0 (longbow_kind_mult_retune[brute] = 1.0)"],
+	[&"siege", [&"longbow", &""], [&"volley", &""], "Longbow over Volley", ORDER_SIEGE_TOWER, "Longbow damage 60 (longbow.damage = 60.0); at the committed 2.2 s interval the brute multiplier 1.0 alone is not enough (siege 488 still beats Volley 706)"],
 	[&"siege", [&"", &"stone"], [&"", &"spike"], "Stone over Spike (fence fall time)", ORDER_SIEGE_FENCE, "Stone wall HP halved (stone.hp = 320.0)"],
 	[&"hare", [&"volley", &""], [&"longbow", &""], "Volley over Longbow", ORDER_HARE, "Volley damage 5 (volley.damage = 5.0)"],
 	[&"hare", [&"", &"spike"], [&"", &"stone"], "Spike over Stone", ORDER_HARE, "Spike pass damage 0 (spike_pass_damage_retune = 0.0)"],
@@ -124,7 +124,7 @@ const FLOOR_FAILS_WHEN := {
 }
 ## The mutation that turns each IDENTITY rule red (seen red in the fast identity tests and the full bench).
 const IDENTITY_FAILS_WHEN := {
-	"longbow_siege": "Longbow kind multiplier 1.0 (longbow_kind_mult_retune[brute] = 1.0)",
+	"longbow_siege": "Longbow damage 60 (longbow.damage = 60.0); at the committed 2.2 s interval the brute multiplier 1.0 alone is not enough (siege 488 still beats Volley 706)",
 	"volley_hare": "Volley damage 5 (volley.damage = 5.0)",
 	"stone_stands": "Stone wall HP 100 (stone.hp = 100.0)",
 	"spike_hares": "Spike pass damage 0 (spike_pass_damage_retune = 0.0)",
