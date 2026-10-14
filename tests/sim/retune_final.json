@@ -15,6 +15,15 @@
       "done": true,
       "ok": false,
       "set": "2"
+    },
+    {
+      "bot_rule": "old",
+      "commit": "8d63539",
+      "date": "2026-10-14T21:44:21+07:00",
+      "days": 32,
+      "done": true,
+      "ok": false,
+      "set": "3"
     }
   ]
 }
