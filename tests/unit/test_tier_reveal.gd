@@ -364,16 +364,7 @@ func _signature() -> Dictionary:
 		"stones_visible": w.yard_stones.visible,
 	}
 
-func test_tier3_state_is_tier_3_with_five_steps_waiting_at_the_dawn() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
-	_tier3_dawn()
-	assert_eq(GameState.tier, 3)
-	assert_true(_reveal().running())
-	# five steps: the lot, the lane, the fence spot, the tower spot, the storey (the branch pads appear with the first tier-3 day)
-	assert_eq(_reveal().steps_left(), 5)
-
 func test_tier3_things_are_hidden_before_their_step_and_shown_after_it_in_the_spec_order() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_tier2_day()
 	var w := main.world
 	var kerb_tier2 := _hash_transforms(w.yard_stones.multimesh, w.yard_stones.multimesh.instance_count)  # what the player saw at tier 2
@@ -393,8 +384,8 @@ func test_tier3_things_are_hidden_before_their_step_and_shown_after_it_in_the_sp
 	var kept := reveal._diner_kept
 	assert_not_null(kept, "the new storey's art waits detached: the world built it once at the tier-up, the step puts the same node back")
 	var kept_id := kept.get_instance_id()
-	assert_eq(reveal.steps_left(), 5)
-	# before step 1: everything the five steps bring is hidden / old
+	assert_eq(reveal.steps_left(), 6, "lot, lane, lane character, fence_sw, tower_sw, diner")
+	# before step 1: everything the six steps bring is hidden / old
 	assert_same(w.ground.mesh, _mesh_before_lot(), "ground: tier-2 paving only")
 	assert_eq(w.yard_stones.multimesh.instance_count, kerb_tier2_n, "kerb: the tier-2 yards' pieces only")
 	assert_eq(_hash_transforms(w.yard_stones.multimesh, kerb_tier2_n), kerb_tier2, "the pieces the player saw at tier 2, byte for byte")
@@ -420,22 +411,25 @@ func test_tier3_things_are_hidden_before_their_step_and_shown_after_it_in_the_sp
 	var lane_pt: Vector3 = fx[1][1]
 	var path: Array = MapLayout.lane_path("sw")
 	assert_lt(Geometry.dist_point_segment(Vector2(lane_pt.x, lane_pt.z), path[1], path[2]), 3.0, "dust on the lane's last stretch")
-	# step 3: the fence spot, step 4: the tower spot
+	# step 3: the lane-character badges (their own test: test_lc_the_badges_are_hidden_until_step_three_and_visible_after_it); the spots still wait
 	await _wait_for_steps(3, 0)
+	assert_false(w.build_spots["fence_sw"].marker.visible, "the spots wait")
+	# step 4: the fence spot, step 5: the tower spot
+	await _wait_for_steps(4, 0)
 	assert_true(w.build_spots["fence_sw"].marker.visible)
 	assert_false(w.build_spots["tower_sw"].marker.visible)
-	assert_eq(fx[2][1], MapLayout.to3(MapLayout.spot_position("fence_sw"), 1.0))
-	await _wait_for_steps(4, 0)
-	assert_true(w.build_spots["tower_sw"].marker.visible)
-	assert_eq(fx[3][1], MapLayout.to3(MapLayout.spot_position("tower_sw"), 1.0))
-	assert_eq(_diner_scene(), "res://art/env/diner_t2.tscn", "the storey still waits")
-	# step 5: the second storey: the very node the world built, not a new instance
+	assert_eq(fx[3][1], MapLayout.to3(MapLayout.spot_position("fence_sw"), 1.0))
 	await _wait_for_steps(5, 0)
+	assert_true(w.build_spots["tower_sw"].marker.visible)
+	assert_eq(fx[4][1], MapLayout.to3(MapLayout.spot_position("tower_sw"), 1.0))
+	assert_eq(_diner_scene(), "res://art/env/diner_t2.tscn", "the storey still waits")
+	# step 6: the second storey: the very node the world built, not a new instance
+	await _wait_for_steps(6, 0)
 	assert_eq(_diner_scene(), "res://art/env/diner_t3.tscn")
 	var art := w.diner_body.get_node("Visual").get_node("DinerArt") as Node3D
 	assert_eq(art.get_instance_id(), kept_id, "one instantiation of the tier-3 art in the tier-up, none at the step")
 	assert_gt(art.scale.x, 1.0, "it pops")
-	assert_eq(fx.size(), 5)
+	assert_eq(fx.size(), 6, "one puff for each of the six steps")
 	assert_eq(reveal.steps_left(), 0)
 
 func test_tier3_steps_are_the_literal_times_and_the_reveal_ends_at_tier_reveal_time() -> void:
@@ -553,17 +547,16 @@ func test_tier3_camera_frames_the_diner_the_lot_and_the_lanes_last_stretch() -> 
 	assert_ne(f3.focus, (lo + hi) * 0.5, "the lane's stretch moves the frame")
 
 func test_tier3_held_camera_shows_every_subject_at_the_first_and_the_last_step() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_tier3_dawn()
-	var frame := TierReveal.frame_for(3, Balance.ui)
+	var frame := TierReveal.frame_for(3, Balance.ui, CameraMath.ASPECT, TierReveal.badge_points(GameState.lane_character()))  # the shipped frame includes the lane-character badges
 	var base := sfx.count(&"build_done")
 	await _wait_for_steps(1, base)
 	await get_tree().process_frame
 	assert_almost_eq(main.camera_rig.zoom_now(), frame.zoom, 0.03)
 	assert_true(_subject_on_screen(main.camera_rig.camera.global_transform, CameraMath.ASPECT, 3), "step 1")
-	await _wait_for_steps(5, base)
+	await _wait_for_steps(6, base)
 	await get_tree().process_frame
-	assert_true(_subject_on_screen(main.camera_rig.camera.global_transform, CameraMath.ASPECT, 3), "step 5")
+	assert_true(_subject_on_screen(main.camera_rig.camera.global_transform, CameraMath.ASPECT, 3), "step 6")
 	await _frames(_total_frames() + 30)
 	var expect := CameraMath.camera_transform(CameraMath.focus_for(main.hero.xz()), Balance.ui)
 	assert_true(main.camera_rig.camera.global_transform.is_equal_approx(expect), "back on the hero")
@@ -912,9 +905,8 @@ const BADGE_MARGIN := 0.2
 ## sets at 6 x 0.6 + 3 x 2.0 = 9.6 s. In real play, after the pick closes, the siege line is sent at 2.0 s, the hare line at 4.0 s and the flag is saved at 6.0 s.
 const LC_AFTER_PICK_S := 10.5
 
-## The tier-3 dawn of a run on seed 1 with the retune flag as given. Nothing of the reveal has run yet.
-func _lc_dawn(flag := true, run_seed := 1) -> void:
-	Balance.data.tiers.retune_enabled = flag
+## The tier-3 dawn of a run on seed 1. Nothing of the reveal has run yet.
+func _lc_dawn(run_seed := 1) -> void:
 	main.phase_controller.start_new_game(run_seed)
 	_tier3_dawn()
 	banners.clear()  # the "diner grows" banner of the tier-ups is not under test
@@ -1039,17 +1031,6 @@ func test_lc_a_tap_after_the_guard_applies_the_step_and_the_lines_come_after_the
 	assert_true(GameState.lane_character_shown)
 	assert_eq(_lines_seen(), [1, 1])
 
-## Mutation: the new step is not behind the flag (five steps become six, or a badge/banner appears, with the flag off).
-func test_lc_flag_off_the_reveal_has_five_steps_no_badge_and_no_lane_banner() -> void:
-	_lc_dawn(false)
-	assert_eq(GameState.lane_character(), {})
-	assert_eq(_reveal().steps_left(), 5)
-	for lane in ["west", "north", "east", "sw"]:
-		assert_null(_badge(lane), lane)
-	await _frames(int(Balance.data.tiers.tier_reveal_time * 60.0))
-	assert_eq(_lines_seen(), [0, 0])
-	assert_false(GameState.lane_character_shown, "the field stays false")
-
 ## Mutation: the camera fit ignores the badges (east was at ndc x 1.07), or the margin is not applied.
 func test_lc_the_reveal_camera_fit_includes_both_badges_for_every_siege_and_hare_lane() -> void:
 	var lanes := ["west", "north", "east", "sw"]
@@ -1093,7 +1074,7 @@ func test_lc_the_reveal_camera_request_carries_the_frame_of_the_runs_badge_point
 	assert_gt(sd, 0, "setup: a seed with the sw lane")
 	reveal_calls.clear()
 	EventBus.camera_reveal_requested.connect(_on_reveal_call)
-	_lc_dawn(true, sd)
+	_lc_dawn(sd)
 	EventBus.camera_reveal_requested.disconnect(_on_reveal_call)
 	var ch := GameState.lane_character()
 	var pts := TierReveal.badge_points(ch)
@@ -1116,20 +1097,11 @@ func test_lc_the_reveal_camera_request_carries_the_frame_of_the_runs_badge_point
 		assert_lte(absf(n.x), 1.0 - BADGE_MARGIN + 1e-4, "%s badge ndc x through the real camera" % lane)
 		assert_lte(absf(n.y), 1.0 - BADGE_MARGIN + 1e-4, "%s badge ndc y through the real camera" % lane)
 
-## With the flag off the frame is the E5 one: the values recorded before Task 11's code path existed (zoom 1.3, focus (-1.8, 3.5)), both from
-## the pure function and from the request of a real flag-off reveal.
-func test_lc_flag_off_the_frame_has_no_extra_points() -> void:
+## With no extra points the frame is the E5 one: the values recorded before Task 11's code path existed (zoom 1.3, focus (-1.8, 3.5)), from the pure function.
+func test_lc_the_frame_without_extra_points_is_the_e5_one() -> void:
 	var recorded := {"zoom": 1.3, "focus": Vector2(-1.8, 3.5)}
 	var f := TierReveal.frame_for(3, Balance.ui)
 	assert_almost_eq(f.zoom, recorded.zoom, 1e-4)
 	assert_almost_eq(f.focus.x, recorded.focus.x, 1e-4)
 	assert_almost_eq(f.focus.y, recorded.focus.y, 1e-4)
 	assert_eq(TierReveal.badge_points({}), [])
-	reveal_calls.clear()
-	EventBus.camera_reveal_requested.connect(_on_reveal_call)
-	_lc_dawn(false)
-	EventBus.camera_reveal_requested.disconnect(_on_reveal_call)
-	var req: Dictionary = reveal_calls.back()
-	assert_almost_eq(req.zoom, recorded.zoom, 1e-4)
-	assert_almost_eq(req.focus.x, recorded.focus.x, 1e-4)
-	assert_almost_eq(req.focus.y, recorded.focus.y, 1e-4)

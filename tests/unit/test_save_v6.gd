@@ -172,7 +172,6 @@ func test_every_migrated_fixture_round_trips_through_game_state() -> void:
 # --- a v6 round trip at tier 3 -----------------------------------------------------------------------
 
 func test_v6_round_trip_with_a_branch_a_partial_payment_a_lane_sw_and_brutes() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	var s := _t3_dict()
 	assert_eq(s.buildings.tower_nw.branch, "longbow", "setup: the test state really holds the data")
 	var r := _decode(s)
@@ -182,10 +181,17 @@ func test_v6_round_trip_with_a_branch_a_partial_payment_a_lane_sw_and_brutes() -
 	assert_eq(GameState.tier, 3)
 	assert_eq(GameState.branch_of("tower_nw"), &"longbow")
 	assert_eq(GameState.buildings.fence_n.branch_paid, {"stone": 120, "spike": 45})
-	assert_eq([GameState.lane_plan[0].main, GameState.lane_plan[0].brute_main, GameState.lane_plan[0].brute_side], ["sw", 3, 1])
+	# E6 (D-286.4): a tier-3 load re-derives the night's plan through the lane character, so the hand-set row of the setup (sw, 3 brutes) does not survive; the plan is the
+	# planner's own with the character applied, and it is the ONLY thing the round trip changes.
+	var tb := Balance.data.tiers
+	var want := LaneCharacter.apply(LanePlanner.plan(20261007, 12, Balance.data.wave, 3, 9, tb), LaneCharacter.for_run(20261007), tb)
+	assert_eq(GameState.lane_plan, want)
+	assert_ne(GameState.lane_plan[0], s.lane_plan[0], "setup: the stored row was not the re-derived one")
 	var diffs: Array[String] = []
 	_diff(_canon(r.state), _canon(GameState.to_dict()), "", diffs)
-	assert_eq(diffs, [])
+	for d in diffs:
+		assert_true(d.begins_with("/lane_plan"), "only the plan is re-derived: " + d)
+	assert_gt(diffs.size(), 0, "and it did change")
 
 func test_the_same_save_is_rejected_when_the_build_has_no_tier_3() -> void:
 	var s := _t3_dict()

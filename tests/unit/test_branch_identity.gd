@@ -5,9 +5,10 @@ extends GutTest
 ## M1 (single-target DPS) and M3 (DPS against three targets) are RAW by definition: damage x projectiles on distinct
 ## targets / interval. Kill rates (M4, the brute check) use whole hits, so overkill counts against a tower.
 
-## 13 to 15 are UNREACHABLE since D-280 (the tier-3 cap is 12, so the live range is [12]). The cases at 13 to 15 are kept on purpose: they
-## cover the formulas (the branch identity must not depend on the cap). The LIVE range is derived from tier_base[3]..tier_cap[3] and is
-## asserted separately in test_live_pressure_range_*.
+## 13 to 15 are UNREACHABLE since D-280 (the tier-3 cap is 12). The pinned HP cases at 13 to 15 are kept on purpose: they cover the formulas
+## (the branch identity must not depend on the cap). The LIVE range [10, 11, 12] (D-304: tier 3 starts at tier 2's cap) is derived from
+## tier_base[3]..tier_cap[3] and is asserted separately in test_live_pressure_range_*; the hares-per-second identity is asserted on it (with the
+## 2.0 s Longbow it does not hold at the unreachable 15: 4 hits of 18 make the unbranched tower tie it at 0.5 kills/s).
 const PRESSURES: Array[int] = [12, 15]
 const ALL_PRESSURES: Array[int] = [12, 13, 14, 15]
 const WAVES := 3
@@ -92,9 +93,9 @@ func _live_pressures() -> Array[int]:
 
 func test_live_pressure_range_is_inside_the_covered_cases_and_nothing_above_the_cap_is_reached() -> void:
 	var live := _live_pressures()
-	assert_false(live.is_empty())
+	assert_eq(live, [10, 11, 12] as Array[int], "tier 3 starts at tier 2's cap 10 and ends at its own cap 12 (D-304)")
 	for p in live:
-		assert_true(p in ALL_PRESSURES, "live pressure %d is covered by the identity cases" % p)
+		assert_true(p in ALL_PRESSURES or HARE_HP_RETUNE.has(p), "live pressure %d is covered by the identity cases" % p)
 	assert_true(15 > bd.tiers.tier_cap[3], "pressure 15 is above the tier-3 cap: unreachable (D-280)")
 	for day in range(1, 80):
 		assert_lte(WaveMath.pressure(day, 3, 17, bd.tiers), bd.tiers.tier_cap[3], "day %d never passes the cap" % day)
@@ -116,8 +117,7 @@ func test_live_pressure_range_real_hp_and_identity_hold() -> void:
 			var bh := _hp(bd.monsters.stats(&"brute").hp, p, w)
 			assert_gte(BranchMath.kills_per_second(bh, t[&"longbow"], 1), BranchMath.kills_per_second(bh, t[&""], 1) - 1e-9, "live longbow vs brute p%d w%d" % [p, w])
 
-## E6 (D-304): with the retune flag ON tier 3 starts at pressure 10 (TierEffects.base_pressure) and ramps to the cap 12, so the live range is
-## [10, 11, 12]. The flag-off tests above stay as they are (live range [12]). Hand-checked real HP at the new pressures, 15 x hp_mult for a hare,
+## E6 (D-304): tier 3 starts at pressure 10 and ramps to the cap 12, so the live range is [10, 11, 12]. Hand-checked real HP at the pressures below 12, 15 x hp_mult for a hare,
 ## 30 for a boar, 240 for a brute (hp_mult = 1 + 0.15 x (p - 1), times raw / 30 when the wave's raw size passes 30):
 # p10: hp_growth part 2.35; raw 33 on the last wave -> x 1.1: hare 35.25, 35.25, 38.775 (35.25 x 1.1); boar 70.5, 70.5, 77.55; brute 564, 564, 620.4.
 # p11: 2.5; raw 36 on the last wave -> x 1.2: hare 37.5, 37.5, 45.0; boar 75, 75, 90; brute 600, 600, 720.
@@ -125,61 +125,44 @@ const HARE_HP_RETUNE := {10: [35.25, 35.25, 38.775], 11: [37.5, 37.5, 45.0]}
 const BOAR_HP_RETUNE := {10: [70.5, 70.5, 77.55], 11: [75.0, 75.0, 90.0]}
 const BRUTE_HP_RETUNE := {10: [564.0, 564.0, 620.4], 11: [600.0, 600.0, 720.0]}
 
-## The live Longbow with the flag ON: the balance's Longbow with the retune interval (2.0 s) and its damage x the brute multiplier for a brute.
+## The live Longbow: the balance's Longbow (its 2.0 s interval) with its damage x its own multiplier for a monster of `kind` (an absent kind = 1.0).
 func _longbow_on(kind: StringName = &"") -> TowerBranchStats:
 	var lb: TowerBranchStats = bb.tower(&"longbow").duplicate()
-	lb.interval = BranchMath.tower_interval(bb.longbow, bb, true)
-	lb.damage = bb.longbow.damage * BranchMath.longbow_kind_mult(kind, bb, true)
+	lb.damage = bb.longbow.damage * float(bb.longbow.kind_mults.get(kind, 1.0))
 	return lb
 
-func _live_pressures_flag_on() -> Array[int]:
-	var out: Array[int] = []
-	var tb: TierBalance = bd.tiers
-	tb.retune_enabled = true
-	var first := TierEffects.base_pressure(3, tb)
-	tb.retune_enabled = false
-	for p in range(first, tb.tier_cap[3] + 1):
-		out.append(p)
-	return out
-
-func test_live_pressure_range_flag_on_is_10_11_12() -> void:
-	var live := _live_pressures_flag_on()
-	assert_eq(live, [10, 11, 12] as Array[int], "base_pressure(3) with the flag on to the cap")
-	assert_eq(_live_pressures(), [12] as Array[int], "flag off: the range is unchanged")
-	assert_false(bd.tiers.retune_enabled, "the helper restored the flag")
-
-func test_live_pressure_range_flag_on_real_hp_is_pinned() -> void:
+func test_live_pressure_range_real_hp_is_pinned() -> void:
 	for p in [10, 11]:
 		for w in WAVES:
 			assert_almost_eq(_hp(bd.monsters.stats(&"hare").hp, p, w), HARE_HP_RETUNE[p][w], 1e-3, "hare p%d w%d" % [p, w])
 			assert_almost_eq(_hp(bd.monsters.stats(&"boar").hp, p, w), BOAR_HP_RETUNE[p][w], 1e-3, "boar p%d w%d" % [p, w])
 			assert_almost_eq(_hp(bd.monsters.stats(&"brute").hp, p, w), BRUTE_HP_RETUNE[p][w], 1e-3, "brute p%d w%d" % [p, w])
 
-func test_live_pressure_range_flag_on_identity_holds_with_the_retune_longbow() -> void:
+func test_live_pressure_range_identity_holds_with_the_live_longbow() -> void:
 	var lb := _longbow_on()
-	assert_eq([lb.interval, lb.damage], [2.0, 120.0], "flag-on Longbow: 2.0 s interval, damage 120 against a hare")
+	assert_eq([lb.interval, lb.damage], [2.0, 120.0], "Longbow: 2.0 s interval, damage 120 against a hare")
 	assert_eq(_longbow_on(&"brute").damage, 240.0, "x the brute multiplier 2.0")
 	var t := _towers()
 	t[&"longbow"] = lb
-	for p in _live_pressures_flag_on():
+	for p in _live_pressures():
 		for w in WAVES:
 			var hare := _hp(bd.monsters.stats(&"hare").hp, p, w)
 			for n in [3, 5, 8]:
 				var v := {}
 				for id in t:
 					v[id] = BranchMath.kills_per_second(hare, t[id], n)
-				assert_eq(_best(v), &"volley", "flag-on most: p%d w%d n%d" % [p, w + 1, n])
-				assert_eq(_worst(v), &"longbow", "flag-on fewest: p%d w%d n%d" % [p, w + 1, n])
+				assert_eq(_best(v), &"volley", "most: p%d w%d n%d" % [p, w + 1, n])
+				assert_eq(_worst(v), &"longbow", "fewest: p%d w%d n%d" % [p, w + 1, n])
 			var bh := _hp(bd.monsters.stats(&"brute").hp, p, w)
 			var kl := BranchMath.kills_per_second(bh, _longbow_on(&"brute"), 1)
 			var ku := BranchMath.kills_per_second(bh, t[&""], 1)
-			assert_gte(kl, ku - 1e-9, "flag-on longbow vs a brute p%d w%d (%.4f vs %.4f)" % [p, w + 1, kl, ku])
+			assert_gte(kl, ku - 1e-9, "longbow vs a brute p%d w%d (%.4f vs %.4f)" % [p, w + 1, kl, ku])
 
 # --- the seven measures, one test each, every wave at both pressures ------------------------------------
 
 func test_m1_single_target_dps_longbow_highest() -> void:
 	var t := _towers()
-	assert_almost_eq(BranchMath.single_dps(t[&"longbow"]), 120.0 / 3.0, 1e-6)
+	assert_almost_eq(BranchMath.single_dps(t[&"longbow"]), 120.0 / 2.0, 1e-6)
 	assert_almost_eq(BranchMath.single_dps(t[&""]), 36.0, 1e-6)
 	assert_almost_eq(BranchMath.single_dps(t[&"volley"]), 20.0, 1e-6)
 	var v := {}
@@ -205,12 +188,18 @@ func test_m3_dps_against_three_targets_volley_highest() -> void:
 	var v := {}
 	for id in t:
 		v[id] = BranchMath.multi_dps(t[id], 3)
-	assert_eq(_best(v), &"volley")
+	# E6 (D-297): the Longbow's 2.0 s interval makes its raw damage per second (120 / 2.0 = 60, one target) EQUAL to Volley's three projectiles
+	# (3 x 10 / 0.5 = 60): Volley is at the top, shared with the Longbow, and well above the unbranched tower (18 / 0.5 = 36).
+	assert_eq(_top_set(v), [&"longbow", &"volley"], "the top is shared by exactly the Longbow and Volley")
+	assert_true(&"volley" in _top_set(v), "Volley is at the top (alone or tied)")
+	assert_almost_eq(float(v[&"longbow"]), 60.0, 1e-9)
+	assert_almost_eq(float(v[&"volley"]), 60.0, 1e-9)
+	assert_almost_eq(float(v[&""]), 36.0, 1e-9)
 	gut.p("M3 dps vs 3 targets: unbranched %.1f longbow %.1f volley %.1f" % [v[&""], v[&"longbow"], v[&"volley"]])
 
 func test_m4_hares_per_second_volley_most_longbow_fewest() -> void:
 	var t := _towers()
-	for p in ALL_PRESSURES:
+	for p in _live_pressures():
 		for w in WAVES:
 			var hare := _hp(bd.monsters.stats(&"hare").hp, p, w)
 			for n in [3, 5, 8]:
@@ -223,9 +212,9 @@ func test_m4_hares_per_second_volley_most_longbow_fewest() -> void:
 
 func test_m4_kill_rate_literals() -> void:
 	var t := _towers()
-	var hare := _hp(15.0, 15, 2)  # 72.85: unbranched 5 hits (2.5 s), Longbow one shot per 3 s, Volley 8 hits per target
+	var hare := _hp(15.0, 15, 2)  # 72.85: unbranched 5 hits (2.5 s), Longbow one shot per 2.0 s, Volley 8 hits per target
 	assert_almost_eq(BranchMath.kills_per_second(hare, t[&""], 5), 0.4, 1e-9)
-	assert_almost_eq(BranchMath.kills_per_second(hare, t[&"longbow"], 5), 1.0 / 3.0, 1e-9)
+	assert_almost_eq(BranchMath.kills_per_second(hare, t[&"longbow"], 5), 1.0 / 2.0, 1e-9)
 	assert_almost_eq(BranchMath.kills_per_second(hare, t[&"volley"], 5), 0.75, 1e-9)
 	var easy := _hp(15.0, 12, 0)  # 39.75: 3 hits, 1 shot, 4 hits
 	assert_almost_eq(BranchMath.kills_per_second(easy, t[&""], 5), 2.0 / 3.0, 1e-9)
@@ -338,14 +327,13 @@ func test_branch_math_whole_hits() -> void:
 	assert_almost_eq(BranchMath.kills_per_second(39.75, bb.tower(&"volley"), 1), 1.0 / 0.5 / 4.0, 1e-9, "one target: one projectile")
 
 func test_spike_scale_is_now_over_base() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	assert_almost_eq(BranchMath.spike_scale(4.0, 2.0), 2.0, 1e-9)
 	var base := BranchMath.spike_base_mult(bd.wave, bd.tiers)
-	assert_almost_eq(base, 2.65, 1e-9, "first wave at pressure 12")
+	assert_almost_eq(base, 2.65, 1e-9, "first wave at pressure 12 (the tier's cap, not its first night's 10)")
 	assert_almost_eq(BranchMath.spike_scale(base, base), 1.0, 1e-9)
 	var s := BranchMath.spike_scale(WaveMath.hp_mult(15, 2, bd.wave), base)
 	assert_almost_eq(s, 4.8567 / 2.65, 1e-3)
-	assert_almost_eq(BranchMath.pass_damage(bb.fence(&"spike"), &"hare", s), 10.0 * s, 1e-9)
+	assert_almost_eq(BranchMath.pass_damage(bb.fence(&"spike"), &"hare", s), 24.0 * s, 1e-9)
 
 # --- data shape ---------------------------------------------------------------------------------------------
 
@@ -364,14 +352,14 @@ func test_branch_spec_values() -> void:
 	assert_eq(Array(BranchBalance.TOWER_BRANCHES), [&"longbow", &"volley"])
 	assert_eq(Array(BranchBalance.FENCE_BRANCHES), [&"stone", &"spike"])
 	var lb := bb.tower(&"longbow")
-	assert_eq([lb.attack_range, lb.damage, lb.interval, lb.count], [9.98, 120.0, 3.0, 1])
+	assert_eq([lb.attack_range, lb.damage, lb.interval, lb.count], [9.98, 120.0, 2.0, 1])
 	var vo := bb.tower(&"volley")
 	assert_eq([vo.attack_range, vo.damage, vo.interval, vo.count], [8.0, 10.0, 0.5, 3])
 	var st := bb.fence(&"stone")
 	assert_eq([st.hp, st.thorn_damage, st.pass_damage], [640.0, 0.0, 0.0])
 	assert_eq(st.damage_taken_mult_by_kind, {&"brute": 0.5})
 	var sp := bb.fence(&"spike")
-	assert_eq([sp.hp, sp.thorn_damage, sp.pass_damage], [320.0, 6.0, 10.0])
+	assert_eq([sp.hp, sp.thorn_damage, sp.pass_damage], [320.0, 6.0, 24.0])
 	assert_eq(Array(sp.pass_kinds), [&"hare", &"baron"])
 	assert_eq(sp.damage_taken_mult_by_kind, {})
 
@@ -407,7 +395,7 @@ func test_tier_3_arrays_are_live_and_the_top_tier_is_3() -> void:
 	var n := tb.tier_costs.size() + 1
 	for arr in [tb.tier_base, tb.tier_cap, tb.fast_share_start, tb.fast_share, tb.fast_ramp_days, tb.brute_cap_main, tb.brute_cap_side, tb.brute_ramp_days, tb.boss_kind]:
 		assert_gte((arr as Array).size(), n)
-	assert_eq([tb.tier_base[3], tb.tier_cap[3]], [12, 12], "tier 3 starts at its cap (the ruling)")
+	assert_eq([tb.tier_base[3], tb.tier_cap[3]], [10, 12], "tier 3 starts at tier 2's cap and reaches its own on its third night (D-304)")
 	assert_eq([tb.fast_share_start[3], tb.fast_share[3], tb.fast_ramp_days[3]], [0.35, 0.35, 1])
 	assert_eq([tb.brute_cap_main[3], tb.brute_cap_side[3], tb.brute_ramp_days[3]], [1, 0, 3], "main-lane brutes only (the ruling)")
 	assert_eq([tb.brute_cap_main[2], tb.brute_cap_side[2]], [0, 0], "tier 2 carries no brutes")

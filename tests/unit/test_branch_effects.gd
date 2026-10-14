@@ -102,7 +102,6 @@ func test_built_unbranched_tower_attacker_is_level_stats() -> void:
 # --- Longbow -----------------------------------------------------------------
 
 func test_longbow_attacker_equals_branch_balance() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(TOWER, &"longbow")
 	var a := spot.attacker
 	var lb := Balance.data.branches.longbow
@@ -110,7 +109,7 @@ func test_longbow_attacker_equals_branch_balance() -> void:
 	assert_eq(a.damage, lb.damage)
 	assert_eq(a.interval, lb.interval)
 	assert_eq(a.count, 1)
-	assert_eq([a.damage, a.attack_range, a.interval], [120.0, 9.98, 3.0], "the balance literals")
+	assert_eq([a.damage, a.attack_range, a.interval], [120.0, 9.98, 2.0], "the balance literals (E6: the Longbow fires every 2.0 s)")
 
 func test_longbow_hits_at_9_5_but_not_at_10_5() -> void:
 	_branch(TOWER, &"longbow")
@@ -270,38 +269,41 @@ func _base_plan() -> void:
 	_first_wave_mult(WaveMath.hp_mult(12, 0, Balance.data.wave))
 
 func test_spike_values_at_the_base_plan() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(FENCE, &"spike")
 	_base_plan()
 	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0, 1e-6)
-	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 10.0, 1e-6)
-	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"baron"), 10.0, 1e-6)
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 24.0, 1e-6)
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"baron"), 24.0, 1e-6)
 
 func test_spike_values_grow_with_the_plan_pressure() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(FENCE, &"spike")
 	_first_wave_mult(WaveMath.hp_mult(15, 0, Balance.data.wave))
 	assert_almost_eq(Balance.data.wave.hp_growth, 0.15, 1e-9)
 	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 7.019, 0.001)
-	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 11.698, 0.001)
+	# scale = hp_mult(15) / hp_mult(12) = 3.1 / 2.65 = 1.169811; 24 x 1.169811 = 28.0755 (it was 10 x 1.169811 = 11.698 before the retune)
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 28.0755, 0.001)
 
 func test_spike_scale_reads_the_first_wave_of_a_real_plan() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	GameState.day = 20
 	GameState.debug_set_tier(3, 17)
 	_branch(FENCE, &"spike")
 	assert_eq(GameState.lane_plan.size(), 3)
-	# Pressure is capped at 12 (the ruling; it was 15), so the plan's first wave is the base plan's: thorns 6.0.
+	# Day 20 of a tier entered on day 17 is the tier's fourth night: pressure 10 + 3 = 13, capped at 12, so the plan's first wave is the base plan's: thorns 6.0.
+	assert_eq(GameState.pressure(), 12)
 	assert_almost_eq(float(GameState.lane_plan[2].hp_mult), 3.445, 0.001)
 	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 2.65, 0.001)
 	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0, 0.001, "first wave, not the last (would be 6 x 3.445 / 2.65 = 7.80)")
-	# With cap = base a real plan scales by 1.0, which cannot tell "first wave" from "last wave" or "plan ignored". Re-run the old case with
-	# the cap raised in memory (15, the value before the ruling): the plan's waves differ again and the scale reads the first one.
+	# At the cap the scale is 1.0, which cannot tell "first wave" from "last wave" or "plan ignored". Re-run it with the cap raised in memory to 15
+	# (Spike's quoted base follows the cap: hp_mult(15) = 3.1): the night is at pressure 10 + 3 = 13, the plan's waves differ again and the scale reads the first one.
 	Balance.data.tiers.tier_cap[3] = 15
 	GameState.debug_set_tier(3, 17)
-	assert_almost_eq(float(GameState.lane_plan[2].hp_mult), 4.857, 0.001, "cap 15: the last wave")
-	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 3.1, 0.001, "cap 15: the first wave")
-	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 7.019, 0.001, "cap 15: first wave, not the last (would be 10.99)")
+	assert_eq(GameState.pressure(), 13, "cap 15, tier base 10, the fourth night")
+	var first := float(GameState.lane_plan[0].hp_mult)
+	var last := float(GameState.lane_plan[2].hp_mult)
+	assert_almost_eq(first, 1.0 + 0.15 * 12.0, 0.001, "cap 15: the first wave at pressure 13 (1 + 0.15 x 12 = 2.8)")
+	assert_gt(last, first, "cap 15: the last wave is bigger")
+	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0 * 2.8 / 3.1, 0.001, "cap 15: first wave, 6 x 2.8 / 3.1 = 5.419")
+	assert_false(is_equal_approx(GameState.fence_thorn_damage(FENCE), 6.0 * last / 3.1), "not the last wave's multiplier")
 
 func test_spike_scale_is_one_without_a_plan() -> void:
 	_branch(FENCE, &"spike")
@@ -341,7 +343,7 @@ func test_queries_change_no_state() -> void:
 	assert_signal_not_emitted(EventBus, "gold_changed")
 	assert_signal_not_emitted(EventBus, "branch_chosen")
 
-# --- E6 Task 7: the specialist values behind the retune flag (D-283, D-286) ---------------------------------
+# --- E6 Task 7: the specialist values (D-283, D-286) ---------------------------------
 
 func _fake_kind(kind: StringName, idx: int) -> FakeTarget:
 	var t := _fake(5.0, idx)
@@ -357,8 +359,7 @@ func _longbow_shot_at(kind: StringName) -> float:
 	return t.hits
 
 ## Mutation: the multiplier is 1.0 for every kind (brute stays 120), or it is applied to every kind (boar gets 240).
-func test_retune_on_longbow_does_double_to_a_brute_and_exactly_120_to_the_rest() -> void:
-	Balance.data.tiers.retune_enabled = true
+func test_longbow_does_double_to_a_brute_and_exactly_120_to_the_rest() -> void:
 	_branch(TOWER, &"longbow")
 	assert_eq(await _longbow_shot_at(&"brute"), 240.0, "120 x 2.0")
 	for kind in [&"boar", &"hare", &"baron", &"boss"]:
@@ -368,8 +369,7 @@ func test_retune_on_longbow_does_double_to_a_brute_and_exactly_120_to_the_rest()
 		assert_eq(await _longbow_shot_at(kind), 120.0, "no bonus against %s" % kind)
 
 ## Mutation: the multiplier lives in the shared Attacker default or in stats_for, so an unbranched or Volley tower gets it.
-func test_retune_on_unbranched_and_volley_do_their_old_damage_to_a_brute() -> void:
-	Balance.data.tiers.retune_enabled = true
+func test_unbranched_and_volley_do_their_old_damage_to_a_brute() -> void:
 	_build_max(TOWER)
 	assert_eq(await _longbow_shot_at(&"brute"), 18.0, "unbranched level 3: 18")
 	var spot2: TowerSpot = main.world.build_spots["tower_ne"]
@@ -388,9 +388,8 @@ func test_retune_on_unbranched_and_volley_do_their_old_damage_to_a_brute() -> vo
 	assert_eq(t.hits, 10.0, "Volley: 10 per projectile, one target")
 	assert_true(a.kind_mults.is_empty())
 
-## Mutation: pass damage still 10 with the flag on, or the retune value ignores the night's scale.
-func test_retune_on_spike_pass_damage_is_24_times_the_scale() -> void:
-	Balance.data.tiers.retune_enabled = true
+## Mutation: pass damage still 10, or the value ignores the night's scale.
+func test_spike_pass_damage_is_24_times_the_scale() -> void:
 	_branch(FENCE, &"spike")
 	_base_plan()
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 24.0, 1e-6)
@@ -401,109 +400,62 @@ func test_retune_on_spike_pass_damage_is_24_times_the_scale() -> void:
 	_first_wave_mult(WaveMath.hp_mult(15, 0, Balance.data.wave))
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 28.0755, 0.001)
 
-## D-304: with the flag on the FIRST tier-3 night (day == tier_day) is at pressure 10, below Spike's base (pressure 12, spike_base_mult), so Spike
+## D-304: the FIRST tier-3 night (day == tier_day) is at pressure 10, below Spike's base (pressure 12, the tier's cap, spike_base_mult), so Spike
 ## scales by hp_mult(10) / hp_mult(12) = 2.35 / 2.65 = 0.886792: pass 24 x 0.886792 = 21.2830, thorns 6 x 0.886792 = 5.3208.
-## Mutation: spike_base_mult follows base_pressure (2.35, scale 1.0 on the first night) or the scale is ignored.
-func test_retune_on_first_tier_3_night_scales_spike_by_pressure_10_over_12() -> void:
+## Mutation: spike_base_mult follows tier_base (2.35, scale 1.0 on the first night) or the scale is ignored.
+func test_first_tier_3_night_scales_spike_by_pressure_10_over_12() -> void:
 	var tb := Balance.data.tiers
 	var saved_day := GameState.day
-	tb.retune_enabled = true
 	GameState.day = 9
 	GameState.debug_set_tier(3, 9)
 	_branch(FENCE, &"spike")
-	assert_eq(GameState.pressure(), 10, "first tier-3 night, flag on")
+	assert_eq(GameState.pressure(), 10, "first tier-3 night")
 	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 2.35, 1e-6, "the plan's first wave is the pressure-10 multiplier")
 	var base := BranchMath.spike_base_mult(Balance.data.wave, tb)
-	assert_almost_eq(base, 2.65, 1e-9, "spike_base_mult stays the pressure-12 multiplier with the flag on")
+	assert_almost_eq(base, 2.65, 1e-9, "spike_base_mult is the pressure-12 multiplier (the cap), not the first night's")
 	var scale := 2.35 / 2.65
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 24.0 * scale, 1e-6)
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 21.283, 0.001)
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"baron"), 21.283, 0.001)
 	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0 * scale, 1e-6)
 	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 5.3208, 0.0001)
-	# The same night with the flag off is at pressure 12, scale 1.0 (the old behaviour).
-	tb.retune_enabled = false
-	GameState.debug_set_tier(3, 9)
-	assert_eq(GameState.pressure(), 12)
-	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0, 1e-6)
 	GameState.day = saved_day
 
-## Flag-off pins: mutation = the retune value leaks into the default path.
-func test_retune_off_pins_longbow_120_and_pass_damage_10() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
-	assert_false(TierEffects.retune_on(Balance.data.tiers))
-	_branch(TOWER, &"longbow")
-	assert_true(spot.attacker.kind_mults.is_empty())
-	assert_eq(await _longbow_shot_at(&"brute"), 120.0)
-	assert_eq(spot.attacker.interval, 3.0, "flag off: the Longbow fires every 3.0 s")
-	_branch(FENCE, &"spike")
-	_base_plan()
-	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 10.0, 1e-6)
-
-## Mutation: the accessor ignores the flag, applies to every kind, or returns 0 for an unknown kind.
-func test_longbow_kind_mult_accessor_off_on_unknown() -> void:
+## Mutation: the table has an entry for any other kind, or no entry for the brute; Volley or the unbranched tower carry a table.
+func test_longbow_kind_mults_table() -> void:
 	var bb := Balance.data.branches
-	assert_eq(BranchMath.longbow_kind_mult(&"brute", bb, false), 1.0)
-	assert_eq(BranchMath.longbow_kind_mult(&"brute", bb, true), 2.0)
-	assert_eq(BranchMath.longbow_kind_mult(&"boar", bb, true), 1.0)
-	assert_eq(BranchMath.longbow_kind_mult(&"baron", bb, true), 1.0)
-	assert_eq(BranchMath.longbow_kind_mult(&"boss", bb, true), 1.0)
-	assert_eq(BranchMath.longbow_kind_mult(&"no_such_kind", bb, true), 1.0)
-	assert_true(BranchMath.longbow_kind_mults(bb, false).is_empty())
-	assert_eq(BranchMath.longbow_kind_mults(bb, true), {&"brute": 2.0})
+	assert_eq(bb.longbow.kind_mults, {&"brute": 2.0})
+	for kind in [&"boar", &"hare", &"baron", &"boss", &"no_such_kind"]:
+		assert_eq(float(bb.longbow.kind_mults.get(kind, 1.0)), 1.0, "no bonus against %s" % kind)
+	assert_true(bb.volley.kind_mults.is_empty())
+	assert_true(TowerSpot.stats_for(3, &"").kind_mults.is_empty())
 
-## Mutation: spike_pass_base returns the retune value for any fence, or ignores the flag.
-func test_spike_pass_base_accessor() -> void:
+## Mutation: pass damage is another number, or another fence has one.
+func test_spike_pass_damage_stat() -> void:
 	var bb := Balance.data.branches
-	assert_eq(BranchMath.spike_pass_base(bb.spike, bb, false), 10.0)
-	assert_eq(BranchMath.spike_pass_base(bb.spike, bb, true), 24.0)
-	assert_eq(BranchMath.spike_pass_base(bb.stone, bb, true), 0.0, "another fence keeps its own number")
+	assert_eq(bb.spike.pass_damage, 24.0)
+	assert_eq(BranchMath.pass_damage(bb.spike, &"hare", 1.0), 24.0)
+	assert_eq(BranchMath.pass_damage(bb.spike, &"boar", 1.0), 0.0)
+	assert_eq(BranchMath.pass_damage(bb.stone, &"hare", 1.0), 0.0, "another fence has none")
 
-# --- E6 tuning rounds 1 and 2 (D-297): Longbow interval 2.0 s behind the flag ---------------------------------------
+# --- E6 tuning rounds 1 and 2 (D-297): Longbow interval 2.0 s ---------------------------------------------------------
 
-## Mutation: the interval accessor returns the old value with the flag on (3.0), or the field is not read.
-func test_retune_on_longbow_interval_is_2_0_through_apply_level() -> void:
-	Balance.data.tiers.retune_enabled = true
+## Mutation: the Longbow's stats carry the old value (3.0), or the attacker does not read them.
+func test_longbow_interval_is_2_0_through_apply_level() -> void:
 	_branch(TOWER, &"longbow")
 	assert_eq(spot.attacker.interval, 2.0)
 	assert_eq([spot.attacker.damage, spot.attacker.attack_range], [120.0, 9.98], "damage and range unchanged")
 
-## Mutation: the new interval leaks to the flag-off path (accessor ignores the flag).
-func test_retune_off_longbow_interval_is_3_0_and_accessor_pins() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
+## Mutation: Volley or the unbranched tower pick up the Longbow's interval.
+func test_the_other_towers_keep_their_interval_in_the_stats() -> void:
 	var bb := Balance.data.branches
-	_branch(TOWER, &"longbow")
-	assert_eq(spot.attacker.interval, 3.0)
-	assert_eq(BranchMath.tower_interval(bb.longbow, bb, false), 3.0)
-	assert_eq(BranchMath.tower_interval(bb.longbow, bb, true), 2.0)
-	assert_eq(BranchMath.tower_interval(bb.volley, bb, true), 0.5, "Volley keeps its interval with the flag on")
-	var plain := TowerSpot.stats_for(3, &"")
-	assert_eq(BranchMath.tower_interval(plain, bb, true), 0.5, "the unbranched tower keeps its interval with the flag on")
+	assert_eq(bb.longbow.interval, 2.0)
+	assert_eq(bb.volley.interval, 0.5, "Volley keeps its interval")
+	assert_eq(TowerSpot.stats_for(3, &"").interval, 0.5, "the unbranched tower keeps its interval")
 
 ## Mutation: Volley or the unbranched tower pick up the Longbow's interval through the real path.
-func test_retune_on_volley_and_unbranched_keep_their_interval() -> void:
-	Balance.data.tiers.retune_enabled = true
+func test_volley_and_unbranched_keep_their_interval() -> void:
 	_build_max(TOWER)
 	assert_eq(spot.attacker.interval, 0.5)
 	_branch("tower_ne", &"volley")
 	assert_eq((main.world.build_spots["tower_ne"] as TowerSpot).attacker.interval, 0.5)
-
-## The interval is taken when the level is applied (like the kind multipliers): a Longbow built with the flag on has 2.0 s and
-## keeps it when the flag later reads off; one built in the same world with the flag off from the start has 3.0 s.
-func test_longbow_interval_is_a_snapshot_of_the_flag_at_build_time() -> void:
-	Balance.data.tiers.retune_enabled = true
-	_branch(TOWER, &"longbow")
-	assert_eq(spot.attacker.interval, 2.0)
-	Balance.data.tiers.retune_enabled = false
-	assert_eq(spot.attacker.interval, 2.0, "not re-read after the toggle")
-	_arm()
-	var t := _fake(5.0, 1)
-	_attack_once()
-	assert_eq(spot.attacker._cooldown, 2.0, "a shot after the toggle still cools down 2.0 s")
-	_branch("tower_ne", &"longbow")
-	assert_eq((main.world.build_spots["tower_ne"] as TowerSpot).attacker.interval, 3.0, "flag off at build: the old interval")
-
-## Mutation: the retune interval applies to any Longbow-looking stats object, not the balance's own.
-func test_retune_on_a_fresh_longbow_stats_object_keeps_3_0() -> void:
-	var bb := Balance.data.branches
-	assert_eq(BranchMath.tower_interval(BranchBalance._longbow(), bb, true), 3.0)

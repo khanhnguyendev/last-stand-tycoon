@@ -27,9 +27,8 @@ func after_each() -> void:
 	Balance.reset()
 	GameState.new_game(1)
 
-## A running game on `seed`, day, the hero under test control, at `tier` with the flag as given.
-func _start(seed: int, tier := 3, flag := true) -> void:
-	Balance.data.tiers.retune_enabled = flag
+## A running game on `seed`, day, the hero under test control, at `tier`.
+func _start(seed: int, tier := 3) -> void:
 	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
@@ -86,16 +85,8 @@ func test_the_pinned_characters_are_the_seeds_we_name() -> void:
 	for s in CHARACTERS:
 		assert_eq(LaneCharacter.for_run(s), {"siege": CHARACTERS[s][0], "hare": CHARACTERS[s][1]}, "seed %d" % s)
 
-func test_flag_off_at_tier_3_shows_no_badge_and_makes_no_node() -> void:
-	await _start(1, 3, false)
-	assert_eq(GameState.tier, 3)
-	assert_eq(GameState.lane_character(), {})
-	assert_eq(_badges(), {}, "a badge shown with the flag off")
-	for lane in LANES:
-		assert_null(_marker(lane).badge, "%s: no node is made with the flag off" % lane)
-
 func test_flag_on_at_tiers_1_and_2_shows_no_badge() -> void:
-	await _start(1, 1, true)
+	await _start(1, 1)
 	assert_eq(_badges(), {}, "tier 1")
 	GameState.debug_set_tier(2, 5)
 	await get_tree().physics_frame
@@ -301,7 +292,6 @@ func test_from_home_the_badge_visibility_per_lane_is_reported_honestly() -> void
 ## row's HUD rule fails here on the north lane, seed 7).
 func test_the_badge_does_not_hide_with_the_count_row_under_the_hud_bar() -> void:
 	SafeArea.override_for_tests = {"top": 0.0, "bottom": 0.0, "left": 0.0, "right": 0.0}
-	Balance.data.tiers.retune_enabled = true
 	var vp := SubViewport.new()
 	vp.size = Vector2i(720, 1280)
 	add_child_autofree(vp)
@@ -394,7 +384,7 @@ func _foci() -> Array:
 		out.append(MapLayout.zone_rect(lane).get_center())
 	for id in MapLayout.spots_for_tier(3):
 		out.append(MapLayout.spot_position(id))
-	var pads := MapLayout.branch_pads(TierEffects.retune_on(Balance.data.tiers))
+	var pads := MapLayout.BRANCH_PADS
 	for id in pads:
 		for pad in pads[id]:
 			out.append(pad)
@@ -624,7 +614,6 @@ func test_the_texture_form_is_the_same_picture_as_the_mesh_and_crisp_at_64() -> 
 # --- warm-up ------------------------------------------------------------------------------------------------------------
 
 func test_the_warmup_draws_both_icons_on_screen_at_three_aspects_within_the_grid() -> void:
-	Balance.data.tiers.retune_enabled = true
 	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
@@ -647,13 +636,6 @@ func test_the_warmup_draws_both_icons_on_screen_at_three_aspects_within_the_grid
 	assert_eq(warmup.placed.size(), warmup.built_count)
 	await warmup.finished
 	assert_eq(warmup.get_child_count(), 0)
-
-func test_the_warmup_with_the_flag_off_draws_no_badge_icon() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
-	main = Main.create()
-	add_child_autofree(main)
-	main.hero.input.player_control = false
-	assert_eq(Warmup.lane_character_visuals().size(), 0, "flag off: the warm-up is exactly today's")
 
 
 # --- the safe-area inset (D: SafeArea may push the HUD bar down) ----------------------------------------------------------
@@ -930,7 +912,6 @@ func test_the_badge_is_hidden_or_clear_of_the_hero_the_labels_and_the_pips_from_
 ## label_dim_hz times a second, not every frame.
 func test_the_cover_rule_runs_on_a_timer_hides_over_the_hero_and_shows_again_when_clear() -> void:
 	SafeArea.override_for_tests = {"top": 0.0, "bottom": 0.0, "left": 0.0, "right": 0.0}
-	Balance.data.tiers.retune_enabled = true
 	var vp := SubViewport.new()
 	vp.size = Vector2i(720, 1280)
 	add_child_autofree(vp)

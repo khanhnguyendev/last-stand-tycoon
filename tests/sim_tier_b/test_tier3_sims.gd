@@ -68,11 +68,13 @@ func _spot_levels(ids: Array) -> Array:
 
 ## Stale-fixture guard: the fixtures carry a SAVED lane plan, so a later change to wave counts, hare share, wave size or the lane draw would leave
 ## the sims playing the old night and green. Pure computation: the plan STORED in the fixture file (decoded through the codec, never read back from GameState,
-## which could re-derive it) must equal what the planner makes today for the fixture's run, day and tier. Whole-number floats of the decoded JSON are
+## which could re-derive it) must equal what the planner makes today for the fixture's run, day and tier (through the lane character at tier 3). Whole-number floats of the decoded JSON are
 ## compared as ints. Mutation: change a wave count or the hare share in the planner and this fails for every fixture; a self-comparison would not.
 func _assert_fresh_plan(stem: String, boss_night: bool) -> void:
 	var stored: Dictionary = SaveCodec.decode(FileAccess.get_file_as_string("res://export/fixtures/%s.save.json" % stem), GameState.SCHEMA_VERSION, Balance.data).state
 	var fresh := LanePlanner.plan(int(stored.run_seed), int(stored.day), Balance.data.wave, int(stored.tier), int(stored.tier_day), Balance.data.tiers)
+	if int(stored.tier) >= 3:  # E6 (D-307): a tier-3 night's plan goes through the run's lane character, as GameState.lane_plan does
+		fresh = LaneCharacter.apply(fresh, LaneCharacter.for_run(int(stored.run_seed)), Balance.data.tiers)
 	if boss_night:
 		fresh = LanePlanner.with_boss(fresh)
 	assert_eq(_canon(stored.lane_plan), _canon(fresh), "stale fixture %s: re-run make_save.gd -- --fixture=tier3" % stem)
@@ -208,7 +210,6 @@ func test_4_the_hero_at_the_zone_reaches_the_baron_before_it_reaches_the_zone() 
 ## fixture is a RECORDING of the TierBot's own run (the start of its first tier-3 day, gold 31: the Baron night's gold; the Baron's 278 steaks sit unsold in
 ## the freezer at that moment, where the constructed fixture had already sold 150 of them for 497 = 47 + 150 x 3), not a construction. The bot buys tower_sw (40+80+160) and fence_sw (20+40+80) to level 3 from the day's own income.
 func test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307): the fixtures were recorded flag-off
 	_start("tier3_night1", TierBot)
 	assert_eq(h.main.phase_controller.phase, Phase.DAY, "the fixture loads in the DAY (precondition)")
 	assert_eq(GameState.gold, 31, "the gold the real TierBot run held at the start of the first tier-3 day (precondition; was 497 on the constructed fixture)")
@@ -253,14 +254,12 @@ func test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries() -> void:
 ## "threat >= every other policy" ordering is NOT asserted here: one night is too noisy to order policies. Task 24's multi-seed policy report
 ## carries the ordering and the spec routes a failure to the review queue ("branches don't reward reading the telegraph").
 func test_6_every_branch_policy_holds_the_tier3_cap_with_0_retries() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307): the fixtures were recorded flag-off
 	var lines: Array = []
 	var comp_line := ""
 	for policy in TierBot.POLICIES:
 		h.finish()
 		await get_tree().process_frame
 		Balance.reset()
-		Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307): the fixtures were recorded flag-off
 		h = SimHarness.new(self)
 		growth = []
 		hp_last = -1.0
@@ -324,7 +323,6 @@ func test_7_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again
 	# was occupied at the respawn, the night was watched 5 s past it, and no knockout fell within 5 s of a respawn or beyond 2 in any 15 s window.
 	Balance.data.guards.tank.max_hp = 1.0
 	Balance.data.guards.tank.hp_growth = 0.0
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307): the fixtures were recorded flag-off
 	_start("tier3_night1", TierBot, 0, "NIGHT")  # the night at once: the south-west spots are unbuilt, the zone fills
 	EventBus.guard_knocked_out.connect(_on_ko)
 	EventBus.guard_revived.connect(_on_revive)

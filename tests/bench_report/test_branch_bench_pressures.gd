@@ -1,6 +1,6 @@
 extends GutTest
 ## E6 (D-304, D-305) REPORT, not a CI test: the three rule sets of the full lane-type bench (FLOOR, SPECIALIST, IDENTITY;
-## tests/bench/test_branch_bench_full.gd) at the tier-3 start pressures 10 and 11, retune flag ON, with pressure 12 as the control
+## tests/bench/test_branch_bench_full.gd) at the tier-3 start pressures 10 and 11, the shipped balance, with pressure 12 as the control
 ## (it must reproduce the verdicts of the CI bench). Every rule is printed with its measured numbers and PASS or FAIL. It asserts
 ## nothing about the verdicts: a FAIL is a finding for the report, not something to tune. Run it by hand:
 ##   "$GODOT" --headless --path . --fixed-fps 60 -s res://addons/gut/gut_cmdln.gd -gconfig= -gtest=res://tests/bench_report/test_branch_bench_pressures.gd -gexit
@@ -31,7 +31,6 @@ func after_each() -> void:
 func _run(lane: StringName, tb: StringName, fb: StringName, pressure: int) -> Dictionary:
 	var key := "%s|%s|%s|%d" % [lane, tb, fb, pressure]
 	if not _cache.has(key):
-		Balance.data.tiers.retune_enabled = true
 		_cache[key] = await BranchBench.run(lane, tb, fb, pressure)
 	return _cache[key]
 
@@ -84,7 +83,7 @@ func _identity(pressure: int) -> void:
 func test_rules_at_pressures_10_11_12() -> void:
 	await wait_physics_frames(10)
 	for p in PRESSURES:
-		gut.p("PRESSURE %d (flag ON)%s" % [p, "  [control: must reproduce the CI bench]" if p == 12 else ""])
+		gut.p("PRESSURE %d (shipped balance)%s" % [p, "  [control: must reproduce the CI bench]" if p == 12 else ""])
 		for lane in BranchBench.LANES:
 			for cfg in BranchBench.FAST_CONFIGS:
 				var run: Dictionary = await _run(lane, cfg[0], cfg[1], p)

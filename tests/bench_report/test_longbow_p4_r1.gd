@@ -33,7 +33,6 @@ func after_each() -> void:
 func _run(lane: StringName, tb: StringName, fb: StringName, ov := {}) -> Dictionary:
 	var key := "%s|%s|%s|%s" % [lane, tb, fb, ov]
 	if not _cache.has(key):
-		Balance.data.tiers.retune_enabled = true
 		_cache[key] = await BranchBench.run(lane, tb, fb, PRESSURE, ov)
 	return _cache[key]
 

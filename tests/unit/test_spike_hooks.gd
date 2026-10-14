@@ -2,7 +2,7 @@ extends GutTest
 ## E5 tier 3 (spec 6.4, D-264, D-272.1): what a Spike fence does to monsters. Thorns: a monster whose hit lands on the fence
 ## takes `fence_thorn_damage` after its own hit. Pass damage: a monster with no fence entry in its priority list takes
 ## `fence_pass_damage` ONCE when it crosses the fence's line; its path and timing do not change.
-## Literals at spike scale 1.0 (the first wave at the tier-3 base multiplier): thorns 6.0, pass 10.0 (hare and baron only).
+## Literals at spike scale 1.0 (the first wave at the tier-3 base multiplier): thorns 6.0, pass 24.0 (hare and baron only; E6 tuning round 1, D-292: it was 10.0).
 ## A Boar's hit is 5.0 every 1.0 s; a brute's is 8.0 x 4 on a fence. The fence line is path length - 4.0 (FENCE_OFFSET_FROM_END).
 
 const DT := 1.0 / 60.0
@@ -134,35 +134,32 @@ func test_a_monster_killed_by_thorns_counts_one_kill_and_drops_its_steaks() -> v
 # --- pass damage ---
 
 func test_pass_damage_queries_follow_the_kind() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(&"spike")
-	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 10.0, 1e-4)
-	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"baron"), 10.0, 1e-4)
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 24.0, 1e-4)
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"baron"), 24.0, 1e-4)
 	assert_eq(GameState.fence_pass_damage(FENCE, &"boar"), 0.0)
 	assert_eq(GameState.fence_pass_damage(FENCE, &"brute"), 0.0)
 	assert_eq(GameState.fence_pass_damage(FENCE, &"boss"), 0.0)
 
 func test_a_hare_loses_the_literal_pass_damage_exactly_once() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(&"spike")
 	var h := _mon(&"hare")
 	var line := _line(h)
 	_walk_until(h, line - 0.5)
 	assert_almost_eq(_lost(h), 0.0, 1e-6, "before the line: nothing")
 	_walk_until(h, line + 0.01)
-	assert_almost_eq(_lost(h), 10.0, 1e-4, "crossing the line: the pass amount")
+	assert_almost_eq(_lost(h), 24.0, 1e-4, "crossing the line: the pass amount")
 	_walk_until(h, h.path_length())
 	_step(h, 240)  # standing at the diner, hitting it for 4 seconds
 	assert_true(h.at_path_end())
-	assert_almost_eq(_lost(h), 10.0, 1e-4, "still one hit in total (a per-tick or per-frame-past-the-line hit fails)")
+	assert_almost_eq(_lost(h), 24.0, 1e-4, "still one hit in total (a per-tick or per-frame-past-the-line hit fails)")
 
 func test_the_baron_takes_pass_damage_once_too() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(&"spike")
 	var b := _mon(&"baron")
 	_walk_until(b, b.path_length())
 	_step(b, 60)
-	assert_almost_eq(_lost(b), 10.0, 1e-4)
+	assert_almost_eq(_lost(b), 24.0, 1e-4)
 
 func test_no_pass_damage_at_stone_plain_or_rubble() -> void:
 	for branch in [&"stone", &"", &"rubble"]:
@@ -212,15 +209,14 @@ func test_a_monster_killed_by_pass_damage_counts_one_kill_and_drops_its_steaks()
 	assert_eq(main.world.steak_pool.active().size() - steaks0, Balance.data.economy.steaks_per_kill)
 
 func test_a_recycled_monster_can_take_pass_damage_in_its_next_life() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(&"spike")
 	var h := _mon(&"hare")
 	_walk_until(h, h.path_length())
-	assert_almost_eq(_lost(h), 10.0, 1e-4)
+	assert_almost_eq(_lost(h), 24.0, 1e-4)
 	h.spawn("north", 9, 0.0, BIG, wd, &"hare")  # the pool hands the same node out again
 	assert_almost_eq(_lost(h), 0.0, 1e-6, "fresh hp")
 	_walk_until(h, h.path_length())
-	assert_almost_eq(_lost(h), 10.0, 1e-4, "its second life crossed the line again")
+	assert_almost_eq(_lost(h), 24.0, 1e-4, "its second life crossed the line again")
 
 func test_the_spike_fence_does_not_change_a_hares_path_or_arrival_tick() -> void:
 	_branch(&"spike")

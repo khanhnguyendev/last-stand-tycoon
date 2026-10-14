@@ -42,6 +42,8 @@ const SIBLING_QUIET := 4
 const UNARMED := 5
 ## The lone ON glyph starts this far below the pad's ground point on the screen (clears the marker ring, about 0.75 m deep on screen).
 const SOUTH_BASE_M := 0.8
+## The gap (m) between the preview glyph and its multiplier.
+const WARN_GAP := 0.1
 ## E6: the lone glyph above the hero's head starts here (the test's hero box is taller on screen).
 const RETUNE_NORTH_BASE_M := 1.25
 ## E6 (D-294.8): the hero is drawn IN FRONT of every pad label. The labels are Label3D with no depth test (drawn over buildings and ground), so
