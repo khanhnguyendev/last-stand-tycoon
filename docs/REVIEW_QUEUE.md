@@ -7,6 +7,7 @@ direction, and anything that deviates from IDEA.md. Ranked by impact, highest fi
 
 - **E6-1. Lane reading doesn't pay.** On eight unseen seeds the threat-matched build leads Longbow + Stone by +1.5 (target 5), ahead on 5 of 8, and is 0.1 behind on the south-west lane. Root-cause hypothesis: the branches are now so balanced (fixed spread 5.3) that the choice barely matters. Input for tier 4. Levers to brainstorm there, none decided: a stronger lane bias, a second siege lane, specialists with a sharper off-lane cost, threats that punish the wrong branch — [D-306](DECISIONS.md), [D-307](DECISIONS.md)
 - **E6-2. The first tier-3 night may be too easy:** 90% to 100% diner HP with branches after the pressure 10, 11, 12 start. Revisit with fresh seeds in the next balance work; not tuned now — [D-305](DECISIONS.md)
+- **E6-4. A tier-3 sweep can differ under parallel load** (found at the cleanup): the identity tool is run alone until the cause is known — [D-308](DECISIONS.md)
 - **E6-3. The tier bot's hero leaves its lane.** It distorts every policy comparison. Fix the bot in the next slice and re-record the affected baselines then — [D-305](DECISIONS.md), `docs/E5_FOLLOWUPS.md`
 
 1. Art direction: KayKit Adventurers cast (chef-hatted Barbarian as the hero), Kenney rounded kits, and a procedural tusked Boar. Quaternius characters (named in IDEA.md) were rejected on the style board — [D-186](DECISIONS.md), [board](review/media/s4_style_board/README.md)
