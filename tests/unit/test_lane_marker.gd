@@ -649,6 +649,7 @@ func test_the_warmup_draws_both_icons_on_screen_at_three_aspects_within_the_grid
 	assert_eq(warmup.get_child_count(), 0)
 
 func test_the_warmup_with_the_flag_off_draws_no_badge_icon() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false

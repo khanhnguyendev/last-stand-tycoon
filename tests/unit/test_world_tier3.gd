@@ -75,6 +75,7 @@ func test_tier_2_adds_only_the_yards_and_never_a_south_west_node() -> void:
 	assert_eq(main.world.telegraph_markers.keys(), ["west", "north", "east"])
 
 func test_tier_3_builds_the_south_west_lane_marker_and_spots() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	var stones_t1: int = main.world.edge_stones.multimesh.instance_count
 	assert_eq(stones_t1, 58, "tier 1: 58 edge stones")
 	var mesh_t1 := main.world.ground.mesh
@@ -166,6 +167,7 @@ func test_no_south_west_edge_stone_stands_on_a_pad_a_station_or_the_counter() ->
 			assert_false((r as Rect2).grow(LaneStrip.STONE_RADIUS).has_point(p), "stone %s clear of %s" % [p, r])
 
 func test_new_game_removes_every_south_west_node() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	var stones_t1: int = main.world.edge_stones.multimesh.instance_count
 	var mesh_t1 := main.world.ground.mesh
 	GameState.debug_set_tier(3, 5)

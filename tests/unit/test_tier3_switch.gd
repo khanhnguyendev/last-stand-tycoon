@@ -146,6 +146,7 @@ func test_the_baron_night_is_announced_and_leads_the_wave() -> void:
 ## Mutation: the tier staying 2 (the cost entry missing) fails the first line; a reveal with a missing or extra step fails the count of five;
 ## a world not rebuilt for tier 3 fails each world check.
 func test_a_won_baron_night_tiers_up_and_the_world_has_everything_of_tier_3() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	await _to_tier_3_dawn()
 	assert_eq([GameState.tier, GameState.boss_pending, GameState.tier_paid], [3, false, 0])
 	var reveal := main.world.tier_reveal

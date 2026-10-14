@@ -35,9 +35,9 @@ extends Resource
 ## The ladder's length (D-236). A save above the top this build knows is clamped (spec 6.3).
 @export var max_tier := 5
 
-## E6 (D-286): the one feature flag of the tier-3 retune. False until the final flip; removed at the E6 cleanup.
+## E6 (D-286): the one feature flag of the tier-3 retune. On since the flip (D-307); removed at the cleanup (Task 23).
 ## Production code reads it only through TierEffects.retune_on(tb); only ui/debug, tests and tools assign it.
-@export var retune_enabled := false
+@export var retune_enabled := true
 
 ## E6 (D-282, D-287): the share of a tier-3 wave's hares that walk the run's hare lane (LaneCharacter.apply).
 @export var hare_lane_share := 0.7

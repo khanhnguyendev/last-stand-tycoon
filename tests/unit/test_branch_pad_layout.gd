@@ -328,6 +328,7 @@ func test_retune_the_graph_and_the_bot_walk_to_the_moved_pads() -> void:
 	# the bot itself: its graph at tier 3 follows the flag (a flip rebuilds it)
 	GameState.new_game(1)
 	GameState.debug_set_tier(3, 1)
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	var bot := TierBot.new()
 	bot._sync_graph()
 	var any_id: String = MapLayout.BRANCH_PADS_RETUNE.keys()[0]

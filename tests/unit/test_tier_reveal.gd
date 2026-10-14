@@ -365,6 +365,7 @@ func _signature() -> Dictionary:
 	}
 
 func test_tier3_state_is_tier_3_with_five_steps_waiting_at_the_dawn() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_tier3_dawn()
 	assert_eq(GameState.tier, 3)
 	assert_true(_reveal().running())
@@ -372,6 +373,7 @@ func test_tier3_state_is_tier_3_with_five_steps_waiting_at_the_dawn() -> void:
 	assert_eq(_reveal().steps_left(), 5)
 
 func test_tier3_things_are_hidden_before_their_step_and_shown_after_it_in_the_spec_order() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_tier2_day()
 	var w := main.world
 	var kerb_tier2 := _hash_transforms(w.yard_stones.multimesh, w.yard_stones.multimesh.instance_count)  # what the player saw at tier 2
@@ -551,6 +553,7 @@ func test_tier3_camera_frames_the_diner_the_lot_and_the_lanes_last_stretch() -> 
 	assert_ne(f3.focus, (lo + hi) * 0.5, "the lane's stretch moves the frame")
 
 func test_tier3_held_camera_shows_every_subject_at_the_first_and_the_last_step() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_tier3_dawn()
 	var frame := TierReveal.frame_for(3, Balance.ui)
 	var base := sfx.count(&"build_done")

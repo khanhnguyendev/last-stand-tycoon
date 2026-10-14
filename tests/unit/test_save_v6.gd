@@ -172,6 +172,7 @@ func test_every_migrated_fixture_round_trips_through_game_state() -> void:
 # --- a v6 round trip at tier 3 -----------------------------------------------------------------------
 
 func test_v6_round_trip_with_a_branch_a_partial_payment_a_lane_sw_and_brutes() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	var s := _t3_dict()
 	assert_eq(s.buildings.tower_nw.branch, "longbow", "setup: the test state really holds the data")
 	var r := _decode(s)

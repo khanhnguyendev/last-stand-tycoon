@@ -33,6 +33,7 @@ func after_each() -> void:
 		if sig.is_connected(pair[1]):
 			sig.disconnect(pair[1])
 	h.finish()
+	Balance.reset()
 	gut.p("  wall time %.1f s" % ((Time.get_ticks_msec() - _t0) / 1000.0))
 
 func _count_kill(_i: int, _lane: StringName, _p: Vector3, kind: StringName) -> void:
@@ -207,6 +208,7 @@ func test_4_the_hero_at_the_zone_reaches_the_baron_before_it_reaches_the_zone() 
 ## fixture is a RECORDING of the TierBot's own run (the start of its first tier-3 day, gold 31: the Baron night's gold; the Baron's 278 steaks sit unsold in
 ## the freezer at that moment, where the constructed fixture had already sold 150 of them for 497 = 47 + 150 x 3), not a construction. The bot buys tower_sw (40+80+160) and fence_sw (20+40+80) to level 3 from the day's own income.
 func test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307): the fixtures were recorded flag-off
 	_start("tier3_night1", TierBot)
 	assert_eq(h.main.phase_controller.phase, Phase.DAY, "the fixture loads in the DAY (precondition)")
 	assert_eq(GameState.gold, 31, "the gold the real TierBot run held at the start of the first tier-3 day (precondition; was 497 on the constructed fixture)")
@@ -251,12 +253,14 @@ func test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries() -> void:
 ## "threat >= every other policy" ordering is NOT asserted here: one night is too noisy to order policies. Task 24's multi-seed policy report
 ## carries the ordering and the spec routes a failure to the review queue ("branches don't reward reading the telegraph").
 func test_6_every_branch_policy_holds_the_tier3_cap_with_0_retries() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307): the fixtures were recorded flag-off
 	var lines: Array = []
 	var comp_line := ""
 	for policy in TierBot.POLICIES:
 		h.finish()
 		await get_tree().process_frame
 		Balance.reset()
+		Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307): the fixtures were recorded flag-off
 		h = SimHarness.new(self)
 		growth = []
 		hp_last = -1.0
@@ -320,6 +324,7 @@ func test_7_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again
 	# was occupied at the respawn, the night was watched 5 s past it, and no knockout fell within 5 s of a respawn or beyond 2 in any 15 s window.
 	Balance.data.guards.tank.max_hp = 1.0
 	Balance.data.guards.tank.hp_growth = 0.0
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307): the fixtures were recorded flag-off
 	_start("tier3_night1", TierBot, 0, "NIGHT")  # the night at once: the south-west spots are unbuilt, the zone fills
 	EventBus.guard_knocked_out.connect(_on_ko)
 	EventBus.guard_revived.connect(_on_revive)

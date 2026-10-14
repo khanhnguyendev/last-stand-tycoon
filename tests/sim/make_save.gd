@@ -322,6 +322,7 @@ func _on_t3_snapshot(state: Dictionary) -> void:
 func _play_real() -> bool:
 	var gs = root.get_node("GameState")
 	root.get_node("Balance").reset()
+	root.get_node("Balance").data.tiers.retune_enabled = false  # tier-3 fixtures are the off state until the cleanup (D-307)
 	var main = load("res://world/main.gd").create()
 	root.add_child(main)
 	var bot = load("res://actors/bots/tier_bot.gd").new()
