@@ -33,6 +33,7 @@ func after_each() -> void:
 		if sig.is_connected(pair[1]):
 			sig.disconnect(pair[1])
 	h.finish()
+	Balance.reset()
 	gut.p("  wall time %.1f s" % ((Time.get_ticks_msec() - _t0) / 1000.0))
 
 func _count_kill(_i: int, _lane: StringName, _p: Vector3, kind: StringName) -> void:
@@ -323,6 +324,7 @@ func test_7_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again
 	# was occupied at the respawn, the night was watched 5 s past it, and no knockout fell within 5 s of a respawn or beyond 2 in any 15 s window.
 	Balance.data.guards.tank.max_hp = 1.0
 	Balance.data.guards.tank.hp_growth = 0.0
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307): the fixtures were recorded flag-off
 	_start("tier3_night1", TierBot, 0, "NIGHT")  # the night at once: the south-west spots are unbuilt, the zone fills
 	EventBus.guard_knocked_out.connect(_on_ko)
 	EventBus.guard_revived.connect(_on_revive)

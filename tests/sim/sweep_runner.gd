@@ -80,6 +80,7 @@ func _run() -> void:
 	elif String(args.retune) == "off":
 		Balance.data.tiers.retune_enabled = false  # `--retune=off` forces the off state explicitly (D-307: the default is on since the flip)
 		assert(not TierEffects.retune_on(Balance.data.tiers))
+		ov.append("retune=off")
 	if String(args["tier3-cap"]) != "":
 		Balance.data.tiers.tier_cap[3] = int(args["tier3-cap"])
 		ov.append("tier3-cap=%d" % int(args["tier3-cap"]))
