@@ -5,7 +5,7 @@ set -euo pipefail
 : "${GODOT:?Set GODOT}"
 N="${1:-7}"
 cd "$(dirname "$0")/.."
-"$GODOT" --headless --path . --import >/dev/null 2>&1  # a fresh worktree has no import cache: without this the sweep spins for 30+ minutes
+"$GODOT" --headless --path . --import >/dev/null 2>&1 || { echo "import failed" >&2; exit 1; }  # a fresh worktree has no import cache: without this the sweep spins for 30+ minutes
 T=$(mktemp -d); rc=0
 for s in 20260930 11 777; do
   rm -f tests/sim/out/sweep.csv

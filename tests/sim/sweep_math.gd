@@ -226,7 +226,7 @@ static func two_by_two(runs: Array) -> Dictionary:
 
 const SIEGE_LANES := ["east", "sw", "west", "north"]
 ## The seed sets, pinned as literals (D-285). The rule: scan seeds upward from 1; a seed belongs to the lane `LaneCharacter.for_run(seed).siege`; per lane the first seed is
-## the scan's tuning seed, the next two are hold-out set #1, the two after those hold-out set #2. report_retune.gd asserts the scan still gives exactly SCAN_TUNING_SET, HOLDOUT_SET_1 and HOLDOUT_SET_2.
+## the scan's tuning seed, the next two are hold-out set #1, the two after those hold-out set #2, the two after those measurement set #3 (E7). report_retune.gd asserts the scan still gives exactly SCAN_TUNING_SET, HOLDOUT_SET_1, HOLDOUT_SET_2 and MEASURE_SET_3.
 const SCAN_TUNING_SET := {"east": [1], "sw": [3], "west": [4], "north": [7]}
 ## D-304: seed 14 failed hold-out set #1, was diagnosed, and is therefore tuning data now. The tuning set that is RUN is the scan's tuning seeds plus this promotion.
 const PROMOTED_TO_TUNING := {"north": [14]}
@@ -258,7 +258,7 @@ const AHEAD_MARGIN := 1.0
 ## The only length a final run may have (the 32-day runs the targets are stated for).
 const FINAL_DAYS := 32
 
-## The scan. `siege_of`: Callable(seed) -> siege lane name. Returns {tuning, holdout1, holdout2}, each {lane: [seeds]} in scan order.
+## The scan. `siege_of`: Callable(seed) -> siege lane name. Returns {tuning, holdout1, holdout2, set3}, each {lane: [seeds]} in scan order.
 static func seed_scan(siege_of: Callable, lanes: Array, per_lane := SCAN_PER_LANE, start := 1) -> Dictionary:
 	var found := {}
 	for l in lanes:

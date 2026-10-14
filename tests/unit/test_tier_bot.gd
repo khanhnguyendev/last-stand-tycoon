@@ -816,5 +816,17 @@ func test_the_live_pick_does_not_cross_the_diner_while_the_own_lane_has_monsters
 	bot.keep_lane = false
 	assert_eq(_live_pick(bot), "east", "rule off: the shipped pick")
 	bot.keep_lane = true
-	bot.goal = "zone_north"  # north-east is near (7.35 m): the shipped pick is taken (north has no monsters, so the rule does not apply)
+	_spawn_at(wd, "north", &"boar", 2.0)  # north has a monster too, so the rule is consulted and decided by the distance alone
+	bot.goal = "zone_north"  # north-east is near (7.35 m, under FAR_WALK_M): the shipped pick is taken although north is live
 	assert_eq(_live_pick(bot), "east")
+
+## The rule overrides the breach ranking: a hare past the east fence line is breaching (east would win the ranking), but the hero's own lane west has a monster and east is far.
+func test_the_far_walk_rule_overrides_the_breach_ranking() -> void:
+	var bot := await _bot_world(3)
+	var wd := bot.main.world.wave_director
+	_spawn_at(wd, "west", &"boar", 2.0)
+	_spawn_at(wd, "east", &"hare", MapLayout.path_length("east") - 1.0)
+	bot.goal = "zone_west"
+	assert_eq(_live_pick(bot), "west", "west keeps the hero though east has the breach")
+	bot.keep_lane = false
+	assert_eq(_live_pick(bot), "east", "rule off: the breach ranking sends the hero east")

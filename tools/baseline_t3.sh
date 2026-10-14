@@ -7,9 +7,12 @@ cd "$(dirname "$0")/.."
 BASE=tests/sim/baseline/tier3.csv
 OUT=tests/sim/out/tier3_check.csv
 mkdir -p tests/sim/out
-"$GODOT" --headless --path . --import >/dev/null 2>&1  # a fresh worktree has no import cache: without this the sweep spins for 30+ minutes
+"$GODOT" --headless --path . --import >/dev/null 2>&1 || { echo "import failed" >&2; exit 1; }  # a fresh worktree has no import cache: without this the sweep spins for 30+ minutes
 LOG=tests/sim/out/tier3_check.log
-"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=32 --seed=20260930 --policy=threat --cols=extra --out=tier3_check.csv >"$LOG" 2>&1 || true
+rm -f "$OUT"  # a stale CSV must never pass or be recorded
+rc=0
+"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=32 --seed=20260930 --policy=threat --cols=extra --out=tier3_check.csv >"$LOG" 2>&1 || rc=$?
+[ "$rc" -eq 0 ] || { echo "tier-3: sweep exit $rc, log $LOG" >&2; exit 1; }
 [ -s "$OUT" ] || { echo "tier-3: the sweep wrote no rows" >&2; exit 1; }
 if [ "${1:-}" = "--record" ]; then cp "$OUT" "$BASE"; echo "tier-3 recorded $(git rev-parse --short HEAD) ($(wc -l < "$BASE" | tr -d ' ') lines)"; exit 0; fi
 if cmp -s "$OUT" "$BASE"; then echo "tier-3 identical $(git rev-parse --short HEAD)"; else echo "tier-3 DIFFERS:"; diff "$BASE" "$OUT" | head -6; echo "sweep log (stdout and stderr): $LOG"; echo "Godot processes now:"; pgrep -fl Godot || echo "(none)"; exit 1; fi
