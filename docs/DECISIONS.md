@@ -3442,3 +3442,17 @@ recommendations and answered three questions put to them one by one.
    gameplay runs in `_physics_process` at a fixed rate). Until it is understood, identity checks run alone. The
    retune report runs three processes at once, so its runs are real plays but may not repeat exactly under load;
    the seed-14 what-if re-runs (three at a time, `26c0c00`) reproduced the first pass exactly. `docs/E5_FOLLOWUPS.md`.
+
+**D-309 The flip's smoke results and the load finding, ruled-out causes (main session, 2026-10-14).**
+1. **Live `main` (`07d4034`), emulated Pixel 7:** a migrated v6 tier-3 save loads with no error; after the first
+   dawn's card pick the lane banner shows ("Heavy tracks on the west road..."); a v6 save with unbranched pads shows
+   the branch card with its lane ("Volley / hits 3 targets / south road"). 0 page errors in both runs.
+2. **iOS Simulator:** the live site cannot be seeded (no same-origin seed page on Pages, Safari not scriptable). On a
+   local release build of `6189da3` with the repo's seed page: both v6 saves load, the night plays, the dawn's card
+   pick is reached; `simctl` cannot tap, so the banner after the pick and the card were NOT seen on iOS. No error on
+   screen; Safari's console not readable. The iOS check of the banner and the card stays open for the final review
+   (the author's phone, D-159).
+3. **D-308.4, causes ruled out by reading the code:** sims use no save store (`Main` makes one only with
+   `auto_start`); the identity tool writes its own CSV; no wall-clock read in the bots, the sweep or the harness;
+   the phase timers run on physics; the one gameplay-side wall-clock read (`kaykit_visual.hit`, the hit-reaction
+   cooldown) drives an animation only. Still unknown; next step is a controlled run under load.

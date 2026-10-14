@@ -112,3 +112,4 @@ Code and test follow-ups:
 - **The tier-3 sweep can differ under parallel load** (D-308.4): rows from day 18 changed (unspent gold 141 to 941, day seconds 306 to 374) while GUT runs shared the machine; alone, identical, on old and new code. Cause not found. Find it before the next balance slice: it decides whether parallel report runs are exactly repeatable.
 - **Stale "flag on/off" comments** remain in about 15 files after the cleanup (hero_visual, carry_stack, branch_card, telegraph_marker, lane_character_marker, tier_reveal, build_spot, warmup, GameState, several tools headers). One comment sweep clears them.
 - **`tools/baseline_*.sh` do not run `--import`**: in a fresh worktree a headless run spins for 30+ minutes without output.
+- **iOS check of the lane banner and the branch card** after the flip: not seen on iOS (no tap from `simctl`, no seed route on the live site); do it on the author's phone at the final review (D-309).
