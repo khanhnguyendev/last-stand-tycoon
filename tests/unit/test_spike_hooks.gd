@@ -24,7 +24,7 @@ func before_each() -> void:
 	GameState.debug_set_tier(3, 8)
 	main.world.rebuild_for_tier()
 	# Scale exactly 1.0: the plan's first wave carries the tier-3 base multiplier (spike_scale = now / base).
-	GameState.lane_plan[0].hp_mult = BranchMath.spike_base_mult(Balance.data.wave, Balance.data.tiers)
+	GameState.lane_plan[0].hp_mult = BranchMath.spike_base_mult(Balance.data.wave, Balance.data.branches)
 	wd = main.world.wave_director
 
 func after_each() -> void:

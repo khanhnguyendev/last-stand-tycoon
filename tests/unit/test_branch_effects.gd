@@ -294,7 +294,7 @@ func test_spike_scale_reads_the_first_wave_of_a_real_plan() -> void:
 	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 2.65, 0.001)
 	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0, 0.001, "first wave, not the last (would be 6 x 3.445 / 2.65 = 7.80)")
 	# At the cap the scale is 1.0, which cannot tell "first wave" from "last wave" or "plan ignored". Re-run it with the cap raised in memory to 15
-	# (Spike's quoted base follows the cap: hp_mult(15) = 3.1): the night is at pressure 10 + 3 = 13, the plan's waves differ again and the scale reads the first one.
+	# (Spike's quoted base stays at pressure 12, hp_mult(12) = 2.65, whatever the cap): the night is at pressure 10 + 3 = 13, the plan's waves differ again and the scale reads the first one.
 	Balance.data.tiers.tier_cap[3] = 15
 	GameState.debug_set_tier(3, 17)
 	assert_eq(GameState.pressure(), 13, "cap 15, tier base 10, the fourth night")
@@ -302,8 +302,14 @@ func test_spike_scale_reads_the_first_wave_of_a_real_plan() -> void:
 	var last := float(GameState.lane_plan[2].hp_mult)
 	assert_almost_eq(first, 1.0 + 0.15 * 12.0, 0.001, "cap 15: the first wave at pressure 13 (1 + 0.15 x 12 = 2.8)")
 	assert_gt(last, first, "cap 15: the last wave is bigger")
-	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0 * 2.8 / 3.1, 0.001, "cap 15: first wave, 6 x 2.8 / 3.1 = 5.419")
-	assert_false(is_equal_approx(GameState.fence_thorn_damage(FENCE), 6.0 * last / 3.1), "not the last wave's multiplier")
+	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0 * 2.8 / 2.65, 0.001, "cap 15: first wave, 6 x 2.8 / 2.65 = 6.340")
+	assert_false(is_equal_approx(GameState.fence_thorn_damage(FENCE), 6.0 * last / 2.65), "not the last wave's multiplier")
+
+func test_spike_base_mult_ignores_a_tier_cap_override() -> void:
+	var before := BranchMath.spike_base_mult(Balance.data.wave, Balance.data.branches)
+	Balance.data.tiers.tier_cap[3] = 15
+	assert_eq(BranchMath.spike_base_mult(Balance.data.wave, Balance.data.branches), before, "the quote does not move with tier_cap")
+	assert_almost_eq(before, 2.65, 1e-9, "pressure 12")
 
 func test_spike_scale_is_one_without_a_plan() -> void:
 	_branch(FENCE, &"spike")
@@ -404,14 +410,13 @@ func test_spike_pass_damage_is_24_times_the_scale() -> void:
 ## scales by hp_mult(10) / hp_mult(12) = 2.35 / 2.65 = 0.886792: pass 24 x 0.886792 = 21.2830, thorns 6 x 0.886792 = 5.3208.
 ## Mutation: spike_base_mult follows tier_base (2.35, scale 1.0 on the first night) or the scale is ignored.
 func test_first_tier_3_night_scales_spike_by_pressure_10_over_12() -> void:
-	var tb := Balance.data.tiers
 	var saved_day := GameState.day
 	GameState.day = 9
 	GameState.debug_set_tier(3, 9)
 	_branch(FENCE, &"spike")
 	assert_eq(GameState.pressure(), 10, "first tier-3 night")
 	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 2.35, 1e-6, "the plan's first wave is the pressure-10 multiplier")
-	var base := BranchMath.spike_base_mult(Balance.data.wave, tb)
+	var base := BranchMath.spike_base_mult(Balance.data.wave, Balance.data.branches)
 	assert_almost_eq(base, 2.65, 1e-9, "spike_base_mult is the pressure-12 multiplier (the cap), not the first night's")
 	var scale := 2.35 / 2.65
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 24.0 * scale, 1e-6)

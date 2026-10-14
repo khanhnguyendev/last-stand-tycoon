@@ -8,9 +8,9 @@ extends SceneTree
 ##   E  the SW path against towers and the diner; the service layout against the SW lane, zone and fence bar;
 ##   the tier-3 sign against today's west exit line; the front plot; the 18 branch pads (current MapLayout.BRANCH_PADS with their
 ##   smallest clearance and what limits it) and, last, a SEARCH (env PAD_KEEP=id,id keeps those spots' committed pads) for pad pairs per spot printed as BRANCH_PADS source text.
-## E6: env RETUNE=1 runs it with the retune's lot rules: the committed section reads MapLayout.BRANCH_PADS (the shipped, retuned table),
-##   pad_clear also applies the front lot's kerb as laid out, its props (footprint, and the lean for a prop south of the pad) and the south-west lane's edge stones, and the
-##   SEARCH prints BRANCH_PADS_RETUNE source text. Without RETUNE every number and line is as before.
+## The committed section reads MapLayout.BRANCH_PADS (the shipped table). With env RETUNE=1 it also applies the front lot's kerb as laid out, its props
+##   (footprint, and the lean for a prop south of the pad) and the south-west lane's edge stones in the pad clearance, and the SEARCH prints
+##   BRANCH_PADS_RETUNE source text.
 ## Information only: the oracles are the unit tests (test_tier3_layout, test_branch_pad_layout, test_longbow_reach).
 
 const ASPECTS := [0.30, 9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0, 21.0 / 9.0, 32.0 / 9.0]

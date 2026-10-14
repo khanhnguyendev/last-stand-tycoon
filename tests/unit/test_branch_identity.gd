@@ -265,7 +265,7 @@ func test_m5_fence_holds_longest_against_one_brute_stone() -> void:
 
 func test_m6_only_spike_damages_a_passing_hare() -> void:
 	var f := _fences()
-	var base := BranchMath.spike_base_mult(bd.wave, bd.tiers)
+	var base := BranchMath.spike_base_mult(bd.wave, bd.branches)
 	for p in PRESSURES:
 		for w in WAVES:
 			var scale := BranchMath.spike_scale(WaveMath.hp_mult(p, w, bd.wave), base)
@@ -328,7 +328,7 @@ func test_branch_math_whole_hits() -> void:
 
 func test_spike_scale_is_now_over_base() -> void:
 	assert_almost_eq(BranchMath.spike_scale(4.0, 2.0), 2.0, 1e-9)
-	var base := BranchMath.spike_base_mult(bd.wave, bd.tiers)
+	var base := BranchMath.spike_base_mult(bd.wave, bd.branches)
 	assert_almost_eq(base, 2.65, 1e-9, "first wave at pressure 12 (the tier's cap, not its first night's 10)")
 	assert_almost_eq(BranchMath.spike_scale(base, base), 1.0, 1e-9)
 	var s := BranchMath.spike_scale(WaveMath.hp_mult(15, 2, bd.wave), base)

@@ -2242,29 +2242,52 @@ func test_flag_on_a_pad_shows_its_cost_only_within_reach_with_a_hysteresis_band(
 	await _settle()
 	assert_ne(a.stage, BranchPad.NEAR, "a pad first met in the band does not show its cost")
 
-## The stage never changes what a tick pays, with the flag on: armed (ON), unarmed, near, far.
+## The stage never changes what a tick pays: far, near, unarmed, armed (ON) and the quiet sibling, on a tower pad and a fence pad, and by really standing.
 func test_flag_on_the_stage_never_changes_what_a_tick_pays() -> void:
 	await _start_on()
+	_max("tower_w")
 	_max("fence_n")
-	var drain := Economy.drain_per_tick(_cost("fence_n"), Balance.data.build)
-	for st in [BranchPad.FAR, BranchPad.NEAR, BranchPad.UNARMED, BranchPad.ON]:
-		var pad: BranchPad = _pads("fence_n")[0]
-		GameState.buildings["fence_n"].branch_paid = {}
-		GameState.gold = 100000
-		match st:
-			BranchPad.FAR:
-				main.hero.teleport(MapLayout.HOME)
-			BranchPad.NEAR:
-				main.hero.teleport(_near_hero_at("fence_n", 3.0, "home"))
-			BranchPad.UNARMED:
-				main.hero.teleport(_pad_pos("fence_n", 0))
-			_:
-				await _walk_onto("fence_n", 0)
-		await _settle()
-		assert_eq(pad.stage, st)
-		pad._on_tick()
-		pad._on_tick()
-		assert_eq(pad.paid(), 2 * drain, "stage %d" % st)
+	var tower_drain := Economy.drain_per_tick(_cost("tower_w"), Balance.data.build)
+	var fence_drain := Economy.drain_per_tick(_cost("fence_n"), Balance.data.build)
+	assert_eq(tower_drain, 25, "a tower pad: ceil(500 / drain_divisor 20)")
+	assert_eq(fence_drain, 15, "a fence pad: ceil(300 / 20)")
+	for case in [["tower_w", tower_drain], ["fence_n", fence_drain]]:
+		var id: String = case[0]
+		var drain: int = case[1]
+		for st in [BranchPad.FAR, BranchPad.NEAR, BranchPad.UNARMED, BranchPad.ON, BranchPad.SIBLING_QUIET]:
+			var pad: BranchPad = _pads(id)[0]
+			GameState.buildings[id].branch_paid = {}
+			GameState.gold = 100000
+			match st:
+				BranchPad.FAR:
+					main.hero.teleport(MapLayout.HOME)
+				BranchPad.NEAR:
+					main.hero.teleport(_pad_pos(id, 0) + Vector2(1.0, 3.0))  # near pad 0 (3.2 m), not on it
+				BranchPad.UNARMED:
+					main.hero.teleport(_pad_pos(id, 0))
+				BranchPad.SIBLING_QUIET:
+					main.hero.teleport(_pad_pos(id, 1))  # the hero stands on pad 1: pad 0 is the quiet sibling, and still pays
+				_:
+					main.hero.teleport(MapLayout.HOME)
+					await _settle()
+					await _walk_onto(id, 0)
+			await _settle()
+			assert_eq(pad.stage, st, "%s is in stage %d" % [id, st])
+			pad._on_tick()
+			assert_eq(pad.paid(), drain, "%s stage %d: after tick 1" % [id, st])
+			pad._on_tick()
+			pad._on_tick()
+			assert_eq(pad.paid(), 3 * drain, "%s stage %d: after tick 3" % [id, st])
+	# and by really standing: the same amounts
+	GameState.buildings["tower_w"].branch_paid = {}
+	GameState.gold = 100000
+	var spad: BranchPad = _pads("tower_w")[0]
+	var ticks := [0]
+	spad.zone.ticked.connect(func(): ticks[0] += 1)
+	await _stand_on("tower_w", 0)
+	await _wait_until(func(): return ticks[0] >= 3, 600)
+	assert_gte(ticks[0], 3, "setup: the zone ticked")
+	assert_eq(spad.paid(), ticks[0] * tower_drain, "standing: paid = ticks x drain")
 
 ## The world-space box of a spot's level-3 model: every mesh under its visual, transformed to the world.
 func _model_corners(sp: BuildSpot) -> Array:

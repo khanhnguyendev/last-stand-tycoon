@@ -380,7 +380,7 @@ func _spike_stands(spot_id: String) -> bool:
 func _spike_scale() -> float:
 	if lane_plan.is_empty():
 		return 1.0
-	return BranchMath.spike_scale(float(lane_plan[0].hp_mult), BranchMath.spike_base_mult(Balance.data.wave, Balance.data.tiers))
+	return BranchMath.spike_scale(float(lane_plan[0].hp_mult), BranchMath.spike_base_mult(Balance.data.wave, Balance.data.branches))
 
 # --- stations (E1) ---------------------------------------------------------
 

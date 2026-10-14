@@ -15,7 +15,11 @@ func test_arrays_cover_every_tier_including_the_top() -> void:
 func test_tiers_are_ordered() -> void:
 	for t in range(1, tb.tier_costs.size()):
 		assert_lte(tb.tier_base[t], tb.tier_cap[t], "tier %d base <= cap" % t)
-		assert_lte(tb.tier_cap[t], tb.tier_base[t + 1], "tier %d cap <= next base (tier 3 starts at tier 2's cap, D-304)" % t)
+		if t == 1:
+			assert_lt(tb.tier_cap[t], tb.tier_base[t + 1], "tier 1 cap < tier 2 base")
+		else:
+			# D-305: tier 3 starts at tier 2's cap (cap 10 == base 10), the one place equality is allowed.
+			assert_lte(tb.tier_cap[t], tb.tier_base[t + 1], "tier %d cap <= next base (tier 3 starts at tier 2's cap, D-305)" % t)
 	var top := tb.tier_costs.size()
 	assert_lte(tb.tier_base[top], tb.tier_cap[top])
 

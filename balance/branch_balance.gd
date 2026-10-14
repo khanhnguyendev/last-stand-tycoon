@@ -6,6 +6,8 @@ extends Resource
 const TOWER_BRANCHES: Array[StringName] = [&"longbow", &"volley"]
 const FENCE_BRANCHES: Array[StringName] = [&"stone", &"spike"]
 
+## The pressure Spike's numbers are quoted at (D-272.1). It was tier 3's base before E6 moved the start to 10; it no longer follows any tier value.
+@export var spike_quote_pressure := 12
 @export var tower_branch_cost := 500
 @export var fence_branch_cost := 300
 @export var longbow: TowerBranchStats = BranchBalance._longbow()

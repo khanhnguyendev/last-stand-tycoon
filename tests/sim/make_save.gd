@@ -12,7 +12,7 @@ extends SceneTree
 ## export/fixtures/tier3_branch_day.save.json (committed). `retune` (E6 Task 19, spec 8.3) plays ONE real TierBot run (threat policy,
 ## seed 3 by default: a tuning seed, never a hold-out seed) and writes retune_first_t3_night (the first tier-3 day's start, resume DAY), retune_respawn (a CONSTRUCTED state: the same buildings, resume NIGHT, tier_day = day - 2 so the night is at the cap pressure 12; on the real first night at pressure 10 the south-west zone never held CROWD (6) enemies while the tank was posted)
 ## and retune_siege_night (the close-up of the first tier-3 night on which a wave's brutes have a siege lane that is neither the drawn main nor side lane and a wave has an extra hare group; resume NIGHT).
-## `tier3` also records tier3_night1 from the same real run (the first tier-3 day's start, flag off), and builds tier3_baron_alone from the real Baron-night capture. `day3_counter5` writes only that fixture. `night3` rewrites the two night3 fixtures at the current schema and must
+## `tier3` also records tier3_night1 from the same real run (the first tier-3 day's start, recorded from the shipped game), and builds tier3_baron_alone from the real Baron-night capture. `day3_counter5` writes only that fixture. `night3` rewrites the two night3 fixtures at the current schema and must
 ## not be used while they serve as schema-3 migration tests. No argument (or an unknown one) is a usage error.
 
 var _done := false

@@ -177,6 +177,8 @@ func test_v6_round_trip_with_a_branch_a_partial_payment_a_lane_sw_and_brutes() -
 	var r := _decode(s)
 	assert_true(r.ok, r.reason)
 	GameState.new_game(3)
+	var row: Dictionary = r.state.lane_plan[0]
+	assert_eq([row.main, int(row.brute_main), int(row.brute_side)], ["sw", 3, 1], "the decoded v6 row keeps its stored plan fields, before the game replans it")
 	GameState.from_dict(r.state)
 	assert_eq(GameState.tier, 3)
 	assert_eq(GameState.branch_of("tower_nw"), &"longbow")
