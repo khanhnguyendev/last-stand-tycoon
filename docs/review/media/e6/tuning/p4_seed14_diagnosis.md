@@ -75,8 +75,11 @@ pass. No bot rule tried was better than the shipped bot on every night (each is 
 Run at commit `519490e` (HEAD of `e6/p4b-seed14` before this commit; the study tool is unchanged since). One run, from the repo root:
 
 ```
-"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/study_first_t3.gd -- --seed=<S> --policy=<all_a|all_b|unbranched> --days=26 [--hold=1|--commit=1|--far=1] --base=<10|11|12> --out=<name>.txt > <name>.raw
+"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/study_first_t3.gd -- --seed=<S> --policy=<all_a|all_b|unbranched> --days=26 [--hold=1|--commit=1|--far=1] --base=<10|11|12> --oldbot=1 --out=<name>.txt > <name>.raw
 ```
+
+These rows ran on the bot before D-310. Since D-310 the bot never crosses the diner while its lane has monsters, so
+`--oldbot=1` is needed to reproduce them (without it the run plays the shipped rule and the RUN line looks the same).
 
 33 runs (up to 3 at once). From each stdout only the `RUN` and `ROW` lines, and for the first tier-3 night the attempt-1 `PLAN`,
 `HEROMOVE`, `FENCE_HP`, `FENCE_FALL`, `NIGHT_END` and `DMG` lines, are kept in `rerun/s<seed>_<policy>_b<base>[_hold|_commit|_far].txt`.

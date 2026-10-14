@@ -3456,3 +3456,25 @@ recommendations and answered three questions put to them one by one.
    `auto_start`); the identity tool writes its own CSV; no wall-clock read in the bots, the sweep or the harness;
    the phase timers run on physics; the one gameplay-side wall-clock read (`kaykit_visual.hit`, the hit-reaction
    cooldown) drives an animation only. Still unknown; next step is a controlled run under load.
+
+**D-310 The tier bot's hero keeps its lane (review queue E6-3; author's choice "no far walk", 2026-10-14).**
+1. **Rule:** at tier 3 the bot's hero does not walk to a zone more than 9 m away (the far side of the diner:
+   south-west to north 10.8 m, west to east 10.4, south-west to east 9.5) while its own lane still has monsters.
+   Near moves (north to west or east 7.35, south-west to west 5.7) are unchanged; so are the stay-in-range rule
+   and the breach ranking otherwise. It is the in-memory what-if `--far` of D-305, now shipped
+   (`TierBot.keep_own_lane`).
+2. **Measured defect:** a new sweep line `FAR_WALKS` counts those walks over tier-3 nights. On the tier-3
+   baseline run (seed 20260930, threat, 32 days): 19 over 14 nights with the old bot, 0 with the new (0 by
+   construction). `--bot-rule=old` restores the old bot for comparison; the study's `--oldbot=1` keeps the D-305
+   rows reproducible.
+3. **Baselines:** tier 1 and 2 identical (they use other bots). The tier-3 baseline differed (5 rows, night lengths;
+   every night still at full diner HP) and was re-recorded at `0bc6943` with the new bot, as the author ruled
+   (D-307.6: re-record the affected baselines). Tier-sim tick budgets updated (six sims, all assertions pass).
+4. **E6-4 (parallel load):** not reproducible in seven conditions (alone; all 8 cores busy; beside the unit suite,
+   the sim suites, two other tier sweeps; a fresh worktree after and during its import). The two earlier sightings
+   came from one session that was editing files and regenerating fixtures mid-run. The tier-3 tool now imports
+   first, fails on a sweep error instead of reading a stale file, and keeps its log plus the list of Godot
+   processes when it differs, so a next sighting carries evidence. Closed as not reproduced.
+5. **Re-measure (the author's choice for E6-1, E6-2):** measurement set #3 from the scan, positions 6 and 7 per
+   lane (east 15, 17; south-west 28, 29; west 30, 36; north 22, 26), run once with the old bot and once with the
+   new, `--final`; no tuning. Set #2 is spent and refused. Positions 8 and 9 stay unseen for the next balance slice.
