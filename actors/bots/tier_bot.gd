@@ -24,6 +24,10 @@ var _pad_wait := 0
 var _blocked_pads := {}
 var _blocked_day := -1
 var _graph_tier := 1
+## E7 (D-310): false switches the no-far-walk rule off (the sweep's `--bot-rule=old` and the study's `--oldbot=1`, for before/after measurements). Shipped: true.
+var keep_lane := true
+## E7 (D-310): a zone-to-zone walk longer than this (metres, straight line between the two zone nodes) is a far walk.
+const FAR_WALK_M := 9.0
 
 func _init() -> void:
 	graph = _make_graph(1)
@@ -65,7 +69,26 @@ func _pick_lane(lanes: Array, counts: Dictionary, wd: WaveDirector) -> String:
 		var walks_past: bool = not (b.stats().priority as Array).has(&"fence_on_lane")  # the game's own test for hares and the Baron
 		if enemy_breached(lane, float(b.dist), float(b.stats().reach), TargetProviders.fence_stop_dist(b) < INF, walks_past):
 			breached[lane] += 1
-	return pick_lane(lanes, counts, breached, character)
+	var picked := pick_lane(lanes, counts, breached, character)
+	if keep_lane and goal.begins_with("zone_") and picked != "" and graph.nodes.has("zone_" + picked):
+		var mine := goal.trim_prefix("zone_")
+		if mine != picked and graph.nodes.has(goal):
+			var dist := graph.position_of(goal).distance_to(graph.position_of("zone_" + picked))
+			if keep_own_lane(mine, picked, counts, dist):
+				return mine
+	return picked
+
+## Pure. E7 (D-310, review queue E6-3): the hero does not cross to the far side of the diner while its own lane has monsters. True when the hero, whose
+## current zone goal is `mine`, keeps `mine` instead of walking to `picked`: `mine` has live enemies (`counts`), `picked` differs, and the zones are
+## more than FAR_WALK_M apart (`dist_m`). Zone distances at tier 3 (straight line, MapLayout lane ends): sw-north 10.8, west-east 10.4, sw-east 9.5 are far;
+## north-west and north-east 7.35, sw-west 5.7 are near. Only called with a lane character (tier 3).
+static func keep_own_lane(mine: String, picked: String, counts: Dictionary, dist_m: float) -> bool:
+	return picked != mine and int(counts.get(mine, 0)) > 0 and dist_m > FAR_WALK_M
+
+## Pure. E7 sweep metric (FAR_WALKS): true when a hero goal change from the zone of `prev_lane` to the zone of `new_lane` is a far walk made while the previous lane
+## had live enemies (`prev_live`). With the rule shipped (keep_lane) this is never true at a re-decision; the count is 0 by construction.
+static func is_far_walk(prev_lane: String, new_lane: String, prev_live: int, dist_m: float) -> bool:
+	return prev_lane != new_lane and prev_live > 0 and dist_m > FAR_WALK_M
 
 ## Where a fence-stopping kind of `reach` waits at the fence of `lane`: TargetProviders.fence_stop_dist returns this while the fence stands, but INF once
 ## it has fallen, so the bot keeps the formula (a test pins that the two agree for every lane and kind).

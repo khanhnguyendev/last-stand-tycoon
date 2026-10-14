@@ -761,3 +761,60 @@ func test_the_live_pick_counts_a_hare_past_a_standing_fence_but_not_a_held_boar(
 	for i in 3:
 		_spawn_at(wd, "north", &"boar", MapLayout.path_length("north") - MapLayout.FENCE_OFFSET_FROM_END - 1.2)  # held at the standing fence
 	assert_eq(_live_pick(bot), "west")
+
+## E7 (D-310): the no-far-walk rule's truth table. Fails if the distance, the own-lane count or the "pick equals own" case is ignored.
+func test_keep_own_lane_truth_table() -> void:
+	var live := {"west": 2, "east": 3}
+	assert_true(TierBot.keep_own_lane("west", "east", live, 10.4), "far, own lane has monsters: keep")
+	assert_false(TierBot.keep_own_lane("west", "east", {"west": 0, "east": 3}, 10.4), "own lane empty: go")
+	assert_false(TierBot.keep_own_lane("west", "east", {"east": 3}, 10.4), "own lane unknown: go")
+	assert_false(TierBot.keep_own_lane("west", "west", live, 0.0), "pick equals own: nothing to keep")
+	assert_false(TierBot.keep_own_lane("west", "north", live, 7.35), "near: go")
+	assert_false(TierBot.keep_own_lane("west", "east", live, TierBot.FAR_WALK_M), "exactly 9.0 m is not far")
+
+## The zone distances the comment of keep_own_lane gives, from the real tier-3 graph.
+func test_zone_distances_at_tier_3_split_far_from_near() -> void:
+	var g := WaypointGraph.create_for_bot(3)
+	var far := {["sw", "north"]: 10.8, ["west", "east"]: 10.4, ["sw", "east"]: 9.5}
+	var near := {["north", "west"]: 7.35, ["north", "east"]: 7.35, ["sw", "west"]: 5.7}
+	for pair in far:
+		var d := g.position_of("zone_" + pair[0]).distance_to(g.position_of("zone_" + pair[1]))
+		assert_almost_eq(d, far[pair], 0.06, "%s" % [pair])
+		assert_gt(d, TierBot.FAR_WALK_M, "%s far" % [pair])
+	for pair in near:
+		var d := g.position_of("zone_" + pair[0]).distance_to(g.position_of("zone_" + pair[1]))
+		assert_almost_eq(d, near[pair], 0.06, "%s" % [pair])
+		assert_lt(d, TierBot.FAR_WALK_M, "%s near" % [pair])
+
+## The sweep metric's counting rule (FAR_WALKS).
+func test_is_far_walk_counts_only_a_far_change_away_from_a_live_lane() -> void:
+	assert_true(TierBot.is_far_walk("west", "east", 1, 10.4))
+	assert_false(TierBot.is_far_walk("west", "east", 0, 10.4), "previous lane clear")
+	assert_false(TierBot.is_far_walk("west", "north", 2, 7.35), "near")
+	assert_false(TierBot.is_far_walk("west", "west", 2, 20.0), "same lane")
+
+## Below tier 3 (no lane character) the pick is the shipped one, whatever the goal: the rule is never consulted.
+func test_below_tier_3_the_pick_ignores_the_far_walk_rule() -> void:
+	var bot := await _bot_world(2)
+	assert_true(GameState.lane_character().is_empty())
+	var wd := bot.main.world.wave_director
+	_spawn_at(wd, "west", &"boar", 2.0)
+	for i in 3:
+		_spawn_at(wd, "east", &"boar", 2.0)
+	bot.goal = "zone_west"
+	assert_eq(_live_pick(bot), "east")
+
+## At tier 3 the live pick keeps the own lane across the diner, and switches (as before) once the own lane is clear or with the rule off.
+func test_the_live_pick_does_not_cross_the_diner_while_the_own_lane_has_monsters() -> void:
+	var bot := await _bot_world(3)
+	var wd := bot.main.world.wave_director
+	_spawn_at(wd, "west", &"boar", 2.0)
+	for i in 3:
+		_spawn_at(wd, "east", &"boar", 2.0)
+	bot.goal = "zone_west"
+	assert_eq(_live_pick(bot), "west", "east is 10.4 m away: stay")
+	bot.keep_lane = false
+	assert_eq(_live_pick(bot), "east", "rule off: the shipped pick")
+	bot.keep_lane = true
+	bot.goal = "zone_north"  # north-east is near (7.35 m): the shipped pick is taken (north has no monsters, so the rule does not apply)
+	assert_eq(_live_pick(bot), "east")
