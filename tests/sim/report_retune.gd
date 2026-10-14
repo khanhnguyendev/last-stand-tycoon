@@ -1,9 +1,9 @@
 extends SceneTree
 ## E6 tier-3 retune report (Task 16, spec 8.1, D-285, D-290, D-292 to D-294). NOT a CI test (the name does not start with test_); asserts nothing, changes no balance value.
-## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|3 --final --days=32 --parallel=3 --dry=1 --bot-rule=new|old]
+## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|3 --final --days=32 --parallel=3 --dry=1 --bot-rule=new|old --deadline-min=20]
 ## Sets: `tuning` (default; 5 seeds: one per siege lane from the scan, plus the promoted north 14, D-304), `3` (E7 measurement set #3, 8 seeds, two per siege lane: scan positions 6 and 7; scan positions 8 and 9 are reserved, unseen, not named in code).
 ## Hold-out set #2 is SPENT (D-307) and refused always like set #1 (message names D-307; results stay in the history). `--bot-rule=new|old` (default new) is passed to every child sweep, printed in the header and stored in the history entry
-## (`bot_rule`); set #3 may be run twice, once per bot rule (a repeat with a rule already used is refused). Hold-out set #1 is
+## (`bot_rule`); set #3 may be run twice, once per bot rule (a repeat with a rule already used by a COMPLETE entry is refused; an entry whose run printed no verdict has `complete: false` and does not block). Hold-out set #1 is
 ## RETIRED (D-304: seed 14 failed it, was diagnosed and moved to the tuning set): `--set=1` is refused always, with or without `--final`, exit 2, nothing started; its literal and its
 ## results stay for the history. The seeds are pinned in SweepMath (SCAN_TUNING_SET, PROMOTED_TO_TUNING, TUNING_SET, HOLDOUT_SET_1, HOLDOUT_SET_2); at the start the report scans seeds upward from 1
 ## (the siege lane of a seed is `LaneCharacter.for_run(seed).siege`) and exits 2 if the scan does not give exactly the pinned literals (the scan's tuning seeds + the promotion = TUNING_SET). The hold-out sets run ONLY with `--final` (D-290): without it the report refuses and starts nothing; with it the output header
@@ -24,12 +24,12 @@ extends SceneTree
 ## D-150: a `-s` script compiles before the autoloads exist; this one names only the pure helpers (SweepMath, ReportMath) and loads LaneCharacter at run time.
 
 const RECORD_PATH := "res://tests/sim/retune_final.json"
-const RUN_DEADLINE_MSEC := 20 * 60 * 1000  # per child run (a run takes about 220 s idle)
-const KNOWN_ARGS := ["set", "days", "parallel", "dry", "final", "bot-rule"]
+const DEFAULT_DEADLINE_MIN := 20  # per child run (a run takes about 220 s idle); --deadline-min=<5..240>
+const KNOWN_ARGS := ["set", "days", "parallel", "dry", "final", "bot-rule", "deadline-min"]
 const RUN_FIELDS := ["nights", "retry_nights", "min", "median", "mean", "fences_lost_mean", "branches", "branch_gold", "unspent_last_day", "hard_break_day"]
 
 func _initialize() -> void:
-	var args := {"set": "tuning", "days": "32", "parallel": "3", "dry": "0", "final": "0", "bot-rule": "new"}
+	var args := {"set": "tuning", "days": "32", "parallel": "3", "dry": "0", "final": "0", "bot-rule": "new", "deadline-min": str(DEFAULT_DEADLINE_MIN)}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if not kv[0] in KNOWN_ARGS:
@@ -41,6 +41,12 @@ func _initialize() -> void:
 		push_error("bad --days=%s or --parallel=%s (integers)" % [args.days, args.parallel])
 		quit(2)
 		return
+	if not String(args["deadline-min"]).is_valid_int() or int(args["deadline-min"]) < 5 or int(args["deadline-min"]) > 240:
+		push_error("bad --deadline-min=%s (integer 5 to 240)" % args["deadline-min"])
+		quit(2)
+		return
+	var deadline_min := int(args["deadline-min"])
+	var run_deadline_msec := deadline_min * 60 * 1000
 	var bot_rule := String(args["bot-rule"])
 	if not bot_rule in SweepMath.BOT_RULES:
 		push_error("bad --bot-rule=%s (new|old)" % bot_rule)
@@ -89,6 +95,7 @@ func _initialize() -> void:
 		quit(2)
 		return
 	lines.append("RETUNE_REPORT set=%s commit=%s days=%d" % ["tuning" if set_id == "tuning" else "#" + set_id, commit, days])
+	lines.append("DEADLINE %d min per child run (--deadline-min)" % deadline_min)
 	lines.append("BOT_RULE %s (passed to every child sweep as --bot-rule=%s)" % [bot_rule, bot_rule])
 	lines.append_array(gate.lines)
 	lines.append("SEED_PROMOTED north 14 (D-304): failed hold-out #1, diagnosed, now tuning data")
@@ -125,9 +132,9 @@ func _initialize() -> void:
 		for r in running:
 			var rlog: String = _log_path(out_dir, tag, r.seed, r.policy)
 			if OS.is_process_running(int(r.pid)):
-				if Time.get_ticks_msec() - int(r.t0) > RUN_DEADLINE_MSEC:
+				if Time.get_ticks_msec() - int(r.t0) > run_deadline_msec:
 					OS.kill(int(r.pid))
-					bad["%d:%s" % [r.seed, r.policy]] = "killed after the %d s deadline" % (RUN_DEADLINE_MSEC / 1000)
+					bad["%d:%s" % [r.seed, r.policy]] = "killed after the %d s deadline" % (run_deadline_msec / 1000)
 					failed = true
 				else:
 					still.append(r)
@@ -191,7 +198,7 @@ func _initialize() -> void:
 	if is_final and _commit(proj) != commit:
 		lines.append("FINAL_COMMIT_CHANGED: the commit was %s at the start and is %s now: HEAD or the tree changed during the run; the record says ok=false" % [commit, _commit(proj)])
 	if is_final:
-		_write_record(record_path, SweepMath.final_finish(gate.record, int(res.exit) == 0 and bool(res.ok), _commit(proj)))
+		_write_record(record_path, SweepMath.final_finish(gate.record, int(res.exit) == 0 and bool(res.ok), _commit(proj), int(res.exit) == 0))
 	lines.append("WALL %.0f s (parallel=%d, %d runs)" % [(Time.get_ticks_msec() - t0) / 1000.0, parallel, total])
 	var text := "\n".join(lines)
 	print(text)

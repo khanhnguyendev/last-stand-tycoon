@@ -607,6 +607,22 @@ func test_final_gate_set_3_needs_final_and_runs_once_per_bot_rule() -> void:
 	var other := {"history": [{"set": "2", "commit": "b820c89", "date": DATE, "days": 32, "done": true, "ok": false}]}
 	assert_true(SweepMath.final_gate("3", true, "abc1234", other, DATE, 32, "new").allowed)
 
+## A run that printed no verdict (complete false) did not read the set: it does not block a re-run with its bot rule; a complete entry, or one without the field, does.
+func test_final_gate_incomplete_entry_does_not_block_a_rerun() -> void:
+	var first := SweepMath.final_gate("3", true, "abc1234", {"history": []}, DATE, 32, "old")
+	var incomplete := SweepMath.final_finish(first.record, false, "", false)
+	assert_false(incomplete.history[0].complete)
+	var again := SweepMath.final_gate("3", true, "def5678", incomplete, DATE, 32, "old")
+	assert_true(again.allowed, "an incomplete entry does not block")
+	assert_string_contains(_line(again, "FINAL_EARLIER"), "complete=false")
+	var complete := SweepMath.final_finish(first.record, false, "", true)
+	assert_true(complete.history[0].complete)
+	var blocked := SweepMath.final_gate("3", true, "def5678", complete, DATE, 32, "old")
+	assert_false(blocked.allowed, "a complete entry blocks")
+	var nofield := {"history": [{"set": "3", "commit": "abc1234", "date": DATE, "days": 32, "bot_rule": "old", "done": true, "ok": false}]}
+	assert_false(SweepMath.final_gate("3", true, "def5678", nofield, DATE, 32, "old").allowed, "a missing field counts as complete")
+	assert_string_contains(_line(SweepMath.final_gate("3", true, "def5678", nofield, DATE, 32, "new"), "FINAL_EARLIER"), "complete=true")
+
 func test_far_walks_total_line_sums_per_policy() -> void:
 	var rows: Array = [{"policy": "all_a", "far_walks": 2}, {"policy": "all_a", "far_walks": 3}, {"policy": "threat", "far_walks": 1}, {"policy": "mixed"}]
 	var line := SweepMath.far_walks_total_line(rows)

@@ -326,7 +326,8 @@ static func set_by_id(set_id: String) -> Dictionary:
 ## (done=false, ok=false until final_finish). Every earlier entry is printed as FINAL_EARLIER; a repeat of the same set adds FINAL_REPEAT.
 ##
 ## E7 (D-310): set #3 may be run twice, once per bot rule (`bot_rule`, "new" or "old", stored in the entry): a second run of set #3 is allowed only when its bot_rule differs from
-## every earlier set-#3 entry (an entry without a bot_rule counts as "new"); a repeat with a rule already used is refused. Sets #1 and #2 are refused always (retired, spent).
+## every earlier COMPLETE set-#3 entry (an entry without a bot_rule counts as "new"; an entry without `complete` counts as complete; an entry with `complete: false`, a run that
+## printed no verdict, does not block a re-run); a repeat with a rule already used by a complete entry is refused. Sets #1 and #2 are refused always (retired, spent).
 static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary, date := "", days := FINAL_DAYS, bot_rule := "new") -> Dictionary:
 	var refuse := func(msg: String) -> Dictionary:
 		return {"allowed": false, "lines": ["REFUSED: " + msg], "record": record}
@@ -352,8 +353,9 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 	var same_set := false
 	for e in history:
 		lines.append("FINAL_EARLIER set=#%s commit=%s date=%s done=%s ok=%s" % [e.set, e.commit, e.get("date", ""), str(e.get("done", false)).to_lower(), str(e.get("ok", false)).to_lower()])
+		lines[lines.size() - 1] += " complete=%s" % str(e.get("complete", true)).to_lower()
 		if String(e.set) == set_id:
-			if String(e.get("bot_rule", "new")) == bot_rule:
+			if String(e.get("bot_rule", "new")) == bot_rule and bool(e.get("complete", true)):
 				return refuse.call("set #%s was already run with bot rule '%s' (commit %s): a measurement set runs once per bot rule (D-307, D-310); no run was started" % [set_id, bot_rule, e.commit])
 			same_set = true
 			if String(e.commit) != commit:
@@ -369,15 +371,16 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 	out["history"] = list
 	return {"allowed": true, "lines": lines, "record": out}
 
-## The record with its last entry marked finished (`done` true, `ok` = every target passed). `end_commit` (the commit string read at the END of the run, "-dirty" included;
+## The record with its last entry marked finished (`done` true, `ok` = every target passed, `complete` = every run of the set produced its result line). `end_commit` (the commit string read at the END of the run, "-dirty" included;
 ## "" = no check): when it differs from the entry's commit, HEAD or the tree changed during the run, `ok` is false and the entry says `changed_to`. The input is not changed.
-static func final_finish(record: Dictionary, ok: bool, end_commit := "") -> Dictionary:
+static func final_finish(record: Dictionary, ok: bool, end_commit := "", complete := true) -> Dictionary:
 	var out := record.duplicate(true)
 	var list: Array = out.get("history", [])
 	if not list.is_empty():
 		var e: Dictionary = list[list.size() - 1]
 		e["done"] = true
 		e["ok"] = ok
+		e["complete"] = complete  # every run produced its result line (the verdict lines were printed)
 		if end_commit != "" and end_commit != String(e.commit):
 			e["ok"] = false
 			e["changed_to"] = end_commit
