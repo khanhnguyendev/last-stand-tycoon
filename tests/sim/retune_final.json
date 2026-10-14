@@ -35,6 +35,16 @@
       "done": true,
       "ok": false,
       "set": "3"
+    },
+    {
+      "bot_rule": "old",
+      "commit": "eb31dc3",
+      "complete": true,
+      "date": "2026-10-14T22:51:05+07:00",
+      "days": 32,
+      "done": true,
+      "ok": false,
+      "set": "3"
     }
   ]
 }
