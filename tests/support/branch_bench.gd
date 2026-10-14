@@ -8,9 +8,7 @@ extends RefCounted
 ## predict a real night; the real-play report (tests/sim/report_retune.gd) judges real outcomes.
 ##
 ## Choices of the world (all of them, so a later reader can check the measure is not polluted):
-##  - Tier 3 (`debug_set_tier(3, 1)`), the retune flag exactly as the CALLER left `Balance.data.tiers.retune_enabled`. Set it BEFORE
-##    `run()`: a Longbow snapshots the flag when its level is applied (`TowerSpot._apply_level`), Spike reads it live, and `run()` creates
-##    a fresh `Main` every call, so the flag in force at the start of the call is the flag of that run.
+##  - Tier 3 (`debug_set_tier(3, 1)`), the shipped balance (D-307: no flag; the Longbow's 2.0 s and brute x2.0 and Spike's 24 are its own stats).
 ##  - ONE lane: `sw`, with `tower_sw` (the only tower that covers a single lane) and `fence_sw`, both bought to the top level through the
 ##    real payment API and then given the requested branch through `pay_into_branch`. Every other spot stays at level 0 (unbuilt).
 ##  - INVULNERABLE DINER (D-292.1), without a production hook: before the world exists `Balance.data.build.diner_max_hp` is raised in
@@ -72,7 +70,7 @@ const SPECIALISTS: Array = [
 	[&"siege", [&"longbow", &""], [&"volley", &""], "Longbow over Volley", ORDER_SIEGE_TOWER, "Longbow damage 60 (longbow.damage = 60.0); at the committed 2.0 s interval the brute multiplier 1.0 alone is not enough (siege 233 still beats Volley 706); damage 60 gives siege 2135"],
 	[&"siege", [&"", &"stone"], [&"", &"spike"], "Stone over Spike (fence fall time)", ORDER_SIEGE_FENCE, "Stone wall HP halved (stone.hp = 320.0)"],
 	[&"hare", [&"volley", &""], [&"longbow", &""], "Volley over Longbow", ORDER_HARE, "Volley damage 5 (volley.damage = 5.0)"],
-	[&"hare", [&"", &"spike"], [&"", &"stone"], "Spike over Stone", ORDER_HARE, "Spike pass damage 0 (spike_pass_damage_retune = 0.0)"],
+	[&"hare", [&"", &"spike"], [&"", &"stone"], "Spike over Stone", ORDER_HARE, "Spike pass damage 0 (spike.pass_damage = 0.0)"],
 ]
 
 static func cfg_name(cfg: Array) -> String:
@@ -127,7 +125,7 @@ const IDENTITY_FAILS_WHEN := {
 	"longbow_siege": "Longbow damage 60 (longbow.damage = 60.0); at the committed 2.0 s interval the brute multiplier 1.0 alone is not enough (siege 233 still beats Volley 706); damage 60 gives siege 2135",
 	"volley_hare": "Volley damage 5 (volley.damage = 5.0)",
 	"stone_stands": "Stone wall HP 100 (stone.hp = 100.0)",
-	"spike_hares": "Spike pass damage 0 (spike_pass_damage_retune = 0.0)",
+	"spike_hares": "Spike pass damage 0 (spike.pass_damage = 0.0)",
 }
 
 ## D-294.6, the siege FENCE rule, in ONE place: Stone beats Spike by the margin on how long the fence STANDS (higher is better, a fence that
@@ -182,7 +180,6 @@ static func fast_results() -> Dictionary:
 	if not _fast.is_empty():
 		return _fast
 	Balance.reset()
-	Balance.data.tiers.retune_enabled = true
 	var out := {}
 	for lane in LANES:
 		out[lane] = {}
@@ -247,20 +244,20 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	var tree := Engine.get_main_loop() as SceneTree
 	var bb: BranchBalance = Balance.data.branches
 	var saved := {
-		"mult": bb.longbow_kind_mult_retune.duplicate(), "pass": bb.spike_pass_damage_retune, "thorn": bb.spike.thorn_damage,
-		"dmg": bb.longbow.damage, "int": bb.longbow_interval_retune, "rng": bb.longbow.attack_range,
+		"mult": bb.longbow.kind_mults.duplicate(), "pass": bb.spike.pass_damage, "thorn": bb.spike.thorn_damage,
+		"dmg": bb.longbow.damage, "int": bb.longbow.interval, "rng": bb.longbow.attack_range,
 		"diner": Balance.data.build.diner_max_hp, "stone_mult": bb.stone.damage_taken_mult_by_kind.duplicate(), "stone_hp": bb.stone.hp,
 	}
 	if overrides.has("longbow_brute_mult"):
-		bb.longbow_kind_mult_retune[&"brute"] = float(overrides.longbow_brute_mult)
+		bb.longbow.kind_mults[&"brute"] = float(overrides.longbow_brute_mult)
 	if overrides.has("longbow_damage"):
 		bb.longbow.damage = float(overrides.longbow_damage)
 	if overrides.has("longbow_interval"):
-		bb.longbow_interval_retune = float(overrides.longbow_interval)
+		bb.longbow.interval = float(overrides.longbow_interval)
 	if overrides.has("longbow_range"):
 		bb.longbow.attack_range = float(overrides.longbow_range)
 	if overrides.has("spike_pass"):
-		bb.spike_pass_damage_retune = float(overrides.spike_pass)
+		bb.spike.pass_damage = float(overrides.spike_pass)
 	if overrides.has("spike_thorn"):
 		bb.spike.thorn_damage = float(overrides.spike_thorn)
 	if overrides.has("stone_brute_mult"):
@@ -339,11 +336,11 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	wd.stop()
 	tree.root.remove_child(main)
 	main.free()
-	bb.longbow_kind_mult_retune = saved.mult
-	bb.spike_pass_damage_retune = saved["pass"]
+	bb.longbow.kind_mults = saved.mult
+	bb.spike.pass_damage = saved["pass"]
 	bb.spike.thorn_damage = saved.thorn
 	bb.longbow.damage = saved.dmg
-	bb.longbow_interval_retune = saved["int"]
+	bb.longbow.interval = saved["int"]
 	bb.longbow.attack_range = saved.rng
 	bb.stone.damage_taken_mult_by_kind = saved.stone_mult
 	bb.stone.hp = saved.stone_hp

@@ -56,9 +56,9 @@ func _ready() -> void:
 func setup(world: World) -> void:
 	magnet.setup(world.steak_pool, world.fly_fx)
 	world.shadow_field.register(visual, ShadowField.CHARACTER_RADIUS)  # S4 D-201: one draw for every blob shadow
-	if TierEffects.retune_on(Balance.data.tiers):  # D-294.8: the hero is drawn in front of the pad labels; he owns his materials
-		(visual as HeroVisual).draw_after_labels(DRAW_AFTER_LABELS_PRIORITY)
-		carry_stack.draw_after_labels(DRAW_AFTER_LABELS_PRIORITY)
+	# D-294.8: the hero is drawn in front of the pad labels; he owns his materials
+	(visual as HeroVisual).draw_after_labels(DRAW_AFTER_LABELS_PRIORITY)
+	carry_stack.draw_after_labels(DRAW_AFTER_LABELS_PRIORITY)
 	_apply_card_stats()
 	attacker.candidates = world.wave_director.enemy_candidates
 	attacker.projectile_pool = world.projectile_pool

@@ -114,12 +114,9 @@ static func branch_pad_visuals() -> Array[Node3D]:
 			out.append(g)
 	return out
 
-## E6 Task 10: the lane-character badge's two icon meshes with their billboard material (first drawn at the tier-3 dawn). Nothing with
-## the retune flag off (the flag-off warm-up is exactly today's); the flag is only meaningful for a build with tier 3.
+## E6 Task 10: the lane-character badge's two icon meshes with their billboard material (first drawn at the tier-3 dawn).
 static func lane_character_visuals() -> Array[Node3D]:
 	var out: Array[Node3D] = []
-	if not TierEffects.retune_on(Balance.data.tiers):
-		return out
 	for kind in LaneCharacterIcons.KINDS:
 		var g := MeshInstance3D.new()
 		g.mesh = LaneCharacterIcons.mesh(kind)
@@ -129,11 +126,9 @@ static func lane_character_visuals() -> Array[Node3D]:
 	return out
 
 ## E6 Task 14 (D-294.8): the hero's and his carried pile's draw-after-labels variant (alpha, depth writing: a shader variant the opaque ones are not), first drawn
-## when the hero is set up. Nothing with the retune flag off. The pad glyph and ring materials differ from today's only in render priority, which is no variant.
+## when the hero is set up. The pad glyph and ring materials differ from the plain ones only in render priority, which is no variant.
 static func hero_front_visuals() -> Array[Node3D]:
 	var out: Array[Node3D] = []
-	if not TierEffects.retune_on(Balance.data.tiers):
-		return out
 	var hv := load("res://art/characters/hero_visual.tscn").instantiate() as HeroVisual
 	out.append(hv)
 	var pile := PileMesh.steak_pile(PackedVector3Array([Vector3.ZERO]))
@@ -143,10 +138,9 @@ static func hero_front_visuals() -> Array[Node3D]:
 	return out
 
 ## E6 Task 13: the branch card's rasterized icons (first shown at the first branch pad). No grid slot (they are textures, not drawn
-## meshes). Nothing with the retune flag off.
+## meshes).
 static func prebuild_card_textures() -> void:
-	if TierEffects.retune_on(Balance.data.tiers):
-		BranchCard.prebuild_textures()
+	BranchCard.prebuild_textures()
 
 ## E5 Task 12: each tier-up would build that tier's terrain mesh (10.5k vertices, in GDScript) and re-merge the props
 ## inside the tier-up frame. Fill both caches now; no node is added, nothing in the world changes.

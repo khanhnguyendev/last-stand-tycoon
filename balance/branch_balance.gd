@@ -12,19 +12,6 @@ const FENCE_BRANCHES: Array[StringName] = [&"stone", &"spike"]
 @export var volley: TowerBranchStats = BranchBalance._volley()
 @export var stone: FenceBranchStats = BranchBalance._stone()
 @export var spike: FenceBranchStats = BranchBalance._spike()
-## E6 RETUNE SET (D-283, D-286, D-292, spec 4.1): read ONLY through BranchMath.longbow_kind_mult(s) / tower_interval / spike_pass_base,
-## which pick it by the retune flag. Removed with the old set at the E6 cleanup. Stone wall and Volley have no new value.
-## Longbow damage x this by the kind of the monster it hits (an absent kind = 1.0; no entry for the Baron or the Boar King).
-@export var longbow_kind_mult_retune: Dictionary[StringName, float] = {&"brute": 2.0}
-## Tuning rounds 1 and 2 (D-297, tuning on real play under the D-292 pre-authorization; the lane-type bench of D-292 is the measuring tool, not the reason for 2.0 s).
-## Longbow interval 2.0 s (old set: 3.0 on `longbow`; round 1 took it to 2.2 s, round 2 to 2.0 s, D-297). On the hare lane the Longbow lost 2313 diner HP against the unbranched
-## tower's 1693 at every kind multiplier (2 to 4) and every damage (120 to 240); only the interval moves it. At 2.4 s: siege 412,
-## hare 1387, neutral 202 (2.6 s fails the floor); at 2.2 s: siege 233, hare 1092, neutral 82; at the committed 2.0 s: siege 114, hare 828, neutral 0, all bench rules pass.
-## Damage 120, range 9.98 and the brute multiplier 2.0 are unchanged.
-@export var longbow_interval_retune := 2.0
-## Spike pass damage at scale 1.0 (old set: 10.0 on `spike`); tuning range 12 to 24. Its scaling and the thorns are unchanged.
-## Tuning round 1 (D-292): 24 (first retune set: 16); hare 855 against the Stone wall's 1355.
-@export var spike_pass_damage_retune := 24.0
 
 static func _tower(range_m: float, damage: float, interval: float, count: int) -> TowerBranchStats:
 	var s := TowerBranchStats.new()
@@ -34,8 +21,15 @@ static func _tower(range_m: float, damage: float, interval: float, count: int) -
 	s.count = count
 	return s
 
+## E6 (D-283, D-292, D-297, spec 4.1): damage 120 x 2.0 against a brute (no entry for the other kinds), range 9.98 and an interval of 2.0 s.
+## Tuning rounds 1 and 2 (D-297, tuning on real play under the D-292 pre-authorization; the lane-type bench of D-292 is the measuring tool, not the reason for 2.0 s):
+## on the hare lane the Longbow lost 2313 diner HP against the unbranched tower's 1693 at every kind multiplier (2 to 4) and every damage (120 to 240);
+## only the interval moves it. At 2.4 s: siege 412, hare 1387, neutral 202 (2.6 s fails the floor); at 2.2 s: siege 233, hare 1092, neutral 82;
+## at the committed 2.0 s: siege 114, hare 828, neutral 0, all bench rules pass. (The pre-retune interval was 3.0 s.)
 static func _longbow() -> TowerBranchStats:
-	return BranchBalance._tower(9.98, 120.0, 3.0, 1)
+	var s := BranchBalance._tower(9.98, 120.0, 2.0, 1)
+	s.kind_mults[&"brute"] = 2.0
+	return s
 
 static func _volley() -> TowerBranchStats:
 	return BranchBalance._tower(8.0, 10.0, 0.5, 3)
@@ -50,7 +44,7 @@ static func _spike() -> FenceBranchStats:
 	var s := FenceBranchStats.new()
 	s.hp = 320.0
 	s.thorn_damage = 6.0
-	s.pass_damage = 10.0
+	s.pass_damage = 24.0  # E6 tuning round 1 (D-292): 24 (the pre-retune value was 10.0; first retune set: 16); hare 855 against the Stone wall's 1355. Tuning range 12 to 24.
 	s.pass_kinds = [&"hare", &"baron"]
 	return s
 

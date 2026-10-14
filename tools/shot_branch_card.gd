@@ -24,7 +24,6 @@ func _run() -> void:
 	var layout = load("res://core/map_layout.gd")
 	bal.reset()
 	bal.ui.shake_enabled = false
-	bal.data.tiers.retune_enabled = true
 	if bal.data.tiers.tier_costs.size() < 3:
 		bal.data.tiers.tier_costs.append(1500)  # the shot forces tier 3
 	var main = load("res://world/main.gd").create()
@@ -77,7 +76,7 @@ func _run() -> void:
 func _card(main, camera_math, layout, name: String, spot: String, idx: int, branch: StringName, name_text := "") -> void:
 	if _failed:
 		return
-	var p: Vector2 = layout.branch_pad(spot, idx, true)  # the flag is on here: a moved pad (E6 Task 14)
+	var p: Vector2 = layout.branch_pad(spot, idx)  # a moved pad (E6 Task 14)
 	main.hero.teleport(p + Vector2(0, 2.0))
 	for i in 5:
 		await physics_frame

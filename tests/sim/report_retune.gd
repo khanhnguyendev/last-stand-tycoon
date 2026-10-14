@@ -8,7 +8,7 @@ extends SceneTree
 ## carries the commit and the set number, the run is appended to the history in tests/sim/retune_final.json (COMMITTED, so earlier finals survive across worktrees; Task 20 commits it with the output), and every earlier entry is printed (FINAL_EARLIER),
 ## with FINAL_REPEAT when it is a second run (a different commit is spelled out). `--dry=1` prints the header (rule, seeds, gate) and runs nothing.
 ## Runs: for every seed x six policies (all_a = Longbow + Stone, mixed = Longbow + Spike, volley_stone = Volley + Stone, all_b = Volley + Spike, threat = the threat-matched build,
-## unbranched = no branch) one REAL tier sweep in its own Godot process (`sweep.gd -- --bot=tier --days=32 --retune=on --seed=S --policy=P`), at most --parallel (1 to 3) at once;
+## unbranched = no branch) one REAL tier sweep in its own Godot process (`sweep.gd -- --bot=tier --days=32 --seed=S --policy=P`), at most --parallel (1 to 3) at once;
 ## the runs' stdout is kept under tests/sim/out/retune/ (T3RUN, LADDER and RETUNE lines are read from it; a run takes about 220 s idle: the tuning set, 30 runs at 3 a time,
 ## is about 40 to 45 min; a hold-out set, 48 runs, about an hour). A missing or failed run (no result line, a hard break, no tier-3 night) prints NO verdict lines and exits 1.
 ## D-298: `unbranched` is the floor reference: RETRY_NIGHTS prints its count but does not judge it; UNBRANCHED_RETRIES / UNBRANCHED_FLAG and UNSPENT_T3 / UNSPENT_AFTER_LADDER are report-only lines.
@@ -18,7 +18,7 @@ extends SceneTree
 ## never overwritten. Each entry: set, commit, the commit's date (from git), and at the end of the run `done` and `ok`. Unknown arguments exit 2.
 ## Child runs: each has a wall-time deadline (RUN_DEADLINE_MSEC, killed and counted as failed when exceeded), must exit 0 and must leave no `SCRIPT ERROR` line in its log (a plain
 ## `ERROR:` line is ignored: a benign one ends the log). STARTED lines carry the child's pid. A SceneTree script cannot trap signals: if you interrupt the report, stop its children
-## with `pkill -f "sweep.gd.*--retune=on"`.
+## with `pkill -f "sweep.gd.*--bot=tier --days=32"`.
 ## D-150: a `-s` script compiles before the autoloads exist; this one names only the pure helpers (SweepMath, ReportMath) and loads LaneCharacter at run time.
 
 const RECORD_PATH := "res://tests/sim/retune_final.json"
@@ -136,7 +136,7 @@ func _initialize() -> void:
 			var j: Array = jobs.pop_front()
 			var log := _log_path(out_dir, set_id, j[0], j[1])
 			var first := "REPORT_RUN commit=%s set=%s seed=%d policy=%s days=%d" % [commit, set_id, j[0], j[1], days]
-			var cmd := "echo %s > %s && exec %s --headless --path %s --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=%d --retune=on --seed=%d --policy=%s --out=retune/retune_%s_%d_%s.csv >> %s 2>&1" % [
+			var cmd := "echo %s > %s && exec %s --headless --path %s --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=%d --seed=%d --policy=%s --out=retune/retune_%s_%d_%s.csv >> %s 2>&1" % [
 				_q(first), _q(log), _q(OS.get_executable_path()), _q(proj), days, j[0], j[1], set_id, j[0], j[1], _q(log)]
 			var pid := OS.create_process("/bin/sh", ["-c", cmd])
 			if pid < 0:

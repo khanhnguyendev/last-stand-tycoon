@@ -147,7 +147,7 @@ func _build_ground() -> void:
 	ground = GroundArt.instance(GroundArt.terrain_mesh(rect, yards, lane_ids(), Balance.data.enemy.lateral_spread), "Ground")
 	add_child(ground)
 	_stone_lanes = lane_ids()
-	edge_stones = LaneStrip.edge_stones(_stone_lanes, TierEffects.retune_on(Balance.data.tiers))
+	edge_stones = LaneStrip.edge_stones(_stone_lanes)
 	add_child(edge_stones)
 	props = Props.new()
 	props.name = "Props"
@@ -189,7 +189,7 @@ func _set_yard_stones(yards: Array) -> void:
 		yard_stones.queue_free()
 		yard_stones = null
 	if not yards.is_empty():
-		yard_stones = YardStones.build(yards, Balance.data.enemy.lateral_spread, TierEffects.retune_on(Balance.data.tiers))
+		yard_stones = YardStones.build(yards, Balance.data.enemy.lateral_spread)
 		add_child(yard_stones)
 
 ## E5 Task 11 and tier 3 Task 20: the tier-2 diner (the flank terraces) at tier 2, the tier-3 diner (the second storey) from tier 3;
@@ -235,10 +235,10 @@ func show_map_stage(yards: Array, lanes: Array) -> void:
 	if yard_stones != null:
 		if _stage_kerb == null:
 			_stage_kerb = yard_stones.multimesh
-		var part := YardStones.build(yards, spread, TierEffects.retune_on(Balance.data.tiers))
+		var part := YardStones.build(yards, spread)
 		yard_stones.multimesh = part.multimesh
 		part.free()
-	edge_stones.multimesh = LaneStrip.edge_multimesh(lanes, TierEffects.retune_on(Balance.data.tiers))
+	edge_stones.multimesh = LaneStrip.edge_multimesh(lanes)
 
 ## Ends a show_map_stage: the ground, the kerb and the edge stones of the tier the map is built for.
 func show_map_full() -> void:
@@ -247,7 +247,7 @@ func show_map_full() -> void:
 	if _stage_kerb != null and yard_stones != null:
 		yard_stones.multimesh = _stage_kerb
 	_stage_kerb = null
-	edge_stones.multimesh = LaneStrip.edge_multimesh(lane_ids(), TierEffects.retune_on(Balance.data.tiers))
+	edge_stones.multimesh = LaneStrip.edge_multimesh(lane_ids())
 
 ## The diner's art for `tier` (the reveal shows the old storey until its step); 0 = the tier the map follows. Same as rebuild_for_tier's swap.
 func show_diner_for(tier := 0) -> void:
@@ -298,7 +298,7 @@ func _sync_lanes() -> void:
 			_make_lane(id)
 			_make_marker(id)
 	if want != _stone_lanes:
-		edge_stones.multimesh = LaneStrip.edge_multimesh(want, TierEffects.retune_on(Balance.data.tiers))
+		edge_stones.multimesh = LaneStrip.edge_multimesh(want)
 		_stone_lanes = want
 
 ## Replaces only the DinerArt child of the diner's Visual (the OccluderFade stays), as child 0, when the scene differs.

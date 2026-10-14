@@ -177,11 +177,10 @@ func _run() -> void:
 		get_tree().quit(2)
 		return
 	Balance.reset()
-	Balance.data.tiers.retune_enabled = true  # in memory only; production reads it through TierEffects.retune_on
 	if String(_args.base) != "":
-		Balance.data.tiers.tier_base_retune[3] = int(_args.base)  # in memory only (D-304 what-if: a softer first tier-3 night)
+		Balance.data.tiers.tier_base[3] = int(_args.base)  # in memory only (D-304 what-if: a softer first tier-3 night)
 	if String(_args.interval) != "":
-		Balance.data.branches.longbow_interval_retune = float(_args.interval)  # in memory only (round-2 what-if a)
+		Balance.data.branches.longbow.interval = float(_args.interval)  # in memory only (round-2 what-if a)
 	if String(_args.get("bench", "")) == "1":
 		await _bench()
 		get_tree().quit(0)

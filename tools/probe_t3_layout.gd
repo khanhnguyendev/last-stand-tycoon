@@ -8,7 +8,7 @@ extends SceneTree
 ##   E  the SW path against towers and the diner; the service layout against the SW lane, zone and fence bar;
 ##   the tier-3 sign against today's west exit line; the front plot; the 18 branch pads (current MapLayout.BRANCH_PADS with their
 ##   smallest clearance and what limits it) and, last, a SEARCH (env PAD_KEEP=id,id keeps those spots' committed pads) for pad pairs per spot printed as BRANCH_PADS source text.
-## E6: env RETUNE=1 runs it with the retune flag on: the committed section reads MapLayout.branch_pads(true) (BRANCH_PADS_RETUNE over BRANCH_PADS),
+## E6: env RETUNE=1 runs it with the retune's lot rules: the committed section reads MapLayout.BRANCH_PADS (the shipped, retuned table),
 ##   pad_clear also applies the front lot's kerb as laid out, its props (footprint, and the lean for a prop south of the pad) and the south-west lane's edge stones, and the
 ##   SEARCH prints BRANCH_PADS_RETUNE source text. Without RETUNE every number and line is as before.
 ## Information only: the oracles are the unit tests (test_tier3_layout, test_branch_pad_layout, test_longbow_reach).
@@ -82,13 +82,13 @@ func load_yard_obstacles() -> void:
 			_props.append({"pos": it.pos, "radius": Props.owned_radius(it.kind, float(it.scale)), "height": Props.owned_height(it.kind, float(it.scale)), "what": "%s %s" % [it.kind, id]})
 
 func load_lot_obstacles() -> void:
-	for xf in YardStones.transforms(MapLayout.yard_rect("front"), true, bd.enemy.lateral_spread, true):
+	for xf in YardStones.transforms(MapLayout.yard_rect("front"), true, bd.enemy.lateral_spread):
 		var half := Vector2(xf.basis.x.x, xf.basis.x.z) * 0.5
 		var c := Vector2(xf.origin.x, xf.origin.z)
 		_lot_kerb.append([c - half, c + half])
 	for it in PropsLayout.OWNED.get("front", []):
 		_lot_props.append({"pos": it.pos, "radius": Props.owned_radius(it.kind, float(it.scale)), "height": Props.owned_height(it.kind, float(it.scale)), "what": "%s front" % it.kind})
-	for xf in LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true, true):
+	for xf in LaneStrip.edge_transforms(MapLayout.lane_path("sw"), LaneStrip.STONE_SPACING, LaneStrip.WIDTH, true):
 		_stones.append(Vector2(xf.origin.x, xf.origin.z))
 
 func visibility(lane: String) -> Dictionary:
@@ -322,8 +322,8 @@ func _initialize() -> void:
 	var plot := MapLayout.yard_rect("front")
 	print("plot ", plot, " contains tower_sw ", plot.has_point(MapLayout.tower_spot("tower_sw")), " fence ", plot.has_point(MapLayout.fence_spot("sw")), " tier-3 sign ", plot.has_point(MapLayout.tier_sign(3)), "; overlaps west yard ", plot.intersects(MapLayout.YARDS["west"]))
 	# the committed pads
-	var table := MapLayout.branch_pads(retune)
-	print("committed %s (radius %.1f): pad, distance to the spot, smallest clearance, limiting item, building on screen from the pad (3 aspects)" % ["BRANCH_PADS with the retune flag on (BRANCH_PADS_RETUNE over it)" if retune else "BRANCH_PADS", MapLayout.BRANCH_PAD_RADIUS])
+	var table := MapLayout.BRANCH_PADS
+	print("committed %s (radius %.1f): pad, distance to the spot, smallest clearance, limiting item, building on screen from the pad (3 aspects)" % ["BRANCH_PADS", MapLayout.BRANCH_PAD_RADIUS])
 	var sp := spots()
 	var placed: Array = []
 	for id in table:

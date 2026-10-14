@@ -7,7 +7,7 @@ extends UpgraderBot
 
 ## E5 tier 3 (Task 22): how it chooses a branch for each max-level building (spec 9.4, D-263.5): all_a (Longbow, Stone wall), all_b (Volley,
 ## Spike fence), mixed (towers A, fences B: the spec names the policy but not its mix; this is the fixed one), volley_stone (towers Volley, fences Stone wall) and threat (Stone wall and
-## Longbow on a lane with a brute in tonight's plan, Spike fence and Volley elsewhere). With a non-empty lane character (tier 3, retune on) `threat`
+## Longbow on a lane with a brute in tonight's plan, Spike fence and Volley elsewhere). With a non-empty lane character (tier 3) `threat`
 ## follows the character instead of tonight's plan (see `branch_choices`); `unbranched` is in REPORT_POLICIES below.
 const POLICIES: Array[String] = ["all_a", "all_b", "mixed", "threat"]
 ## Report-only policy (Task 24 fix round: the 2 x 2 table of tower x fence). Kept out of POLICIES, which the fixtures (make_save) and sim 6 iterate over.
@@ -24,8 +24,6 @@ var _pad_wait := 0
 var _blocked_pads := {}
 var _blocked_day := -1
 var _graph_tier := 1
-## E6 (spec 5.3): the pad table the graph was built from (TierEffects.retune_on at that time). The flag is read through TierEffects only.
-var _graph_retune := false
 
 func _init() -> void:
 	graph = _make_graph(1)
@@ -33,8 +31,7 @@ func _init() -> void:
 ## The graph of `tier` (create_for_bot) plus the station pads. UpgraderBot._init added its pads to the default graph, which this
 ## replaces; the four pad lines below repeat that _init (known duplication, upgrader untouched).
 func _make_graph(tier: int) -> WaypointGraph:
-	_graph_retune = TierEffects.retune_on(Balance.data.tiers)
-	var g := WaypointGraph.create_for_bot(tier, _graph_retune)  # with the flag on the bot walks to the moved pads (MapLayout.branch_pads)
+	var g := WaypointGraph.create_for_bot(tier)  # the bot walks to the pads where they stand (MapLayout.BRANCH_PADS)
 	g.add_node("pad_counter", MapLayout.STATION_PADS[&"counter"])
 	g.add_edge("pad_counter", "front_e")
 	g.add_edge("pad_counter", "home")
@@ -46,7 +43,7 @@ func _make_graph(tier: int) -> WaypointGraph:
 ## The graph follows the tier (every old node keeps its name and position, so a goal and a route in progress stay valid).
 func _sync_graph() -> void:
 	var t := clampi(GameState.tier, 1, 3)
-	if t != _graph_tier or (t == 3 and TierEffects.retune_on(Balance.data.tiers) != _graph_retune):
+	if t != _graph_tier:
 		_graph_tier = t
 		graph = _make_graph(t)
 
@@ -54,7 +51,7 @@ func think(delta: float) -> void:
 	_sync_graph()
 	super.think(delta)
 
-## E6 phase 4: with a lane character (tier 3, retune on) the hero's one-second rule ranks lanes by the enemies already breaching (see NaiveBot.pick_lane);
+## E6 phase 4: with a lane character (tier 3) the hero's one-second rule ranks lanes by the enemies already breaching (see NaiveBot.pick_lane);
 ## otherwise it is today's rule. Reads the enemies' lane, position and path distance, as the bot already does.
 func _pick_lane(lanes: Array, counts: Dictionary, wd: WaveDirector) -> String:
 	var character := GameState.lane_character()
