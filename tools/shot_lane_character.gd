@@ -1,7 +1,7 @@
 extends SceneTree
 ## E6 Task 10: the lane-character marker. Run WITH rendering:
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_lane_character.gd -- --out=docs/review/media/e6/interface
-## Flag on, tier 3. E6 Task 15: the 8 shots marker_<lane>_<siege|hare> for the four entrances (west, north, east, sw) and both characters, each with a
+## Tier 3. E6 Task 15: the 8 shots marker_<lane>_<siege|hare> for the four entrances (west, north, east, sw) and both characters, each with a
 ## grayscale copy marker_<lane>_<kind>_gray (the icons must differ by shape, not only colour). The seeds are the first ones (counting up from 1) whose draw
 ## gives a (character, lane) pair not yet shot; the hero stands at that lane's attack zone by day. Fails unless the lane's badge is shown with the right icon
 ## and is not hidden by the cover rule. `--extras` adds marker_pair_s4 / marker_pair_s14 (two badges in the north zone), marker_night, marker_home.

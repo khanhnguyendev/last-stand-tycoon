@@ -24,7 +24,7 @@ extends GutTest
 ## Stone wall's fence stands longest against the brutes (the longest fence_fell_s of unbranched / Stone / Spike on siege, strictly); Spike lets the fewest hares reach the zone on the hare mix; unbranched is never
 ## best (some branch of each kind is strictly better on the primary measure) on every lane type.
 ##
-## Run at pressure 12 and at the final cap (skipped with a note while tier_cap[3] is 12). (The flag-off rows of the single-branch configurations, the "before" numbers of the
+## Run at pressure 12 and at the final cap (skipped with a note while tier_cap[3] is 12). (The old-table rows of the single-branch configurations, the "before" numbers of the
 ## retune, were pinned as literals until the cleanup, D-307; they went with the off state.)
 ## The FLOOR keeps diner HP lost as primary on every lane type (D-294.6). The rule table (rule, the two numbers, the bound, PASS) is printed at the end.
 ## Results are cached per configuration inside this file; the TICKS of a test therefore include the runs it was the first to need.

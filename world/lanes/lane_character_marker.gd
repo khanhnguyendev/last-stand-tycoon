@@ -2,12 +2,12 @@ class_name LaneCharacterMarker
 extends Node3D
 ## E6 Task 10 (spec 5.1, D-282.5, D-289): the lasting lane-character badge at a tier-3 lane's entrance, beside tonight's count
 ## row: the siege icon on the siege lane, the hare icon on the hare lane, nothing on a neutral lane. Shown by day AND by night
-## from the moment the game is at tier 3 with the retune flag on (GameState.lane_character() is not empty). It is a world billboard
+## from the moment the game is at tier 3 (GameState.lane_character() is not empty). It is a world billboard
 ## and, unlike the count row, does NOT hide under the HUD's top bar: it sits BELOW the row (nearer the camera, so lower on
 ## screen), see `place`. Visual only: nothing reads it, and there is no per-frame work (no _process, no _physics_process): a Timer
 ## ticks `Balance.ui.label_dim_hz` times a second and HIDES the badge (its `visible`, written only on a change) while its screen rect,
 ## grown COVER_GROW_PX, would cover the hero, a build spot's cost / MAX label or level pips, or a station's label (E6 fix round 3).
-## TelegraphMarker owns one per lane, created the first time the lane has a character (so with the flag off no node exists),
+## TelegraphMarker owns one per lane, created the first time the lane has a character (so below tier 3 no node exists),
 ## and adds it to its own parent: the marker's flag hides by night and by threat, the badge must not.
 
 ## PLACEMENT CONSTANTS (the main session may move them to balance/ui_tuning.gd). D-292.3: the badge sits BELOW its lane's count row (nearer the

@@ -57,7 +57,7 @@ func after_each() -> void:
 	Balance.reset()
 	GameState.new_game(1)
 
-## A running game at tier 3 (or 2), day, seed 1, the hero under test control, flag on.
+## A running game at tier 3 (or 2), day, seed 1, the hero under test control.
 func _start(tier := 3) -> void:
 	main = Main.create()
 	add_child_autofree(main)
@@ -192,7 +192,7 @@ func test_the_card_exists_hidden_and_the_hud_owns_it() -> void:
 	assert_false(card.visible)
 	assert_eq(card.get_parent(), main.hud.root)
 
-## Mutations: shown while the pad is unarmed (the hero was placed on it), at night, with the flag off, below tier 3.
+## Mutations: shown while the pad is unarmed (the hero was placed on it), at night, below tier 3.
 func test_it_appears_only_on_an_armed_pad_by_day_at_tier_3_with_the_flag_on() -> void:
 	await _start()
 	await _max_all()

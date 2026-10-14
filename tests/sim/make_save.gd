@@ -424,11 +424,11 @@ func _run_cap_day() -> bool:
 	_write(stem + "_day", s)
 	return true
 
-# --- E6 flag-on fixtures (Task 19, spec 8.3) -------------------------------------------------------------------------
+# --- E6 fixtures (Task 19, spec 8.3) -------------------------------------------------------------------------
 # One real TierBot run (threat policy, the bots as they are) on a tuning seed. Captured: the first tier-3 day's start (retune_first_t3_night, resume DAY;
 # retune_respawn is a CONSTRUCTED state: the same state with resume NIGHT and tier_day moved back so the night is at the tier-3 cap pressure (D-304: the first night is softer, and fewer than CROWD (6) enemies reach the south-west zone while the tank is posted, so the knock-out of tests/sim_tier_a/test_retune_sims.gd test c is never forced): the south-west spots unbuilt, the zone fills) and the close-up of every tier-3 night for RETUNE_WINDOW_DAYS days, from which
 # retune_siege_night is chosen by a fixed rule: the EARLIEST close-up AFTER the first tier-3 night (that one is retune_first_t3_night) whose raw plan (LanePlanner.plan, before the lane character) has a wave with brutes whose siege lane is neither its main nor its side lane,
-# and whose flag-on plan has a wave with an extra hare group, and whose threat-matched build stands (tower_sw Longbow, fence_sw Stone). The table of every candidate day is printed. The chosen close-up is written resumed at NIGHT.
+# and whose plan has a wave with an extra hare group, and whose threat-matched build stands (tower_sw Longbow, fence_sw Stone). The table of every candidate day is printed. The chosen close-up is written resumed at NIGHT.
 
 const RETUNE_WINDOW_DAYS := 9
 var _rt_first_day_state: Dictionary = {}

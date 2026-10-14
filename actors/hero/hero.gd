@@ -4,7 +4,7 @@ extends CharacterBody3D
 
 ## Height above the feet the camera aims at when checking occlusion (D-151); the body capsule is 1.6 m.
 const AIM_HEIGHT := 1.0
-## E6 (flag on, D-294.8): the render priority of the hero and his carried pile: after the branch pads' labels (-5), label outlines (-6) and rings (-7), before everything else (-1 and up).
+## E6 (D-294.8): the render priority of the hero and his carried pile: after the branch pads' labels (-5), label outlines (-6) and rings (-7), before everything else (-1 and up).
 const DRAW_AFTER_LABELS_PRIORITY := -2
 
 var input: HeroInput

@@ -1,5 +1,5 @@
 extends GutTest
-## E6 Task 10 (spec 5.1, D-282.5, D-289): the lasting lane-character marker and its two icons. With the retune flag on, at tier 3
+## E6 Task 10 (spec 5.1, D-282.5, D-289): the lasting lane-character marker and its two icons. At tier 3
 ## each lane entrance shows a badge beside the count row: the siege icon on the siege lane, the hare icon on the hare lane,
 ## nothing on the two neutral lanes, by day and by night, never hidden under the HUD's top bar. Every test names the wrong
 ## implementation it catches. The build's top tier is 2, so each test appends the tier-3 cost entry (Balance.reset() drops it).
@@ -79,7 +79,7 @@ func _expect(seed: int) -> Dictionary:
 	var c: Array = CHARACTERS[seed]
 	return {c[0]: &"siege", c[1]: &"hare"}
 
-# --- shown only at tier 3 with the flag on ------------------------------------------------------------------------------
+# --- shown only at tier 3 ------------------------------------------------------------------------------
 
 func test_the_pinned_characters_are_the_seeds_we_name() -> void:
 	for s in CHARACTERS:

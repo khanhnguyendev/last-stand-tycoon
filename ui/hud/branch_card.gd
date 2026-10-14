@@ -1,7 +1,7 @@
 class_name BranchCard
 extends Control
 ## E6 Task 13 (spec 5.2, D-284, D-289): the branch card. While the hero stands on an ARMED branch pad (the pad is shown, the
-## zone is armed: he walked in) and the run has a lane character (tier 3 with the retune flag on), a 640 x 170 card sits at the
+## zone is armed: he walked in) and the run has a lane character (tier 3), a 640 x 170 card sits at the
 ## bottom of the HUD, 24 px above the safe inset, and tells the player what the pad sells:
 ##   row 1  branch icon and name                      (left, top line)
 ##   row 4  payment bar (paid / cost) and the REMAINING cost as the number   (right, top line)
@@ -10,7 +10,7 @@ extends Control
 ##   row 3  the guarded lane(s), each with its lane-character icon (none if neutral)  (full width, bottom line)
 ## The rows are numbered as in the spec; they are laid out in three lines because five stacked 40 px icons do not fit 170 px.
 ## It is a listener: it reads BranchPad's static focus helpers and GameState, writes nothing, and every Control in it ignores the
-## mouse, so a joystick touch may start on it. With no lane character (flag off, or below tier 3) it stays hidden: while no
+## mouse, so a joystick touch may start on it. With no lane character (below tier 3) it stays hidden: while no
 ## armed pad is under the hero _process does one lookup and returns, and on a pad it asks GameState for the (empty) character
 ## and hides. It never writes game state, so it cannot change behaviour. The character is read once per shown pad (and again
 ## after a tier change or a load), not every frame.

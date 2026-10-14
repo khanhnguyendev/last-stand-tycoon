@@ -184,7 +184,7 @@ func test_pad_sides_as_the_camera_sees_them() -> void:
 	assert_eq(not_both, NOT_BOTH_SIDES)
 
 # --- E6 (spec 5.3, D-284.5, D-307): the pads the retune moved --------------------------------------------------------------------
-# MapLayout.BRANCH_PADS is the retuned table (the pre-retune one went with the flag). Every pad of it passes the rules above, and also the front lot's kerb,
+# MapLayout.BRANCH_PADS is the retuned table (the pre-retune one is gone). Every pad of it passes the rules above, and also the front lot's kerb,
 # props and the south-west lane's edge stones (laid out with these pads, since round 2).
 
 func _retune_pad_list() -> Array:

@@ -3,7 +3,7 @@ extends GutTest
 ## multiplier, damage per shot, interval and range; Spike's pass and thorn damage). A REPORT for the tuning round, not a CI test: it
 ## asserts nothing about the numbers (it is outside tests/unit and tests/bench). Run it by hand:
 ##   "$GODOT" --headless --path . --fixed-fps 60 -s res://addons/gut/gut_cmdln.gd -gconfig= -gtest=res://tests/bench_report/test_branch_sensitivity.gd -gexit
-## Flag ON, pressure 12, an invulnerable diner (tests/support/branch_bench.gd). Every row is a real bench run with the lever set in memory.
+## Pressure 12, an invulnerable diner (tests/support/branch_bench.gd). Every row is a real bench run with the lever set in memory.
 ##
 ## Reading a row: "lost" = total diner HP lost, "fence" = fence HP left, "hares" = hares reaching the zone, "clear" = seconds to clear.
 ## FLOOR: no worse than the unbranched building (primary, then the lane type's first tie-breaker). SPEC: the 15% margin over the other

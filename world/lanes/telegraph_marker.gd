@@ -20,7 +20,7 @@ var row: Node3D
 var items := {}
 var _phase := Phase.NIGHT
 ## E6 Task 10: the lane-character badge (a sibling in the world, not a child: this node hides by night and by threat). Null until the
-## lane first has a character, so with the retune flag off no node is ever made.
+## lane first has a character, so below tier 3 no node is ever made.
 var badge: LaneCharacterMarker
 ## E5 tier 3 Task 20: the row's local x range [from, to] as _fill_row laid it out (empty when it shows nothing).
 var _row_span := Vector2.ZERO
@@ -98,7 +98,7 @@ func _refresh_badge() -> void:
 	var character := GameState.lane_character()
 	if badge == null:
 		if LaneCharacter.lane_type(character, lane_id) == LaneCharacter.NEUTRAL or get_parent() == null:
-			return  # neutral lane, flag off or below tier 3: nothing to draw, no node
+			return  # neutral lane or below tier 3: nothing to draw, no node
 		badge = LaneCharacterMarker.new()
 		get_parent().add_child(badge)
 		badge.setup(lane_id)

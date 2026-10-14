@@ -34,7 +34,7 @@ func refresh() -> void:
 func visible_count() -> int:
 	return PileMesh.count(_pile)
 
-## E6 (D-294.8, flag on): the pile draws with the hero, after the pad labels and writing depth (see HeroVisual.draw_after_labels). The steak mesh is shared with
+## E6 (D-294.8): the pile draws with the hero, after the pad labels and writing depth (see HeroVisual.draw_after_labels). The steak mesh is shared with
 ## every other steak pile, so the copy is a per-instance material override.
 func draw_after_labels(priority: int) -> void:
 	var mat := _pile.multimesh.mesh.surface_get_material(0)

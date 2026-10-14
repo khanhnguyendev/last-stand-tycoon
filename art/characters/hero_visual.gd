@@ -5,10 +5,10 @@ extends KayKitVisual
 ## body on the apron atlas, so the sleeves are white too; tools/bake_characters.gd holds the pan and hat placement),
 ## and KayKitVisual swaps it in. Visual-only: no gameplay state, no Rng.
 
-## E6 (D-294.8, flag on): the hero is drawn in front of the pads' world labels, which have no depth test and so can only be ordered by render priority.
+## E6 (D-294.8): the hero is drawn in front of the pads' world labels, which have no depth test and so can only be ordered by render priority.
 ## Every surface of the hero becomes an ALPHA material (the transparent pass, where labels live) that WRITES DEPTH (DEPTH_DRAW_ALWAYS: a pre-pass is
 ## skipped by some mobile GPUs in the Compatibility renderer, and then everything drawn after him would paint over him) at `priority`. The materials are
-## copies set as surface overrides on this visual's own meshes: the shared originals are never touched. Called once from Hero.setup when the flag is on.
+## copies set as surface overrides on this visual's own meshes: the shared originals are never touched. Called once from Hero.setup.
 func draw_after_labels(priority: int) -> void:
 	for mi in find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D

@@ -1124,7 +1124,7 @@ func _fold(findings: Array, into: Dictionary) -> void:
 # On a pad the world shows the ring, the glyph and the preview shape; the name, the effect and the warning are the HUD card's. The near stage
 # shows ring, glyph and cost. ZERO overlaps: no pinned list, no exemption. Every rect is built from the real nodes (the same helpers as above).
 
-## A running game at tier 3 (the same as _start; kept for the tests below that were written for the flag).
+## A running game at tier 3 (the same as _start; kept for the tests below).
 func _start_on(tier3 := true) -> void:
 	await _start(tier3)
 
@@ -1399,8 +1399,8 @@ func _visible_pips(id: String) -> int:
 		n += int((pip as LevelPip).visible)
 	return n
 
-## Author's decision (task 14 round 7, flag on only): a building's level pips HIDE while one of its own pads shows a cost (NEAR or ON) and come back with the cost.
-## Catches: pips that never hide; pips of ANOTHER spot hidden; pips that stay hidden after the hero leaves (at the flag-on leave distance) or after the purchase.
+## Author's decision (task 14 round 7): a building's level pips HIDE while one of its own pads shows a cost (NEAR or ON) and come back with the cost.
+## Catches: pips that never hide; pips of ANOTHER spot hidden; pips that stay hidden after the hero leaves (at the leave distance) or after the purchase.
 func test_flag_on_a_spots_level_pips_hide_while_its_own_pad_shows_a_cost_and_return_with_it() -> void:
 	await _start_on()
 	_all_max()
@@ -1570,7 +1570,7 @@ func test_flag_on_a_spots_level_pips_stay_hidden_while_the_hero_stands_on_its_pa
 	_near_step(Vector2(15.0, 8.0))
 	assert_eq(_visible_pips("tower_ne"), 3, "back once he is away")
 
-## Near stage, per pad (the flag on). EVERY pad is measured over EVERY reachable view in which it shows its cost: the hero on a 0.5 m grid within
+## Near stage, per pad. EVERY pad is measured over EVERY reachable view in which it shows its cost: the hero on a 0.5 m grid within
 ## branch_pad_near_m of the pad (arriving from far away), and the keep band out to branch_pad_leave_m (the hero first inside the reach, then walked
 ## outward in 0.25 m steps along the line from the pad, so the hysteresis keeps the cost shown). Reachable = off every solid by his radius + 0.05, on
 ## no pad, inside the map. At each such point, at 9:21, 9:16 and 16:9, the pad that shows its cost is a block (glyph over cost) that is fully on
@@ -2173,7 +2173,7 @@ func test_flag_on_an_unarmed_pad_shows_ring_and_glyph_only_with_the_same_zero_ov
 	assert_eq((_pads("tower_e")[0] as BranchPad).stage, BranchPad.ON)
 	assert_false((_pads("tower_e")[0] as BranchPad).cost_label.visible, "the card shows the cost now")
 
-## The world shows no word of the card on any stage with the flag on: far, near, armed and unarmed (mutation: a name label left visible on the stood pad).
+## The world shows no word of the card on any stage: far, near, armed and unarmed (mutation: a name label left visible on the stood pad).
 func test_flag_on_the_world_keeps_no_name_effect_or_warning_label_and_the_card_owns_the_cost_while_armed() -> void:
 	await _start_on()
 	_all_max()
@@ -2210,7 +2210,7 @@ func test_flag_on_the_world_keeps_no_name_effect_or_warning_label_and_the_card_o
 	for k in far:
 		assert_eq(far[k].size(), 0, "far: no %s" % k)
 
-## Per-pad reach with its hysteresis (the flag on): a pad shows its cost within branch_pad_near_m of the hero, keeps it out to
+## Per-pad reach with its hysteresis: a pad shows its cost within branch_pad_near_m of the hero, keeps it out to
 ## branch_pad_leave_m once shown, and a pad entered from far in that band does not start showing it. The old spot-wide rule (mutation) would
 ## show both pads of the focus spot here.
 func test_flag_on_a_pad_shows_its_cost_only_within_reach_with_a_hysteresis_band() -> void:
@@ -2228,11 +2228,11 @@ func test_flag_on_a_pad_shows_its_cost_only_within_reach_with_a_hysteresis_band(
 	assert_eq(b.stage, BranchPad.FAR, "the far pad of the focus spot shows ring and glyph only")
 	assert_false(b.cost_label.visible)
 	assert_true(b.icon.visible)
-	var lv: float = Balance.ui.branch_pad_leave_m  # round 5: the flag-on keep band is shorter (3.8 m)
+	var lv: float = Balance.ui.branch_pad_leave_m  # round 5: the keep band is shorter (3.8 m)
 	assert_gte(lv, Balance.ui.branch_pad_near_m + 0.3, "the band stays at least 0.3 m wide")
 	main.hero.teleport(pa + Vector2(-(lv - 0.2), 0.0))  # inside the leave band, a keeps its cost
 	await _settle()
-	assert_eq(a.stage, BranchPad.NEAR, "kept while within the flag-on leave distance")
+	assert_eq(a.stage, BranchPad.NEAR, "kept while within the leave distance")
 	main.hero.teleport(pa + Vector2(-(lv + 0.4), 0.0))  # beyond it
 	await _settle()
 	assert_eq(a.stage, BranchPad.FAR, "dropped beyond branch_pad_leave_m")
@@ -2304,7 +2304,7 @@ func test_the_pad_centre_clears_the_level_3_model_by_the_margin_from_the_pad() -
 	_all_max()
 	_check_hull_margins()
 
-## The rule of the test above, for the pad table in force now (the flag decides which).
+## The rule of the test above, for the pad table in force now.
 func _check_hull_margins() -> void:
 	var worst := INF
 	var worst_ring := 0

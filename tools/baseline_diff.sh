@@ -3,6 +3,7 @@
 set -euo pipefail
 : "${GODOT:?Set GODOT}"
 cd "$(dirname "$0")/.."
+"$GODOT" --headless --path . --import >/dev/null 2>&1  # a fresh worktree has no import cache: without this the sweep spins for 30+ minutes
 T=$(mktemp -d); rc=0
 for s in 20260930 11 777; do
   rm -f tests/sim/out/sweep.csv
@@ -14,5 +15,5 @@ for s in 20260930 11 777; do
   diff -u tests/sim/baseline/s4_sweep_$s.csv tests/sim/out/sweep.csv || rc=1
   diff -u tests/sim/baseline/s4_sweep_$s.txt "$T/$s.txt" || rc=1
 done
-[ $rc -eq 0 ] && echo "baseline identical" || echo "BASELINE DIFF (logs: $T)"
+[ $rc -eq 0 ] && echo "baseline identical" || echo "BASELINE DIFF (logs: $T)"; echo "Godot processes now:"; pgrep -fl Godot || echo "(none)"
 exit $rc

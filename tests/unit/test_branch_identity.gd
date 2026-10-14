@@ -408,10 +408,10 @@ func test_tier_3_arrays_are_live_and_the_top_tier_is_3() -> void:
 	assert_eq(tb.boss_kind[last], &"", "no boss leaves the top tier: the last boss_kind entry is empty")
 	assert_eq(bd.guards.respawn_protect_s, 1.5)
 
-# ---- E6 Task 9 (spec 4.3, D-294.6, D-294.7): the identity restated on the lane-type bench's measures, flag ON ----------------------
+# ---- E6 Task 9 (spec 4.3, D-294.6, D-294.7): the identity restated on the lane-type bench's measures ----------------------
 ## Uses the bench's FAST subset (tests/unit/test_branch_bench.gd computes it; BranchBench.fast_results() caches it per process, so this adds
 ## no runs when that file ran first): pressure 12, the LAST wave of each mix only, an invulnerable diner. A shorter night than the full
-## bench (tests/bench/test_branch_bench_full.gd runs the same rules over three waves). The assertions above (flag off, Balance only) are
+## bench (tests/bench/test_branch_bench_full.gd runs the same rules over three waves). The assertions above (Balance only) are
 ## untouched. The fast file's old combined identity test moved here, with the stands-longest and fewest-hares rules added.
 
 func _fast() -> Dictionary:

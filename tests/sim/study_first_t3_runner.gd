@@ -1,11 +1,11 @@
 extends Node
-## E6 phase 4 study runner (see study_first_t3.gd). One REAL tier-bot run with the retune flag on, replayed with extra READ-ONLY logging; it changes no balance
+## E6 phase 4 study runner (see study_first_t3.gd). One REAL tier-bot run on the shipped game, replayed with extra READ-ONLY logging; it changes no balance
 ## value and no production file. Arguments (after `--`): --seed=N --policy=<tier bot policy> --days=N --force=none|first|all --out=<file under tests/sim/out/study/>.
 ## --force (Q6, in memory only): `first` = the FIRST branch bought is a Longbow on the first tower (spots order) that covers the run's siege lane; `all` = Longbow on EVERY
 ## tower covering the siege lane before any other branch. Everything after that is the threat rule unchanged. The bot waits (buys no other branch) until it can pay.
 ## Output lines (stdout, one fact per line, parsed by hand into docs/review/media/e6/study_first_t3.md):
 ##   RUN, ROW, GOAL, BUY, STATE, PLAN, NIGHT_BEGIN, NIGHT_END, SPAWN, DMG, FENCE_FALL, FENCE_HP, SHOTS, SRC, BOT.
-## Phase-4 round-2 additions (all in memory, study runner only): --interval=<s> sets the flag-on Longbow interval; --variant=<letters> changes the threat bot's branch choice
+## Phase-4 round-2 additions (all in memory, study runner only): --interval=<s> sets the Longbow interval; --variant=<letters> changes the threat bot's branch choice
 ## (b: a tower that covers the hare lane takes Volley even if it also covers the siege lane; c: purchase order first ONE siege-lane tower, then the hare-lane towers, then the
 ## other siege-lane towers); --pin=<lane>:<from_s>:<row> pins the hero's night lane choice to <lane> from <from_s> seconds after the night of row <row> starts to the end of that night (attempt 1 and retries).
 ## --far=1 (D-304 what-if 3) is SHIPPED since D-310 (TierBot._pick_lane, keep_own_lane); the branch below is kept only to reproduce the D-305 rows, which ran on the old bot:
