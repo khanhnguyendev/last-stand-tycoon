@@ -163,29 +163,81 @@ const PAIRS := ["all_a", "all_b", "mixed", "volley_stone"]
 
 ## The pinned sets, written out by hand (the scan of LaneCharacter.for_run from seed 1; set #2 computed once, then pinned).
 func test_seed_sets_are_the_pinned_literals_and_the_scan_reproduces_them() -> void:
-	var tuning := {"east": [1], "sw": [3], "west": [4], "north": [7]}
+	var scan_tuning := {"east": [1], "sw": [3], "west": [4], "north": [7]}
+	var tuning := {"east": [1], "sw": [3], "west": [4], "north": [7, 14]}
 	var h1 := {"east": [2, 5], "sw": [10, 12], "west": [6, 13], "north": [9, 14]}
 	var h2 := {"east": [8, 11], "sw": [21, 23], "west": [18, 25], "north": [16, 19]}
-	assert_eq(SweepMath.TUNING_SET, tuning)
-	assert_eq(SweepMath.HOLDOUT_SET_1, h1)
+	assert_eq(SweepMath.SCAN_TUNING_SET, scan_tuning)
+	assert_eq(SweepMath.PROMOTED_TO_TUNING, {"north": [14]}, "D-304: seed 14 is promoted")
+	assert_eq(SweepMath.TUNING_SET, tuning, "D-304: the tuning set is the scan's tuning seeds plus north 14")
+	assert_eq(SweepMath.HOLDOUT_SET_1, h1, "retired, the literal is kept for the history")
 	assert_eq(SweepMath.HOLDOUT_SET_2, h2)
 	var scan := SweepMath.seed_scan(func(s): return String(LaneCharacter.for_run(s).siege), LANES4)
-	assert_eq(scan.tuning, tuning, "the scan, not the constant, is the rule")
+	assert_eq(scan.tuning, scan_tuning, "the scan, not the constant, is the rule")
 	assert_eq(scan.holdout1, h1)
 	assert_eq(scan.holdout2, h2)
+	assert_eq(SweepMath.with_promotion(scan.tuning, SweepMath.PROMOTED_TO_TUNING), SweepMath.TUNING_SET)
+
+func test_with_promotion_appends_per_lane_once() -> void:
+	var base := {"east": [1], "north": [7]}
+	assert_eq(SweepMath.with_promotion(base, {"north": [14]}), {"east": [1], "north": [7, 14]})
+	assert_eq(SweepMath.with_promotion(base, {"north": [7]}), base, "a seed already there is not added twice")
+	assert_eq(SweepMath.with_promotion(base, {}), base)
+	assert_eq(base, {"east": [1], "north": [7]}, "the input is not changed")
+	assert_eq(SweepMath.set_seeds(SweepMath.TUNING_SET), [1, 3, 4, 7, 14], "lane order east, sw, west, north; two seeds on north")
+
+func test_hold_out_set_1_is_retired_and_set_2_is_not() -> void:
+	var r := SweepMath.retired_gate("1")
+	assert_true(r.refused)
+	assert_string_contains(String(r.lines[0]), "retired (D-304)")
+	for ok_id in ["tuning", "2"]:
+		assert_false(SweepMath.retired_gate(ok_id).refused, ok_id)
+		assert_true(SweepMath.retired_gate(ok_id).lines.is_empty())
+	assert_false(SweepMath.set_by_id("1").is_empty(), "the literal stays readable for the history")
+	assert_eq(SweepMath.RETIRED_SETS, ["1"])
+
+## A lane with two tuning seeds (north 7 and 14): the per-lane lines average over both seeds and list each.
+func test_lane_verdicts_work_with_two_tuning_seeds_on_one_lane() -> void:
+	var rows: Array = []
+	for s in SweepMath.set_seeds(SweepMath.TUNING_SET):
+		var lane := SweepMath.seed_lane(SweepMath.TUNING_SET, s)
+		for p in PAIRS:
+			rows.append(_row(s, lane, p, 0.50))
+		rows.append(_row(s, lane, "threat", 0.60))
+		rows.append(_row(s, lane, "unbranched", 0.40))
+	_put(rows, "threat", 7, {"mean_frac": 0.56})
+	_put(rows, "threat", 14, {"mean_frac": 0.46})  # north: (+6 + -4) / 2 = +1
+	var res := SweepMath.threat_lead_by_lane(rows)
+	assert_true(res.ok, "north mean +1.0 is not negative")
+	assert_string_contains(_line(res, "  lane north"), "+1.0")
+	assert_string_contains(_line(res, "  seed 7"), "+6.0")
+	assert_string_contains(_line(res, "  seed 14"), "-4.0")
+	assert_string_contains(_line(res, "  lane east"), "+10.0")
+	_put(rows, "threat", 14, {"mean_frac": 0.40})  # north: (+6 + -10) / 2 = -2
+	assert_false(SweepMath.threat_lead_by_lane(rows).ok, "north mean -2.0 fails")
+	var lead := SweepMath.threat_lead(rows)
+	assert_string_contains(lead.lines[0], "of 5 seeds")
 
 func test_the_three_sets_are_disjoint_and_in_scan_order() -> void:
+	# D-304: the scan's tuning set, retired set #1 and set #2 are disjoint and in scan order; the run tuning set differs from the scan's only by the promoted seed 14,
+	# which is also in the retired set #1 literal (the one allowed overlap).
 	var seen := {}
-	for set in [SweepMath.TUNING_SET, SweepMath.HOLDOUT_SET_1, SweepMath.HOLDOUT_SET_2]:
+	for set in [SweepMath.SCAN_TUNING_SET, SweepMath.HOLDOUT_SET_1, SweepMath.HOLDOUT_SET_2]:
 		for s in SweepMath.set_seeds(set):
 			assert_false(seen.has(s), "seed %d is in two sets" % s)
 			seen[s] = true
 	assert_eq(seen.size(), 4 + 8 + 8)
 	for lane in LANES4:
-		var all: Array = SweepMath.TUNING_SET[lane] + SweepMath.HOLDOUT_SET_1[lane] + SweepMath.HOLDOUT_SET_2[lane]
+		var all: Array = SweepMath.SCAN_TUNING_SET[lane] + SweepMath.HOLDOUT_SET_1[lane] + SweepMath.HOLDOUT_SET_2[lane]
 		var sorted_all := all.duplicate()
 		sorted_all.sort()
 		assert_eq(all, sorted_all, "%s: tuning, then hold-out #1, then #2, each later in the scan" % lane)
+	var overlap: Array = []
+	for s in SweepMath.set_seeds(SweepMath.TUNING_SET):
+		assert_false(s in SweepMath.set_seeds(SweepMath.HOLDOUT_SET_2), "tuning seed %d must not be in the live hold-out set #2" % s)
+		if s in SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1):
+			overlap.append(s)
+	assert_eq(overlap, [14], "the only seed the run tuning set shares with the retired set #1 is the promoted one")
 	assert_eq(SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1), [2, 5, 10, 12, 6, 13, 9, 14], "lane order east, sw, west, north; scan order inside a lane")
 
 ## A made-up lane function: seed % 4 picks the lane. Mutation: a scan that restarts at a wrong value, or takes seeds in a different order.
@@ -490,14 +542,25 @@ func test_retune_run_stats_first_night_hare_share_and_guard() -> void:
 const DATE := "2026-10-13T10:00:00+02:00"
 
 func test_final_gate_refuses_hold_out_sets_without_final() -> void:
-	for set_id in ["1", "2"]:
+	for set_id in ["2"]:
 		var g := SweepMath.final_gate(set_id, false, "abc1234", {"history": []}, DATE)
 		assert_false(g.allowed, "set %s without --final" % set_id)
 		assert_string_contains(g.lines[0], "REFUSED")
+		assert_string_contains(g.lines[0], "--final", "the reason is the missing flag")
 		assert_eq(g.record, {"history": []}, "nothing recorded when refused")
 	var t := SweepMath.final_gate("tuning", false, "abc1234", {"history": []}, DATE)
 	assert_true(t.allowed, "the tuning set needs no flag")
 	assert_eq(t.record, {"history": []})
+
+## D-304: the retired set is refused inside final_gate too, with and without --final, on a clean commit; nothing is recorded.
+func test_final_gate_refuses_the_retired_set_1_always() -> void:
+	for final_flag in [false, true]:
+		var g := SweepMath.final_gate("1", final_flag, "abc1234", {"history": []}, DATE)
+		assert_false(g.allowed, "retired set #1, final=%s" % final_flag)
+		assert_string_contains(g.lines[0], "REFUSED")
+		assert_string_contains(g.lines[0], "retired")
+		assert_eq(g.lines, SweepMath.retired_gate("1").lines, "the same message as retired_gate")
+		assert_eq(g.record, {"history": []}, "nothing recorded")
 
 func test_final_gate_refuses_final_with_the_tuning_set() -> void:
 	var g := SweepMath.final_gate("tuning", true, "abc1234", {"history": []}, DATE)
@@ -508,17 +571,17 @@ func test_final_gate_refuses_final_with_the_tuning_set() -> void:
 
 func test_final_gate_refuses_a_dirty_tree_and_an_unknown_commit() -> void:
 	for c in ["abc1234-dirty", "unknown", ""]:
-		var g := SweepMath.final_gate("1", true, c, {"history": []}, DATE)
+		var g := SweepMath.final_gate("2", true, c, {"history": []}, DATE)
 		assert_false(g.allowed, "commit '%s'" % c)
 		assert_string_contains(g.lines[0], "REFUSED")
 		assert_eq(g.record, {"history": []}, "nothing recorded")
-	assert_true(SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE).allowed, "a clean commit is fine")
+	assert_true(SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE).allowed, "a clean commit is fine")
 
 func test_final_gate_records_set_commit_and_date_then_finish_marks_done_and_ok() -> void:
-	var g := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE)
+	var g := SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE)
 	assert_true(g.allowed)
-	assert_string_contains(g.lines[0], "FINAL set=#1 commit=abc1234")
-	assert_eq(g.record, {"history": [{"set": "1", "commit": "abc1234", "date": DATE, "days": 32, "done": false, "ok": false}]}, "recorded at the start: done is false until the run ends")
+	assert_string_contains(g.lines[0], "FINAL set=#2 commit=abc1234")
+	assert_eq(g.record, {"history": [{"set": "2", "commit": "abc1234", "date": DATE, "days": 32, "done": false, "ok": false}]}, "recorded at the start: done is false until the run ends")
 	var fin := SweepMath.final_finish(g.record, true)
 	assert_eq(fin.history[0].done, true)
 	assert_eq(fin.history[0].ok, true)
@@ -526,20 +589,20 @@ func test_final_gate_records_set_commit_and_date_then_finish_marks_done_and_ok()
 	var bad := SweepMath.final_finish(g.record, false)
 	assert_eq([bad.history[0].done, bad.history[0].ok], [true, false])
 
-## A second --final on set #1 at another commit shows in the output; every earlier entry (any set) is printed.
+## A second --final on set #2 at another commit shows in the output; every earlier entry (any set, here a retired set #1 entry already in the history file) is printed.
 func test_final_gate_shows_every_earlier_entry_and_a_repeat_at_a_different_commit() -> void:
-	var first := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE)
-	var two := SweepMath.final_gate("2", true, "bbb2222", SweepMath.final_finish(first.record, false), DATE)
+	var old := {"history": [{"set": "1", "commit": "abc1234", "date": DATE, "days": 32, "done": true, "ok": false}]}
+	var two := SweepMath.final_gate("2", true, "bbb2222", old, DATE)
 	assert_eq(_line(two, "FINAL_REPEAT"), "", "set #2 was never run")
 	assert_string_contains(_line(two, "FINAL_EARLIER set=#1 commit=abc1234"), "ok=false")
-	var again := SweepMath.final_gate("1", true, "def5678", two.record, DATE)
+	var again := SweepMath.final_gate("2", true, "def5678", SweepMath.final_finish(two.record, false), DATE)
 	assert_true(again.allowed)
 	var earlier: Array = again.lines.filter(func(l): return String(l).begins_with("FINAL_EARLIER"))
 	assert_eq(earlier.size(), 2, "one line per earlier entry, both sets")
-	assert_string_contains(_line(again, "FINAL_REPEAT"), "abc1234")
+	assert_string_contains(_line(again, "FINAL_REPEAT"), "bbb2222")
 	assert_string_contains(_line(again, "FINAL_REPEAT"), "def5678")
 	assert_eq(again.record.history.size(), 3)
-	var same := SweepMath.final_gate("1", true, "abc1234", first.record, DATE)
+	var same := SweepMath.final_gate("2", true, "bbb2222", two.record, DATE)
 	assert_string_contains(_line(same, "FINAL_REPEAT"), "same commit")
 
 func test_parse_record_accepts_empty_and_valid_text_and_rejects_a_broken_file() -> void:
@@ -550,6 +613,25 @@ func test_parse_record_accepts_empty_and_valid_text_and_rejects_a_broken_file() 
 	assert_eq(ok.record.history.size(), 1)
 	for bad in ["{not json", "[1,2]", '{"history": 5}', '{"other": []}']:
 		assert_false(SweepMath.parse_record(bad).valid, bad)
+
+func test_parse_record_keeps_days_an_int_so_a_rewrite_prints_32_not_32_point_0() -> void:
+	var r := SweepMath.parse_record('{"history": [{"set": "1", "commit": "abc", "date": "d", "days": 32, "done": true, "ok": false}]}')
+	assert_true(r.record.history[0].days is int, "days is an int after parsing")
+	assert_eq(r.record.history[0].days, 32)
+	assert_string_contains(JSON.stringify(r.record), '"days":32')
+	assert_false(JSON.stringify(r.record).contains("32.0"))
+
+## The seed-weighting line is derived from TUNING_SET (north has 2 of its 5 seeds) and only printed for the tuning set.
+func test_the_seed_weighting_line_is_derived_for_the_tuning_set_and_absent_for_a_final_set() -> void:
+	var total := 0
+	for l in SweepMath.TUNING_SET:
+		total += (SweepMath.TUNING_SET[l] as Array).size()
+	var north: int = (SweepMath.TUNING_SET.north as Array).size()
+	var tuning: Array = SweepMath.threat_lead(_grid(0.50, 10.0)).lines.filter(func(l): return String(l).contains("seed-weighted"))
+	assert_eq(tuning.size(), 1, "present for the tuning set")
+	assert_string_contains(tuning[0], "north has %d of the %d tuning seeds" % [north, total])
+	var final: Array = SweepMath.threat_lead(_grid(0.50, 10.0), true).lines.filter(func(l): return String(l).contains("seed-weighted"))
+	assert_eq(final.size(), 0, "absent for a final set")
 
 func test_a_child_log_with_a_script_error_or_a_bad_exit_is_a_failed_run() -> void:
 	var clean := "T3RUN x\nERROR: 8 resources still in use at exit (run with --verbose for details).\n"
@@ -681,16 +763,16 @@ func test_retune_run_stats_first_night_retries_and_the_worst_first_attempt() -> 
 
 func test_final_gate_refuses_any_days_but_32_and_records_days() -> void:
 	for d in [31, 33, 14]:
-		var g := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE, d)
+		var g := SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE, d)
 		assert_false(g.allowed, "days %d" % d)
 		assert_string_contains(g.lines[0], "32")
-	var ok := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE, 32)
+	var ok := SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE, 32)
 	assert_true(ok.allowed)
 	assert_eq(ok.record.history[0].days, 32)
 	assert_true(SweepMath.final_gate("tuning", false, "abc1234", {"history": []}, DATE, 5).allowed, "the tuning set may use any days")
 
 func test_final_finish_marks_not_ok_when_the_commit_changed_during_the_run() -> void:
-	var g := SweepMath.final_gate("1", true, "abc1234", {"history": []}, DATE, 32)
+	var g := SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE, 32)
 	var same := SweepMath.final_finish(g.record, true, "abc1234")
 	assert_true(same.history[0].ok)
 	var moved := SweepMath.final_finish(g.record, true, "def5678")

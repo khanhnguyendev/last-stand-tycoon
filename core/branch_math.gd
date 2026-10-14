@@ -64,6 +64,8 @@ static func spike_scale(hp_mult_now: float, hp_mult_base: float) -> float:
 
 ## The base multiplier Spike's numbers are quoted at: the HP multiplier of the FIRST wave at the tier's base pressure.
 ## One place for this choice; gameplay passes WaveMath.hp_mult(now) as the first argument of spike_scale.
+## D-304: this stays `tier_base` (Spike's numbers stay quoted at pressure 12); with the retune flag on the first two tier-3 nights are below that base,
+## so Spike scales below 1 there, in step with the monsters' HP.
 static func spike_base_mult(wb: WaveBalance, tb: TierBalance, tier := 3) -> float:
 	return WaveMath.hp_mult(tb.tier_base[tier], 0, wb)
 

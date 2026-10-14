@@ -1,0 +1,98 @@
+extends GutTest
+## E6 (D-304, D-305) REPORT, not a CI test: the three rule sets of the full lane-type bench (FLOOR, SPECIALIST, IDENTITY;
+## tests/bench/test_branch_bench_full.gd) at the tier-3 start pressures 10 and 11, retune flag ON, with pressure 12 as the control
+## (it must reproduce the verdicts of the CI bench). Every rule is printed with its measured numbers and PASS or FAIL. It asserts
+## nothing about the verdicts: a FAIL is a finding for the report, not something to tune. Run it by hand:
+##   "$GODOT" --headless --path . --fixed-fps 60 -s res://addons/gut/gut_cmdln.gd -gconfig= -gtest=res://tests/bench_report/test_branch_bench_pressures.gd -gexit
+## The rule logic is the bench's own: every verdict comes from the shared functions of tests/support/branch_bench.gd
+## (no_worse, specialist_verdict, identity_*, SPECIALISTS, SAME); only the loops that print the rows live here, because the
+## bench's loops are tied to its asserts and its CI row table.
+
+const PRESSURES: Array[int] = [10, 11, 12]
+const SAME := BranchBench.SAME
+
+var _cache := {}
+var _t0 := 0
+var _fails := {}
+var _rules := {}
+
+func before_all() -> void:
+	_t0 = Time.get_ticks_msec()
+
+func after_all() -> void:
+	gut.p("BENCH PRESSURES WALL TIME %.1f s, %d bench runs" % [(Time.get_ticks_msec() - _t0) / 1000.0, _cache.size()])
+
+func before_each() -> void:
+	Balance.reset()
+
+func after_each() -> void:
+	Balance.reset()
+
+func _run(lane: StringName, tb: StringName, fb: StringName, pressure: int) -> Dictionary:
+	var key := "%s|%s|%s|%d" % [lane, tb, fb, pressure]
+	if not _cache.has(key):
+		Balance.data.tiers.retune_enabled = true
+		_cache[key] = await BranchBench.run(lane, tb, fb, pressure)
+	return _cache[key]
+
+func _fmt(r: Dictionary) -> String:
+	return "lost %8.1f  fence %6.1f  stands %7.2f s  hares %2d  clear %7.2f s  timed_out %s" % [r.diner_lost, r.fence_hp_left, r.fence_stands_s, r.hares_in_zone, r.clear_s, str(r.timed_out)]
+
+func _row(pressure: int, rule: String, numbers: String, ok: bool) -> void:
+	_rules[pressure] = int(_rules.get(pressure, 0)) + 1
+	if not ok:
+		_fails[pressure] = int(_fails.get(pressure, 0)) + 1
+	gut.p("  p%d %-62s %s  %s" % [pressure, rule, numbers, "PASS" if ok else "FAIL"])
+
+## The CI bench asserts every run clears in time (test_branch_bench_full.gd): a timed-out run is a FAIL row here too (only a timed-out run prints a row).
+func _timeout_row(pressure: int, lane: StringName, cfg_name: String, r: Dictionary) -> void:
+	if r.timed_out:
+		_row(pressure, "TIMEOUT %s %s did not clear in time" % [lane, cfg_name], "clear %.2f s" % r.clear_s, false)
+
+func _floor(pressure: int) -> void:
+	for lane in BranchBench.LANES:
+		var base: Dictionary = await _run(lane, &"", &"", pressure)
+		for cfg in BranchBench.FAST_CONFIGS.slice(1):
+			var r: Dictionary = await _run(lane, cfg[0], cfg[1], pressure)
+			var v := BranchBench.no_worse(r, base, lane)
+			_row(pressure, "FLOOR %s %s" % [lane, BranchBench.cfg_name(cfg)], "lost %.1f vs unbranched %.1f (%s)" % [r.diner_lost, base.diner_lost, v.why], v.ok)
+
+func _specialists(pressure: int) -> void:
+	for row in BranchBench.SPECIALISTS:
+		var spec: Dictionary = await _run(row[0], row[1][0], row[1][1], pressure)
+		var ref: Dictionary = await _run(row[0], row[2][0], row[2][1], pressure)
+		var v := BranchBench.specialist_verdict(row, spec, ref)
+		var upper: bool = v.measure == "fence_stands_s" or v.measure == "fence_hp_left"
+		_row(pressure, "SPECIALIST %s: %s" % [row[0], row[3]], "%s %.2f vs %.2f, bound %s %.2f" % [v.measure, v.a, v.b, ">=" if upper else "<=", v.bound], v.ok)
+
+func _identity(pressure: int) -> void:
+	var siege := {}
+	var hare := {}
+	for cfg in BranchBench.FAST_CONFIGS:
+		siege[BranchBench.cfg_name(cfg)] = await _run(&"siege", cfg[0], cfg[1], pressure)
+		hare[BranchBench.cfg_name(cfg)] = await _run(&"hare", cfg[0], cfg[1], pressure)
+	for r in [["siege: Longbow best tower state", BranchBench.identity_longbow_siege(siege)], ["hare: Volley best tower state", BranchBench.identity_volley_hare(hare)],
+			["siege: Stone's fence stands longest", BranchBench.identity_stone_stands_longest(siege)], ["hare: Spike fewest hares in the zone", BranchBench.identity_spike_fewest_hares(hare)]]:
+		_row(pressure, "IDENTITY " + r[0], r[1].why, r[1].ok)
+	for lane in BranchBench.LANES:
+		var base: Dictionary = await _run(lane, &"", &"", pressure)
+		var towers := minf((await _run(lane, &"longbow", &"", pressure)).diner_lost, (await _run(lane, &"volley", &"", pressure)).diner_lost)
+		var fences := minf((await _run(lane, &"", &"stone", pressure)).diner_lost, (await _run(lane, &"", &"spike", pressure)).diner_lost)
+		_row(pressure, "IDENTITY %s: unbranched tower never best" % lane, "best branch %.1f vs base %.1f" % [towers, base.diner_lost], towers < base.diner_lost - SAME)
+		_row(pressure, "IDENTITY %s: unbranched fence never best" % lane, "best branch %.1f vs base %.1f" % [fences, base.diner_lost], fences < base.diner_lost - SAME)
+
+func test_rules_at_pressures_10_11_12() -> void:
+	await wait_physics_frames(10)
+	for p in PRESSURES:
+		gut.p("PRESSURE %d (flag ON)%s" % [p, "  [control: must reproduce the CI bench]" if p == 12 else ""])
+		for lane in BranchBench.LANES:
+			for cfg in BranchBench.FAST_CONFIGS:
+				var run: Dictionary = await _run(lane, cfg[0], cfg[1], p)
+				gut.p("  p%d %-8s %-14s %s" % [p, lane, BranchBench.cfg_name(cfg), _fmt(run)])
+				_timeout_row(p, lane, BranchBench.cfg_name(cfg), run)
+		await _floor(p)
+		await _specialists(p)
+		await _identity(p)
+	for p in PRESSURES:
+		gut.p("SUMMARY p%d: %d rule(s) FAIL, %d PASS, %d rules" % [p, int(_fails.get(p, 0)), int(_rules.get(p, 0)) - int(_fails.get(p, 0)), int(_rules.get(p, 0))])
+	assert_gt(_cache.size(), 0, "the report ran bench runs")

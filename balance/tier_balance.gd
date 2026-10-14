@@ -11,6 +11,9 @@ extends Resource
 ## Tier 3 starts at its cap (base 12 = cap 12): its escalation is the brute ramp and the fourth lane, not rising pressure
 ## (real-play tuning: 15 needed retries on about half of all cap nights; 12 with no side-lane brutes had 0 in 40).
 @export var tier_cap: Array[int] = [0, 7, 10, 12]
+## E6 (D-304): the pressure at a tier's first night with the retune flag on. Tier 3 starts at 10 (tier 2's cap) and reaches its cap 12 on its
+## third night, so the first night, when one branch is owned, is softer. Picked by `TierEffects.base_pressure`; removed with the old set at the E6 cleanup.
+@export var tier_base_retune: Array[int] = [0, 1, 8, 10]
 ## Share of each wave group that spawns as hares: on the tier's first night, at the cap, and the days between.
 @export var fast_share_start: Array[float] = [0.0, 0.0, 0.15, 0.35]
 @export var fast_share: Array[float] = [0.0, 0.0, 0.35, 0.35]

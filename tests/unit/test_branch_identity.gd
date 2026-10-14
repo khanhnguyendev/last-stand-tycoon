@@ -116,6 +116,65 @@ func test_live_pressure_range_real_hp_and_identity_hold() -> void:
 			var bh := _hp(bd.monsters.stats(&"brute").hp, p, w)
 			assert_gte(BranchMath.kills_per_second(bh, t[&"longbow"], 1), BranchMath.kills_per_second(bh, t[&""], 1) - 1e-9, "live longbow vs brute p%d w%d" % [p, w])
 
+## E6 (D-304): with the retune flag ON tier 3 starts at pressure 10 (TierEffects.base_pressure) and ramps to the cap 12, so the live range is
+## [10, 11, 12]. The flag-off tests above stay as they are (live range [12]). Hand-checked real HP at the new pressures, 15 x hp_mult for a hare,
+## 30 for a boar, 240 for a brute (hp_mult = 1 + 0.15 x (p - 1), times raw / 30 when the wave's raw size passes 30):
+# p10: hp_growth part 2.35; raw 33 on the last wave -> x 1.1: hare 35.25, 35.25, 38.775 (35.25 x 1.1); boar 70.5, 70.5, 77.55; brute 564, 564, 620.4.
+# p11: 2.5; raw 36 on the last wave -> x 1.2: hare 37.5, 37.5, 45.0; boar 75, 75, 90; brute 600, 600, 720.
+const HARE_HP_RETUNE := {10: [35.25, 35.25, 38.775], 11: [37.5, 37.5, 45.0]}
+const BOAR_HP_RETUNE := {10: [70.5, 70.5, 77.55], 11: [75.0, 75.0, 90.0]}
+const BRUTE_HP_RETUNE := {10: [564.0, 564.0, 620.4], 11: [600.0, 600.0, 720.0]}
+
+## The live Longbow with the flag ON: the balance's Longbow with the retune interval (2.0 s) and its damage x the brute multiplier for a brute.
+func _longbow_on(kind: StringName = &"") -> TowerBranchStats:
+	var lb: TowerBranchStats = bb.tower(&"longbow").duplicate()
+	lb.interval = BranchMath.tower_interval(bb.longbow, bb, true)
+	lb.damage = bb.longbow.damage * BranchMath.longbow_kind_mult(kind, bb, true)
+	return lb
+
+func _live_pressures_flag_on() -> Array[int]:
+	var out: Array[int] = []
+	var tb: TierBalance = bd.tiers
+	tb.retune_enabled = true
+	var first := TierEffects.base_pressure(3, tb)
+	tb.retune_enabled = false
+	for p in range(first, tb.tier_cap[3] + 1):
+		out.append(p)
+	return out
+
+func test_live_pressure_range_flag_on_is_10_11_12() -> void:
+	var live := _live_pressures_flag_on()
+	assert_eq(live, [10, 11, 12] as Array[int], "base_pressure(3) with the flag on to the cap")
+	assert_eq(_live_pressures(), [12] as Array[int], "flag off: the range is unchanged")
+	assert_false(bd.tiers.retune_enabled, "the helper restored the flag")
+
+func test_live_pressure_range_flag_on_real_hp_is_pinned() -> void:
+	for p in [10, 11]:
+		for w in WAVES:
+			assert_almost_eq(_hp(bd.monsters.stats(&"hare").hp, p, w), HARE_HP_RETUNE[p][w], 1e-3, "hare p%d w%d" % [p, w])
+			assert_almost_eq(_hp(bd.monsters.stats(&"boar").hp, p, w), BOAR_HP_RETUNE[p][w], 1e-3, "boar p%d w%d" % [p, w])
+			assert_almost_eq(_hp(bd.monsters.stats(&"brute").hp, p, w), BRUTE_HP_RETUNE[p][w], 1e-3, "brute p%d w%d" % [p, w])
+
+func test_live_pressure_range_flag_on_identity_holds_with_the_retune_longbow() -> void:
+	var lb := _longbow_on()
+	assert_eq([lb.interval, lb.damage], [2.0, 120.0], "flag-on Longbow: 2.0 s interval, damage 120 against a hare")
+	assert_eq(_longbow_on(&"brute").damage, 240.0, "x the brute multiplier 2.0")
+	var t := _towers()
+	t[&"longbow"] = lb
+	for p in _live_pressures_flag_on():
+		for w in WAVES:
+			var hare := _hp(bd.monsters.stats(&"hare").hp, p, w)
+			for n in [3, 5, 8]:
+				var v := {}
+				for id in t:
+					v[id] = BranchMath.kills_per_second(hare, t[id], n)
+				assert_eq(_best(v), &"volley", "flag-on most: p%d w%d n%d" % [p, w + 1, n])
+				assert_eq(_worst(v), &"longbow", "flag-on fewest: p%d w%d n%d" % [p, w + 1, n])
+			var bh := _hp(bd.monsters.stats(&"brute").hp, p, w)
+			var kl := BranchMath.kills_per_second(bh, _longbow_on(&"brute"), 1)
+			var ku := BranchMath.kills_per_second(bh, t[&""], 1)
+			assert_gte(kl, ku - 1e-9, "flag-on longbow vs a brute p%d w%d (%.4f vs %.4f)" % [p, w + 1, kl, ku])
+
 # --- the seven measures, one test each, every wave at both pressures ------------------------------------
 
 func test_m1_single_target_dps_longbow_highest() -> void:

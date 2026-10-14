@@ -226,10 +226,16 @@ static func two_by_two(runs: Array) -> Dictionary:
 
 const SIEGE_LANES := ["east", "sw", "west", "north"]
 ## The seed sets, pinned as literals (D-285). The rule: scan seeds upward from 1; a seed belongs to the lane `LaneCharacter.for_run(seed).siege`; per lane the first seed is
-## the tuning set, the next two are hold-out set #1, the two after those hold-out set #2. report_retune.gd asserts the scan still gives exactly these.
-const TUNING_SET := {"east": [1], "sw": [3], "west": [4], "north": [7]}
+## the scan's tuning seed, the next two are hold-out set #1, the two after those hold-out set #2. report_retune.gd asserts the scan still gives exactly SCAN_TUNING_SET, HOLDOUT_SET_1 and HOLDOUT_SET_2.
+const SCAN_TUNING_SET := {"east": [1], "sw": [3], "west": [4], "north": [7]}
+## D-304: seed 14 failed hold-out set #1, was diagnosed, and is therefore tuning data now. The tuning set that is RUN is the scan's tuning seeds plus this promotion.
+const PROMOTED_TO_TUNING := {"north": [14]}
+const TUNING_SET := {"east": [1], "sw": [3], "west": [4], "north": [7, 14]}
+## RETIRED (D-304): kept as a literal for the history only (its results stay in tests/sim/retune_final.json); it is never run again, `--set=1` is refused.
 const HOLDOUT_SET_1 := {"east": [2, 5], "sw": [10, 12], "west": [6, 13], "north": [9, 14]}
 const HOLDOUT_SET_2 := {"east": [8, 11], "sw": [21, 23], "west": [18, 25], "north": [16, 19]}
+## The hold-out sets that may no longer be run (D-304).
+const RETIRED_SETS := ["1"]
 const FIXED_PAIRS := ["all_a", "all_b", "mixed", "volley_stone"]
 const RETUNE_POLICIES := ["all_a", "all_b", "mixed", "volley_stone", "threat", "unbranched"]
 ## Policies whose towers are Longbow on the siege lane (all_a, mixed: every tower; threat: the tower covering the siege lane, spec 4.4).
@@ -280,6 +286,23 @@ static func seed_lane(set: Dictionary, seed: int) -> String:
 			return String(l)
 	return ""
 
+## The scan's tuning seeds plus the promoted ones, per lane in the scan's order (a seed already there is not added twice). The tuning set the report runs is this (D-304).
+static func with_promotion(scan_tuning: Dictionary, promoted: Dictionary) -> Dictionary:
+	var out := {}
+	for l in scan_tuning:
+		var list: Array = scan_tuning[l].duplicate()
+		for s in promoted.get(l, []):
+			if not s in list:
+				list.append(s)
+		out[l] = list
+	return out
+
+## D-304: a retired hold-out set is refused always, with or without --final. Returns {refused, lines}; the report prints the lines and exits 2 before it starts anything.
+static func retired_gate(set_id: String) -> Dictionary:
+	if set_id in RETIRED_SETS:
+		return {"refused": true, "lines": ["REFUSED: hold-out set #%s is retired (D-304): its results stay in the history (tests/sim/retune_final.json); no run was started" % set_id]}
+	return {"refused": false, "lines": []}
+
 ## The set the report runs: "tuning", "1" or "2" -> its dictionary ({} for anything else).
 static func set_by_id(set_id: String) -> Dictionary:
 	return {"tuning": TUNING_SET, "1": HOLDOUT_SET_1, "2": HOLDOUT_SET_2}.get(set_id, {})
@@ -293,10 +316,12 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 		return {"allowed": false, "lines": ["REFUSED: " + msg], "record": record}
 	if set_id == "tuning":
 		if final_flag:
-			return refuse.call("--final is for the hold-out sets (--set=1 or --set=2); the tuning set runs without it")
+			return refuse.call("--final is for the hold-out set (--set=2); the tuning set runs without it")
 		return {"allowed": true, "lines": [], "record": record}
-	if not set_id in ["1", "2"]:
-		return refuse.call("unknown set '%s' (tuning|1|2)" % set_id)
+	if set_id in RETIRED_SETS:  # D-304: refused here too, with or without --final (the report also checks retired_gate first)
+		return {"allowed": false, "lines": retired_gate(set_id).lines, "record": record}
+	if not set_id in ["2"]:
+		return refuse.call("unknown set '%s' (tuning|2)" % set_id)
 	if not final_flag:
 		return refuse.call("hold-out set #%s runs only with --final (D-290); no run was started" % set_id)
 	if commit == "" or commit == "unknown" or commit.ends_with("-dirty"):
@@ -347,6 +372,10 @@ static func parse_record(text: String) -> Dictionary:
 		return {"valid": false, "record": {}}
 	var v = j.data
 	if v is Dictionary and v.get("history") is Array:
+		# JSON numbers parse as floats; keep `days` an int so a rewrite prints 32, not 32.0.
+		for e in v.history:
+			if e is Dictionary and e.has("days") and (e.days is float or e.days is int):
+				e["days"] = int(e.days)
 		return {"valid": true, "record": v}
 	return {"valid": false, "record": {}}
 
@@ -534,7 +563,14 @@ static func threat_lead(rows: Array, final := false) -> Dictionary:
 	var head := "THREAT_LEAD: %s (mean lead %s points over %s, ahead (>= %.1f) on %d of %d seeds, level (within +-%.1f) on %d; against each seed's own best pair: mean %s, ahead on %d; %s)" % [
 		"PASS" if ok else "FAIL", _num(mean_lead, "%+.1f"), best, AHEAD_MARGIN, ahead, seeds.size(), AHEAD_MARGIN, level, _num(_mean(own), "%+.1f"), ahead_own, rule]
 	var info := "  info: lead against each seed's own best pair (not the verdict): mean %s, per seed %s" % [_num(_mean(own), "%+.1f"), " ".join(own.map(func(v): return "%+.1f" % v))]
-	return {"ok": ok, "lines": [head, info] + _breakdown(rows, func(sub): return _lead_of(sub, best), "%+.1f")}
+	var weight := []
+	if not final:
+		var total := 0
+		for l in TUNING_SET:
+			total += (TUNING_SET[l] as Array).size()
+		var north_n: int = (TUNING_SET.get("north", []) as Array).size()
+		weight = ["  info: seed-weighted: the mean counts every seed once, and north has %d of the %d tuning seeds (14 was promoted, D-304), so north weighs %dx; THREAT_LEAD_BY_LANE is the per-lane view" % [north_n, total, north_n]]
+	return {"ok": ok, "lines": [head] + weight + [info] + _breakdown(rows, func(sub): return _lead_of(sub, best), "%+.1f")}
 
 ## THREAT_LEAD_BY_LANE: the mean lead (against the same best pair) is not negative on any siege lane.
 static func threat_lead_by_lane(rows: Array) -> Dictionary:
