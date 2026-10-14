@@ -19,7 +19,6 @@ func _run() -> void:
 	var layout = load("res://core/map_layout.gd")
 	bal.reset()
 	bal.ui.shake_enabled = false
-	bal.data.tiers.retune_enabled = true
 	if bal.data.tiers.tier_costs.size() < 3:
 		bal.data.tiers.tier_costs.append(1500)
 	var main = load("res://world/main.gd").create()

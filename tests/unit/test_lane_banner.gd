@@ -114,9 +114,8 @@ func test_a_non_bool_field_is_rejected_and_new_game_clears_it() -> void:
 
 # --- the one-time banner at the first dawn --------------------------------------------------------------
 
-## Boots a game from the migrated v6 tier-3 fixture (flag as given), at night with the fixture's plan.
-func _boot(state: Dictionary, flag: bool) -> void:
-	Balance.data.tiers.retune_enabled = flag
+## Boots a game from the migrated v6 tier-3 fixture, at night with the fixture's plan.
+func _boot(state: Dictionary) -> void:
 	if main == null:
 		main = Main.create()
 		add_child_autofree(main)
@@ -145,7 +144,7 @@ func _lc_banners() -> Array:
 ## missing; the field not set.
 func test_a_tier3_save_with_the_field_false_shows_the_banner_once_and_never_again_after_a_reload() -> void:
 	var state := _v6_decoded()
-	await _boot(state, true)
+	await _boot(state)
 	assert_eq(GameState.tier, 3)
 	assert_false(GameState.lane_character_shown, "setup: the loaded save has not shown it")
 	var lines := LaneCharacter.flavour_lines(GameState.lane_character())
@@ -157,27 +156,18 @@ func test_a_tier3_save_with_the_field_false_shows_the_banner_once_and_never_agai
 	var saved := _roundtrip(GameState.to_dict())
 	assert_true(saved.lane_character_shown, "the saved file holds it")
 	GameState.lane_character_shown = false  # a fresh process: only the file can bring it back
-	await _boot(saved, true)
+	await _boot(saved)
 	assert_true(GameState.lane_character_shown, "and a reload brings it back")
 	await _dawn_and_pick()
 	assert_eq(_lc_banners(), [], "the next dawn shows nothing")
 	await _dawn_and_pick()
 	assert_eq(_lc_banners(), [], "nor the one after")
 
-## Mutation: the banner ignores the flag (shown with it off), or the field is set while nothing is shown.
-func test_with_the_flag_off_the_banner_never_shows_and_the_field_stays_false() -> void:
-	await _boot(_v6_decoded(), false)
-	assert_eq(GameState.lane_character(), {})
-	await _dawn_and_pick()
-	assert_eq(_lc_banners(), [])
-	assert_false(GameState.lane_character_shown)
-	assert_false(GameState.to_dict().lane_character_shown)
-
 ## Mutation: a new game's own reveal and the one-time banner both fire. A run whose reveal marked the field has no second banner.
 func test_a_save_whose_field_is_true_shows_no_banner() -> void:
 	var state := _v6_decoded()
 	state.lane_character_shown = true
-	await _boot(state, true)
+	await _boot(state)
 	await _dawn_and_pick()
 	assert_eq(_lc_banners(), [])
 
@@ -222,7 +212,7 @@ func _start_pick() -> Array:
 ## E6 fix round (D-294.5): the order is the pick banner, the siege line, the hare line, each for its full banner_time ON THE HUD.
 ## Mutation: both lines sent at once with the pick; the hare line sent early; a line sent while the one before still shows.
 func test_pick_banner_then_siege_then_hare_each_gets_its_full_two_seconds() -> void:
-	await _boot(_v6_decoded(), true)
+	await _boot(_v6_decoded())
 	var lines: Array = await _start_pick()
 	var pick: String = banners[0]
 	var t_pick: int = banner_frames[0]
@@ -251,7 +241,7 @@ func test_pick_banner_then_siege_then_hare_each_gets_its_full_two_seconds() -> v
 
 ## Mutation: a foreign banner is cut by a lane line, or the lane line is dropped.
 func test_a_foreign_banner_while_the_lines_wait_is_not_cut_and_the_lines_follow_it() -> void:
-	await _boot(_v6_decoded(), true)
+	await _boot(_v6_decoded())
 	var lines: Array = await _start_pick()
 	await _wait_s(0.5)
 	EventBus.banner_requested.emit("Foreign event")
@@ -269,7 +259,7 @@ func test_a_foreign_banner_while_the_lines_wait_is_not_cut_and_the_lines_follow_
 ## E6 review 2: a cut line is not a shown line. A foreign banner 0.5 s into the siege line cuts it; it is shown again in full after the
 ## foreign banner, then the hare line; the flag is true only at the end. Mutation: the cut line dropped, or the flag set at the cut.
 func test_a_foreign_banner_half_a_second_into_the_siege_line_gets_the_siege_line_again_in_full() -> void:
-	await _boot(_v6_decoded(), true)
+	await _boot(_v6_decoded())
 	var lines: Array = await _start_pick()
 	await _wait_emitted(lines[0], 1)
 	await _wait_s(0.5)
@@ -291,7 +281,7 @@ func test_a_foreign_banner_half_a_second_into_the_siege_line_gets_the_siege_line
 
 ## Same, 0.5 s into the hare line. Mutation: a cut hare line marks the flag.
 func test_a_foreign_banner_half_a_second_into_the_hare_line_gets_the_hare_line_again_in_full() -> void:
-	await _boot(_v6_decoded(), true)
+	await _boot(_v6_decoded())
 	var lines: Array = await _start_pick()
 	await _wait_emitted(lines[1], 1)
 	await _wait_s(0.5)
@@ -310,7 +300,7 @@ func test_a_foreign_banner_half_a_second_into_the_hare_line_gets_the_hare_line_a
 
 ## Mutation: lines shown at night; the flag set although the hare line never finished; the pair not repeated at the next dawn.
 func test_night_before_the_pair_completes_shows_nothing_keeps_the_flag_false_and_the_pair_comes_at_the_next_dawn() -> void:
-	await _boot(_v6_decoded(), true)
+	await _boot(_v6_decoded())
 	var lines: Array = await _start_pick()
 	await _wait_s(2.3)
 	assert_eq(_lc_banners(), [lines[0]], "setup: the siege line is out, the hare line is not")
@@ -328,7 +318,7 @@ func test_night_before_the_pair_completes_shows_nothing_keeps_the_flag_false_and
 ## Parity: the HUD and the controller's clock agree on a scripted sequence (pick banner, the two lane lines, a foreign banner in the middle),
 ## each physics frame, within one frame. Mutation: the controller's clock follows another rule than the HUD's.
 func test_the_controllers_clock_and_the_hud_agree_every_frame() -> void:
-	await _boot(_v6_decoded(), true)
+	await _boot(_v6_decoded())
 	await _start_pick()
 	var pc := main.phase_controller
 	var hud_show: Array = []
@@ -352,7 +342,7 @@ func test_the_controllers_clock_and_the_hud_agree_every_frame() -> void:
 
 ## Mutation: _cancel_reveal leaves pending or in-flight lines.
 func test_cancel_reveal_clears_the_pending_and_in_flight_lines() -> void:
-	await _boot(_v6_decoded(), true)
+	await _boot(_v6_decoded())
 	var pc := main.phase_controller
 	pc._lane_lines = ["a", "b"]
 	pc._lane_inflight = "c"
@@ -364,7 +354,7 @@ func test_cancel_reveal_clears_the_pending_and_in_flight_lines() -> void:
 ## GameState.mark_lane_character_shown, and Autosave writing on it): today nothing writes after the hare line.
 func test_the_shown_flag_is_written_to_the_store_when_it_is_set() -> void:
 	var dir := "user://test_saves/lb_%d" % Time.get_ticks_usec()
-	await _boot(_v6_decoded(), true)
+	await _boot(_v6_decoded())
 	var store := SaveStore.with_dir(dir)
 	main.autosave.store = store
 	await _start_pick()

@@ -2907,7 +2907,7 @@ specialists.
   (D-274.4).
 
 **D-286 How the follow-up slice reaches main (brainstorm question 5; author, 2026-10-08).** Phase by phase, behind
-one Balance switch.
+one Balance switch. *(The flag is retired: flipped in D-307, removed in D-308.)*
 
 1. **One flag,** for example `Balance.tier3_retune_enabled`, false until the flip. Lane character, the specialist
    values, the HUD card, the new markers and labels and the reveal step all read it. No other flags.
@@ -3417,3 +3417,28 @@ recommendations and answered three questions put to them one by one.
     the plain tier sweep now measure the flag-on game: not like for like with D-280. `?retune=1` is a no-op and
     there is no debug off view until the cleanup. A v6 tier-3 save resumed mid-night is replanned with its lane
     character (D-286.4).
+
+**D-308 The E6 cleanup (Task 23, main session, 2026-10-14).**
+1. **Removed:** the flag `retune_enabled` and its accessor, every off-state code path, the superseded values
+   (`*_retune` fields: the Longbow's interval 2.0 and its {brute: 2.0} table are its own stats, Spike's pass damage is
+   24, tier 3 starts at pressure 10, the pad keep distance is 3.8), the debug `?retune=1`, the sweep's `--retune`,
+   `tools/baseline_t3_off.sh` and `tests/sim/baseline/tier3_off.csv`. Spike's numbers stay quoted at pressure 12,
+   now a balance value of their own (`BranchBalance.spike_quote_pressure`), so a cap override does not move them.
+2. **The new tier-3 baseline** `tools/baseline_t3.sh` / `tests/sim/baseline/tier3.csv` was recorded at `07d4034`
+   (the flip, before any code change) and the cleaned code reproduces it: `tier-3 identical`. That run is one seed
+   (20260930), one policy (threat), 32 days. Sim and bench tick counts are unchanged except the regenerated-fixture
+   sims (tier-b 5, 6, 7), and review found no behaviour difference in any production hunk. The sweep's output did
+   change: every tier-3 run now prints its RETUNE line.
+3. **Tests:** the flag-on tests are the normal tests. Off-state tests whose behaviour is gone were removed with
+   their path (D-291.1), each with its shipped counterpart named (ledger in PR #69); off-state tests without one were
+   converted to the shipped values. One scan test keeps the flag from coming back. The bench's flag-off matrix test
+   is removed. Unit 1967 to 1929, bench 8 to 7. Two scan tests had been checking the pre-retune pad table while the
+   flag was on; re-pinned on the shipped pads. Two spec 6.4 measures no longer hold as written: M3, with the
+   Longbow at 2.0 s its raw damage per second ties Volley's (60 each; the test asserts the tie); M4, "Longbow
+   fewest hares per second" holds at the live pressures 10 to 12 only (at 15 the unbranched tower beats it; the
+   test runs 10 to 12). Review queue E6-5.
+4. **Found, not fixed:** the tier-3 sweep gave different rows (from day 18) when another Godot process ran at the
+   same time, on the old code as well as the new; alone it is identical. Cause not found (sims use no save store;
+   gameplay runs in `_physics_process` at a fixed rate). Until it is understood, identity checks run alone. The
+   retune report runs three processes at once, so its runs are real plays but may not repeat exactly under load;
+   the seed-14 what-if re-runs (three at a time, `26c0c00`) reproduced the first pass exactly. `docs/E5_FOLLOWUPS.md`.

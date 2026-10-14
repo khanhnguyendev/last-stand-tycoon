@@ -48,10 +48,9 @@ static func pad_points() -> Array:
 	return out
 
 ## The branch pad centres of tier 3 (spec 4.3): the tier-3 plot's kerb leaves every one of them free where it touches an edge.
-## `retune`: TierEffects.retune_on(Balance.data.tiers); true reads the pads where the retune stands them (MapLayout.branch_pads), false today's table.
-static func branch_pad_points(retune := false) -> Array:
+static func branch_pad_points() -> Array:
 	var out: Array = []
-	var table := MapLayout.branch_pads(retune)
+	var table := MapLayout.BRANCH_PADS
 	for id in table:
 		out.append_array(table[id])
 	return out
@@ -77,10 +76,10 @@ static func tier3_keep_free(lane_spread := DEFAULT_LANE_SPREAD) -> Array:
 ## The kerb pieces of `rect`: a transform per piece, origin on the outline at half the height, yawed along the edge,
 ## x scaled to the piece length (the unit mesh is 1 x HEIGHT x WIDTH).
 ## `tier3` (the front lot only): also leave free the SW lane's width, every fence bar and every branch pad.
-static func transforms(rect: Rect2, tier3 := false, lane_spread := DEFAULT_LANE_SPREAD, retune := false) -> Array[Transform3D]:
+static func transforms(rect: Rect2, tier3 := false, lane_spread := DEFAULT_LANE_SPREAD) -> Array[Transform3D]:
 	var out: Array[Transform3D] = []
 	var pads := pad_points()
-	var branch := branch_pad_points(retune) if tier3 else []
+	var branch := branch_pad_points() if tier3 else []
 	var free := tier3_keep_free(lane_spread) if tier3 else []
 	var spacing := SPACING_T3 if tier3 else SPACING
 	var pad_clear := PAD_CLEAR_T3 if tier3 else PAD_CLEAR
@@ -122,10 +121,10 @@ static func _segments_closer(a: Vector2, b: Vector2, c: Vector2, d: Vector2, dis
 		minf(Geometry.dist_point_segment(c, a, b), Geometry.dist_point_segment(d, a, b))) < dist
 
 ## ONE MultiMeshInstance3D for the kerb of every yard in `yards` (MapLayout yard ids).
-static func build(yards: Array, lane_spread := DEFAULT_LANE_SPREAD, retune := false) -> MultiMeshInstance3D:
+static func build(yards: Array, lane_spread := DEFAULT_LANE_SPREAD) -> MultiMeshInstance3D:
 	var xfs: Array[Transform3D] = []
 	for id in yards:
-		xfs.append_array(transforms(MapLayout.yard_rect(id), MapLayout.yard_tier(id) >= 3, lane_spread, retune))
+		xfs.append_array(transforms(MapLayout.yard_rect(id), MapLayout.yard_tier(id) >= 3, lane_spread))
 	return _instance(xfs)
 
 ## One piece at the origin: the warm-up draws it so the kerb's mesh and material are uploaded before the tier-2 reveal.

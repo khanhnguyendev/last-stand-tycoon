@@ -962,8 +962,9 @@ func test_tier3_parts_hide_no_static_point_within_10_m_at_landscape_aspects() ->
 	assert_eq(bad.size(), 0, "the tier-3 parts hide a static point within 10 m of the focus at a landscape aspect: %s" % [bad])
 	assert_gt(float(stats["nearest"]), 13.0, "no exempted pair is within 13 m (measured nearest 13.07 m; none is within the 10 m rule)")
 	assert_gt(int(stats["exempt"]), 0, "the exemption is live: some far pads are hidden at landscape")
-	# positive control: a 3 m storey (top 6.03) hides pads within 10 m of the focus at a landscape aspect
-	var too_tall := AABB(Vector3(-2.5, 3.03, -0.5), Vector3(3.5, 3.0, 3.5))
+	# positive control: a 3.5 m storey (top 6.53) hides pads within 10 m of the focus at a landscape aspect (a 3 m one did before the pads moved, D-307; with the
+	# shipped pad table a 3 m storey hides none within 10 m, a 3.5 m one hides 5 pairs)
+	var too_tall := AABB(Vector3(-2.5, 3.03, -0.5), Vector3(3.5, 3.5, 3.5))
 	assert_gt(_new_occlusions([too_tall], pts, 1.0, _t3_base_boxes(), LANDSCAPE, EXEMPT_DIST).size(), 0, "the sweep detects a storey that is too tall")
 
 ## The Archer's feet + 0.3, aim and head, at every aspect and focus: the pairs an added part hides him in.

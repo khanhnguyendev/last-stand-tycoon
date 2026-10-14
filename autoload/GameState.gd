@@ -79,7 +79,7 @@ func to_dict() -> Dictionary:
 		"guards": _guards_out(), "night_fails": night_fails,
 		"stations": _stations_out(),
 		"tier": tier, "tier_day": tier_day, "tier_paid": tier_paid, "boss_pending": boss_pending,
-		"lane_character": lane_character(),  # E6 schema 7: {} below tier 3 or with the retune flag off
+		"lane_character": lane_character(),  # E6 schema 7: {} below tier 3
 		"lane_character_shown": lane_character_shown,
 	}
 
@@ -380,7 +380,7 @@ func _spike_stands(spot_id: String) -> bool:
 func _spike_scale() -> float:
 	if lane_plan.is_empty():
 		return 1.0
-	return BranchMath.spike_scale(float(lane_plan[0].hp_mult), BranchMath.spike_base_mult(Balance.data.wave, Balance.data.tiers))
+	return BranchMath.spike_scale(float(lane_plan[0].hp_mult), BranchMath.spike_base_mult(Balance.data.wave, Balance.data.branches))
 
 # --- stations (E1) ---------------------------------------------------------
 
@@ -469,7 +469,7 @@ func advance_day() -> void:
 func _plan_today() -> Array:
 	var p := LanePlanner.plan(run_seed, day, Balance.data.wave, tier, tier_day, Balance.data.tiers)
 	var character := lane_character()
-	if not character.is_empty():  # E6 (D-287): the single place a fresh plan meets the lane character; flag off = the old code
+	if not character.is_empty():  # E6 (D-287): the single place a fresh plan meets the lane character
 		p = LaneCharacter.apply(p, character, Balance.data.tiers)
 	return _with_tonights_boss(p) if boss_pending else p
 
@@ -478,9 +478,9 @@ func mark_lane_character_shown() -> void:
 	lane_character_shown = true
 	EventBus.lane_character_shown_marked.emit()
 
-## E6 (D-282): the run's lane character ({"siege", "hare"}), or {} below tier 3 or with the retune flag off.
+## E6 (D-282): the run's lane character ({"siege", "hare"}), or {} below tier 3.
 func lane_character() -> Dictionary:
-	if tier >= 3 and TierEffects.retune_on(Balance.data.tiers):
+	if tier >= 3:
 		return LaneCharacter.for_run(run_seed)
 	return {}
 

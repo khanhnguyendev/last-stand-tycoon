@@ -1,6 +1,6 @@
 extends GutTest
-## E6 task 5 (spec 3.4, D-282, D-286.4, D-287): schema 7 stores the lane character; on load a tier-3 game with the retune flag
-## on RE-DERIVES the night plan (extra groups hold, rules are today's); with the flag off the load path is what it was.
+## E6 task 5 (spec 3.4, D-282, D-286.4, D-287): schema 7 stores the lane character; on load a tier-3 game
+## RE-DERIVES the night plan (extra groups hold, rules are today's).
 
 const V6_FIXTURE := "res://tests/fixtures/v6_tier3_cap_threat.save.json"
 
@@ -24,9 +24,6 @@ func after_each() -> void:
 	Balance.reset()
 	GameState.new_game(1)
 
-func _flag(on: bool) -> void:
-	Balance.data.tiers.retune_enabled = on
-
 func _tier3_day(seed: int, d: int) -> void:
 	GameState.new_game(seed)
 	GameState.debug_set_tier(3, 17)
@@ -39,7 +36,7 @@ func _has_extra(plan: Array) -> bool:
 			return true
 	return false
 
-## A (seed, day) whose flag-on tier-3 plan has an extra group (flag must be on). The scan result is asserted by the callers.
+## A (seed, day) whose tier-3 plan has an extra group. The scan result is asserted by the callers.
 func _find_extra_night() -> Array:
 	for seed in range(1, 80):
 		for d in range(17, 31):
@@ -99,27 +96,25 @@ func test_the_committed_v6_fixture_is_the_one_the_literals_were_read_from() -> v
 
 # --- round trips ----------------------------------------------------------------------------------------
 
-func test_v7_round_trip_at_tiers_1_2_3_flag_off_and_on() -> void:
-	for on in [false, true]:
-		for t in [1, 2, 3]:
-			_flag(on)
-			GameState.new_game(20260930)
-			GameState.day = 20
-			if t > 1:
-				GameState.debug_set_tier(t, 17)
-			var tag := "tier %d flag %s" % [t, str(on)]
-			var s := GameState.to_dict()
-			var want: Dictionary = LaneCharacter.for_run(20260930) if (on and t == 3) else {}
-			assert_eq(s.lane_character, want, tag + ": stored character")
-			var r := _decode(s)
-			assert_true(r.ok, tag + ": " + r.reason)
-			var plan_before: Array = GameState.lane_plan.duplicate(true)
-			GameState.new_game(5)
-			GameState.from_dict(r.state)
-			assert_eq(GameState.lane_plan, plan_before, tag + ": plan")
-			assert_eq(GameState.lane_character(), want, tag)
-			assert_eq(GameState.load_warnings, [], tag + ": no warning")
-			assert_eq(_decode(GameState.to_dict()).state, r.state, tag + ": to_dict equal after a codec pass")
+func test_v7_round_trip_at_tiers_1_2_3() -> void:
+	for t in [1, 2, 3]:
+		GameState.new_game(20260930)
+		GameState.day = 20
+		if t > 1:
+			GameState.debug_set_tier(t, 17)
+		var tag := "tier %d" % t
+		var s := GameState.to_dict()
+		var want: Dictionary = LaneCharacter.for_run(20260930) if t == 3 else {}
+		assert_eq(s.lane_character, want, tag + ": stored character")
+		var r := _decode(s)
+		assert_true(r.ok, tag + ": " + r.reason)
+		var plan_before: Array = GameState.lane_plan.duplicate(true)
+		GameState.new_game(5)
+		GameState.from_dict(r.state)
+		assert_eq(GameState.lane_plan, plan_before, tag + ": plan")
+		assert_eq(GameState.lane_character(), want, tag)
+		assert_eq(GameState.load_warnings, [], tag + ": no warning")
+		assert_eq(_decode(GameState.to_dict()).state, r.state, tag + ": to_dict equal after a codec pass")
 
 # --- the real v6 save -------------------------------------------------------------------------------------
 
@@ -129,27 +124,9 @@ func _load_v6() -> void:
 	GameState.new_game(7)
 	GameState.from_dict(r.state)
 
-## Flag off: the loaded game is what v6 loading gave (the plan and fields are the file's own).
-func test_v6_fixture_flag_off_loads_exactly_the_stored_plan() -> void:
-	_flag(false)
-	_load_v6()
-	for k in V6_STATE:
-		assert_eq(GameState.get(k), V6_STATE[k], k)
-	assert_eq(_plan_rows(GameState.lane_plan), V6_PLAN)
-	for w in GameState.lane_plan:
-		assert_false(w.has("extra"))
-	assert_eq(GameState.lane_character(), {})
-	assert_eq(GameState.load_warnings, [])
-	# the pin has teeth: under apply the plan WOULD differ for this save (so an apply on the off path fails the line above)
-	var applied := LaneCharacter.apply(LanePlanner.plan(20260930, 24, Balance.data.wave, 3, 19, Balance.data.tiers), LaneCharacter.for_run(20260930), Balance.data.tiers)
-	assert_ne(_plan_rows(applied), V6_PLAN)
-	var applied_stored := LaneCharacter.apply(GameState.lane_plan, LaneCharacter.for_run(20260930), Balance.data.tiers)
-	assert_ne(applied_stored, GameState.lane_plan, "apply would change the stored plan")
-
 ## Flag on: the character comes from run_seed (same on two loads) and the plan is re-derived.
 ## Mutation: the re-derive removed (the stored plan kept) or the plan taken without apply.
 func test_v6_fixture_flag_on_derives_character_and_plan() -> void:
-	_flag(true)
 	_load_v6()
 	var tb := Balance.data.tiers
 	var c := LaneCharacter.for_run(20260930)
@@ -168,7 +145,6 @@ func test_v6_fixture_flag_on_derives_character_and_plan() -> void:
 
 ## Mutation: the stored character wins (the plan would be built for it), or no warning, or two warnings.
 func test_a_stored_character_that_differs_is_replaced_with_one_warning() -> void:
-	_flag(true)
 	var derived := LaneCharacter.for_run(20260930)
 	var lanes := LanePlanner.lanes_for_tier(3)
 	var other_siege: String = lanes[(lanes.find(derived.siege) + 1) % 4]
@@ -202,7 +178,6 @@ func test_a_stored_character_that_differs_is_replaced_with_one_warning() -> void
 ## Mutations: the overlay does not follow state_restored (nothing shown); it keeps the list after a new game (GameState.new_game does not
 ## clear load_warnings); it drops the pool lines or the load line from its text.
 func test_the_overlay_shows_the_load_warning_and_a_new_game_clears_it() -> void:
-	_flag(true)
 	var DO = load("res://ui/debug/debug_overlay.gd")
 	var overlay = DO.new()
 	add_child_autofree(overlay)
@@ -234,7 +209,6 @@ func test_the_overlay_shows_the_load_warning_and_a_new_game_clears_it() -> void:
 
 ## Mutation: from_dict drops wave.extra (the old load path): the plan and the schedule sizes shrink.
 func test_a_night_with_an_extra_group_survives_to_dict_from_dict() -> void:
-	_flag(true)
 	var found := _find_extra_night()
 	assert_false(found.is_empty(), "the scan found a night with an extra group")
 	var plan: Array = GameState.lane_plan.duplicate(true)
@@ -248,7 +222,6 @@ func test_a_night_with_an_extra_group_survives_to_dict_from_dict() -> void:
 
 ## The same for a plan that was stored WITHOUT the extra group (a stale plan): the re-derive restores it.
 func test_a_stored_plan_without_its_extra_group_gets_it_back_on_load() -> void:
-	_flag(true)
 	assert_false(_find_extra_night().is_empty())
 	var plan: Array = GameState.lane_plan.duplicate(true)
 	var s := GameState.to_dict()
@@ -261,7 +234,6 @@ func test_a_stored_plan_without_its_extra_group_gets_it_back_on_load() -> void:
 ## Loading the same save twice gives the same state and the same plan (the re-derive reads the save, not what the previous load left).
 ## Mutation: the re-derive depends on the in-memory state of the previous load (day, tier_day, plan): the second load differs.
 func test_loading_twice_changes_nothing() -> void:
-	_flag(true)
 	assert_false(_find_extra_night().is_empty())
 	var s: Dictionary = _roundtrip().state
 	GameState.new_game(5)
@@ -273,61 +245,19 @@ func test_loading_twice_changes_nothing() -> void:
 	assert_eq(GameState.to_dict(), once_state, "the state dictionary")
 	assert_eq(GameState.lane_plan, once_plan, "the plan")
 
-## A save written with the flag ON (a plan with an extra group) and loaded with the flag OFF. What happens today: the shrunk
-## main/side counts are kept as saved and the extra group is dropped (the old load path never knew it), so that night has fewer
-## enemies. This state is debug-only until the flip: the flag is a debug URL toggle, no player save is ever written with it on.
-## Mutation: the extra group survives a flag-off load, or the counts are re-grown.
-func test_a_save_made_flag_on_loaded_flag_off_keeps_the_shrunk_counts_and_drops_the_extra_group() -> void:
-	_flag(true)
-	assert_false(_find_extra_night().is_empty())
-	var saved: Array = GameState.lane_plan.duplicate(true)
-	assert_true(_has_extra(saved), "setup: the saved plan has an extra group")
-	var s: Dictionary = _roundtrip().state
-	_flag(false)
-	GameState.new_game(5)
-	GameState.from_dict(s)
-	assert_false(_has_extra(GameState.lane_plan), "the extra group is dropped")
-	assert_eq(_plan_rows(GameState.lane_plan), _plan_rows(saved), "main/side counts, hares and brutes are kept as saved")
-	var lost := 0
-	for w in saved:
-		for e in w.get("extra", []):
-			lost += int(e.count)
-	assert_gt(lost, 0)
-	assert_eq(_sizes(saved).reduce(func(a, b): return a + b, 0) - _sizes(GameState.lane_plan).reduce(func(a, b): return a + b, 0), lost, "exactly the extra group's enemies are gone")
-	assert_eq(GameState.lane_character(), {})
-	assert_eq(GameState.load_warnings, [])
+# --- a snapshot made before the lane character, restored now -----------------------------------------------------
 
-# --- flag off identity of the load path ---------------------------------------------------------------------
-
-func test_flag_off_v7_save_loads_the_stored_plan_wave_for_wave() -> void:
-	_flag(false)
-	_tier3_day(20260930, 24)
-	GameState.lane_plan[0].main = "sw"  # a plan the rules would change: brutes off the siege lane
-	GameState.lane_plan[0].brute_main = 2
-	GameState.lane_plan[0].brute_side = 1
-	var stored: Array = GameState.lane_plan.duplicate(true)
-	var changed := LaneCharacter.apply(stored, LaneCharacter.for_run(20260930), Balance.data.tiers)
-	assert_ne(changed, stored, "setup: apply would change this plan")
-	var r := _roundtrip()
-	assert_eq(r.state.lane_character, {})
-	GameState.new_game(5)
-	GameState.from_dict(r.state)
-	assert_eq(GameState.lane_plan, stored)
-	assert_eq(GameState.load_warnings, [])
-
-# --- a snapshot made flag-off, restored flag-on ---------------------------------------------------------------
-
-## D-286.4, asserted not hidden: the replay uses the NEW plan.
-func test_a_night_start_snapshot_made_flag_off_replays_with_the_new_plan() -> void:
-	_flag(false)
+## D-286.4, asserted not hidden: the replay uses the NEW plan. The old snapshot's plan is the planner's own, without the character (what the game stored before it).
+func test_a_night_start_snapshot_made_without_the_character_replays_with_the_new_plan() -> void:
 	_tier3_day(20260930, 24)
 	var snap := GameState.to_dict()
 	snap.resume_phase = "NIGHT"
-	var old_plan: Array = snap.lane_plan.duplicate(true)
-	_flag(true)
+	var tb := Balance.data.tiers
+	var old_plan: Array = LanePlanner.plan(20260930, 24, Balance.data.wave, 3, 17, tb)
+	snap.lane_plan = old_plan.duplicate(true)
+	snap.lane_character = {}
 	GameState.new_game(5)
 	GameState.from_dict(_decode(snap).state)
-	var tb := Balance.data.tiers
 	var want := LaneCharacter.apply(LanePlanner.plan(20260930, 24, Balance.data.wave, 3, 17, tb), LaneCharacter.for_run(20260930), tb)
 	assert_ne(old_plan, want, "setup: the rules differ for this night")
 	assert_eq(GameState.lane_plan, want)
@@ -338,7 +268,6 @@ func test_a_night_start_snapshot_made_flag_off_replays_with_the_new_plan() -> vo
 
 ## Mutation: the retry goes through the old load path (extra group dropped): fewer scheduled enemies on the second attempt.
 func test_the_retry_of_a_failed_night_replays_the_same_plan() -> void:
-	_flag(true)
 	var main := Main.create()
 	add_child_autofree(main)
 	var pc: PhaseController = main.phase_controller
@@ -361,7 +290,6 @@ func test_the_retry_of_a_failed_night_replays_the_same_plan() -> void:
 # --- codec validation -----------------------------------------------------------------------------------------
 
 func _t3_state_with(extra: Variant) -> Dictionary:
-	_flag(true)
 	_tier3_day(20260930, 24)
 	var s := GameState.to_dict()
 	for w in s.lane_plan:

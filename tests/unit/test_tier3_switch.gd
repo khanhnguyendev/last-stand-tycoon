@@ -143,19 +143,18 @@ func test_the_baron_night_is_announced_and_leads_the_wave() -> void:
 	var kinds := WaveSchedule.build(GameState.lane_plan.back(), Balance.data.wave, Balance.data.tiers, GameState.tier).map(func(e): return e.kind)
 	assert_eq(kinds[0], &"baron")
 
-## Mutation: the tier staying 2 (the cost entry missing) fails the first line; a reveal with a missing or extra step fails the count of five;
+## Mutation: the tier staying 2 (the cost entry missing) fails the first line; a reveal with a missing or extra step fails the count of six;
 ## a world not rebuilt for tier 3 fails each world check.
 func test_a_won_baron_night_tiers_up_and_the_world_has_everything_of_tier_3() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	await _to_tier_3_dawn()
 	assert_eq([GameState.tier, GameState.boss_pending, GameState.tier_paid], [3, false, 0])
 	var reveal := main.world.tier_reveal
 	assert_true(reveal.running(), "the reveal starts at the dawn")
-	assert_eq(reveal.steps_left(), 5, "five steps")
+	assert_eq(reveal.steps_left(), 6, "six steps: lot, lane, lane character, fence_sw, tower_sw, diner")
 	var base := sfx.count(&"build_done")
 	await _frames(int(ceil(Balance.data.tiers.tier_reveal_time * 60.0)) + 10)
 	assert_false(reveal.running(), "it ran out")
-	assert_eq(sfx.count(&"build_done") - base, 5, "five step sounds")
+	assert_eq(sfx.count(&"build_done") - base, 6, "six step sounds")
 	var w := main.world
 	assert_true(w.telegraph_markers.has("sw"), "the SW lane's flag")
 	assert_true((w.telegraph_markers["sw"] as TelegraphMarker).is_inside_tree())
@@ -165,7 +164,8 @@ func test_a_won_baron_night_tiers_up_and_the_world_has_everything_of_tier_3() ->
 	assert_true(w.yard_ids().has("front"), "the front lot")
 	assert_eq((w.diner_body.get_node("Visual").get_node("DinerArt") as Node).scene_file_path, "res://art/env/diner_t3.tscn")
 	# The night plan the dawn built is the tier-3 plan (mutation: a plan left from tier 2, or one made with tier 2's lanes, differs).
-	assert_eq(GameState.lane_plan, LanePlanner.plan(GameState.run_seed, GameState.day, Balance.data.wave, 3, GameState.tier_day, Balance.data.tiers))
+	var tb := Balance.data.tiers
+	assert_eq(GameState.lane_plan, LaneCharacter.apply(LanePlanner.plan(GameState.run_seed, GameState.day, Balance.data.wave, 3, GameState.tier_day, tb), LaneCharacter.for_run(GameState.run_seed), tb))
 
 ## Mutation: a queue still on the west slots at tier 3 fails; so does an exit left in the west.
 func test_after_the_reveal_the_queue_stands_east_and_the_served_leave_east() -> void:

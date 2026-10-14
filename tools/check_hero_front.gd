@@ -49,7 +49,6 @@ func _run() -> void:
 	var gs = root.get_node("GameState")
 	bal.reset()
 	bal.ui.shake_enabled = false
-	bal.data.tiers.retune_enabled = true
 	if bal.data.tiers.tier_costs.size() < 3:
 		bal.data.tiers.tier_costs.append(1500)
 	var main = load("res://world/main.gd").create()
@@ -92,7 +91,7 @@ func _run() -> void:
 		if only != "" and str(n) != only:
 			continue
 		var pad = main.world.branch_pads[v[0]][v[1]]
-		var pad_at: Vector2 = layout.branch_pad(v[0], v[1], true)
+		var pad_at: Vector2 = layout.branch_pad(v[0], v[1])
 		var at: Vector2 = pad_at
 		if v[2] is Vector2:
 			at = pad_at + v[2]

@@ -75,7 +75,6 @@ func test_tier_2_adds_only_the_yards_and_never_a_south_west_node() -> void:
 	assert_eq(main.world.telegraph_markers.keys(), ["west", "north", "east"])
 
 func test_tier_3_builds_the_south_west_lane_marker_and_spots() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	var stones_t1: int = main.world.edge_stones.multimesh.instance_count
 	assert_eq(stones_t1, 58, "tier 1: 58 edge stones")
 	var mesh_t1 := main.world.ground.mesh
@@ -86,7 +85,7 @@ func test_tier_3_builds_the_south_west_lane_marker_and_spots() -> void:
 	for n in SW_NODES:
 		assert_true(n in _names(), n)
 	var count: int = main.world.get_child_count()
-	assert_eq(count, 45 + 4 + 18, "tier 2's 45 (44 + LevelPipsBatch) plus Lane_sw, Telegraph_sw, the two spots and the 18 branch pads (two for each of the nine spots)")
+	assert_eq(count, 45 + 4 + 2 + 18, "tier 2's 45 (44 + LevelPipsBatch) plus Lane_sw, Telegraph_sw, the two spots, the two lane-character badges (LaneCharacter_west, LaneCharacter_east: the run's siege and hare lanes) and the 18 branch pads (two for each of the nine spots)")
 	main.world.rebuild_for_tier()
 	main.world.rebuild_for_tier()
 	main.world._sync_lanes()
@@ -167,7 +166,6 @@ func test_no_south_west_edge_stone_stands_on_a_pad_a_station_or_the_counter() ->
 			assert_false((r as Rect2).grow(LaneStrip.STONE_RADIUS).has_point(p), "stone %s clear of %s" % [p, r])
 
 func test_new_game_removes_every_south_west_node() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	var stones_t1: int = main.world.edge_stones.multimesh.instance_count
 	var mesh_t1 := main.world.ground.mesh
 	GameState.debug_set_tier(3, 5)
@@ -180,7 +178,11 @@ func test_new_game_removes_every_south_west_node() -> void:
 	assert_eq(main.world.build_spots.keys(), MapLayout.spots_for_tier(1))
 	assert_eq(main.world.edge_stones.multimesh.instance_count, stones_t1)
 	assert_eq(main.world.ground.mesh, mesh_t1)
-	assert_eq(names.size(), TIER1_CHILDREN.size())
+	# The two lane-character badges (the run's siege and hare lanes) stay in the world, hidden, once made: refresh({}) at tier 1 shows none of them.
+	assert_eq(names.size(), TIER1_CHILDREN.size() + 2, "the tier-1 children plus LaneCharacter_west and LaneCharacter_east")
+	for badge in ["LaneCharacter_west", "LaneCharacter_east"]:
+		assert_true(badge in names, badge)
+		assert_false((main.world.get_node(badge) as Node3D).visible, "%s is hidden at tier 1" % badge)
 
 func test_the_ground_mesh_below_tier_3_does_not_depend_on_the_lane_argument() -> void:
 	var rect := World.ground_rect()

@@ -80,18 +80,6 @@ static func warnings_text(pool_warnings: Array, load_warnings: Array) -> String:
 func _on_first_phase(_phase: int, _day: int) -> void:
 	_apply_scene.call_deferred()
 
-## E6 (D-286): URL flags that change Balance are applied from Main._enter_tree, BEFORE any child's _ready, so things sized at
-## construction (World's pools) already see them. setup() runs too late for that (after World._ready).
-static func apply_url_balance() -> void:
-	if not OS.has_feature("web"):
-		return
-	if retune_arg(UrlFlags.parse(str(JavaScriptBridge.eval("window.location.search", true)))):
-		Balance.data.tiers.retune_enabled = true  # ?retune=1
-
-## E6 (D-286): does the URL ask for the tier-3 retune? Only retune=1.
-static func retune_arg(flags: Dictionary) -> bool:
-	return flags.get("retune", "") == "1"
-
 ## The autoplay script and policy a parsed URL asks for: [] for none, else [script path, policy].
 static func autoplay_args(flags: Dictionary) -> Array:
 	match flags.get("autoplay", ""):

@@ -42,7 +42,6 @@ var _old_locale := ""
 func before_each() -> void:
 	BranchPad.reset_focus()
 	Balance.reset()
-	Balance.data.tiers.retune_enabled = true
 	if Balance.data.tiers.tier_costs.size() < 3:
 		Balance.data.tiers.tier_costs.append(1500)  # test-only: the build knows tier 3
 	_old_locale = TranslationServer.get_locale()
@@ -84,7 +83,7 @@ func _max_all() -> void:
 	await get_tree().physics_frame
 
 func _pad_pos(id: String, i: int) -> Vector2:
-	return MapLayout.branch_pad(id, i, TierEffects.retune_on(Balance.data.tiers))  # E6 Task 14: a pad the retune moves stands at its new place
+	return MapLayout.branch_pad(id, i)  # E6 Task 14: a pad the retune moves stands at its new place
 
 ## Walks in from outside (armed), then lets the pad and the card update.
 func _stand_on(id: String, i: int) -> void:
@@ -207,37 +206,16 @@ func test_it_appears_only_on_an_armed_pad_by_day_at_tier_3_with_the_flag_on() ->
 	await _stand_on("tower_e", 0)
 	assert_true(BranchPad.pad_hero_stands_on().zone.armed)
 	assert_true(card.visible, "armed")
-	# the flag off: walking in again shows nothing
-	Balance.data.tiers.retune_enabled = false
-	main.hero.teleport(MapLayout.branch_pad("tower_e", 0, true) + Vector2(0, 4))  # the pad was made with the flag on: it stands at the retune position
-	await _settle()
-	assert_false(card.visible)
-	await TestHelpers.walk_in(main.hero, MapLayout.branch_pad("tower_e", 0, true))
-	await _settle()
-	assert_true(BranchPad.pad_hero_stands_on().zone.armed, "setup: armed")
-	assert_false(card.visible, "flag off: nothing")
-	Balance.data.tiers.retune_enabled = true
-	await _stand_on("tower_e", 0)
-	assert_true(card.visible, "flag on again")
 	# night
 	pc.debug_skip_to_night()
 	await _settle()
 	assert_false(card.visible, "no card at night")
 
-func test_below_tier_3_with_the_flag_on_there_is_no_card() -> void:
+func test_below_tier_3_there_is_no_card() -> void:
 	await _start(2)
 	_max("tower_e")
 	assert_true(GameState.lane_character().is_empty(), "setup: no lane character at tier 2")
 	await _stand_on("tower_e", 0)
-	assert_false(card.visible)
-
-func test_with_the_flag_off_at_tier_3_there_is_no_card() -> void:
-	Balance.data.tiers.retune_enabled = false
-	await _start()
-	await _max_all()
-	await _stand_on("tower_e", 0)
-	assert_true(BranchPad.pad_hero_stands_on() != null, "setup: the hero is on an armed pad")
-	assert_true(BranchPad.pad_hero_stands_on().zone.armed)
 	assert_false(card.visible)
 
 ## Mutation: the card staying after the branch is chosen.
@@ -612,16 +590,12 @@ func test_unknown_ids_are_not_given_a_default_label() -> void:
 	assert_eq(card.branch_name(&"spike"), "Spike fence")
 	assert_eq(card.lane_name("sw"), "south road")
 
-## Mutation: rasterizing at the first show (the warm-up building nothing, or building under the flag off).
+## Mutation: rasterizing at the first show (the warm-up building nothing).
 func test_the_warmup_rasterizes_the_icons_so_the_first_show_does_not() -> void:
 	BranchCard._tex.clear()
 	LaneCharacterIcons._tex.clear()
 	BranchCard.rasterized = 0
-	Balance.data.tiers.retune_enabled = false
-	Warmup.prebuild_card_textures()
-	assert_eq(BranchCard.rasterized, 0, "flag off: the warm-up builds nothing")
 	assert_true(LaneCharacterIcons._tex.is_empty())
-	Balance.data.tiers.retune_enabled = true
 	Warmup.prebuild_card_textures()
 	assert_eq(BranchCard.rasterized, 5, "four branches and the broken fence")
 	var lane_tex := LaneCharacterIcons._tex.size()

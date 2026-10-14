@@ -369,23 +369,25 @@ func _only(bot: TierBot, keep: String) -> void:
 		if id != keep:
 			GameState.buildings[id].branch = "spike" if MapLayout.spot_kind(id) == "fence" else "volley"
 
-func test_the_default_policy_reads_the_nights_plan_for_a_tower() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
+## Seed 1's lane character is {siege east, hare west} (pinned in test_the_bot_buys_longbow_on_the_siege_lane_whatever_tonights_plan). The shipped bot's `threat`
+## policy reads that character, not tonight's plan: the fence that guards the siege lane (fence_e) takes Stone wall (pad a) whatever the plan carries, and a fence on any
+## other lane (fence_w: the hare lane) takes Spike fence (pad b) even when tonight's brutes come down its lane. Mutation: the bot passes {} instead of the character
+## (it then reads the plan: Stone wall at fence_w for west brutes, Spike at fence_e for a plan with no brute on east).
+func test_the_default_policy_reads_the_lane_character_not_the_plan_for_a_fence() -> void:
 	var bot := _one_branch_bot()
-	_only(bot, "tower_nw")
-	GameState.lane_plan = [_wave("west", 2)]  # tower_nw covers west
-	assert_eq(bot.next_purchase(), "pad_tower_nw_a", "Longbow")
+	assert_eq(GameState.lane_character(), {"siege": "east", "hare": "west"}, "pinned: run seed 1")
+	_only(bot, "fence_e")
 	GameState.lane_plan = [_wave("sw", 2)]
-	assert_eq(bot.next_purchase(), "pad_tower_nw_b", "Volley")
-
-func test_the_default_policy_reads_the_nights_plan_for_a_fence() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
-	var bot := _one_branch_bot()
+	assert_eq(bot.next_purchase(), "pad_fence_e_a", "Stone wall on the siege lane, though tonight's brutes are on sw")
+	GameState.lane_plan = [_wave("west", 2)]
+	assert_eq(bot.next_purchase(), "pad_fence_e_a", "and the same when tonight's brutes are on west")
+	Balance.reset()
+	bot = _one_branch_bot()
 	_only(bot, "fence_w")
 	GameState.lane_plan = [_wave("west", 2)]
-	assert_eq(bot.next_purchase(), "pad_fence_w_a", "Stone wall")
+	assert_eq(bot.next_purchase(), "pad_fence_w_b", "Spike fence on the hare lane, though tonight's brutes are on west")
 	GameState.lane_plan = [_wave("sw", 2)]
-	assert_eq(bot.next_purchase(), "pad_fence_w_b", "Spike fence")
+	assert_eq(bot.next_purchase(), "pad_fence_w_b", "and the same when tonight has none there")
 
 ## E6 Task 6 (spec 4.4, D-283, D-288). The lanes each tier-3 spot covers, written by hand (not read from MapLayout), in spots_for_tier order.
 const SPOT_LANES := {"tower_nw": ["west", "north"], "tower_ne": ["north", "east"], "fence_w": ["west"], "fence_n": ["north"],
@@ -399,7 +401,7 @@ func _oracle(spot: String, siege: String) -> StringName:
 	return &"stone" if on_siege else &"spike"
 
 ## Hand-written expected table for the character {siege: north, hare: west}: [spot, lanes, branch].
-## Mutations: the character ignored (the plan read with the flag on: the no-brute plan makes every row Volley/Spike); "covers the siege lane"
+## Mutations: the character ignored (the plan read: the no-brute plan makes every row Volley/Spike); "covers the siege lane"
 ## replaced by "covers only the siege lane" (tower_nw and tower_ne, which also cover west and east, turn Volley).
 func test_threat_with_a_character_follows_the_documented_table_for_siege_north() -> void:
 	var ch := {"siege": "north", "hare": "west"}
@@ -451,8 +453,7 @@ func test_the_character_choice_does_not_change_from_day_to_day() -> void:
 		assert_eq(base[spot], _oracle(spot, "east"), spot)
 
 ## Through the bot instance. Mutation: the bot passes {} instead of GameState.lane_character() (it then reads the plan: Volley here).
-func test_with_the_flag_on_the_bot_buys_longbow_on_the_siege_lane_whatever_tonights_plan() -> void:
-	Balance.data.tiers.retune_enabled = true
+func test_the_bot_buys_longbow_on_the_siege_lane_whatever_tonights_plan() -> void:
 	var bot := _one_branch_bot()
 	var siege := String(GameState.lane_character().get("siege", ""))
 	assert_eq(siege, "east", "pinned: the siege lane of run seed 1")
@@ -470,32 +471,19 @@ func test_with_the_flag_on_the_bot_buys_longbow_on_the_siege_lane_whatever_tonig
 	assert_eq(bot.next_purchase(), "pad_%s_a" % tower, "Longbow the next day too")
 	Balance.reset()
 
-## Flag off, the same seed: the plan decides (no brute on the tower's lanes tonight gives Volley).
-func test_with_the_flag_off_the_bot_still_reads_the_nights_plan() -> void:
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
-	var bot := _one_branch_bot()
-	assert_true(GameState.lane_character().is_empty())
-	_only(bot, "tower_nw")
-	GameState.lane_plan = [_wave("sw", 3)]
-	assert_eq(bot.next_purchase(), "pad_tower_nw_b", "Volley")
-	GameState.lane_plan = [_wave("west", 3)]
-	assert_eq(bot.next_purchase(), "pad_tower_nw_a", "Longbow")
-
 ## `unbranched` (report-only) buys no branch and is not a skipped goal. Mutations: it buying any branch; an unbought branch counted as skipped;
 ## idle_goal changing (the concrete goal is pinned).
 func test_unbranched_never_buys_a_branch_and_skips_nothing() -> void:
 	assert_true("unbranched" in TierBot.REPORT_POLICIES)
 	assert_false("unbranched" in TierBot.POLICIES, "fixtures and the CI sim loop over POLICIES")
-	for flag in [false, true]:
-		Balance.data.tiers.retune_enabled = flag
-		var bot := _one_branch_bot()
-		bot.policy = "unbranched"
-		GameState.lane_plan = [_wave("west", 3), _wave("north", 2, "east", 2)]
-		assert_eq(bot.next_purchase(), "", "everything max, 5000 gold, nothing else to build (flag %s)" % flag)
-		assert_eq(bot.skipped_goals, 0)
-		assert_eq(TierBot.branch_choices("unbranched", MapLayout.spots_for_tier(3), GameState.lane_plan), {})
-		assert_eq(bot.idle_goal(), "pad_freezer", "tier 3, everything max, 5000 gold: the cheapest station level (the upgrader's idle goal)")
-		Balance.reset()
+	var bot := _one_branch_bot()
+	bot.policy = "unbranched"
+	GameState.lane_plan = [_wave("west", 3), _wave("north", 2, "east", 2)]
+	assert_eq(bot.next_purchase(), "", "everything max, 5000 gold, nothing else to build")
+	assert_eq(bot.skipped_goals, 0)
+	assert_eq(TierBot.branch_choices("unbranched", MapLayout.spots_for_tier(3), GameState.lane_plan), {})
+	assert_eq(bot.idle_goal(), "pad_freezer", "tier 3, everything max, 5000 gold: the cheapest station level (the upgrader's idle goal)")
+	Balance.reset()
 
 ## `unbranched` skips only the branch pads. Mutation: the policy short-circuits next_purchase (no yard tower) or idle_goal (no sign).
 func test_unbranched_still_buys_a_level_0_yard_tower() -> void:
@@ -537,7 +525,7 @@ func test_a_pad_that_never_pays_is_skipped_once_after_the_cap() -> void:
 	assert_eq(bot.skipped_goals, 1)
 	assert_ne(bot.next_purchase(), pad, "not picked again today")
 
-# --- E6 phase 4: the threat-matched bot buys for the marked lanes first (flag on) ------------------------------------
+# --- E6 phase 4: the threat-matched bot buys for the marked lanes first ------------------------------------
 
 ## Buys `n` branches in a row with plenty of gold: returns the pad goals in the order the bot targets them (each target is then marked bought).
 func _targets(bot: TierBot, n: int) -> Array:
@@ -598,7 +586,6 @@ func _pad_for(spot: String, siege: String) -> String:
 ## With gold for exactly one tower branch (500), the first target is a tower covering the siege lane, for each siege lane. Mutation: the list
 ## order (siege east then buys tower_nw, which does not cover east; the 300-gold fence is not what is bought either).
 func test_with_gold_for_one_branch_the_threat_bot_buys_a_tower_on_the_siege_lane() -> void:
-	Balance.data.tiers.retune_enabled = true
 	for siege in ["west", "north", "east", "sw"]:
 		var sd := _seed_with_siege(siege)
 		assert_ne(sd, -1, "a seed with siege " + siege)
@@ -614,7 +601,6 @@ func test_with_gold_for_one_branch_the_threat_bot_buys_a_tower_on_the_siege_lane
 ## With gold for everything, the threat bot's targets follow ORDER_LITERALS through the live bot. Mutations: groups 1 and 2 swapped, the hare fence
 ## before the siege fence, list order inside a group lost (node or hash order).
 func test_the_threat_bot_buys_in_the_literal_order() -> void:
-	Balance.data.tiers.retune_enabled = true
 	for c in ORDER_LITERALS:
 		var sd := _seed_with_character(c[0].siege, c[0].hare)
 		assert_ne(sd, -1, str(c[0]))
@@ -625,18 +611,10 @@ func test_the_threat_bot_buys_in_the_literal_order() -> void:
 			want.append(_pad_for(spot, c[0].siege))
 		assert_eq(_targets(bot, 9), want, str(c[0]))
 
-## Seed 1's character is {siege east, hare west}. Flag off (empty character): today's list order for every policy (captured before the order change).
-const TODAY_FLAG_OFF := {
-	"all_a": ["pad_tower_nw_a", "pad_tower_ne_a", "pad_fence_w_a"],
-	"all_b": ["pad_tower_nw_b", "pad_tower_ne_b", "pad_fence_w_b"],
-	"mixed": ["pad_tower_nw_a", "pad_tower_ne_a", "pad_fence_w_b"],
-	"volley_stone": ["pad_tower_nw_b", "pad_tower_ne_b", "pad_fence_w_a"],
-	"unbranched": [],
-}
-## Flag on: every policy that buys branches uses the marked-lane order of east / west (tower_ne, tower_e, tower_nw, tower_w, fence_e, fence_w, then
+## Seed 1 is {siege east, hare west}: every policy that buys branches uses the marked-lane order of east / west (tower_ne, tower_e, tower_nw, tower_w, fence_e, fence_w, then
 ## fence_n, tower_sw, fence_sw); only the branch differs (a = Longbow / Stone wall, b = Volley / Spike fence). Literals.
-const FLAG_ON_ORDER := ["tower_ne", "tower_e", "tower_nw", "tower_w", "fence_e", "fence_w", "fence_n", "tower_sw", "fence_sw"]
-const FLAG_ON_BRANCH := {
+const SHIPPED_ORDER := ["tower_ne", "tower_e", "tower_nw", "tower_w", "fence_e", "fence_w", "fence_n", "tower_sw", "fence_sw"]
+const SHIPPED_BRANCH := {
 	"all_a": "aaaaaaaaa",
 	"all_b": "bbbbbbbbb",
 	"mixed": "aaaabbbab",
@@ -644,36 +622,19 @@ const FLAG_ON_BRANCH := {
 	"threat": "aabbabbbb",
 }
 
-func test_every_branch_policy_keeps_todays_order_with_an_empty_character() -> void:
-	for pol in TODAY_FLAG_OFF:
-		Balance.reset()
-		Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
-		var bot := _one_branch_bot()
-		bot.policy = pol
-		GameState.lane_plan = [_wave("west", 2)]
-		assert_true(GameState.lane_character().is_empty())
-		assert_eq(_targets(bot, 3), TODAY_FLAG_OFF[pol], "%s flag off" % pol)
-	Balance.reset()
-	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
-	var bot2 := _one_branch_bot()
-	GameState.lane_plan = [_wave("west", 2)]
-	assert_eq(_targets(bot2, 3), ["pad_tower_nw_a", "pad_tower_ne_b", "pad_fence_w_a"], "threat, empty character: the plan decides, list order")
-
-## Flag on, seed 1 (east / west): the same order for every policy. Mutation: the order applied to `threat` only (the 4 other policies keep the list).
+## Seed 1 (east / west): the same order for every policy. Mutation: the order applied to `threat` only (the 4 other policies keep the list).
 func test_every_branch_policy_buys_in_the_marked_lane_order_with_a_character() -> void:
-	for pol in FLAG_ON_BRANCH:
+	for pol in SHIPPED_BRANCH:
 		Balance.reset()
-		Balance.data.tiers.retune_enabled = true
 		var bot := _one_branch_bot()
 		bot.policy = pol
 		GameState.lane_plan = [_wave("west", 2)]
 		assert_eq(GameState.lane_character(), {"siege": "east", "hare": "west"})
 		var want: Array = []
 		for i in 9:
-			want.append("pad_%s_%s" % [FLAG_ON_ORDER[i], FLAG_ON_BRANCH[pol][i]])
-		assert_eq(_targets(bot, 9), want, "%s flag on" % pol)
+			want.append("pad_%s_%s" % [SHIPPED_ORDER[i], SHIPPED_BRANCH[pol][i]])
+		assert_eq(_targets(bot, 9), want, "%s" % pol)
 	Balance.reset()
-	Balance.data.tiers.retune_enabled = true
 	var bot3 := _one_branch_bot()
 	bot3.policy = "unbranched"
 	assert_eq(_targets(bot3, 3), [], "unbranched buys no branch")
@@ -773,9 +734,8 @@ func _live_pick(bot: TierBot) -> String:
 	return bot._pick_lane(lanes, counts, wd)
 
 ## Lane A (west): its fence has fallen and 2 boars stand past its stop point. Lane B (north): its fence stands and 4 boars are far back.
-## Flag on: west. Flag off (no character): north, the most enemies. Fails if `standing` is inverted or `counts` is passed as `breached`.
+## West (the lane with enemies past a fallen fence), not north (the most enemies). Fails if `standing` is inverted or `counts` is passed as `breached`.
 func test_the_live_pick_goes_to_the_lane_with_enemies_past_a_fallen_fence() -> void:
-	Balance.data.tiers.retune_enabled = true
 	var bot := await _bot_world(3)
 	assert_false(GameState.lane_character().is_empty())
 	var stop := MapLayout.path_length("west") - MapLayout.FENCE_OFFSET_FROM_END - 1.2
@@ -788,13 +748,9 @@ func test_the_live_pick_goes_to_the_lane_with_enemies_past_a_fallen_fence() -> v
 	for i in 4:
 		_spawn_at(wd, "north", &"boar", 2.0)
 	assert_eq(_live_pick(bot), "west")
-	Balance.data.tiers.retune_enabled = false
-	assert_true(GameState.lane_character().is_empty())
-	assert_eq(_live_pick(bot), "north")
 
 ## A hare past the line of a STANDING fence counts as breached; a boar held at a standing fence does not.
 func test_the_live_pick_counts_a_hare_past_a_standing_fence_but_not_a_held_boar() -> void:
-	Balance.data.tiers.retune_enabled = true
 	var bot := await _bot_world(3)
 	var wd := bot.main.world.wave_director
 	for f in ["fence_w", "fence_n"]:

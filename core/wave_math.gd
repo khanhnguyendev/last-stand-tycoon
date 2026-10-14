@@ -5,7 +5,7 @@ extends RefCounted
 ## days 1 to 7 (D-237).
 
 static func pressure(day: int, tier: int, tier_day: int, tb: TierBalance) -> int:
-	var base := TierEffects.base_pressure(tier, tb)
+	var base: int = tb.tier_base[tier]
 	return clampi(base + (day - tier_day), base, tb.tier_cap[tier])
 
 static func raw_total(pressure: int, w: int, wb: WaveBalance) -> int:

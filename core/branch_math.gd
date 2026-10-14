@@ -38,24 +38,8 @@ static func fence_hold_seconds(fence_hp: float, attacker: MonsterStats, fence: F
 	return float(hits_to_kill(fence_hp, per_hit)) * attacker.attack_interval
 
 ## Damage a hare-kind monster takes crossing the fence's line (once). `scale` = spike_scale(...).
-## E6 (D-283): the base is `spike_pass_base`, so the retune set applies to the live Spike fence only.
 static func pass_damage(fence: FenceBranchStats, kind: StringName, scale: float) -> float:
-	var base := spike_pass_base(fence, Balance.data.branches, TierEffects.retune_on(Balance.data.tiers))
-	return base * scale if kind in fence.pass_kinds else 0.0
-
-## E6 (D-283, D-286): Spike's pass damage at scale 1.0. The retune value applies only to the balance's own Spike fence
-## (a hand-built fence keeps its own number); with `retune_on` false it is `fence.pass_damage`, as before.
-static func spike_pass_base(fence: FenceBranchStats, bb: BranchBalance, retune_on: bool) -> float:
-	return bb.spike_pass_damage_retune if retune_on and fence == bb.spike else fence.pass_damage
-
-## E6 (D-283, D-286): the Longbow's damage multiplier against a monster of `kind`. 1.0 when the retune is off or the
-## kind has no entry (boar, hare, Baron, Boar King).
-static func longbow_kind_mult(kind: StringName, bb: BranchBalance, retune_on: bool) -> float:
-	return float(bb.longbow_kind_mult_retune.get(kind, 1.0)) if retune_on else 1.0
-
-## The Longbow's whole multiplier table for one tower, resolved by the flag (empty when off). Handed to Attacker.kind_mults.
-static func longbow_kind_mults(bb: BranchBalance, retune_on: bool) -> Dictionary:
-	return bb.longbow_kind_mult_retune.duplicate() if retune_on else {}
+	return fence.pass_damage * scale if kind in fence.pass_kinds else 0.0
 
 ## Spike's numbers grow with the night's HP multiplier relative to the multiplier at the tier-3 base (D-272.1).
 static func spike_scale(hp_mult_now: float, hp_mult_base: float) -> float:
@@ -64,12 +48,7 @@ static func spike_scale(hp_mult_now: float, hp_mult_base: float) -> float:
 
 ## The base multiplier Spike's numbers are quoted at: the HP multiplier of the FIRST wave at the tier's base pressure.
 ## One place for this choice; gameplay passes WaveMath.hp_mult(now) as the first argument of spike_scale.
-## D-304: this stays `tier_base` (Spike's numbers stay quoted at pressure 12); with the retune flag on the first two tier-3 nights are below that base,
-## so Spike scales below 1 there, in step with the monsters' HP.
-static func spike_base_mult(wb: WaveBalance, tb: TierBalance, tier := 3) -> float:
-	return WaveMath.hp_mult(tb.tier_base[tier], 0, wb)
-
-## E6 (D-283, D-292): the firing interval of a tower with stats `st`. The retune value applies only to the balance's own Longbow
-## (a hand-built tower keeps its own number); with `retune_on` false it is `st.interval`, as before.
-static func tower_interval(st: TowerBranchStats, bb: BranchBalance, retune_on: bool) -> float:
-	return bb.longbow_interval_retune if retune_on and st == bb.longbow else st.interval
+## D-304: Spike's numbers stay quoted at `BranchBalance.spike_quote_pressure` (12; independent of `tier_cap` and `tier_base`, which is 10 at tier 3): the first two tier-3 nights are below
+## that, so Spike scales below 1 there, in step with the monsters' HP.
+static func spike_base_mult(wb: WaveBalance, bb: BranchBalance) -> float:
+	return WaveMath.hp_mult(bb.spike_quote_pressure, 0, wb)

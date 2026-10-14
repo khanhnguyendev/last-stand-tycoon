@@ -354,4 +354,13 @@ Phase 4 (2026-10-13), flag still off. Full pack: `docs/review/E6_RETUNE.md`.
 - **Goals not met:** "reading pays" by 5 points, fences as a recurring sink, the ramp above cap 12.
 - **Open:** the flip waits for the author; hold-out set #2 is unplayed.
 
-Updated at the cleanup.
+**Final (2026-10-14, D-305 to D-308).** Shipped: the flag was flipped (PR #68) and removed (PR #69).
+- **Round 3** (D-305): seed 14's first tier-3 night was diagnosed (cause class balance; the bot's hero leaving its
+  lane contributes and is not fixed); tier 3 now starts at pressure 10, 11, then its cap 12.
+- **Hold-out set #2** (eight unseen seeds, once, `b820c89`): five of seven targets pass: retry nights 0 for every
+  policy, lowest first tier-3 night 61.0%, fence tax 9.7%, fixed spread 5.3, lane-cap guard 0. Both lane-reading
+  targets fail: lead +1.5, ahead on 5 of 8; south-west lane -0.1. **This slice delivers no measured payoff for
+  reading lane character** (accepted by the author, D-307; option (b), restating the rule, rejected).
+- **Method from now on:** each balance slice draws fresh tuning and hold-out sets from the scan; a spent set is
+  never reused (D-307.7).
+- **Tier-4 input:** review queue E6-1 to E6-4.

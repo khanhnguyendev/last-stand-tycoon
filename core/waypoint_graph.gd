@@ -99,7 +99,7 @@ static func create_default() -> WaypointGraph:
 
 ## E5 (spec 5.2): the default graph plus the tier's sign and yard spots. create_default() stays frozen (D-230);
 ## only tests use this; TierBot walks create_for_bot(tier), which builds on it.
-static func create_for_tier(tier: int, retune := false) -> WaypointGraph:
+static func create_for_tier(tier: int) -> WaypointGraph:
 	var g := create_default()
 	if tier >= 2:
 		g.add_node("tier_sign", MapLayout.TIER_SIGN)
@@ -108,18 +108,18 @@ static func create_for_tier(tier: int, retune := false) -> WaypointGraph:
 		for e in [["sw", "tier_sign"], ["sw", "tower_w"], ["zone_west", "tower_w"], ["se", "tower_e"], ["zone_east", "tower_e"]]:
 			g.add_edge(e[0], e[1])
 	if tier >= 3:
-		_add_tier3(g, retune)
+		_add_tier3(g)
 	return g
 
 ## E5 tier 3 (spec 4.1, 4.3): the south-west tower stand point, the south-west fence spot, the tier-3 sign and every branch pad
 ## (`pad_<spot_id>_a` / `_b`, joined to the node of their own spot). Every new edge clears the diner, counter and freezer (test_tier3_layout).
-static func _add_tier3(g: WaypointGraph, retune := false) -> void:
+static func _add_tier3(g: WaypointGraph) -> void:
 	g.add_node("tower_sw", MapLayout.tower_spot("tower_sw") + Vector2(-0.75, 0.75))
 	g.add_node("fence_sw", MapLayout.fence_spot("sw"))
 	g.add_node("tier_sign_3", MapLayout.tier_sign(3))
 	for e in [["sw", "tower_sw"], ["sw", "fence_sw"], ["home", "fence_sw"], ["sw", "tier_sign_3"], ["home", "tier_sign_3"]]:
 		g.add_edge(e[0], e[1])
-	var table := MapLayout.branch_pads(retune)  # E6: the bot walks to the pads where they stand with the flag on
+	var table := MapLayout.BRANCH_PADS
 	var ids: Array = table.keys()
 	ids.sort()
 	for id in ids:
@@ -132,7 +132,7 @@ static func _add_tier3(g: WaypointGraph, retune := false) -> void:
 ## E5 tier 3 (Task 22): the graph the TierBot walks at `tier`. Tier 1 is the tier-2 graph it always had (byte-identical routes). Tier 2 adds
 ## the tier-3 sign on the front lot. Tier 3 adds the south-west zone node (the bot's night post, joined like the other zones to its
 ## corner and its fence). create_for_tier() stays as it is (test_tier3_layout pins its node and edge counts).
-static func create_for_bot(tier: int, retune := false) -> WaypointGraph:
+static func create_for_bot(tier: int) -> WaypointGraph:
 	if tier < 3:
 		var g := create_for_tier(2)
 		if tier == 2:
@@ -140,7 +140,7 @@ static func create_for_bot(tier: int, retune := false) -> WaypointGraph:
 			for e in [["sw", "tier_sign_3"], ["home", "tier_sign_3"]]:
 				g.add_edge(e[0], e[1])
 		return g
-	var g3 := create_for_tier(3, retune)
+	var g3 := create_for_tier(3)
 	g3.add_node("zone_sw", MapLayout.lane_end("sw"))
 	for e in [["sw", "zone_sw"], ["fence_sw", "zone_sw"]]:
 		g3.add_edge(e[0], e[1])

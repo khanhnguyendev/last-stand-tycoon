@@ -403,14 +403,16 @@ func _extras(id: String, branch_model: Dictionary, l3: Dictionary, label := "") 
 		label, id, base.size(), _hidden(id, l3).centre, res.hidden.size(), res.centre, out])
 	return out
 
-## The pinned extra pairs, per spot ("pad/spot/station/stop label@focus"), of each branch model over the unbranched level 3.
+## The pinned extra pairs, per spot ("pad/spot/station/stop label@focus"), of each branch model over the unbranched level 3. Re-scanned at the cleanup (D-307) on the shipped pad table (the scan's foci include the pads themselves, so a moved pad relabels its pairs: fence_sw's second pad
+## went from (-1.0, 10.7) to (-1.0, 10.5)); two pairs no longer happen with the moved pads ("pad fence_n/0@(-10.6, 0.6)" at tower_nw under the Longbow,
+## "pad fence_w/1@(-1.0, 10.7)" at tower_nw under the Volley): a subset is fine, a model may hide fewer pairs.
 const LONGBOW_EXTRA := {
-	"tower_nw": ["pad fence_n/0@(-10.6, 0.6)"], "tower_e": ["pad fence_e/1@(7.9, 7.0)"],
-	"tower_sw": ["pad tower_w/1@(-1.0, 10.7)", "spot tower_w@(2.6, 7.2)"],
+	"tower_e": ["pad fence_e/1@(7.9, 7.0)"],
+	"tower_sw": ["pad tower_w/1@(-1.0, 10.5)", "spot tower_w@(2.6, 7.2)"],
 }
 const VOLLEY_EXTRA := {
-	"tower_nw": ["pad fence_w/1@(-1.0, 10.7)", "pad fence_w/1@(2.6, 7.2)"],
-	"tower_ne": ["pad fence_e/0@(-1.0, 10.7)", "pad fence_e/0@(-3.26297, 9.166971)"],
+	"tower_nw": ["pad fence_w/1@(2.6, 7.2)"],
+	"tower_ne": ["pad fence_e/0@(-1.0, 10.5)", "pad fence_e/0@(-3.26297, 9.166971)"],
 }
 
 func _check_extras(model_name: String, pinned: Dictionary) -> void:

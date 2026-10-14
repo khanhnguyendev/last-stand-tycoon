@@ -1,7 +1,7 @@
 extends SceneTree
 ## The branch pads at phone size (E5 tier 3 Task 17 fix round 1; E6 Task 14, spec 5.3). Run WITH rendering (not --headless):
-##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_pads.gd -- --out=docs/review/media/e6/interface [--flag=off]
-## Seed 1, a real tier-3 world with the retune flag ON (`--flag=off` shows today's world labels instead), every building at level 3. Writes,
+##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_pads.gd -- --out=docs/review/media/e6/interface
+## Seed 1, a real tier-3 world (the shipped game), every building at level 3. Writes,
 ## each 720x1280 plus a _40 copy (288x512):
 ##   pad_<spot_id>_a.png and pad_<spot_id>_b.png (the 18 pads: the hero WALKS onto the pad, so it is armed and the branch card shows; the world
 ##     keeps the ring, the glyph and the preview shape),
@@ -35,21 +35,17 @@ func _wave(m: String, mc: int, fm: int, s: String, sc: int, fs: int, bm := 0, bs
 		"fast_main": fm, "fast_side": fs, "boss": false, "brute_main": bm, "brute_side": bs}
 
 func _run() -> void:
-	var flag_on := true
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			_out = a.trim_prefix("--out=")
 		elif a.begins_with("--only="):
 			_only = a.trim_prefix("--only=").split(",")
-		elif a == "--flag=off":
-			flag_on = false
 	var bal = root.get_node("Balance")
 	var gs = root.get_node("GameState")
 	var camera_math = load("res://core/camera_math.gd")
 	var layout = load("res://core/map_layout.gd")
 	bal.reset()
 	bal.ui.shake_enabled = false
-	bal.data.tiers.retune_enabled = flag_on
 	if bal.data.tiers.tier_costs.size() < 3:
 		bal.data.tiers.tier_costs.append(1500)  # the shot forces tier 3
 	var main = load("res://world/main.gd").create()
@@ -81,8 +77,8 @@ func _run() -> void:
 	gs.gold = 0
 	for i in 30:
 		await physics_frame
-	print("lane character: ", gs.lane_character(), " flag on: ", flag_on)
-	var table: Dictionary = layout.branch_pads(flag_on)
+	print("lane character: ", gs.lane_character())
+	var table: Dictionary = layout.BRANCH_PADS
 	for id in layout.spots_for_tier(3):
 		for i in 2:
 			await _walk_and_grab(main, camera_math, bal, "pad_%s_%s" % [id, "ab"[i]], table[id][i])
@@ -263,7 +259,7 @@ func _tether_stand(main, camera_math, bal, spot: String, idx: int) -> Vector2:
 	var pad = main.world.branch_pads[spot][idx]
 	var xf = camera_math.camera_transform(Vector2.ZERO, bal.ui)
 	var mid: Vector3 = (pad.tether_ends[0] + pad.tether_ends[1]) * 0.5
-	var pad_at: Vector2 = load("res://core/map_layout.gd").branch_pad(spot, idx, true)
+	var pad_at: Vector2 = load("res://core/map_layout.gd").branch_pad(spot, idx)
 	return pad_at + Vector2(mid.dot(xf.basis.x), -(mid.dot(xf.basis.y) - 0.4) / sin(deg_to_rad(absf(bal.ui.camera_pitch))))
 
 ## Where the hero's feet go so that his body covers the centre of `spot`'s pad `idx` NEAR cost (0.4 m below it on the screen).
@@ -271,7 +267,7 @@ func _cost_stand(main, camera_math, bal, spot: String, idx: int) -> Vector2:
 	var pad = main.world.branch_pads[spot][idx]
 	var xf = camera_math.camera_transform(Vector2.ZERO, bal.ui)
 	var cl: Vector3 = pad._pos[pad.NEAR][pad.cost_label]
-	var pad_at: Vector2 = load("res://core/map_layout.gd").branch_pad(spot, idx, true)
+	var pad_at: Vector2 = load("res://core/map_layout.gd").branch_pad(spot, idx)
 	return pad_at + Vector2(cl.dot(xf.basis.x), -(cl.dot(xf.basis.y) - 0.4) / sin(deg_to_rad(absf(bal.ui.camera_pitch))))
 
 ## Two pictures from ONE frozen camera (looking at `cam_at`): the hero at `far_at` (the spot's stars show), then at `near_at` (its pad shows the cost, the stars are hidden). Fails unless that is what the nodes say.

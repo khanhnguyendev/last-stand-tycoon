@@ -4,7 +4,6 @@ extends SceneTree
 ## --save=<fixture>   resumed with resume_from (a NIGHT fixture enters the night at once; a DAY fixture needs --closeup)
 ## --closeup          emits closeup_requested (the night is then entered as in play)
 ## --hero=x,y         teleports the hero there and snaps the camera to its focus (default: where the save puts him)
-## --retune          sets Balance.data.tiers.retune_enabled = true before the game is created (the ?retune=1 equivalent; no schema change needed)
 ## --forcefade       replaces the diner fade's targets by a point just north of the diner, so the camera at HOME sees it hidden and the dithered fade is active for the sample
 ## --only             prints the whole-scene count only (no group table)
 ## --wait=<s>         seconds of physics frames before measuring (default 20); use --fixed-fps 60 so a process frame is one physics tick and runs agree
@@ -31,8 +30,6 @@ func _run() -> void:
 	var bal = root.get_node("Balance")
 	bal.reset()
 	bal.ui.shake_enabled = false
-	if _args.has("retune"):
-		bal.data.tiers.retune_enabled = true
 	var main = load("res://world/main.gd").create()
 	root.add_child(main)
 	_main = main

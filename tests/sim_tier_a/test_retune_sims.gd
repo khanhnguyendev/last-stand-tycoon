@@ -1,5 +1,5 @@
 extends GutTest
-## E6 Task 19, spec 8.3: three sims with the retune flag ON (set in memory in before_each, `Balance.reset()` in after_each; balance/ is never written) on fixtures recorded
+## E6 Task 19, spec 8.3: three sims (`Balance.reset()` in before_each and after_each; balance/ is never written) on fixtures recorded
 ## from real tier-bot play (`tests/sim/make_save.gd -- --fixture=retune --seed=3`: seed 3 is a tuning seed; its lane character is siege = sw, hare = west):
 ##  (a) retune_siege_night: the close-up of day 25 (tier_day 23), the threat-matched build as the bot had bought it. A wave's brutes have the siege lane (sw) as neither the drawn main nor side lane;
 ##      the plan step moves them to sw and the hares' share comes as an extra group on west. The night is held.
@@ -38,8 +38,6 @@ var _kills: Dictionary = {}  # lane -> {boar, hare, brute}: every enemy_killed o
 
 func before_each() -> void:
 	Balance.reset()
-	Balance.data.tiers.retune_enabled = true
-	assert(TierEffects.retune_on(Balance.data.tiers))
 	h = SimHarness.new(self)
 	_t0 = Time.get_ticks_msec()
 	growth = []

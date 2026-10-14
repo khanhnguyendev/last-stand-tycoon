@@ -205,11 +205,10 @@ extends Resource
 ## project's own (48 / 40); the WorldLabel pixel sizes set how large they read. The *_min_px floors are the smallest projected
 ## height in base pixels (the 720x1280 base: view heights 1680, 1280, 1280; tests/unit/test_branch_pads.gd).
 @export var branch_pad_near_m := 3.5
-@export var branch_pad_leave_m := 4.5
+## E6 Task 14 round 5: the keep band is shorter (the pad drops to FAR sooner; at least 0.3 m above branch_pad_near_m).
+## (The near glyph's height is branch_pad_icon_m, through icon_m.)
+@export var branch_pad_leave_m := 3.8
 @export var branch_pad_icon_m := 0.9
-## E6 Task 14 round 5 (flag on only, read through leave_m): the keep band is shorter (the pad drops to FAR sooner; at least 0.3 m above branch_pad_near_m).
-## The flag-off value above is untouched. (The near glyph's height is the same in both states: branch_pad_icon_m, through icon_m.)
-@export var branch_pad_leave_m_retune := 3.8
 @export var branch_pad_far_icon_m := 0.7
 @export var branch_pad_label_font := 48
 @export var branch_pad_cost_font := 48
@@ -222,10 +221,6 @@ extends Resource
 @export var branch_pad_label_min_px := 28.0
 @export var branch_pad_warn_min_px := 20.0
 
-## The keep distance for the retune state (`retune` = TierEffects.retune_on): the _retune field with the flag on, else today's.
-func leave_m(retune: bool) -> float:
-	return branch_pad_leave_m_retune if retune else branch_pad_leave_m
-
-## The near and stood glyph height (m): the same with the flag on and off.
+## The near and stood glyph height (m).
 func icon_m() -> float:
 	return branch_pad_icon_m
