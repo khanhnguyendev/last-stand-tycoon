@@ -3478,3 +3478,20 @@ recommendations and answered three questions put to them one by one.
 5. **Re-measure (the author's choice for E6-1, E6-2):** measurement set #3 from the scan, positions 6 and 7 per
    lane (east 15, 17; south-west 28, 29; west 30, 36; north 22, 26), run once with the old bot and once with the
    new, `--final`; no tuning. Set #2 is spent and refused. Positions 8 and 9 stay unseen for the next balance slice.
+6. **Result (set #3, `--final`, both complete):** the new rule makes the bot WORSE at survival on unseen seeds.
+
+   | | old bot (`eb31dc3`) | new bot (`9a86ae2`) |
+   |---|---|---|
+   | far walks over 48 runs | 1995 (about 42 a run) | 0 |
+   | lead over Longbow + Stone | +2.6, ahead on 6 of 8 | +3.5, ahead on 6 of 8 |
+   | lowest lane lead | north +2.2 | east, north +1.9 (sw +5.6, west +4.7) |
+   | retry nights, branch policies | 0 | 2 (Volley + Spike, Volley + Stone; seed 26) |
+   | lowest first tier-3 night | 40.7% | 0.0% (seed 26, Volley policies retried); Longbow 22.3% (old 70.7%) |
+   | unbranched retry nights | 3 | 11 (flag tripped: seed 29, 4) |
+   | fence tax, fixed spread | 4.9%, 4.5 | 4.9%, 4.8 |
+
+   Reading: the old bot thrashes (about 42 crossings a run), and that thrashing hid real lane differences (the lead
+   rises to +3.5 without it). But never crossing loses nights where crossing was right: seed 26 (north) first night
+   70.7% to 22.3%. The rule was chosen on seed 14 alone; set #3 shows it does not generalise. The round's
+   targets were not tuned against set #3. The bot rule is NOT merged until the author decides (escalation 16).
+   Outputs: `docs/review/media/e6/tuning/e7_set3_old_bot.txt`, `e7_set3_new_bot.txt`.
