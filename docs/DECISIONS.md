@@ -3387,3 +3387,26 @@ recommendations and answered three questions put to them one by one.
 5. **Escalation 15, open with the author:** (a) accept the lane line with the lead as one unmet target and treat
    the checkpoint as passed; (b) restate the rule as "no lane below -1.0" (the same data passes); (c) the flag stays
    off. The main session recommends (a). The round's PR is not merged while the escalation is open.
+
+**D-307 E6 checkpoint approved by the author: option (a) (2026-10-14).**
+1. **Approved:** merge PR #67, flip the flag (Task 22), then the cleanup (Task 23).
+2. **What passed on unseen seeds (hold-out set #2):** the survival and balance targets. Retry nights 0 for every
+   policy; lowest first tier-3 night 61.0%; fixed spread 5.3 (the author's comparison: 31 before; that figure's
+   source was not found in the repo by the main session); fence tax 9.7%.
+3. **What failed:** both lane-reading targets. Mean lead +1.5, ahead on 5 of 8; south-west lane -0.1. **This slice
+   delivers no measured payoff for reading lane character.**
+4. **Option (b) is rejected explicitly:** restating "no lane negative" as "no lane below -1.0" would rewrite a rule
+   after seeing unseen data.
+5. **Seed 14's cause is recorded as (ii) balance.** The bot weakness (the hero leaving its lane) remains.
+6. **Review queue, top:** lane reading does not pay (tier-4 input; levers to brainstorm there, not decided: a
+   stronger lane bias, a second siege lane, specialists with a sharper off-lane cost, threats that punish the wrong
+   branch); the first tier-3 night may be too easy (revisit with fresh seeds, no tuning now); the tier bot's hero
+   leaves its lane (fix in the next slice and re-record the affected baselines then).
+7. **Method for future slices:** hold-out seeds are unlimited. Each new balance slice starts with fresh tuning and
+   hold-out sets from the scan. A spent set is never reused.
+8. **Flip (Task 22):** a small PR setting the flag to true; the Pages deploy check; a smoke on the live `main` build
+   (iOS Simulator and emulated Pixel): a migrated v6 tier-3 save shows the lane-character step or banner at its
+   first dawn, the card shows the guarded lane, no page errors.
+9. **Cleanup (Task 23)** as specified (D-290, D-291): remove the flag, the off-state paths, the superseded values,
+   `tools/baseline_t3_off.sh` and its pins; re-record the tier-3 baseline under a new tool name; keep the flag-on
+   tests; update DECISIONS, REVIEW_QUEUE and the spec's results.

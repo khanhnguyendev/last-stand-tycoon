@@ -1,5 +1,8 @@
 # E6: tier-3 retune and lane character — checkpoint pack
 
+**Approved by the author on 2026-10-14: option (a) (D-307).** Both lane-reading targets failed and are accepted as
+unmet; option (b) was rejected. The flip and the cleanup follow.
+
 Status: hold-out set #2 was run once (`--final`, commit `b820c89`, 2026-10-13). It passes five of seven targets
 and fails the two lead targets; the lead is the weakest reading so far. Stopped for the author (escalation 15, D-306). Nothing was tuned after the run.
 Hold-out set #1 (`d3eb6c4`) is retired; its reading stays below as history. No unseen set is left.
