@@ -167,6 +167,8 @@ func test_seed_sets_are_the_pinned_literals_and_the_scan_reproduces_them() -> vo
 	var tuning := {"east": [1], "sw": [3], "west": [4], "north": [7, 14]}
 	var h1 := {"east": [2, 5], "sw": [10, 12], "west": [6, 13], "north": [9, 14]}
 	var h2 := {"east": [8, 11], "sw": [21, 23], "west": [18, 25], "north": [16, 19]}
+	var m3 := {"east": [15, 17], "sw": [28, 29], "west": [30, 36], "north": [22, 26]}
+	assert_eq(SweepMath.MEASURE_SET_3, m3, "E7 measurement set #3: scan positions 6 and 7")
 	assert_eq(SweepMath.SCAN_TUNING_SET, scan_tuning)
 	assert_eq(SweepMath.PROMOTED_TO_TUNING, {"north": [14]}, "D-304: seed 14 is promoted")
 	assert_eq(SweepMath.TUNING_SET, tuning, "D-304: the tuning set is the scan's tuning seeds plus north 14")
@@ -176,6 +178,7 @@ func test_seed_sets_are_the_pinned_literals_and_the_scan_reproduces_them() -> vo
 	assert_eq(scan.tuning, scan_tuning, "the scan, not the constant, is the rule")
 	assert_eq(scan.holdout1, h1)
 	assert_eq(scan.holdout2, h2)
+	assert_eq(scan.set3, m3, "set #3 is positions 6 and 7 of the same scan")
 	assert_eq(SweepMath.with_promotion(scan.tuning, SweepMath.PROMOTED_TO_TUNING), SweepMath.TUNING_SET)
 
 func test_with_promotion_appends_per_lane_once() -> void:
@@ -186,11 +189,17 @@ func test_with_promotion_appends_per_lane_once() -> void:
 	assert_eq(base, {"east": [1], "north": [7]}, "the input is not changed")
 	assert_eq(SweepMath.set_seeds(SweepMath.TUNING_SET), [1, 3, 4, 7, 14], "lane order east, sw, west, north; two seeds on north")
 
-func test_hold_out_set_1_is_retired_and_set_2_is_not() -> void:
+func test_hold_out_set_1_is_retired_set_2_is_spent_and_set_3_is_open() -> void:
 	var r := SweepMath.retired_gate("1")
 	assert_true(r.refused)
 	assert_string_contains(String(r.lines[0]), "retired (D-304)")
-	for ok_id in ["tuning", "2"]:
+	var sp := SweepMath.retired_gate("2")
+	assert_true(sp.refused)
+	assert_string_contains(String(sp.lines[0]), "D-307")
+	assert_string_contains(String(sp.lines[0]), "spent")
+	assert_eq(SweepMath.SPENT_SETS, ["2"])
+	assert_false(SweepMath.set_by_id("2").is_empty(), "the literal stays readable for the history")
+	for ok_id in ["tuning", "3"]:
 		assert_false(SweepMath.retired_gate(ok_id).refused, ok_id)
 		assert_true(SweepMath.retired_gate(ok_id).lines.is_empty())
 	assert_false(SweepMath.set_by_id("1").is_empty(), "the literal stays readable for the history")
@@ -222,19 +231,19 @@ func test_the_three_sets_are_disjoint_and_in_scan_order() -> void:
 	# D-304: the scan's tuning set, retired set #1 and set #2 are disjoint and in scan order; the run tuning set differs from the scan's only by the promoted seed 14,
 	# which is also in the retired set #1 literal (the one allowed overlap).
 	var seen := {}
-	for set in [SweepMath.SCAN_TUNING_SET, SweepMath.HOLDOUT_SET_1, SweepMath.HOLDOUT_SET_2]:
+	for set in [SweepMath.SCAN_TUNING_SET, SweepMath.HOLDOUT_SET_1, SweepMath.HOLDOUT_SET_2, SweepMath.MEASURE_SET_3]:
 		for s in SweepMath.set_seeds(set):
 			assert_false(seen.has(s), "seed %d is in two sets" % s)
 			seen[s] = true
-	assert_eq(seen.size(), 4 + 8 + 8)
+	assert_eq(seen.size(), 4 + 8 + 8 + 8)
 	for lane in LANES4:
-		var all: Array = SweepMath.SCAN_TUNING_SET[lane] + SweepMath.HOLDOUT_SET_1[lane] + SweepMath.HOLDOUT_SET_2[lane]
+		var all: Array = SweepMath.SCAN_TUNING_SET[lane] + SweepMath.HOLDOUT_SET_1[lane] + SweepMath.HOLDOUT_SET_2[lane] + SweepMath.MEASURE_SET_3[lane]
 		var sorted_all := all.duplicate()
 		sorted_all.sort()
-		assert_eq(all, sorted_all, "%s: tuning, then hold-out #1, then #2, each later in the scan" % lane)
+		assert_eq(all, sorted_all, "%s: tuning, then #1, #2, #3, each later in the scan" % lane)
 	var overlap: Array = []
 	for s in SweepMath.set_seeds(SweepMath.TUNING_SET):
-		assert_false(s in SweepMath.set_seeds(SweepMath.HOLDOUT_SET_2), "tuning seed %d must not be in the live hold-out set #2" % s)
+		assert_false(s in SweepMath.set_seeds(SweepMath.MEASURE_SET_3), "tuning seed %d must not be in the measurement set #3" % s)
 		if s in SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1):
 			overlap.append(s)
 	assert_eq(overlap, [14], "the only seed the run tuning set shares with the retired set #1 is the promoted one")
@@ -542,7 +551,7 @@ func test_retune_run_stats_first_night_hare_share_and_guard() -> void:
 const DATE := "2026-10-13T10:00:00+02:00"
 
 func test_final_gate_refuses_hold_out_sets_without_final() -> void:
-	for set_id in ["2"]:
+	for set_id in ["3"]:
 		var g := SweepMath.final_gate(set_id, false, "abc1234", {"history": []}, DATE)
 		assert_false(g.allowed, "set %s without --final" % set_id)
 		assert_string_contains(g.lines[0], "REFUSED")
@@ -562,6 +571,53 @@ func test_final_gate_refuses_the_retired_set_1_always() -> void:
 		assert_eq(g.lines, SweepMath.retired_gate("1").lines, "the same message as retired_gate")
 		assert_eq(g.record, {"history": []}, "nothing recorded")
 
+## D-307: the spent set #2 is refused always, naming D-307; nothing is recorded.
+func test_final_gate_refuses_the_spent_set_2_always() -> void:
+	for final_flag in [false, true]:
+		var g := SweepMath.final_gate("2", final_flag, "abc1234", {"history": []}, DATE)
+		assert_false(g.allowed, "spent set #2, final=%s" % final_flag)
+		assert_string_contains(g.lines[0], "D-307")
+		assert_eq(g.lines, SweepMath.retired_gate("2").lines)
+		assert_eq(g.record, {"history": []}, "nothing recorded")
+
+## E7: set #3 needs --final; it may run twice with different bot rules, never twice with the same rule.
+func test_final_gate_set_3_needs_final_and_runs_once_per_bot_rule() -> void:
+	var no := SweepMath.final_gate("3", false, "abc1234", {"history": []}, DATE, 32, "old")
+	assert_false(no.allowed)
+	assert_string_contains(no.lines[0], "--final")
+	var first := SweepMath.final_gate("3", true, "abc1234", {"history": []}, DATE, 32, "old")
+	assert_true(first.allowed)
+	assert_eq(first.record.history[0].bot_rule, "old")
+	assert_string_contains(_line(first, "FINAL set=#3"), "bot_rule=old")
+	var done := SweepMath.final_finish(first.record, false)
+	var second := SweepMath.final_gate("3", true, "def5678", done, DATE, 32, "new")
+	assert_true(second.allowed, "a different bot rule is the second allowed run")
+	assert_eq(second.record.history.size(), 2)
+	assert_eq(second.record.history[1].bot_rule, "new")
+	assert_string_contains(_line(second, "FINAL_REPEAT"), "abc1234")
+	var done2 := SweepMath.final_finish(second.record, true)
+	for rule in ["old", "new"]:
+		var again := SweepMath.final_gate("3", true, "fff9999", done2, DATE, 32, rule)
+		assert_false(again.allowed, "a repeat with rule %s is refused" % rule)
+		assert_string_contains(again.lines[0], "bot rule '%s'" % rule)
+		assert_eq(again.record, done2, "nothing recorded when refused")
+	var bad := SweepMath.final_gate("3", true, "abc1234", {"history": []}, DATE, 32, "weird")
+	assert_false(bad.allowed)
+	# an entry from a set #1 / #2 run never blocks set #3
+	var other := {"history": [{"set": "2", "commit": "b820c89", "date": DATE, "days": 32, "done": true, "ok": false}]}
+	assert_true(SweepMath.final_gate("3", true, "abc1234", other, DATE, 32, "new").allowed)
+
+func test_far_walks_total_line_sums_per_policy() -> void:
+	var rows: Array = [{"policy": "all_a", "far_walks": 2}, {"policy": "all_a", "far_walks": 3}, {"policy": "threat", "far_walks": 1}, {"policy": "mixed"}]
+	var line := SweepMath.far_walks_total_line(rows)
+	assert_string_contains(line, "FAR_WALKS_TOTAL ")
+	assert_string_contains(line, "all_a=5")
+	assert_string_contains(line, "threat=1")
+	assert_string_contains(line, "mixed=0")
+	assert_string_contains(line, "all=6")
+	var kv := {"mean": "0.5", "hard_break_day": "-1"}
+	assert_eq(SweepMath.run_row(5, "east", "threat", kv, {"x": "1"}, {"far_walks": "4", "first_t3_frac": "0.5"}).far_walks, 4)
+
 func test_final_gate_refuses_final_with_the_tuning_set() -> void:
 	var g := SweepMath.final_gate("tuning", true, "abc1234", {"history": []}, DATE)
 	assert_false(g.allowed, "--final without --set must not run the tuning set silently")
@@ -571,17 +627,17 @@ func test_final_gate_refuses_final_with_the_tuning_set() -> void:
 
 func test_final_gate_refuses_a_dirty_tree_and_an_unknown_commit() -> void:
 	for c in ["abc1234-dirty", "unknown", ""]:
-		var g := SweepMath.final_gate("2", true, c, {"history": []}, DATE)
+		var g := SweepMath.final_gate("3", true, c, {"history": []}, DATE)
 		assert_false(g.allowed, "commit '%s'" % c)
 		assert_string_contains(g.lines[0], "REFUSED")
 		assert_eq(g.record, {"history": []}, "nothing recorded")
-	assert_true(SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE).allowed, "a clean commit is fine")
+	assert_true(SweepMath.final_gate("3", true, "abc1234", {"history": []}, DATE).allowed, "a clean commit is fine")
 
 func test_final_gate_records_set_commit_and_date_then_finish_marks_done_and_ok() -> void:
-	var g := SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE)
+	var g := SweepMath.final_gate("3", true, "abc1234", {"history": []}, DATE)
 	assert_true(g.allowed)
-	assert_string_contains(g.lines[0], "FINAL set=#2 commit=abc1234")
-	assert_eq(g.record, {"history": [{"set": "2", "commit": "abc1234", "date": DATE, "days": 32, "done": false, "ok": false}]}, "recorded at the start: done is false until the run ends")
+	assert_string_contains(g.lines[0], "FINAL set=#3 commit=abc1234")
+	assert_eq(g.record, {"history": [{"set": "3", "commit": "abc1234", "date": DATE, "days": 32, "bot_rule": "new", "done": false, "ok": false}]}, "recorded at the start: done is false until the run ends")
 	var fin := SweepMath.final_finish(g.record, true)
 	assert_eq(fin.history[0].done, true)
 	assert_eq(fin.history[0].ok, true)
@@ -589,20 +645,20 @@ func test_final_gate_records_set_commit_and_date_then_finish_marks_done_and_ok()
 	var bad := SweepMath.final_finish(g.record, false)
 	assert_eq([bad.history[0].done, bad.history[0].ok], [true, false])
 
-## A second --final on set #2 at another commit shows in the output; every earlier entry (any set, here a retired set #1 entry already in the history file) is printed.
+## A second --final on set #3 (the other bot rule) at another commit shows in the output; every earlier entry (any set, here a retired set #1 entry already in the history file) is printed.
 func test_final_gate_shows_every_earlier_entry_and_a_repeat_at_a_different_commit() -> void:
 	var old := {"history": [{"set": "1", "commit": "abc1234", "date": DATE, "days": 32, "done": true, "ok": false}]}
-	var two := SweepMath.final_gate("2", true, "bbb2222", old, DATE)
-	assert_eq(_line(two, "FINAL_REPEAT"), "", "set #2 was never run")
+	var two := SweepMath.final_gate("3", true, "bbb2222", old, DATE, 32, "old")
+	assert_eq(_line(two, "FINAL_REPEAT"), "", "set #3 was never run")
 	assert_string_contains(_line(two, "FINAL_EARLIER set=#1 commit=abc1234"), "ok=false")
-	var again := SweepMath.final_gate("2", true, "def5678", SweepMath.final_finish(two.record, false), DATE)
+	var again := SweepMath.final_gate("3", true, "def5678", SweepMath.final_finish(two.record, false), DATE, 32, "new")
 	assert_true(again.allowed)
 	var earlier: Array = again.lines.filter(func(l): return String(l).begins_with("FINAL_EARLIER"))
 	assert_eq(earlier.size(), 2, "one line per earlier entry, both sets")
 	assert_string_contains(_line(again, "FINAL_REPEAT"), "bbb2222")
 	assert_string_contains(_line(again, "FINAL_REPEAT"), "def5678")
 	assert_eq(again.record.history.size(), 3)
-	var same := SweepMath.final_gate("2", true, "bbb2222", two.record, DATE)
+	var same := SweepMath.final_gate("3", true, "bbb2222", two.record, DATE, 32, "new")
 	assert_string_contains(_line(same, "FINAL_REPEAT"), "same commit")
 
 func test_parse_record_accepts_empty_and_valid_text_and_rejects_a_broken_file() -> void:
@@ -763,16 +819,16 @@ func test_retune_run_stats_first_night_retries_and_the_worst_first_attempt() -> 
 
 func test_final_gate_refuses_any_days_but_32_and_records_days() -> void:
 	for d in [31, 33, 14]:
-		var g := SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE, d)
+		var g := SweepMath.final_gate("3", true, "abc1234", {"history": []}, DATE, d)
 		assert_false(g.allowed, "days %d" % d)
 		assert_string_contains(g.lines[0], "32")
-	var ok := SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE, 32)
+	var ok := SweepMath.final_gate("3", true, "abc1234", {"history": []}, DATE, 32)
 	assert_true(ok.allowed)
 	assert_eq(ok.record.history[0].days, 32)
 	assert_true(SweepMath.final_gate("tuning", false, "abc1234", {"history": []}, DATE, 5).allowed, "the tuning set may use any days")
 
 func test_final_finish_marks_not_ok_when_the_commit_changed_during_the_run() -> void:
-	var g := SweepMath.final_gate("2", true, "abc1234", {"history": []}, DATE, 32)
+	var g := SweepMath.final_gate("3", true, "abc1234", {"history": []}, DATE, 32)
 	var same := SweepMath.final_finish(g.record, true, "abc1234")
 	assert_true(same.history[0].ok)
 	var moved := SweepMath.final_finish(g.record, true, "def5678")

@@ -234,8 +234,18 @@ const TUNING_SET := {"east": [1], "sw": [3], "west": [4], "north": [7, 14]}
 ## RETIRED (D-304): kept as a literal for the history only (its results stay in tests/sim/retune_final.json); it is never run again, `--set=1` is refused.
 const HOLDOUT_SET_1 := {"east": [2, 5], "sw": [10, 12], "west": [6, 13], "north": [9, 14]}
 const HOLDOUT_SET_2 := {"east": [8, 11], "sw": [21, 23], "west": [18, 25], "north": [16, 19]}
+## SPENT (D-307): hold-out set #2 was run (and failed) at b820c89; it is never run again, `--set=2` is refused, its results stay in the history.
+## MEASUREMENT set #3 (E7, D-310, author rule D-307.7: each slice draws fresh sets from the scan, a spent set is never reused): scan positions 6 and 7 per lane. A measurement
+## set for the bot change, no tuning on it. Scan positions 8 and 9 are reserved and unseen: they are NOT named anywhere in code.
+const MEASURE_SET_3 := {"east": [15, 17], "sw": [28, 29], "west": [30, 36], "north": [22, 26]}
 ## The hold-out sets that may no longer be run (D-304).
 const RETIRED_SETS := ["1"]
+## The hold-out sets that are spent (D-307): refused always, like the retired set.
+const SPENT_SETS := ["2"]
+## The scan positions the sets use (1-based, per lane): 7 seeds per lane are scanned (tuning 1, set #1 2-3, set #2 4-5, set #3 6-7); 8 and 9 stay unnamed.
+const SCAN_PER_LANE := 7
+## The bot rules a report run may use (E7, D-310): `new` = the shipped TierBot, `old` = without the no-far-walk rule.
+const BOT_RULES := ["new", "old"]
 const FIXED_PAIRS := ["all_a", "all_b", "mixed", "volley_stone"]
 const RETUNE_POLICIES := ["all_a", "all_b", "mixed", "volley_stone", "threat", "unbranched"]
 ## Policies whose towers are Longbow on the siege lane (all_a, mixed: every tower; threat: the tower covering the siege lane, spec 4.4).
@@ -249,7 +259,7 @@ const AHEAD_MARGIN := 1.0
 const FINAL_DAYS := 32
 
 ## The scan. `siege_of`: Callable(seed) -> siege lane name. Returns {tuning, holdout1, holdout2}, each {lane: [seeds]} in scan order.
-static func seed_scan(siege_of: Callable, lanes: Array, per_lane := 5, start := 1) -> Dictionary:
+static func seed_scan(siege_of: Callable, lanes: Array, per_lane := SCAN_PER_LANE, start := 1) -> Dictionary:
 	var found := {}
 	for l in lanes:
 		found[l] = []
@@ -266,11 +276,12 @@ static func seed_scan(siege_of: Callable, lanes: Array, per_lane := 5, start := 
 			break
 		s += 1
 		guard += 1
-	var out := {"tuning": {}, "holdout1": {}, "holdout2": {}}
+	var out := {"tuning": {}, "holdout1": {}, "holdout2": {}, "set3": {}}
 	for l in lanes:
 		out.tuning[l] = found[l].slice(0, 1)
 		out.holdout1[l] = found[l].slice(1, 3)
 		out.holdout2[l] = found[l].slice(3, 5)
+		out.set3[l] = found[l].slice(5, 7)
 	return out
 
 ## The seeds of a set, lane order of SIEGE_LANES, scan order inside a lane.
@@ -301,40 +312,49 @@ static func with_promotion(scan_tuning: Dictionary, promoted: Dictionary) -> Dic
 static func retired_gate(set_id: String) -> Dictionary:
 	if set_id in RETIRED_SETS:
 		return {"refused": true, "lines": ["REFUSED: hold-out set #%s is retired (D-304): its results stay in the history (tests/sim/retune_final.json); no run was started" % set_id]}
+	if set_id in SPENT_SETS:
+		return {"refused": true, "lines": ["REFUSED: hold-out set #%s is spent (D-307): a spent set is never reused; its results stay in the history (tests/sim/retune_final.json); no run was started" % set_id]}
 	return {"refused": false, "lines": []}
 
-## The set the report runs: "tuning", "1" or "2" -> its dictionary ({} for anything else).
+## The set the report runs: "tuning", "1", "2" or "3" -> its dictionary ({} for anything else).
 static func set_by_id(set_id: String) -> Dictionary:
-	return {"tuning": TUNING_SET, "1": HOLDOUT_SET_1, "2": HOLDOUT_SET_2}.get(set_id, {})
+	return {"tuning": TUNING_SET, "1": HOLDOUT_SET_1, "2": HOLDOUT_SET_2, "3": MEASURE_SET_3}.get(set_id, {})
 
 ## D-290: hold-out sets run only with --final, never on a dirty tree or an unknown commit (the recorded commit must identify the values), and `--final` with the tuning set
 ## is refused (it would run without a FINAL line or a record). The record is {"history": [{set, commit, date, done, ok}]} (tests/sim/retune_final.json, committed with the
 ## output); `date` is passed in (the commit's date from git: no clock in the maths). Returns {allowed, lines, record}: the header lines and the record with this run appended
 ## (done=false, ok=false until final_finish). Every earlier entry is printed as FINAL_EARLIER; a repeat of the same set adds FINAL_REPEAT.
-static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary, date := "", days := FINAL_DAYS) -> Dictionary:
+##
+## E7 (D-310): set #3 may be run twice, once per bot rule (`bot_rule`, "new" or "old", stored in the entry): a second run of set #3 is allowed only when its bot_rule differs from
+## every earlier set-#3 entry (an entry without a bot_rule counts as "new"); a repeat with a rule already used is refused. Sets #1 and #2 are refused always (retired, spent).
+static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary, date := "", days := FINAL_DAYS, bot_rule := "new") -> Dictionary:
 	var refuse := func(msg: String) -> Dictionary:
 		return {"allowed": false, "lines": ["REFUSED: " + msg], "record": record}
 	if set_id == "tuning":
 		if final_flag:
-			return refuse.call("--final is for the hold-out set (--set=2); the tuning set runs without it")
+			return refuse.call("--final is for the hold-out set (--set=3); the tuning set runs without it")
 		return {"allowed": true, "lines": [], "record": record}
-	if set_id in RETIRED_SETS:  # D-304: refused here too, with or without --final (the report also checks retired_gate first)
+	if set_id in RETIRED_SETS or set_id in SPENT_SETS:  # D-304, D-307: refused here too, with or without --final (the report also checks retired_gate first)
 		return {"allowed": false, "lines": retired_gate(set_id).lines, "record": record}
-	if not set_id in ["2"]:
-		return refuse.call("unknown set '%s' (tuning|2)" % set_id)
+	if not set_id in ["3"]:
+		return refuse.call("unknown set '%s' (tuning|3)" % set_id)
+	if not bot_rule in BOT_RULES:
+		return refuse.call("unknown bot rule '%s' (new|old)" % bot_rule)
 	if not final_flag:
 		return refuse.call("hold-out set #%s runs only with --final (D-290); no run was started" % set_id)
 	if commit == "" or commit == "unknown" or commit.ends_with("-dirty"):
 		return refuse.call("a final run needs a clean tree at a known commit (got '%s'): the recorded commit must identify the values (D-290)" % commit)
 	if days != FINAL_DAYS:
 		return refuse.call("a final run is %d days (--days=%d given): the targets are stated for the 32-day runs" % [FINAL_DAYS, days])
-	var lines: Array = ["FINAL set=#%s commit=%s date=%s days=%d" % [set_id, commit, date, days]]
+	var lines: Array = ["FINAL set=#%s commit=%s date=%s days=%d bot_rule=%s" % [set_id, commit, date, days, bot_rule]]
 	var history: Array = record.get("history", [])
 	var differs := ""
 	var same_set := false
 	for e in history:
 		lines.append("FINAL_EARLIER set=#%s commit=%s date=%s done=%s ok=%s" % [e.set, e.commit, e.get("date", ""), str(e.get("done", false)).to_lower(), str(e.get("ok", false)).to_lower()])
 		if String(e.set) == set_id:
+			if String(e.get("bot_rule", "new")) == bot_rule:
+				return refuse.call("set #%s was already run with bot rule '%s' (commit %s): a measurement set runs once per bot rule (D-307, D-310); no run was started" % [set_id, bot_rule, e.commit])
 			same_set = true
 			if String(e.commit) != commit:
 				differs = String(e.commit)
@@ -345,7 +365,7 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 			lines.append("FINAL_REPEAT: set #%s was already run at the same commit %s" % [set_id, commit])
 	var out := record.duplicate(true)
 	var list: Array = out.get("history", [])
-	list.append({"set": set_id, "commit": commit, "date": date, "days": days, "done": false, "ok": false})
+	list.append({"set": set_id, "commit": commit, "date": date, "days": days, "bot_rule": bot_rule, "done": false, "ok": false})
 	out["history"] = list
 	return {"allowed": true, "lines": lines, "record": out}
 
@@ -447,7 +467,7 @@ static func run_row(seed: int, lane: String, policy: String, kv: Dictionary, ld:
 		"failed": hard, "failed_reason": "hard break on day %s" % kv.get("hard_break_day", "?") if hard else "",
 		"max_retries": int(rt.get("max_retries", "0")), "max_retries_day": int(rt.get("max_retries_day", "-1")), "unspent_before": _gold_array(String(rt.get("unspent_before", "-"))),
 		"unspent_after": _gold_array(String(rt.get("unspent_after", "-"))), "unspent_last": int(kv.get("unspent_last_day", "0")), "ladder_done": int(ld.get("ladder_done_day", "-1")) >= 0,
-		"first_t3_retries": int(rt.get("first_t3_retries", "0")), "worst_night_frac": float(rt.get("worst_night_frac", "-1")), "worst_night_day": int(rt.get("worst_night_day", "-1"))}
+		"first_t3_retries": int(rt.get("first_t3_retries", "0")), "far_walks": int(rt.get("far_walks", "0")), "worst_night_frac": float(rt.get("worst_night_frac", "-1")), "worst_night_day": int(rt.get("worst_night_day", "-1"))}
 	if ld.is_empty():
 		row.failed = true
 		row.failed_reason = "LADDER line missing"
@@ -765,6 +785,19 @@ static func lane_cap_guard(rows: Array) -> Dictionary:
 	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return float(sub.map(func(r): return int(r.guard_hits)).reduce(func(a, b): return a + b, 0)), "hits %.0f")}
 
 ## The whole report. `expected`: [[seed, policy], ...]. A missing run, a run with `failed`, or a run that never reached tier 3 (first_t3_frac < 0) = NO verdict lines, exit 1.
+## Information line (not a target, E7 D-310): FAR_WALKS summed per policy over the seeds, from each run's RETUNE far_walks=.
+static func far_walks_total_line(rows: Array) -> String:
+	var parts: Array = []
+	var all := 0
+	for p in RETUNE_POLICIES:
+		var n := 0
+		for r in rows:
+			if r.policy == p:
+				n += int(r.get("far_walks", 0))
+		all += n
+		parts.append("%s=%d" % [p, n])
+	return "FAR_WALKS_TOTAL %s all=%d (information, not a target)" % [" ".join(parts), all]
+
 static func retune_report(rows: Array, expected: Array, final := false) -> Dictionary:
 	var problems: Array = []
 	for e in expected:
@@ -788,4 +821,5 @@ static func retune_report(rows: Array, expected: Array, final := false) -> Dicti
 	lines.append_array(unbranched_report(rows).lines)
 	lines.append_array(worst_night_lines(rows))
 	lines.append_array(unspent_lines(rows))
+	lines.append(far_walks_total_line(rows))
 	return {"exit": 0, "ok": failed.is_empty(), "failed": failed, "lines": lines}
