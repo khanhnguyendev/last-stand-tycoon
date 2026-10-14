@@ -3410,3 +3410,10 @@ recommendations and answered three questions put to them one by one.
 9. **Cleanup (Task 23)** as specified (D-290, D-291): remove the flag, the off-state paths, the superseded values,
    `tools/baseline_t3_off.sh` and its pins; re-record the tier-3 baseline under a new tool name; keep the flag-on
    tests; update DECISIONS, REVIEW_QUEUE and the spec's results.
+10. **The flip as built (PR #68):** tests that pinned the off-state game by content (27 unit tests, tier-b sims 5,
+    6 and 7, the tier-3 fixture maker) set the flag off explicitly until the cleanup; no assertion changed. Four
+    flag tests assert the new default, true. The sweep's `--retune` now follows the build default when absent
+    (on); `--retune=off` forces the off state and `tools/baseline_t3_off.sh` passes it. So `report_policies.gd` and
+    the plain tier sweep now measure the flag-on game: not like for like with D-280. `?retune=1` is a no-op and
+    there is no debug off view until the cleanup. A v6 tier-3 save resumed mid-night is replanned with its lane
+    character (D-286.4).
