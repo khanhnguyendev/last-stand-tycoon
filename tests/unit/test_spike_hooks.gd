@@ -134,6 +134,7 @@ func test_a_monster_killed_by_thorns_counts_one_kill_and_drops_its_steaks() -> v
 # --- pass damage ---
 
 func test_pass_damage_queries_follow_the_kind() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(&"spike")
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 10.0, 1e-4)
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"baron"), 10.0, 1e-4)
@@ -142,6 +143,7 @@ func test_pass_damage_queries_follow_the_kind() -> void:
 	assert_eq(GameState.fence_pass_damage(FENCE, &"boss"), 0.0)
 
 func test_a_hare_loses_the_literal_pass_damage_exactly_once() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(&"spike")
 	var h := _mon(&"hare")
 	var line := _line(h)
@@ -155,6 +157,7 @@ func test_a_hare_loses_the_literal_pass_damage_exactly_once() -> void:
 	assert_almost_eq(_lost(h), 10.0, 1e-4, "still one hit in total (a per-tick or per-frame-past-the-line hit fails)")
 
 func test_the_baron_takes_pass_damage_once_too() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(&"spike")
 	var b := _mon(&"baron")
 	_walk_until(b, b.path_length())
@@ -209,6 +212,7 @@ func test_a_monster_killed_by_pass_damage_counts_one_kill_and_drops_its_steaks()
 	assert_eq(main.world.steak_pool.active().size() - steaks0, Balance.data.economy.steaks_per_kill)
 
 func test_a_recycled_monster_can_take_pass_damage_in_its_next_life() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(&"spike")
 	var h := _mon(&"hare")
 	_walk_until(h, h.path_length())

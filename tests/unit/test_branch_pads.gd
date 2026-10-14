@@ -408,6 +408,7 @@ func test_tiers_1_and_2_never_refresh_a_spot_when_the_world_syncs_its_pads() -> 
 # --- the preview (D-263.3) ------------------------------------------------------------------------------------------------
 
 func test_standing_inside_a_pad_shows_the_preview_before_any_gold_moves_and_leaving_hides_it() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	await _start()
 	_max("tower_w")
 	GameState.gold = 400
@@ -484,6 +485,7 @@ func test_fence_pads_carry_the_broken_fence_line_and_tower_pads_do_not() -> void
 				assert_null(p.warn_icon)
 
 func test_the_fence_warning_is_part_of_the_preview_and_shows_only_while_standing_inside() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	await _start()
 	_max("fence_n")
 	var pad: BranchPad = _pads("fence_n")[1]
@@ -525,6 +527,7 @@ func test_the_branch_glyphs_are_distinct_and_fully_triangulated() -> void:
 # --- stages: progressive disclosure -----------------------------------------------------------------------------------------
 
 func test_far_pads_show_a_depth_tested_glyph_and_no_text_anywhere() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	await _start()
 	for id in SEVEN:  # the tier-3 dawn: the seven old buildings stand at level 3, the two new spots are not built yet
 		_max(id)
@@ -543,6 +546,7 @@ func test_far_pads_show_a_depth_tested_glyph_and_no_text_anywhere() -> void:
 		assert_almost_eq(p.icon.scale.x, Balance.ui.branch_pad_far_icon_m, 1e-6)
 
 func test_near_stage_shows_the_cost_on_exactly_the_focus_spots_two_pads() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	await _start()
 	_all_max()
 	var near := _pad_pos("tower_nw", 0) + Vector2(1.0, 3.0)  # 3 m or so from the pad, not on one
@@ -566,6 +570,7 @@ func test_near_stage_shows_the_cost_on_exactly_the_focus_spots_two_pads() -> voi
 	assert_eq(other.stage, BranchPad.FAR, "another spot stays far")
 
 func test_on_stage_shows_name_and_preview_line_on_exactly_the_stood_pad_and_leaving_reverts() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	await _start()
 	for id in SEVEN:
 		_max(id)
@@ -693,6 +698,7 @@ func test_at_night_nothing_of_any_pad_shows() -> void:
 			assert_true(p.is_physics_processing(), "a shown pad processes")
 
 func test_the_focus_spot_keeps_with_hysteresis_and_is_computed_once_per_frame() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	await _start()
 	_all_max()
 	var base := _pad_pos("tower_nw", 1)  # (-3.0, -5.5)
@@ -737,6 +743,7 @@ func test_the_focus_spot_is_the_nearest_branchable_one_and_ties_follow_the_spot_
 	assert_eq(BranchPad.focus_spot(), "tower_ne", "nearest wins")
 
 func test_the_stage_never_changes_what_a_tick_pays() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	await _start()
 	_max("tower_w")
 	_max("fence_n")
@@ -1171,6 +1178,7 @@ func _near_hero_at(id: String, dist: float, approach: String) -> Vector2:
 ## the worst approach fails the cost floor; a focus that never reaches the spot fails the focus line; an item moved away from its pad fails
 ## the attachment.
 func test_near_stage_meets_the_floors_on_screen_and_beside_its_pad_at_every_spot() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	await _start()
 	_all_max()
 	var ui := Balance.ui
@@ -1399,6 +1407,7 @@ func _fold(findings: Array, into: Dictionary) -> void:
 		into[f.key] = Vector2(maxf(cur.x, f.val.x), maxf(cur.y, f.val.y))
 
 func test_with_the_hero_on_any_pad_the_stack_is_on_screen_and_clear_of_everything() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	await _start()
 	_all_max()
 	var plans: Array = []

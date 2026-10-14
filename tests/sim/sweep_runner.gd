@@ -6,7 +6,7 @@ extends Node
 ## and the run then asserts that no brute died, no wave came from the south-west and no branch was chosen (the Task 21 assertion, D-279):
 ## a TIER3_GATE line, exit code 1 on a violation. Tier rows end with brute_kills,sw_waves,branches (per day, appended after the old columns; sw_waves counts waves with a south-west lane, formerly named sw_spawns).
 ## `--retune=on` (E6, D-286) sets `Balance.data.tiers.retune_enabled = true` in memory after Balance.reset() and before the game is created (it never writes balance/); the run then
-## plays the retuned tier 3 (lane character, specialists) and prints one more tier line, RETUNE (below), for tests/sim/report_retune.gd. `--retune=off` (the default) prints nothing new.
+## plays the retuned tier 3 (lane character, specialists) and prints one more tier line, RETUNE (below), for tests/sim/report_retune.gd. `--retune=off` forces the flag false in memory; without --retune the build's default stands (on since the flip, D-307). Neither prints anything new.
 ## After the SWEEP line it prints a RETRIES line (days, median, max_before_day8, max, target_ok) for the D-184 retries-per-night target.
 ## Tuning overrides (in memory only, after Balance.reset(); printed on the first output line; they apply to EVERY bot, not only the tier bot (not rejected for the
 ## planner and upgrader bots: a study may run those on a changed balance on purpose)): `--tier3-cap=<n>` (tier_cap[3]),
@@ -49,7 +49,7 @@ func _ready() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	var args := {"seed": "20260930", "days": "14", "bot": "planner", "policy": "threat", "tier3": "on", "tier3-cap": "", "brute-caps": "", "brute-hp": "", "fence-mult": "", "out": "", "cols": "", "retune": "off"}
+	var args := {"seed": "20260930", "days": "14", "bot": "planner", "policy": "threat", "tier3": "on", "tier3-cap": "", "brute-caps": "", "brute-hp": "", "fence-mult": "", "out": "", "cols": "", "retune": ""}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if kv.size() == 2:
@@ -62,8 +62,8 @@ func _run() -> void:
 		push_error("bad --policy=%s (all_a|all_b|mixed|threat|volley_stone|unbranched) or --tier3=%s (on|off)" % [args.policy, args.tier3])
 		get_tree().quit(2)
 		return
-	if not String(args.retune) in ["on", "off"]:
-		push_error("bad --retune=%s (on|off)" % args.retune)
+	if not String(args.retune) in ["", "on", "off"]:
+		push_error("bad --retune=%s (on|off, or absent: the build default)" % args.retune)
 		get_tree().quit(2)
 		return
 	if not String(args.bot) == "tier" and (args.policy != "threat" or args.tier3 != "on"):
@@ -77,6 +77,9 @@ func _run() -> void:
 		Balance.data.tiers.retune_enabled = true  # in memory only (never saved), before the game exists; production reads it through TierEffects.retune_on
 		assert(TierEffects.retune_on(Balance.data.tiers))
 		ov.append("retune=on")
+	elif String(args.retune) == "off":
+		Balance.data.tiers.retune_enabled = false  # `--retune=off` forces the off state explicitly (D-307: the default is on since the flip)
+		assert(not TierEffects.retune_on(Balance.data.tiers))
 	if String(args["tier3-cap"]) != "":
 		Balance.data.tiers.tier_cap[3] = int(args["tier3-cap"])
 		ov.append("tier3-cap=%d" % int(args["tier3-cap"]))

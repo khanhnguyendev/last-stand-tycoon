@@ -102,6 +102,7 @@ func test_built_unbranched_tower_attacker_is_level_stats() -> void:
 # --- Longbow -----------------------------------------------------------------
 
 func test_longbow_attacker_equals_branch_balance() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(TOWER, &"longbow")
 	var a := spot.attacker
 	var lb := Balance.data.branches.longbow
@@ -269,6 +270,7 @@ func _base_plan() -> void:
 	_first_wave_mult(WaveMath.hp_mult(12, 0, Balance.data.wave))
 
 func test_spike_values_at_the_base_plan() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(FENCE, &"spike")
 	_base_plan()
 	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0, 1e-6)
@@ -276,6 +278,7 @@ func test_spike_values_at_the_base_plan() -> void:
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"baron"), 10.0, 1e-6)
 
 func test_spike_values_grow_with_the_plan_pressure() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_branch(FENCE, &"spike")
 	_first_wave_mult(WaveMath.hp_mult(15, 0, Balance.data.wave))
 	assert_almost_eq(Balance.data.wave.hp_growth, 0.15, 1e-9)
@@ -283,6 +286,7 @@ func test_spike_values_grow_with_the_plan_pressure() -> void:
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 11.698, 0.001)
 
 func test_spike_scale_reads_the_first_wave_of_a_real_plan() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	GameState.day = 20
 	GameState.debug_set_tier(3, 17)
 	_branch(FENCE, &"spike")

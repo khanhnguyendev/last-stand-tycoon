@@ -370,6 +370,7 @@ func _only(bot: TierBot, keep: String) -> void:
 			GameState.buildings[id].branch = "spike" if MapLayout.spot_kind(id) == "fence" else "volley"
 
 func test_the_default_policy_reads_the_nights_plan_for_a_tower() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	var bot := _one_branch_bot()
 	_only(bot, "tower_nw")
 	GameState.lane_plan = [_wave("west", 2)]  # tower_nw covers west
@@ -378,6 +379,7 @@ func test_the_default_policy_reads_the_nights_plan_for_a_tower() -> void:
 	assert_eq(bot.next_purchase(), "pad_tower_nw_b", "Volley")
 
 func test_the_default_policy_reads_the_nights_plan_for_a_fence() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	var bot := _one_branch_bot()
 	_only(bot, "fence_w")
 	GameState.lane_plan = [_wave("west", 2)]

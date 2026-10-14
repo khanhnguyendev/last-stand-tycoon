@@ -338,6 +338,7 @@ func test_branch_math_whole_hits() -> void:
 	assert_almost_eq(BranchMath.kills_per_second(39.75, bb.tower(&"volley"), 1), 1.0 / 0.5 / 4.0, 1e-9, "one target: one projectile")
 
 func test_spike_scale_is_now_over_base() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	assert_almost_eq(BranchMath.spike_scale(4.0, 2.0), 2.0, 1e-9)
 	var base := BranchMath.spike_base_mult(bd.wave, bd.tiers)
 	assert_almost_eq(base, 2.65, 1e-9, "first wave at pressure 12")
