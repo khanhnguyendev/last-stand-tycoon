@@ -1889,6 +1889,7 @@ func test_flag_on_a_spots_level_pips_stay_hidden_while_the_hero_stands_on_its_pa
 
 ## Flag off: nothing changes. Catches a rule that does not read the flag.
 func test_flag_off_the_level_pips_never_hide_for_a_pad() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	await _start()
 	_all_max()
 	var c := _pad_pos("tower_nw", 0)
@@ -2448,6 +2449,7 @@ func test_flag_on_a_cost_beyond_half_a_metre_has_a_tether_drawn_with_the_labels_
 ## With the flag off nothing changes: the hero's materials are the untouched originals (opaque, priority 0), the pile has no override, the pads have no tether
 ## and every pad node draws at priority 0.
 func test_flag_off_the_hero_and_the_pad_labels_keep_their_render_state() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	await _start()
 	_all_max()
 	await _settle()
@@ -2619,6 +2621,7 @@ func test_flag_on_the_stage_never_changes_what_a_tick_pays() -> void:
 
 ## The flag-off state cannot drift: today's pad table, the words on a stood pad and the two pinned lists (hashes of the literals above).
 func test_flag_off_the_pad_table_the_stood_pad_labels_and_the_pinned_lists_are_todays() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	const TODAY := {
 		"tower_sw": [Vector2(-7.7, 3.1), Vector2(-5.4, 4.1)], "fence_sw": [Vector2(-5.6, 7.8), Vector2(-1.0, 10.7)],
 		"fence_w": [Vector2(-9.5, -3.7), Vector2(-6.1, -6.1)], "fence_n": [Vector2(-2.5, -10.4), Vector2(2.5, -10.4)],

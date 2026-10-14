@@ -49,6 +49,7 @@ func _tier3_day(seed: int, d: int) -> void:
 
 ## Mutation: apply is called with the flag off (the plan, hence its hash, changes for any night with brutes or hares).
 func test_flag_off_tier3_plan_and_schedule_are_what_they_were() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	var tb := Balance.data.tiers
 	for pin in OFF_PINS:
 		_tier3_day(pin[0], pin[1])
@@ -63,6 +64,7 @@ func test_flag_off_tier3_plan_and_schedule_are_what_they_were() -> void:
 
 ## One plan spelled out (seed 20260930, day 17, wave 0), so a hash mismatch above can be read.
 func test_flag_off_wave_literal() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	_tier3_day(20260930, 17)
 	assert_eq(GameState.lane_plan[0], {"main": "sw", "side": "west", "main_count": 10, "side_count": 9, "hp_mult": 2.65, "fast_main": 4,
 		"fast_side": 3, "boss": false, "brute_main": 0, "brute_side": 0})

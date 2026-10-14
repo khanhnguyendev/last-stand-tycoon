@@ -470,6 +470,7 @@ func test_with_the_flag_on_the_bot_buys_longbow_on_the_siege_lane_whatever_tonig
 
 ## Flag off, the same seed: the plan decides (no brute on the tower's lanes tonight gives Volley).
 func test_with_the_flag_off_the_bot_still_reads_the_nights_plan() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	var bot := _one_branch_bot()
 	assert_true(GameState.lane_character().is_empty())
 	_only(bot, "tower_nw")
@@ -644,12 +645,14 @@ const FLAG_ON_BRANCH := {
 func test_every_branch_policy_keeps_todays_order_with_an_empty_character() -> void:
 	for pol in TODAY_FLAG_OFF:
 		Balance.reset()
+		Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 		var bot := _one_branch_bot()
 		bot.policy = pol
 		GameState.lane_plan = [_wave("west", 2)]
 		assert_true(GameState.lane_character().is_empty())
 		assert_eq(_targets(bot, 3), TODAY_FLAG_OFF[pol], "%s flag off" % pol)
 	Balance.reset()
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	var bot2 := _one_branch_bot()
 	GameState.lane_plan = [_wave("west", 2)]
 	assert_eq(_targets(bot2, 3), ["pad_tower_nw_a", "pad_tower_ne_b", "pad_fence_w_a"], "threat, empty character: the plan decides, list order")

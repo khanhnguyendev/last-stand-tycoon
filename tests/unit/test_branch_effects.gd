@@ -426,6 +426,7 @@ func test_retune_on_first_tier_3_night_scales_spike_by_pressure_10_over_12() -> 
 
 ## Flag-off pins: mutation = the retune value leaks into the default path.
 func test_retune_off_pins_longbow_120_and_pass_damage_10() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	assert_false(TierEffects.retune_on(Balance.data.tiers))
 	_branch(TOWER, &"longbow")
 	assert_true(spot.attacker.kind_mults.is_empty())
@@ -465,6 +466,7 @@ func test_retune_on_longbow_interval_is_2_0_through_apply_level() -> void:
 
 ## Mutation: the new interval leaks to the flag-off path (accessor ignores the flag).
 func test_retune_off_longbow_interval_is_3_0_and_accessor_pins() -> void:
+	Balance.data.tiers.retune_enabled = false  # the off state, explicit since the flip (D-307)
 	var bb := Balance.data.branches
 	_branch(TOWER, &"longbow")
 	assert_eq(spot.attacker.interval, 3.0)

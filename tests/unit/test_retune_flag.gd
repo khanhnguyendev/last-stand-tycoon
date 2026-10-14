@@ -9,7 +9,7 @@ const PROD_DIRS := ["res://autoload", "res://core", "res://components", "res://a
 ## `build` (web exports, export/README.md) and `android` are gitignored and exist only in some checkouts.
 const NON_PROD_DIRS := ["res://addons", "res://android", "res://assets", "res://build", "res://docs", "res://export", "res://tests", "res://tools"]
 const DECL_FILE := "res://balance/tier_balance.gd"
-const DECL_LINE := "@export var retune_enabled := false"
+const DECL_LINE := "@export var retune_enabled := true"
 
 func before_each() -> void:
 	Balance.reset()
@@ -17,10 +17,10 @@ func before_each() -> void:
 func after_each() -> void:
 	Balance.reset()
 
-## Mutation: the default changed to true in the declaration or in balance.tres.
-func test_default_is_false_on_a_fresh_reset() -> void:
-	assert_false(Balance.data.tiers.retune_enabled)
-	assert_false(TierEffects.retune_on(Balance.data.tiers))
+## Mutation: the default changed to false in the declaration or in balance.tres (the flag is on since the flip, D-307).
+func test_default_is_true_on_a_fresh_reset() -> void:
+	assert_true(Balance.data.tiers.retune_enabled)
+	assert_true(TierEffects.retune_on(Balance.data.tiers))
 
 ## Mutation: retune_on returns a constant, or reads another field.
 func test_retune_on_follows_the_flag() -> void:
@@ -71,11 +71,11 @@ func test_prod_dirs_are_every_production_directory() -> void:
 	assert_eq(found, want, "res:// top-level directories minus the named non-production set equal PROD_DIRS")
 
 ## Mutation: a test leaks the flag and Balance.reset() no longer restores it (e.g. reset keeps tiers).
-func test_reset_restores_false_after_a_test_set_it() -> void:
-	Balance.data.tiers.retune_enabled = true
-	assert_true(Balance.data.tiers.retune_enabled, "setup: the flag is on")
+func test_reset_restores_true_after_a_test_set_it_false() -> void:
+	Balance.data.tiers.retune_enabled = false
+	assert_false(Balance.data.tiers.retune_enabled, "setup: the flag is off")
 	Balance.reset()
-	assert_false(Balance.data.tiers.retune_enabled)
+	assert_true(Balance.data.tiers.retune_enabled)
 
 # --- source scans ----------------------------------------------------------------------------------
 
