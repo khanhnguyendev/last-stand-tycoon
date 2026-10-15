@@ -3593,3 +3593,6 @@ is no longer reachable. The tests already pin this (D-308.3).
     FIRST_T3_NIGHT breaks (the unbranched player keeps 7.7%). The start pressure moves both, so the band and the
     floor conflict on that lever; round 2 is reverted. The band is escalated to the author with options, not tuned
     further. Cost: phase 1's first tier-3 night stays easy for branch builds.
+22. Spec corrections from the phase-2 plan review: a tier-4 neutral lane may carry spilled hares (step b fills
+    greedily, B7); the first night of any tier has brutes on its last wave only, so spec 4.1's "not below tier 3's
+    cap night" is withdrawn (B13). Cost: the spec overstated both; nothing is built on them.
