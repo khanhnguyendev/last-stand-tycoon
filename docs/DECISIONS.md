@@ -3596,3 +3596,8 @@ is no longer reachable. The tests already pin this (D-308.3).
 22. Spec corrections from the phase-2 plan review: a tier-4 neutral lane may carry spilled hares (step b fills
     greedily, B7); the first night of any tier has brutes on its last wave only, so spec 4.1's "not below tier 3's
     cap night" is withdrawn (B13). Cost: the spec overstated both; nothing is built on them.
+23. The back lot takes spec 4.3's fallback for the south-west lane: free land near that lane is taken (the old road,
+    the queue, the telegraph row), so `tower_sw2` stands south of the road at (3.6, 12.9). It reaches the south-west
+    fence spot only at level 3 (7.81 m of 8.0) and covers about 3 m of the lane's path. The second tower, `tower_e2`
+    (9.6, -2.2), covers east; the sign stands at (9.5, 13.0). Every lane has two towers by the range rule. Cost: the
+    south-west lane's second tower is weak in practice; the layout needs the author's eye at checkpoint B.
