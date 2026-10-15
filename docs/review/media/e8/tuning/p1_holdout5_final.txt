@@ -1,0 +1,209 @@
+RETUNE_REPORT set=#5 commit=8c90ba8 days=32
+DEADLINE 60 min per child run (--deadline-min)
+BOT_RULE walk (passed to every child sweep as --bot-rule=walk)
+FINAL set=#5 commit=8c90ba8 date=2026-10-16T02:49:42+07:00 days=32 bot_rule=walk
+FINAL_EARLIER set=#1 commit=d3eb6c4 date=2026-10-13T16:17:25+07:00 done=true ok=false complete=true bot_rule=far
+FINAL_EARLIER set=#2 commit=b820c89 date=2026-10-13T23:49:50+07:00 done=true ok=false complete=true bot_rule=far
+FINAL_EARLIER set=#3 commit=8d63539 date=2026-10-14T21:44:21+07:00 done=true ok=false complete=false bot_rule=old
+FINAL_EARLIER set=#3 commit=b5cc16a date=2026-10-14T22:11:58+07:00 done=true ok=false complete=false bot_rule=far
+FINAL_EARLIER set=#3 commit=eb31dc3 date=2026-10-14T22:51:05+07:00 done=true ok=false complete=true bot_rule=old
+FINAL_EARLIER set=#3 commit=9a86ae2 date=2026-10-14T23:57:48+07:00 done=true ok=false complete=true bot_rule=far
+FINAL_EARLIER set=#3 commit=63bee44 date=2026-10-15T12:18:53+07:00 done=true ok=false complete=true bot_rule=walk
+FINAL_EARLIER set=#4 commit=b5e0891 date=2026-10-15T13:52:32+07:00 done=true ok=false complete=true bot_rule=old
+FINAL_EARLIER set=#4 commit=5eb59c6 date=2026-10-15T14:50:12+07:00 done=true ok=false complete=true bot_rule=walk
+SEED_PROMOTED north 14 (D-304): failed hold-out #1, diagnosed, now tuning data
+HOLDOUT_1 retired (D-304), HOLDOUT_2 spent (D-307): results stay in the history
+SEED_RULE scan seeds upward from 1; a seed's siege lane is LaneCharacter.for_run(seed).siege; per lane the 1st seed is the scan's tuning seed, the next 2 hold-out set #1 (RETIRED), the next 2 hold-out set #2 (SPENT), the next 2 measurement set #3, the next 2 measurement set #4, the next 2 measurement set #5 (E8), the next 2 measurement set #6 (E8); the tuning set run = the scan's tuning seeds + the promoted north 14 (D-304)
+SEEDS set #5 east: [31, 35]
+SEEDS set #5 sw: [42, 44]
+SEEDS set #5 west: [59, 66]
+SEEDS set #5 north: [38, 43]
+NOTE a retried night counts its final (mercy) attempt, EXCEPT the first tier-3 night (FIRST_T3_NIGHT): a retried first night counts as lost, 0%; the night statistics count tier-3 nights only; hare share and the lane-cap guard are read from each run's own plan; with the retune flag on the first two tier-3 nights are below the cap (pressure 10, 11, then 12, D-304/D-305), so the at-cap columns (cap_nights, fence_rebuild_gold_median_at_cap, income_at_cap, hence FENCE_TAX) count from the third tier-3 night and are not like for like with runs before D-305
+RUN seed policy | nights retry_nights min median mean fences_lost_mean branches branch_gold unspent_last_day hard_break_day | siege first_t3_frac hare_share_mean guard_hits max_retries first_t3_retries
+RUN 31 all_a | 12 0 0.653 0.800 0.8014 0.17 9 3700 12177 -1 | east 0.9333 0.720 0 0 0
+RUN 31 all_b | 12 0 0.813 0.813 0.8344 1.17 19 6700 7497 -1 | east 0.9100 0.720 0 0 0
+RUN 31 mixed | 12 0 0.840 0.933 0.9372 0.17 9 3700 12177 -1 | east 0.9333 0.720 0 0 0
+RUN 31 volley_stone | 12 0 0.840 0.893 0.8981 1.17 19 6700 7497 -1 | east 0.9100 0.720 0 0 0
+RUN 31 threat | 12 0 0.897 1.000 0.9858 0.17 9 3700 12177 -1 | east 0.9333 0.720 0 0 0
+RUN 31 unbranched | 12 0 0.470 0.787 0.8031 1.67 0 0 13357 -1 | east 0.7600 0.720 0 0 0
+RUN 35 all_a | 10 0 0.753 0.973 0.9520 0.20 9 3700 10769 -1 | east 0.9533 0.719 0 0 0
+RUN 35 all_b | 10 0 0.813 0.813 0.8390 1.20 17 6100 6969 -1 | east 1.0000 0.719 0 0 0
+RUN 35 mixed | 10 0 0.787 1.000 0.9700 0.20 9 3700 10769 -1 | east 0.9533 0.719 0 0 0
+RUN 35 volley_stone | 10 0 0.870 0.893 0.9043 1.20 17 6100 6969 -1 | east 1.0000 0.719 0 0 0
+RUN 35 threat | 10 0 0.953 1.000 0.9937 0.20 9 3700 10769 -1 | east 0.9533 0.719 0 0 0
+RUN 35 unbranched | 10 0 0.723 0.978 0.9157 1.70 0 0 12369 -1 | east 1.0000 0.719 0 0 0
+RUN 42 all_a | 16 0 0.757 0.960 0.9381 0.25 12 4600 13543 -1 | sw 1.0000 0.721 0 0 0
+RUN 42 all_b | 16 0 0.387 0.600 0.6056 1.12 22 7600 8583 -1 | sw 0.7867 0.721 0 0 0
+RUN 42 mixed | 16 0 0.757 1.000 0.9658 0.69 19 6700 10463 -1 | sw 1.0000 0.721 0 0 0
+RUN 42 volley_stone | 16 0 0.387 0.680 0.6654 1.06 22 7600 8723 -1 | sw 0.7867 0.721 0 0 0
+RUN 42 threat | 16 0 0.920 0.987 0.9735 0.12 9 3700 14723 -1 | sw 1.0000 0.721 0 0 0
+RUN 42 unbranched | 16 0 0.120 0.670 0.5713 1.44 0 0 15483 -1 | sw 0.8700 0.721 0 0 0
+RUN 44 all_a | 12 0 0.947 0.993 0.9889 0.00 9 3700 12873 -1 | sw 1.0000 0.720 0 0 0
+RUN 44 all_b | 12 0 0.517 0.600 0.6306 1.00 19 6700 8193 -1 | sw 0.8667 0.720 0 0 0
+RUN 44 mixed | 12 0 0.897 0.987 0.9756 0.75 18 6400 8913 -1 | sw 1.0000 0.720 0 0 0
+RUN 44 volley_stone | 12 0 0.597 0.680 0.6936 1.00 19 6700 8193 -1 | sw 0.8667 0.720 0 0 0
+RUN 44 threat | 12 0 0.830 0.987 0.9703 0.17 9 3700 12593 -1 | sw 0.9867 0.720 0 0 0
+RUN 44 unbranched | 12 1 0.127 0.763 0.7135 1.58 0 0 14053 -1 | sw 0.7467 0.720 0 1 0
+RUN 59 all_a | 13 0 0.453 0.853 0.8021 0.00 9 3700 13115 -1 | west 0.9333 0.720 0 0 0
+RUN 59 all_b | 13 0 0.947 0.960 0.9651 0.92 20 7000 8135 -1 | west 0.9600 0.720 0 0 0
+RUN 59 mixed | 13 0 0.853 0.933 0.9303 0.00 9 3700 13115 -1 | west 0.9333 0.720 0 0 0
+RUN 59 volley_stone | 13 0 0.960 1.000 0.9949 0.92 20 7000 8135 -1 | west 0.9600 0.720 0 0 0
+RUN 59 threat | 13 0 0.933 1.000 0.9949 0.00 9 3700 13115 -1 | west 0.9333 0.720 0 0 0
+RUN 59 unbranched | 13 0 0.693 0.930 0.8923 1.69 0 0 13735 -1 | west 0.9200 0.720 0 0 0
+RUN 66 all_a | 13 0 0.920 0.987 0.9774 0.08 9 3700 13999 -1 | west 1.0000 0.720 0 0 0
+RUN 66 all_b | 13 0 0.920 0.967 0.9687 1.08 20 7000 8879 -1 | west 1.0000 0.720 0 0 0
+RUN 66 mixed | 13 0 0.933 0.987 0.9844 0.15 10 4000 13559 -1 | west 1.0000 0.720 0 0 0
+RUN 66 volley_stone | 13 0 0.967 1.000 0.9954 1.08 20 7000 8879 -1 | west 1.0000 0.720 0 0 0
+RUN 66 threat | 13 0 1.000 1.000 1.0000 0.00 9 3700 14139 -1 | west 1.0000 0.720 0 0 0
+RUN 66 unbranched | 13 0 0.573 0.950 0.8890 1.77 0 0 14619 -1 | west 1.0000 0.720 0 0 0
+RUN 38 all_a | 12 0 0.480 0.793 0.7778 0.08 9 3700 12689 -1 | north 1.0000 0.720 0 0 0
+RUN 38 all_b | 12 0 0.680 0.733 0.7389 1.00 19 6700 8149 -1 | north 0.9200 0.720 0 0 0
+RUN 38 mixed | 12 0 0.480 0.873 0.8406 0.83 18 6400 8729 -1 | north 1.0000 0.720 0 0 0
+RUN 38 volley_stone | 12 0 0.483 0.767 0.7358 1.00 19 6700 8149 -1 | north 0.9200 0.720 0 0 0
+RUN 38 threat | 12 0 0.947 0.993 0.9867 0.17 9 3700 12549 -1 | north 1.0000 0.720 0 0 0
+RUN 38 unbranched | 12 5 0.414 0.690 0.6472 1.67 0 0 13729 -1 | north 0.8667 0.720 0 2 0
+RUN 43 all_a | 12 0 0.720 0.900 0.8711 0.00 9 3700 12501 -1 | north 0.9733 0.720 0 0 0
+RUN 43 all_b | 12 0 0.667 0.733 0.7497 1.00 19 6700 7821 -1 | north 0.9467 0.720 0 0 0
+RUN 43 mixed | 12 0 0.327 0.840 0.7750 1.00 19 6700 7821 -1 | north 0.9733 0.720 0 0 0
+RUN 43 volley_stone | 12 0 0.627 0.792 0.7722 1.00 19 6700 7821 -1 | north 0.9733 0.720 0 0 0
+RUN 43 threat | 12 0 0.920 0.987 0.9822 0.00 9 3700 12501 -1 | north 0.9733 0.720 0 0 0
+RUN 43 unbranched | 12 5 0.420 0.632 0.6700 1.42 0 0 13821 -1 | north 0.9567 0.720 0 1 0
+THREAT_LEAD: PASS (mean lead +6.4 points over mixed, ahead (>= 1.0) on 6 of 8 seeds, level (within +-1.0) on 2; against each seed's own best pair: mean +4.0, ahead on 4; needs >= 5.0 and ahead on >= 6 of 8 (final set))
+  info: lead against each seed's own best pair (not the verdict): mean +4.0, per seed +4.9 +2.4 +0.8 -1.9 +0.0 +0.5 +14.6 +11.1
+  seed 31 (east): +4.9
+  seed 35 (east): +2.4
+  seed 42 (sw): +0.8
+  seed 44 (sw): -0.5
+  seed 59 (west): +6.5
+  seed 66 (west): +1.6
+  seed 38 (north): +14.6
+  seed 43 (north): +20.7
+  lane east: +3.6
+  lane sw: +0.1
+  lane west: +4.0
+  lane north: +17.7
+THREAT_LEAD_BY_LANE: PASS (mean lead per siege lane over mixed: east +3.6, sw +0.1, west +4.0, north +17.7; none may be negative)
+  seed 31 (east): +4.9
+  seed 35 (east): +2.4
+  seed 42 (sw): +0.8
+  seed 44 (sw): -0.5
+  seed 59 (west): +6.5
+  seed 66 (west): +1.6
+  seed 38 (north): +14.6
+  seed 43 (north): +20.7
+  lane east: +3.6
+  lane sw: +0.1
+  lane west: +4.0
+  lane north: +17.7
+RETRY_NIGHTS: PASS (tier-3 retry nights summed over the seeds: all_a 0, all_b 0, mixed 0, volley_stone 0, threat 0, unbranched 11 (reference, not a target); every policy but unbranched must be 0, D-298)
+  seed 31 (east): 0
+  seed 35 (east): 0
+  seed 42 (sw): 0
+  seed 44 (sw): 0
+  seed 59 (west): 0
+  seed 66 (west): 0
+  seed 38 (north): 0
+  seed 43 (north): 0
+  lane east: 0
+  lane sw: 0
+  lane west: 0
+  lane north: 0
+FIRST_T3_NIGHT: PASS (lowest first tier-3 night 74.7% over 48 runs, first attempt: a retried night counts 0%; needs >= 25.0)
+  seed 31 (east): min 76.0%
+  seed 35 (east): min 95.3%
+  seed 42 (sw): min 78.7%
+  seed 44 (sw): min 74.7%
+  seed 59 (west): min 92.0%
+  seed 66 (west): min 100.0%
+  seed 38 (north): min 86.7%
+  seed 43 (north): min 94.7%
+  lane east: min 76.0%
+  lane sw: min 74.7%
+  lane west: min 92.0%
+  lane north: min 86.7%
+FIRST_NIGHT_BAND: FAIL (pooled median of the first tier-3 night 96.7% over 40 branch-policy runs, a retried night counts 0%; needs 50.0 to 80.0 inclusive)
+  policy all_a: median 98.7% over 8 runs
+  policy all_b: median 93.3% over 8 runs
+  policy mixed: median 98.7% over 8 runs
+  policy volley_stone: median 94.0% over 8 runs
+  policy threat: median 98.0% over 8 runs
+FENCE_TAX: PASS (median 17.0% of income at the cap over 48 runs; needs <= 30.0)
+  with Longbow on the siege lane (all_a, mixed, threat): median 0.0%
+  without Longbow on the siege lane (all_b, volley_stone, unbranched): median 30.6%
+  note: each per-run figure is a lower bound (a rebuild deferred to a later day is not counted, see the sweep_runner header)
+  seed 31 (east): median 4.9%
+  seed 35 (east): median 9.7%
+  seed 42 (sw): median 20.1%
+  seed 44 (sw): median 22.6%
+  seed 59 (west): median 9.7%
+  seed 66 (west): median 9.7%
+  seed 38 (north): median 25.0%
+  seed 43 (north): median 22.6%
+  lane east: median 4.9%
+  lane sw: median 22.6%
+  lane west: median 9.7%
+  lane north: median 25.0%
+FIXED_SPREAD: spread >= 5 (spread 13.1 points: all_a 88.9, all_b 79.2, mixed 92.2, volley_stone 83.2; information: the builds should differ, spread >= 5.0 expected, not a must-hold)
+  seed 31 (east): spread 13.6
+  seed 35 (east): spread 13.1
+  seed 42 (sw): spread 36.0
+  seed 44 (sw): spread 35.8
+  seed 59 (west): spread 19.3
+  seed 66 (west): spread 2.7
+  seed 38 (north): spread 10.5
+  seed 43 (north): spread 12.1
+  lane east: spread 11.7
+  lane sw: spread 35.3
+  lane west: spread 10.5
+  lane north: spread 8.0
+HARE_SHARE: PASS (0 of 8 seeds flagged below 0.60)
+  seed 31 (east): 0.720 (min night 0.692)
+  seed 35 (east): 0.719 (min night 0.692)
+  seed 42 (sw): 0.721 (min night 0.692)
+  seed 44 (sw): 0.720 (min night 0.692)
+  seed 59 (west): 0.720 (min night 0.692)
+  seed 66 (west): 0.720 (min night 0.692)
+  seed 38 (north): 0.720 (min night 0.692)
+  seed 43 (north): 0.720 (min night 0.692)
+  lane east: 0.720
+  lane sw: 0.720
+  lane west: 0.720
+  lane north: 0.720
+LANE_CAP_GUARD: PASS (hits 0, expected 0)
+  seed 31 (east): hits 0
+  seed 35 (east): hits 0
+  seed 42 (sw): hits 0
+  seed 44 (sw): hits 0
+  seed 59 (west): hits 0
+  seed 66 (west): hits 0
+  seed 38 (north): hits 0
+  seed 43 (north): hits 0
+  lane east: hits 0
+  lane sw: hits 0
+  lane west: hits 0
+  lane north: hits 0
+UNBRANCHED_RETRIES: retry nights per seed (seed:count, reference, not a target): 31:0 35:0 42:0 44:1 59:0 66:0 38:5 43:5
+UNBRANCHED_FLAG: yes (more than 2 mercy retries on a night, or more than 3 retry nights on a seed): seed 38 had 5 retry nights; seed 43 had 5 retry nights
+WORST_NIGHT all_a: 45.3% (seed 59, day 24)
+WORST_NIGHT all_b: 38.7% (seed 42, day 19)
+WORST_NIGHT mixed: 32.7% (seed 43, day 23)
+WORST_NIGHT volley_stone: 38.7% (seed 42, day 19)
+WORST_NIGHT threat: 83.0% (seed 44, day 22)
+WORST_NIGHT unbranched: 0.0% (seed 44, day 29)
+SPREAD_BY_SEED: max 36.0 points (seed 42); per seed 31:13.6 35:13.1 42:36.0 44:35.8 59:19.3 66:2.7 38:10.5 43:12.1 (information, FIXED_SPREAD judges the means)
+UNSPENT_T3 all_a: median 129.0 max 409 over 33 tier-3 days before the ladder completed (ladder completed in 8 of 8 runs)
+UNSPENT_T3 all_b: median 173.0 max 329 over 39 tier-3 days before the ladder completed (ladder completed in 8 of 8 runs)
+UNSPENT_T3 mixed: median 129.0 max 469 over 36 tier-3 days before the ladder completed (ladder completed in 8 of 8 runs)
+UNSPENT_T3 volley_stone: median 199.0 max 403 over 39 tier-3 days before the ladder completed (ladder completed in 8 of 8 runs)
+UNSPENT_T3 threat: median 161.0 max 463 over 32 tier-3 days before the ladder completed (ladder completed in 8 of 8 runs)
+UNSPENT_T3 unbranched: n/a (no tier-3 day before the ladder completed; ladder completed in 8 of 8 runs)
+UNSPENT_AFTER_LADDER all_a: median 6741.0 max 13999 over 75 days from the completion day to the end (ladder completed in 8 of 8 runs); last-day median 12781.0
+UNSPENT_AFTER_LADDER all_b: median 4149.0 max 8879 over 69 days from the completion day to the end (ladder completed in 8 of 8 runs); last-day median 8142.0
+UNSPENT_AFTER_LADDER mixed: median 5528.0 max 13559 over 72 days from the completion day to the end (ladder completed in 8 of 8 runs); last-day median 10616.0
+UNSPENT_AFTER_LADDER volley_stone: median 4149.0 max 8879 over 69 days from the completion day to the end (ladder completed in 8 of 8 runs); last-day median 8142.0
+UNSPENT_AFTER_LADDER threat: median 6765.0 max 14723 over 76 days from the completion day to the end (ladder completed in 8 of 8 runs); last-day median 12571.0
+UNSPENT_AFTER_LADDER unbranched: median 6562.0 max 15483 over 108 days from the completion day to the end (ladder completed in 8 of 8 runs); last-day median 13778.0
+FAR_WALKS_TOTAL all_a=347 all_b=155 mixed=353 volley_stone=203 threat=198 unbranched=335 all=1591 (information, not a target)
+FAR_KEPT_TOTAL all_a=87 all_b=127 mixed=137 volley_stone=173 threat=128 unbranched=224 all=876 (information, not a target)
+TARGETS NOT ALL PASS (failing: FIRST_NIGHT_BAND) (counted: THREAT_LEAD, THREAT_LEAD_BY_LANE, RETRY_NIGHTS, FIRST_T3_NIGHT, FIRST_NIGHT_BAND, FENCE_TAX, LANE_CAP_GUARD; FIXED_SPREAD (spread >= 5), HARE_SHARE flags, UNBRANCHED_* and UNSPENT_* are information; read every line, the per-seed and per-lane lines most of all)
+WALL 3437 s (parallel=3, 48 runs)
