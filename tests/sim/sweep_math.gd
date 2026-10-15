@@ -55,6 +55,33 @@ static func tier3_stats(nights: Array) -> Dictionary:
 	out.fences_lost_mean = float(lost) / fracs.size()
 	return out
 
+## The two tier-3 statistics of a run differ on purpose (debt sweep; both are printed, neither is derived from the other):
+## - tier3_stats (the T3RUN line, the policy report): every night that STARTED at tier >= 3, a failed night included as played (its frac is the final attempt's lowest diner HP).
+## - tier3_held_stats (the TIER3 line of the sweep): the same nights (tier >= 3, as tier3_stats), but min_held and median_held read only the nights that were HELD (not failed). nights, retry_nights,
+##   retries, cap_nights and cap_retry_nights count the failed nights too. -1.0 when no night was held.
+## `nights`: {tier, retries, frac, failed, at_cap3}.
+static func tier3_held_stats(nights: Array) -> Dictionary:
+	var out := {"nights": 0, "retry_nights": 0, "retries": 0, "cap_nights": 0, "cap_retry_nights": 0, "min_held": -1.0, "median_held": -1.0}
+	var held: Array = []
+	for nt in nights:
+		if int(nt.tier) < 3:
+			continue
+		out.nights += 1
+		out.retries += int(nt.retries)
+		out.retry_nights += 1 if int(nt.retries) > 0 else 0
+		out.cap_nights += 1 if nt.at_cap3 else 0
+		out.cap_retry_nights += 1 if (nt.at_cap3 and int(nt.retries) > 0) else 0
+		if not nt.failed:
+			held.append(float(nt.frac))
+	if not held.is_empty():
+		out.min_held = ReportMath.percentile(held, 0.0)
+		out.median_held = ReportMath.median(held)
+	return out
+
+## True when a night that starts at `start_tier` (tier 2 or above) is played at that tier's own pressure cap. `tiers`: BalanceData.tiers.
+static func cap_night(start_tier: int, pressure: int, tiers) -> bool:
+	return start_tier >= 2 and start_tier < tiers.tier_cap.size() and pressure == int(tiers.tier_cap[start_tier])
+
 ## True when nothing purchasable remains at tier 3: every spot at `max_level`, every tower and fence branched, every station at
 ## `station_max`. `spots`: {kind, level, branch} per spot of the tier; `station_levels`: the stations' levels. No spots = not done.
 ## `need_branches` false (the `unbranched` policy, E6): branches are not part of what it can buy, so levels and stations are everything.

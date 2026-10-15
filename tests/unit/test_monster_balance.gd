@@ -16,8 +16,16 @@ func test_boar_view_equals_enemy_balance() -> void:
 	assert_eq(Array(s.priority), Array(Balance.data.wave.target_priority.kinds))
 
 func test_boar_view_follows_a_mutation() -> void:
-	Balance.data.enemy.speed = 9.0
-	assert_eq(Balance.data.monsters.stats(&"boar").speed, 9.0)
+	var eb := Balance.data.enemy
+	eb.speed = 9.0
+	eb.hp = 61.0
+	eb.damage = 7.0
+	eb.attack_interval = 1.5
+	eb.reach = 2.25
+	eb.drop_scatter = 1.75
+	Balance.data.economy.steaks_per_kill = 4
+	var s := Balance.data.monsters.stats(&"boar")
+	assert_eq([s.speed, s.hp, s.damage, s.attack_interval, s.reach, s.drop_scatter, s.steaks_per_kill], [9.0, 61.0, 7.0, 1.5, 2.25, 1.75, 4], "every field of the boar's view follows its source")
 
 func test_hare_and_boss_spec_values() -> void:
 	var h := Balance.data.monsters.stats(&"hare")

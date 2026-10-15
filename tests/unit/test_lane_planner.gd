@@ -106,7 +106,7 @@ func test_tier1_plan_has_no_hares_and_no_boss_and_is_todays() -> void:
 			assert_almost_eq(float(p[w].hp_mult), WaveMath.hp_mult(day, w, wb), 1e-9)
 			assert_eq([p[w].fast_main, p[w].fast_side, p[w].boss], [0, 0, false])
 
-func test_tier1_day8_is_day7_pressure_with_day8_lanes() -> void:
+func test_tier1_day8_has_the_day7_counts_and_hp_at_the_cap() -> void:
 	var tb := Balance.data.tiers
 	var p8 := LanePlanner.plan(555, 8, wb, 1, 1, tb)
 	var p7 := LanePlanner.plan(555, 7, wb, 1, 1, tb)

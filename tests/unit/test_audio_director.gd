@@ -1,5 +1,8 @@
 extends GutTest
 
+## Per file and per process: worktrees and parallel runs share user:// (debt sweep).
+var AUDIO_DIR := "user://test_dir_audio_%d" % OS.get_process_id()
+
 var d: AudioDirector
 
 func before_each() -> void:
@@ -15,8 +18,8 @@ func after_each() -> void:
 	GameState.new_game(0)
 	UrlFlags.set_for_tests("")
 	get_tree().paused = false
-	SettingsStore.with_dir("user://test_dir_audio").wipe_for_tests()
-	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_dir_audio"))
+	SettingsStore.with_dir(AUDIO_DIR).wipe_for_tests()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(AUDIO_DIR))
 
 func test_bus_signals_map_to_ids() -> void:
 	EventBus.steak_sold.emit(1, 3)
@@ -97,14 +100,14 @@ func test_music_follows_phase() -> void:
 	assert_eq(d.music_id, &"day")
 
 func test_mute_persists_and_sets_master() -> void:
-	var s := SettingsStore.with_dir("user://test_dir_audio")
+	var s := SettingsStore.with_dir(AUDIO_DIR)
 	s.wipe_for_tests()
 	var e := AudioDirector.new()
 	add_child_autofree(e)
 	e.setup(s)
 	e.set_muted(true)
 	assert_true(AudioServer.is_bus_mute(0))
-	var t := SettingsStore.with_dir("user://test_dir_audio")
+	var t := SettingsStore.with_dir(AUDIO_DIR)
 	t.load_settings()
 	assert_true(t.muted)
 	s.wipe_for_tests()
@@ -116,7 +119,7 @@ func _assert_night_playing(e: AudioDirector) -> void:
 		assert_eq(playing[0].stream, load(AudioManifest.MUSIC[&"night"].path))
 
 func test_mute_before_unlock_review_focus_2() -> void:
-	var s := SettingsStore.with_dir("user://test_dir_audio")
+	var s := SettingsStore.with_dir(AUDIO_DIR)
 	s.muted = true
 	s.save_settings()
 	var e := AudioDirector.new()

@@ -1,6 +1,7 @@
 extends GutTest
 
-const DIR := "user://test_settings"
+## Per file and per process: worktrees and parallel runs share user:// (debt sweep).
+var DIR := "user://test_settings_%d" % OS.get_process_id()
 
 func before_each() -> void:
 	var s := SettingsStore.with_dir(DIR)

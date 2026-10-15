@@ -1,5 +1,8 @@
 extends GutTest
 
+func before_each() -> void:
+	Balance.reset()  # tests here read Balance.data.tiers and .wave; none may see another file's mutation
+
 func test_enemy_count_sums_waves_and_boss() -> void:
 	var plan := [{"main_count": 10, "side_count": 4, "boss": false}, {"main_count": 6, "side_count": 0, "boss": false}]
 	assert_eq(SweepMath.enemy_count(plan), 20)
@@ -18,10 +21,14 @@ func test_tier_summary() -> void:
 	assert_eq(SweepMath.tier_summary(nights), {"first_tier2_day": 9, "boss_retries": 2, "cap_nights": 2, "cap_retries": 1})
 	assert_eq(SweepMath.tier_summary([]).first_tier2_day, -1)
 
-func test_sweep_enemy_count_matches_the_economy_kill_count() -> void:
+func test_sweep_enemy_count_matches_the_wave_kill_count() -> void:
 	for d in range(1, 9):
 		var plan := LanePlanner.plan(20260930, d, Balance.data.wave)
-		assert_eq(SweepMath.enemy_count(plan), Economy.night_kills(mini(d, 7), Balance.data.wave), "day %d" % d)
+		var pressure := mini(d, 7)  # tier 1's cap
+		var kills := 0
+		for w in Balance.data.wave.base_counts.size():
+			kills += WaveMath.total_count(pressure, w, Balance.data.wave)
+		assert_eq(SweepMath.enemy_count(plan), kills, "day %d" % d)
 
 # --- Task 24: tier-3 run stats, the ladder numbers, the policy ranking ---
 
@@ -939,3 +946,34 @@ func test_threat_lead_counts_ahead_only_from_one_point_and_prints_level_seeds() 
 	# the final rule counts the margin: 5 of 8 ahead fails even though 6 have a positive lead
 	assert_false(res.ok)
 
+
+# ---- debt sweep: the two tier-3 statistics of a run, and the cap-night helper ---------------------------------------------------
+
+func _t3n(tier: int, retries: int, frac: float, failed: bool, at_cap3 := false) -> Dictionary:
+	return {"tier": tier, "tier_close": tier, "retries": retries, "frac": frac, "failed": failed, "at_cap3": at_cap3, "fences_lost": 0, "branches": 0, "branch_gold": 0}
+
+## tier3_stats (T3RUN) reads every tier-3 night, a failed one included; tier3_held_stats (the sweep's TIER3 line) reads only the held nights for min and median.
+func test_the_two_tier3_statistics_differ_by_the_failed_night() -> void:
+	var nights := [_t3n(2, 0, 0.1, false), _t3n(3, 0, 0.9, false), _t3n(3, 2, 0.2, true, true), _t3n(3, 1, 0.6, false, true)]
+	var all := SweepMath.tier3_stats(nights)
+	var held := SweepMath.tier3_held_stats(nights)
+	assert_eq([all.nights, held.nights], [3, 3], "both count every tier-3 night")
+	assert_almost_eq(all.min, 0.2, 1e-9, "T3RUN: the failed night's 0.2 is the minimum")
+	assert_almost_eq(held.min_held, 0.6, 1e-9, "TIER3: held nights only (0.9, 0.6)")
+	assert_almost_eq(all.median, 0.6, 1e-9)
+	assert_almost_eq(held.median_held, 0.75, 1e-9)
+	assert_eq([held.retry_nights, held.retries, held.cap_nights, held.cap_retry_nights], [2, 3, 2, 2])
+	assert_eq(all.retry_nights, held.retry_nights)
+
+func test_the_held_statistic_without_a_held_night_is_minus_one() -> void:
+	var h := SweepMath.tier3_held_stats([_t3n(3, 4, 0.0, true)])
+	assert_eq([h.nights, h.min_held, h.median_held], [1, -1.0, -1.0])
+	assert_eq(SweepMath.tier3_held_stats([_t3n(1, 0, 1.0, false)]).nights, 0)
+
+func test_cap_night_reads_the_nights_own_tier_cap() -> void:
+	var tb := Balance.data.tiers
+	assert_true(SweepMath.cap_night(2, int(tb.tier_cap[2]), tb))
+	assert_true(SweepMath.cap_night(3, int(tb.tier_cap[3]), tb))
+	assert_false(SweepMath.cap_night(3, int(tb.tier_cap[2]), tb), "tier 3 below its own cap")
+	assert_false(SweepMath.cap_night(1, int(tb.tier_cap[1]), tb), "tier 1 has no cap night")
+	assert_false(SweepMath.cap_night(4, 12, tb), "a tier without a cap entry")

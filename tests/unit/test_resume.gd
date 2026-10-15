@@ -6,12 +6,11 @@ var dir := ""
 
 func before_each() -> void:
 	Balance.reset()
-	dir = "user://test_saves/rs_%d" % Time.get_ticks_usec()
+	dir = "user://test_resume_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
 
 func after_each() -> void:
 	SaveStore.with_dir(dir).wipe()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
-	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_saves"))
 
 ## A fresh Main that boots from the store in `dir`, as the real boot does.
 func _boot() -> void:

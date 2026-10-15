@@ -5,7 +5,7 @@ var dir := ""
 func before_each() -> void:
 	Balance.reset()
 	GameState.new_game(5)
-	dir = "user://test_saves/%d" % Time.get_ticks_usec()
+	dir = "user://test_save_store_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
 
 func after_each() -> void:
 	var d := DirAccess.open(dir)
@@ -13,7 +13,6 @@ func after_each() -> void:
 		for f in d.get_files():
 			d.remove(f)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
-	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_saves"))  # only succeeds when empty
 
 func _text(gold: int) -> String:
 	GameState.gold = gold  # test-only setup write

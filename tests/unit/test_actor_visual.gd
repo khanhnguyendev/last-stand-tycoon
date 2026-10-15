@@ -269,7 +269,9 @@ func test_role_scenes_hold_only_their_own_models() -> void:
 			if c.scene_file_path != "":
 				models.append(c.scene_file_path.get_file())
 		assert_eq(models, want[p], "%s models" % p)
-		assert_null((load(p).instantiate() as KayKitVisual).model_scene, "%s sets no model_scene" % p)
+		var bare := load(p).instantiate() as KayKitVisual
+		assert_null(bare.model_scene, "%s sets no model_scene" % p)
+		bare.free()
 
 func _atlas_names(file: String) -> Dictionary:
 	var img := Image.load_from_file(ProjectSettings.globalize_path("res://art/palette/atlas/%s" % file))

@@ -10,10 +10,10 @@ extends Node
 ## Tuning overrides (in memory only, after Balance.reset(); printed on the first output line; they apply to EVERY bot, not only the tier bot (not rejected for the
 ## planner and upgrader bots: a study may run those on a changed balance on purpose)): `--tier3-cap=<n>` (tier_cap[3]),
 ## `--brute-caps=<main>,<side>` (brute_cap_main[3], brute_cap_side[3]; both numbers are required), `--brute-hp=<n>`, `--fence-mult=<x>` (the brute's fence_damage_mult).
-## `--out=<file name>` writes tests/sim/out/<file name> (a relative path such as policies/x.csv is allowed, no `..`) instead of the default (parallel runs). `--cols=extra` appends fences_lost (fences at 0 HP when the
+## `--out=<file name>` writes tests/sim/out/<file name> (a relative path such as policies/x.csv is allowed; no `..`, not absolute, not a directory: checked before the sweep runs) instead of the default (parallel runs). `--cols=extra` appends fences_lost (fences at 0 HP when the
 ## night ended, final attempt) and lane_load (enemies per lane in the night's plan, brutes included) to the tier rows; without it the CSV is byte-identical to before.
 ## The TIER3 line (tier bot): nights, retry_nights, retries, cap_nights (pressure at tier_cap[3] when the night began), cap_retry_nights, and the min and median
-## diner fraction over the tier-3 nights that were held (the final attempt's lowest diner HP). NOTE: `kills` and `brute_kills` in the rows include the kills of failed attempts.
+## diner fraction over the tier-3 nights that were held (the final attempt's lowest diner HP; SweepMath.tier3_held_stats). T3RUN's min and median (SweepMath.tier3_stats) read every tier-3 night, a failed one included, so the two pairs differ whenever a night failed. NOTE: `kills` and `brute_kills` in the rows include the kills of failed attempts.
 ## Tier mode also prints, after TIER3_GATE (stdout only; the CSV is not touched):
 ##   T3RUN seed policy nights retry_nights min median mean fences_lost_mean branches branch_gold unspent_last_day hard_break_day: the tier-3 facts of this run
 ##   (SweepMath.tier3_stats; the night statistics count nights that STARTED at tier >= 3; branches and branch_gold count every row that CLOSED at tier >= 3, the
@@ -55,6 +55,11 @@ func _run() -> void:
 			args[kv[0]] = kv[1]
 	if not String(args.bot) in ["planner", "upgrader", "tier"]:
 		push_error("unknown --bot=%s (planner|upgrader|tier)" % args.bot)
+		get_tree().quit(2)
+		return
+	var out_arg := String(args.out)  # checked before the sweep runs (it used to be checked after, and `--out=dir/` ended in a script error)
+	if out_arg != "" and (out_arg.begins_with("/") or ".." in out_arg or out_arg.ends_with("/")):
+		push_error("bad --out=%s (a file name or a relative path under tests/sim/out/, no '..', not a directory)" % out_arg)
 		get_tree().quit(2)
 		return
 	if not (String(args.policy) in TierBot.POLICIES or String(args.policy) in TierBot.REPORT_POLICIES) or not String(args.tier3) in ["on", "off"]:
@@ -136,8 +141,9 @@ func _run() -> void:
 		var enemy_count := SweepMath.enemy_count(GameState.lane_plan)  # the night's own plan (capped past day 7)
 		var boss_night := GameState.is_boss_night()
 		var start_tier := GameState.tier
-		var at_cap := start_tier == 2 and GameState.pressure() == int(Balance.data.tiers.tier_cap[2])
-		var at_cap3 := start_tier == 3 and GameState.pressure() == int(Balance.data.tiers.tier_cap[3])
+		var at_tier_cap := SweepMath.cap_night(start_tier, GameState.pressure(), Balance.data.tiers)  # the night's own tier cap, any tier
+		var at_cap := at_tier_cap and start_tier == 2  # the tier-2 cap nights (SweepMath.tier_summary)
+		var at_cap3 := at_tier_cap and start_tier == 3  # the tier-3 cap nights (LADDER, TIER3)
 		var lane_load := _lane_load()
 		var night_character := GameState.lane_character()  # {} below tier 3: nothing is recorded then
 		var hare_share_now := _night_hare_share(night_character)
@@ -161,6 +167,8 @@ func _run() -> void:
 				await h.run_day()
 			t0 = h.elapsed
 			_knockouts = 0  # per attempt: the row reports the last attempt's knockouts
+			_fence_hp = {}  # per attempt too: the fence columns report the last attempt's fall
+			_fence_branch = {}
 			n = await h.run_night()
 		retries_per_day.append(retries)  # hard-break days count too
 		var lost_now := 0
@@ -212,10 +220,6 @@ func _run() -> void:
 	var out_name := "sweep_tier.csv" if tier_mode else ("sweep_upgrader.csv" if upgrader else "sweep.csv")
 	if String(args.out) != "":
 		out_name = String(args.out)
-		if out_name.begins_with("/") or ".." in out_name:
-			push_error("bad --out=%s (a file name or a relative path under tests/sim/out/, no '..')" % out_name)
-			get_tree().quit(2)
-			return
 		DirAccess.make_dir_recursive_absolute(out_dir.path_join(out_name).get_base_dir())
 	var f := FileAccess.open(out_dir.path_join(out_name), FileAccess.WRITE)
 	f.store_string("\n".join(rows) + "\n")
@@ -241,24 +245,10 @@ func _run() -> void:
 				sig.disconnect(pair[1])
 		var ts := SweepMath.tier_summary(nights)
 		print("TIER first_tier2_day=%d boss_retries=%d cap_nights=%d cap_retries=%d" % [ts.first_tier2_day, ts.boss_retries, ts.cap_nights, ts.cap_retries])
-		var t3n := 0
-		var t3_retry_nights := 0
-		var t3_retries := 0
-		var t3_cap := 0
-		var t3_cap_retry := 0
-		var held_fracs: Array = []
-		for nt in nights:
-			if int(nt.tier) != 3:
-				continue
-			t3n += 1
-			t3_retries += int(nt.retries)
-			t3_retry_nights += 1 if int(nt.retries) > 0 else 0
-			t3_cap += 1 if nt.at_cap3 else 0
-			t3_cap_retry += 1 if (nt.at_cap3 and int(nt.retries) > 0) else 0
-			if not nt.failed:
-				held_fracs.append(float(nt.frac))
-		print("TIER3 nights=%d retry_nights=%d retries=%d cap_nights=%d cap_retry_nights=%d min_frac_held=%.3f median_frac_held=%.3f" % [t3n, t3_retry_nights, t3_retries,
-			t3_cap, t3_cap_retry, ReportMath.percentile(held_fracs, 0.0) if not held_fracs.is_empty() else -1.0, ReportMath.median(held_fracs) if not held_fracs.is_empty() else -1.0])
+		var h3 := SweepMath.tier3_held_stats(nights)  # held-only min and median; T3RUN below (tier3_stats) counts failed nights too
+		var t3n := int(h3.nights)
+		print("TIER3 nights=%d retry_nights=%d retries=%d cap_nights=%d cap_retry_nights=%d min_frac_held=%.3f median_frac_held=%.3f" % [t3n, h3.retry_nights, h3.retries,
+			h3.cap_nights, h3.cap_retry_nights, h3.min_held, h3.median_held])
 		print("TIER3_GATE tier3=%s policy=%s events=%d" % [args.tier3, args.policy, tier3_events])
 		var rs := SweepMath.tier3_stats(nights)
 		print("T3RUN seed=%s policy=%s nights=%d retry_nights=%d min=%.3f median=%.3f mean=%.4f fences_lost_mean=%.2f branches=%d branch_gold=%d unspent_last_day=%d hard_break_day=%d" % [
@@ -435,7 +425,7 @@ func _ladder_done() -> bool:
 	var stations: Array = []
 	for sid in StationEffects.IDS:
 		stations.append(GameState.station_level(sid))
-	return SweepMath.ladder_done(spots, stations, int(Balance.data.build.max_level), int(Balance.data.stations.max_level), _policy != "unbranched")
+	return SweepMath.ladder_done(spots, stations, int(Balance.data.build.max_level), int(Balance.data.stations.max_level), _policy != SweepMath.REFERENCE_POLICY)
 
 var _picked := ""
 var _knockouts := 0

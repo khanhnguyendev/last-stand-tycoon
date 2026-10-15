@@ -113,3 +113,5 @@ Code and test follow-ups:
 - **Stale "flag on/off" comments** remain in about 15 files after the cleanup (hero_visual, carry_stack, branch_card, telegraph_marker, lane_character_marker, tier_reveal, build_spot, warmup, GameState, several tools headers). One comment sweep clears them.
 - **`tools/baseline_*.sh` do not run `--import`**: in a fresh worktree a headless run spins for 30+ minutes without output.
 - **iOS check of the lane banner and the branch card** after the flip: not seen on iOS (no tap from `simctl`, no seed route on the live site); do it on the author's phone at the final review (D-309).
+- **`TierReveal._diner_kept` leaks when Main is freed mid-reveal** (found by the debt sweep): the new storey's art is kept detached until step 5 and nothing frees it if Main goes away first; `test_tier_reveal.gd` frees it by hand. Fix: free it in `TierReveal._exit_tree`. Production frees Main only at exit, so the impact is small.
+- **Debt sweep (2026-10-15):** items done and the per-line ledger of the deferred review findings (some lines not triaged) are in the sweep's PR body.
