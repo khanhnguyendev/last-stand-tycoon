@@ -70,7 +70,9 @@ Each image is answered pass or fail on every rule. Any fail blocks the task.
   asset validator fails on any `enemy_*` pixel in `art/palette/atlas/`. Icons for danger UI (the heart) are the only
   exception.
 - **Palette exception (D-192).** The Boar's upper body is `enemy_maroon` lerped 0.4 toward `enemy_red` (procedural
-  vertex colour, D-192): the only non-swatch colour, for readability under lambert shading.
+  vertex colour, D-192): the only non-swatch colour, for readability under lambert shading. The kinds' coats are blends of
+  the same family (E8 phase 2: the Wrecker's is `enemy_maroon` lerped 0.15 toward `ink`, with `stone` armour plates and brow;
+  never a hero colour).
 - **R5.** Steaks and coins read against the grass and the dirt.
 - **R6.** Night keeps R1–R5.
 - **R7.** Everything in the scale table matches within 10%.

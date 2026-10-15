@@ -80,11 +80,33 @@ static func _make_three_lanes(wave: Dictionary, rng_t4: RandomNumberGenerator, n
 	wave["brute_side2"] = bs / 2
 
 ## A deep copy of `plan_waves` whose last wave carries the boss (E5 spec 4.2; the boss night is the capped night + 1).
-static func with_boss(plan_waves: Array) -> Array:
+## E8 (spec 4.1): with a lane `character` (tier 3 and up) the boss wave puts the siege lane's group on the main lane, so the
+## boss and the brutes arrive together: when the siege lane is the wave's side (or side2) group, that group and main swap
+## whole (lane, count, hares, brutes). No draw. Siege already main, or an empty character: nothing swaps.
+static func with_boss(plan_waves: Array, character := {}) -> Array:
 	var out: Array = plan_waves.duplicate(true)
 	if not out.is_empty():
-		out[out.size() - 1].boss = true
+		var wave: Dictionary = out[out.size() - 1]
+		wave.boss = true
+		var siege := String(character.get("siege", ""))
+		if siege != "" and String(wave.main) != siege:
+			for suffix in ["side", "side2"]:
+				if wave.has(suffix) and String(wave[suffix]) == siege:
+					_swap_groups(wave, "main", suffix)
+					break
 	return out
+
+static func _swap_groups(wave: Dictionary, a: String, b: String) -> void:
+	var lane: Variant = wave[a]
+	wave[a] = wave[b]
+	wave[b] = lane
+	var keys := [["%s_count", "%s_count"], ["fast_%s", "fast_%s"], ["brute_%s", "brute_%s"]]
+	for pair in keys:
+		var ka: String = pair[0] % a
+		var kb: String = pair[1] % b
+		var v: Variant = wave.get(ka, 0)
+		wave[ka] = wave.get(kb, 0)
+		wave[kb] = v
 
 ## Threat (total hp) per lane of `tier`: tiers 1 and 2 return exactly west, north, east; tier 3 adds sw. `tier` is an
 ## optional parameter because a plan does not carry its tier. Brutes add stats(&"brute").hp x hp_mult to their lane; a boss wave

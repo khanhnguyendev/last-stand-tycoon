@@ -26,6 +26,8 @@ func display_name(kind: StringName) -> String:
 			return tr("Baron von Hop")
 		&"boss":
 			return tr("Boar King")
+		&"wrecker":
+			return tr("The Wrecker")
 	return ""
 
 func setup(boar: Boar) -> void:

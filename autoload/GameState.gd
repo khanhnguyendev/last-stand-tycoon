@@ -492,7 +492,7 @@ func lane_character() -> Dictionary:
 
 ## Marks the last wave as the boss wave, unless this tier has no boss to send (the top tier: a pending boss there is a clamped save).
 func _with_tonights_boss(p: Array) -> Array:
-	return LanePlanner.with_boss(p) if TierEffects.boss_kind_for(tier, Balance.data.tiers) != &"" else p
+	return LanePlanner.with_boss(p, lane_character()) if TierEffects.boss_kind_for(tier, Balance.data.tiers) != &"" else p
 
 func pressure() -> int:
 	return WaveMath.pressure(day, tier, tier_day, Balance.data.tiers)
