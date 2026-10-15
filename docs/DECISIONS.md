@@ -3588,3 +3588,8 @@ is no longer reachable. The tests already pin this (D-308.3).
 20. The unit fast subset judges OFF Spike on the whole night (`FULL_NIGHT_RULES`), because on the last wave alone
     the Spike fence outlasts the unbranched one at every multiplier. The full bench judges every rule on whole
     nights. Cost: two extra bench runs in the unit subset.
+21. Tuning stops after two rounds. Round 1 (the weaknesses, start pressure 10): THREAT_LEAD +5.7 passes, every
+    target passes but FIRST_NIGHT_BAND (median 95.7%). Round 2 (start pressure 11): the band only reaches 90.0% and
+    FIRST_T3_NIGHT breaks (the unbranched player keeps 7.7%). The start pressure moves both, so the band and the
+    floor conflict on that lever; round 2 is reverted. The band is escalated to the author with options, not tuned
+    further. Cost: phase 1's first tier-3 night stays easy for branch builds.
