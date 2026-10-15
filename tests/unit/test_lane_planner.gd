@@ -404,7 +404,7 @@ func test_threat_counts_the_extra_group() -> void:
 		sum_b += float(before[lane])
 	assert_almost_eq(sum_a, sum_b, 0.001, "moving hares between lanes keeps the plan's total threat")
 
-## apply and with_boss commute (the main lane never changes), so the boss wave stays last on its main lane.
+## With an empty character, apply and with_boss commute; with a character, with_boss must run after apply (GameState._plan_today).
 func test_with_boss_and_apply_commute() -> void:
 	var c := {"siege": "north", "hare": "sw"}
 	var tb := Balance.data.tiers

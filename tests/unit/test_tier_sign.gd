@@ -275,3 +275,15 @@ func test_the_sign_stays_clear_of_the_west_tower_pad_and_its_label() -> void:
 		# Sensitivity: with a label twice as tall the sign reaches the pad marker at every aspect.
 		var twice := _sign_and_pad_rects(aspect, 2.0)
 		assert_true((twice[0] as Rect2).grow(0.01).intersects(twice[1]), "a label twice as tall must reach the pad MARKER at aspect %.3f" % aspect)
+
+func test_only_the_tier_3_sign_shifts_its_label() -> void:
+	assert_eq(sign.label.position.x, 0.0, "the tier-2 sign's label stays centred")
+	GameState.debug_set_tier(2, GameState.day)
+	sign.refresh()
+	assert_almost_eq(sign.label.position.x, TierSign.LABEL_SHIFT_FRONT, 1e-5, "the tier-3 sign's label is shifted toward the lot")
+	Tier4Support.open_tier4()  # Balance.reset() in before_each undoes it
+	GameState.debug_set_tier(3, GameState.day)
+	sign.refresh()
+	assert_eq(GameState.tier + 1, 4)
+	assert_ne(sign.state(), &"hidden", "the tier-4 sign is shown")
+	assert_eq(sign.label.position.x, 0.0, "the tier-4 sign's label sits normally")

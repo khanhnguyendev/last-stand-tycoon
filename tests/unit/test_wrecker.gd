@@ -52,7 +52,7 @@ func test_a_siege_lane_already_main_swaps_nothing() -> void:
 	want.boss = true
 	assert_eq(LanePlanner.with_boss([_wave()], {"siege": "west", "hare": "north"})[0], want)
 
-func test_no_character_or_a_plain_two_lane_wave_swaps_nothing() -> void:
+func test_no_character_swaps_nothing_and_a_two_group_wave_swaps_main_and_side() -> void:
 	var want := _wave()
 	want.boss = true
 	assert_eq(LanePlanner.with_boss([_wave()])[0], want, "no character: today's with_boss")
@@ -65,7 +65,7 @@ func test_no_character_or_a_plain_two_lane_wave_swaps_nothing() -> void:
 	var lone := {"main": "west", "side": "north", "main_count": 5, "side_count": 3, "hp_mult": 1.0, "boss": false}
 	assert_eq(LanePlanner.with_boss([lone], {"siege": "east", "hare": "sw"})[0].main, "west", "a siege lane with no group here: no swap")
 
-func test_the_swap_draws_no_rng_and_commutes_with_the_character() -> void:
+func test_the_swap_is_deterministic_and_touches_only_the_last_wave() -> void:
 	var tb := Balance.data.tiers
 	for s in [1, 2, 3, 4, 5, 6, 7, 8]:
 		var c := LaneCharacter.for_run(s)
@@ -86,6 +86,11 @@ func test_brute_lane_of_the_boss_wave_is_the_siege_lane_on_a_tier_3_boss_night()
 		var before_main := String(GameState.lane_plan.back().main)
 		GameState.add_gold(GameState.tier_next_cost())
 		assert_eq(GameState.pay_into_tier(GameState.tier_next_cost()), 3500)
+		var snap := GameState.to_dict()
+		assert_eq(SaveCodec.validate(snap, Balance.data), "", "seed %d: the swapped plan validates" % seed)
+		var kept: Array = GameState.lane_plan.duplicate(true)
+		GameState.from_dict(snap)
+		assert_eq(GameState.lane_plan, kept, "seed %d: the swapped boss wave survives a reload" % seed)
 		assert_true(GameState.is_boss_night(), "seed %d" % seed)
 		assert_eq(TierEffects.boss_kind_for(3, Balance.data.tiers), &"wrecker")
 		var last: Dictionary = GameState.lane_plan.back()

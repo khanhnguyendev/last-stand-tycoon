@@ -145,6 +145,7 @@ func test_the_telegraph_shows_three_lanes_counts() -> void:
 	assert_eq(mk["north"].shown(), {&"boar": 3, &"hare": 1, &"brute": 1})
 	assert_eq(mk["east"].shown(), {&"boar": 2, &"hare": 2, &"brute": 2})
 	assert_eq(mk["sw"].shown(), {&"boar": 2})
+	assert_true(mk["east"].visible, "the side2-only lane's marker is shown")
 	assert_gt(mk["east"].target_scale, 0.0, "the side2-only lane's marker is sized")
 
 # --- the arrows -----------------------------------------------------------------------------------------------
