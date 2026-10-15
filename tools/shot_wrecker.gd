@@ -1,7 +1,7 @@
 extends SceneTree
 ## The Wrecker (E8 phase 2 Task 5). Run WITH rendering:
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_wrecker.gd -- --out=docs/review/media/e8/boss
-## Writes wrecker_fence.png (the Wrecker at a built north fence, mid-hit) and wrecker_vs_king.png (hero, Boar, brute, Boar King,
+## Writes wrecker_fence.png (the Wrecker at a built north fence, mid-hit), wrecker_fence_night.png (the same frame at night) and wrecker_vs_king.png (hero, Boar, brute, Boar King,
 ## Wrecker in a row), each with a _40 copy (288x512). Monsters are spawned by hand and frozen; no waves run.
 var _focus := Vector2.ZERO
 
@@ -40,15 +40,12 @@ func _run() -> void:
 	wd.stop()
 	main.hero.process_mode = Node.PROCESS_MODE_DISABLED  # nothing may hit the monsters: a hit flashes the mesh pale
 	var base: Vector3 = main.hero.global_position + Vector3(-4.2, 0.0, -1.0)
-	var mons := []
-	# A brute at the north fence: a built fence, the brute at its stop point, a thump frame.
+	# The Wrecker at the north fence: a built fence, the Wrecker at its stop point, a thump frame.
 	var gs = root.get_node("GameState")
 	gs.add_gold(gs.next_level_cost("fence_n"))
 	gs.pay_into_spot("fence_n", gs.next_level_cost("fence_n"))
 	for i in 30:
 		await physics_frame
-	for b in mons:
-		b.visible = false
 	var br = wd.debug_spawn("north", 0.0, 1.0, &"wrecker")
 	br.set_physics_process(false)
 	br.dist = br._director.providers.fence_stop_dist(br)  # the game's own stop point (a static, reached through the instance: a -s script cannot name the class)
@@ -58,8 +55,16 @@ func _run() -> void:
 	# one real attack: 60 steps of 1/60 s reach the 1.0 s interval, so the fence is hit and the thump fires on the last one
 	for i in 60:
 		br._physics_process(1.0 / 60.0)
-	mons = [br]
-	await _grab(main, cam, camera_math, bal, mons, out, "wrecker_fence", 4)  # a few frames after the thump so the dust is up
+	await _grab(main, cam, camera_math, bal, out, "wrecker_fence", 4)  # a few frames after the thump so the dust is up
+	# the same frame at night (R6): the night tint over the same fence and Wrecker
+	main.phase_controller.debug_skip_to_night()
+	wd.stop()
+	br.set_physics_process(false)
+	br.alive = true
+	await _grab(main, cam, camera_math, bal, out, "wrecker_fence_night", 240)  # the lighting tween (lighting_tween_s) must finish
+	main.phase_controller.debug_skip_to_day()
+	for i in 240:
+		await process_frame
 	# the Wrecker beside the Boar King, a brute and a Boar (spec: distinct from the King)
 	br.visible = false
 	br.alive = false
@@ -74,10 +79,10 @@ func _run() -> void:
 		cmp.append(m)
 	main.hero.teleport(Vector2(base.x - 7.4, base.z))
 	_focus = Vector2(base.x - 0.5, base.z)
-	await _grab(main, cam, camera_math, bal, cmp, out, "wrecker_vs_king")
+	await _grab(main, cam, camera_math, bal, out, "wrecker_vs_king")
 	quit(0)
 
-func _grab(main, cam: Camera3D, camera_math, bal, mons: Array, out: String, name: String, frames := 20) -> void:
+func _grab(main, cam: Camera3D, camera_math, bal, out: String, name: String, frames := 20) -> void:
 	cam.global_transform = camera_math.camera_transform(camera_math.focus_for(_focus), bal.ui)
 	for i in frames:
 		await process_frame

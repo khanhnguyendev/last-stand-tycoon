@@ -48,11 +48,11 @@ static func params(kind: StringName) -> Dictionary:
 				"ears": red, "ear_len": 1.5, "tusks": 0, "ridge": 0, "ridge_h": 1.0, "leg_len": 0.32, "leg_xz": Vector2(0.24, 0.42),
 				"head_k": 0.85, "head_dz": 0.22, "tusk_color": Palette.color(&"stone"), "crown": 5}
 		# The Wrecker (E8 phase 2 Tasks 2 and 5): the brute's build scaled up to boss size so it does not read as the Boar King
-		# (which is a boar with four tusks and a red-brown coat): a dark coat (enemy_maroon lerped 0.15 toward ink, no hero colours), no ink
+		# (which is a boar with four tusks and a red-brown coat): a dark red coat (enemy_maroon lerped 0.15 toward enemy_red: the darkest coat of the kinds, still red at night, R6; no ink blend, it read as a black blob; no hero colours), no ink
 		# spikes but five upright `stone` armour plates along the back and a `stone` ram slab across the brow, `stone` tusks.
 		&"wrecker":
-			return {"scale": 2.3, "body_scale": Vector3(1.3, 0.85, 1.1), "upper": maroon.lerp(Palette.color(&"ink"), 0.15),
-				"belly": maroon.lerp(Palette.color(&"ink"), 0.1),
+			return {"scale": 2.3, "body_scale": Vector3(1.3, 0.85, 1.1), "upper": maroon.lerp(red, 0.15),
+				"belly": maroon,
 				"ears": snout, "ear_len": 0.0, "tusks": 2, "ridge": 0, "ridge_h": 1.25, "leg_len": 0.22, "leg_xz": Vector2(0.33, 0.3),
 				"head_k": 1.15, "head_dz": 0.04, "tusk_color": Palette.color(&"stone"), "plates": 5, "brow": true}
 	return {"scale": 1.0, "body_scale": BODY_SCALE, "upper": maroon.lerp(red, 0.4), "belly": red, "ears": snout,

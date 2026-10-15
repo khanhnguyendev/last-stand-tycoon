@@ -104,6 +104,8 @@ static func _swap_groups(wave: Dictionary, a: String, b: String) -> void:
 	for pair in keys:
 		var ka: String = pair[0] % a
 		var kb: String = pair[1] % b
+		if not wave.has(ka) and not wave.has(kb):
+			continue
 		var v: Variant = wave.get(ka, 0)
 		wave[ka] = wave.get(kb, 0)
 		wave[kb] = v
