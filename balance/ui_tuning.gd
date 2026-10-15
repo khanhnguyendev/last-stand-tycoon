@@ -51,6 +51,8 @@ extends Resource
 ## The tier-3 camera fits its subject points inside this fraction of the half-screen (1.0 = the very edge, as tier 2): air for the HUD's
 ## top bar and for the finger.
 @export var tier_reveal_fit_t3 := 0.8
+## E8 Task 7: the tier-4 camera fits the back lot (both yards and both towers) inside this fraction of the half-screen.
+@export var tier_reveal_fit_t4 := 0.9
 ## E5 tier 3 Task 20: the HUD's top bar (gold counter, day label, moons) in BASE pixels from the top of the safe area down: a telegraph
 ## count row whose screen rect touches it is hidden (it would draw under the bar).
 @export var hud_top_bar_px := 90.0

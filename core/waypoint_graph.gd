@@ -147,6 +147,13 @@ static func _add_tier4(g: WaypointGraph) -> void:
 		g.add_edge(e[0], e[1])
 	_add_pads(g, MapLayout.TIER_SPOTS[4])
 
+## E8 B10: the tier-4 sign's node for the tier-3 bot graph (the bot that may buy tier 4): joined to the east tower's stand point and to `ne`.
+## Never part of a tier-4 graph (no sign stands once tier 4 is bought).
+static func add_tier_sign_4(g: WaypointGraph) -> void:
+	g.add_node("tier_sign_4", MapLayout.tier_sign(4))
+	for e in [["tower_e", "tier_sign_4"], ["ne", "tier_sign_4"]]:
+		g.add_edge(e[0], e[1])
+
 ## E5 tier 3 (Task 22): the graph the TierBot walks at `tier`. Tier 1 is the tier-2 graph it always had (byte-identical routes). Tier 2 adds
 ## the tier-3 sign on the front lot. Tier 3 adds the south-west zone node (the bot's night post, joined like the other zones to its
 ## corner and its fence). create_for_tier() stays as it is (test_tier3_layout pins its node and edge counts).

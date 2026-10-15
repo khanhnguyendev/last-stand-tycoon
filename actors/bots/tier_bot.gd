@@ -24,6 +24,7 @@ var _pad_wait := 0
 var _blocked_pads := {}
 var _blocked_day := -1
 var _graph_tier := 1
+var _graph_sign4 := false
 ## E7 (D-310, escalation 16): the re-decision rule at tier 3. "walk" (shipped): a far move is made only when the picked lane's clear time exceeds the walk time there;
 ## "far": the D-310 never-cross rule (no far move while the own lane has monsters), kept for comparison; "old": no rule, the bot before D-310.
 ## The sweep's `--bot-rule=` and the study's `--oldbot=1` (= "old") set it.
@@ -43,6 +44,8 @@ func _init() -> void:
 ## replaces; the four pad lines below repeat that _init (known duplication, upgrader untouched).
 func _make_graph(tier: int) -> WaypointGraph:
 	var g := WaypointGraph.create_for_bot(tier)  # the bot walks to the pads where they stand (MapLayout.BRANCH_PADS)
+	if _sign4_wanted(tier):
+		WaypointGraph.add_tier_sign_4(g)
 	g.add_node("pad_counter", MapLayout.STATION_PADS[&"counter"])
 	g.add_edge("pad_counter", "front_e")
 	g.add_edge("pad_counter", "home")
@@ -53,10 +56,17 @@ func _make_graph(tier: int) -> WaypointGraph:
 
 ## The graph follows the tier (every old node keeps its name and position, so a goal and a route in progress stay valid).
 func _sync_graph() -> void:
-	var t := clampi(GameState.tier, 1, 3)
-	if t != _graph_tier:
+	var t := clampi(GameState.tier, 1, 4)  # E8: a tier-4 bot walks the tier-4 graph
+	var sign4 := _sign4_wanted(t)
+	if t != _graph_tier or sign4 != _graph_sign4:
 		_graph_tier = t
+		_graph_sign4 = sign4
 		graph = _make_graph(t)
+
+## E8 B10: the tier-4 sign's node stands in the tier-3 graph only when the bot may buy tier 4 (max_tier >= 4 and the build sells it), so a bot
+## capped at tier 3, or a build without tier 4, walks the graph it always did.
+func _sign4_wanted(tier: int) -> bool:
+	return tier == 3 and max_tier > tier and TierEffects.top_tier(Balance.data.tiers) > tier  # tier 4 is allowed and for sale
 
 func think(delta: float) -> void:
 	_sync_graph()

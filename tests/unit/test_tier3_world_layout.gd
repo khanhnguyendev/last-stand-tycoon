@@ -16,8 +16,10 @@ var _tier_changes: Array = []
 var _grew := 0
 
 ## `with_cost`: the build knows tier 3 (the shipped build does; false makes a two-tier build). It must be set before Main.create (pools, top tier).
-func _make(with_cost := true) -> void:
+func _make(with_cost := true, tier4 := false) -> void:
 	Balance.reset()
+	if tier4:
+		Tier4Support.open_tier4()  # E8 B5: tier 4 is for sale only in memory until Task 9
 	if with_cost and Balance.data.tiers.tier_costs.size() < 3:
 		Balance.data.tiers.tier_costs.append(1500)
 	elif not with_cost:
@@ -672,6 +674,20 @@ func test_tier_3_day_traffic_keeps_off_the_fence_bars_the_zone_and_the_pads() ->
 	assert_gt(s.bar, 0.0, "no step within bar half-depth + traveler radius of a fence bar (all four lanes)")
 	assert_gt(s.zone, 0.0, "nor into an attack zone (the SW one included)")
 	assert_gt(s.pad, 0.0, "nor within a branch pad's radius")
+
+## E8 phase 2 Task 7 (Task 6 review note): real travelers at tier 4, with the back lot's four pads and two towers standing. The tier-4
+## layout tests prove the geometry; this proves the traffic (queue slots, exit and visits are the tier-3 ones).
+func test_tier_4_day_traffic_keeps_off_the_fence_bars_the_zone_and_the_pads() -> void:
+	await _make(true, true)
+	var s := await _traffic(4, Balance.data.stations.max_level)
+	gut.p("tier 4 traffic: %s" % [s])
+	assert_eq(s.max_queue, 9, "the queue really reached nine")
+	assert_eq(s.grew, 0, "the traveler pool never grew during the walk")
+	assert_gte(s.visits, 6, "full visits were walked")
+	assert_gt(s.steps, 1000)
+	assert_gt(s.bar, 0.0, "no step within bar half-depth + traveler radius of a fence bar")
+	assert_gt(s.zone, 0.0, "nor into an attack zone")
+	assert_gt(s.pad, 0.0, "nor within a branch pad's radius (all 22 pads)")
 
 func _report_traffic(tier: int) -> void:
 	await _make()

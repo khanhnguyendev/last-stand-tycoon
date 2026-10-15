@@ -48,6 +48,8 @@ var edge_stones: MultiMeshInstance3D
 var _stone_lanes: Array[String] = []
 ## The tier the ground, the stones, the props and the spots were last built for (rebuild_for_tier is a no-op if equal).
 var _built_tier := 1
+## E8: the tier the edge stones were last built for (3 or 4, see _kerb_tier).
+var _stone_tier := 3
 ## The phase as the bus last announced it: a spot created mid-game must know it (its zone missed the signal).
 var _phase := Phase.NIGHT
 
@@ -147,7 +149,8 @@ func _build_ground() -> void:
 	ground = GroundArt.instance(GroundArt.terrain_mesh(rect, yards, lane_ids(), Balance.data.enemy.lateral_spread), "Ground")
 	add_child(ground)
 	_stone_lanes = lane_ids()
-	edge_stones = LaneStrip.edge_stones(_stone_lanes)
+	_stone_tier = _kerb_tier()
+	edge_stones = LaneStrip.edge_stones(_stone_lanes, _stone_tier)
 	add_child(edge_stones)
 	props = Props.new()
 	props.name = "Props"
@@ -167,6 +170,11 @@ func _on_tier_reached(_tier: int) -> void:
 ## The tier the map follows: tier 1 until the first new_game (buildings is empty then).
 func _effective_tier() -> int:
 	return GameState.tier if not GameState.buildings.is_empty() else 1
+
+## E8 (B2): the tier whose spots and pads the kerb and the edge stones leave free: 3 for a map of tiers 1 to 3 (byte-identical to E5/E6),
+## 4 once the back lot's towers stand.
+func _kerb_tier() -> int:
+	return 4 if _effective_tier() >= 4 else 3
 
 ## The yards open now; empty before the first new_game.
 func yard_ids() -> Array[String]:
@@ -189,7 +197,7 @@ func _set_yard_stones(yards: Array) -> void:
 		yard_stones.queue_free()
 		yard_stones = null
 	if not yards.is_empty():
-		yard_stones = YardStones.build(yards, Balance.data.enemy.lateral_spread)
+		yard_stones = YardStones.build(yards, Balance.data.enemy.lateral_spread, _kerb_tier())
 		add_child(yard_stones)
 
 ## E5 Task 11 and tier 3 Task 20: the tier-2 diner (the flank terraces) at tier 2, the tier-3 diner (the second storey) from tier 3;
@@ -235,10 +243,10 @@ func show_map_stage(yards: Array, lanes: Array) -> void:
 	if yard_stones != null:
 		if _stage_kerb == null:
 			_stage_kerb = yard_stones.multimesh
-		var part := YardStones.build(yards, spread)
+		var part := YardStones.build(yards, spread, _kerb_tier())  # E8: the older yards' stage kerb reads the tier of the map (tower_e2's gap)
 		yard_stones.multimesh = part.multimesh
 		part.free()
-	edge_stones.multimesh = LaneStrip.edge_multimesh(lanes)
+	edge_stones.multimesh = LaneStrip.edge_multimesh(lanes, _kerb_tier())
 
 ## Ends a show_map_stage: the ground, the kerb and the edge stones of the tier the map is built for.
 func show_map_full() -> void:
@@ -247,7 +255,7 @@ func show_map_full() -> void:
 	if _stage_kerb != null and yard_stones != null:
 		yard_stones.multimesh = _stage_kerb
 	_stage_kerb = null
-	edge_stones.multimesh = LaneStrip.edge_multimesh(lane_ids())
+	edge_stones.multimesh = LaneStrip.edge_multimesh(lane_ids(), _kerb_tier())
 
 ## The diner's art for `tier` (the reveal shows the old storey until its step); 0 = the tier the map follows. Same as rebuild_for_tier's swap.
 func show_diner_for(tier := 0) -> void:
@@ -297,8 +305,9 @@ func _sync_lanes() -> void:
 		if not lanes.has(id):
 			_make_lane(id)
 			_make_marker(id)
-	if want != _stone_lanes:
-		edge_stones.multimesh = LaneStrip.edge_multimesh(want)
+	if want != _stone_lanes or _stone_tier != _kerb_tier():
+		_stone_tier = _kerb_tier()
+		edge_stones.multimesh = LaneStrip.edge_multimesh(want, _stone_tier)
 		_stone_lanes = want
 
 ## Replaces only the DinerArt child of the diner's Visual (the OccluderFade stays), as child 0, when the scene differs.
