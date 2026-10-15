@@ -54,12 +54,6 @@ const PRESSURE := 12
 ## The five single-change configurations [tower branch, fence branch], and their names ("-" = unbranched).
 const FAST_CONFIGS: Array = [[&"", &""], [&"longbow", &""], [&"volley", &""], [&"", &"stone"], [&"", &"spike"]]
 const LANES: Array[StringName] = [&"siege", &"hare", &"neutral"]
-## FLOOR order per lane type: [measure, higher_is_better]. Diner HP lost is primary on every lane type (D-294.6 keeps it for the floor).
-const FLOOR_ORDER := {
-	&"siege": [["diner_lost", false], ["fence_hp_left", true]],
-	&"hare": [["diner_lost", false], ["hares_in_zone", false]],
-	&"neutral": [["diner_lost", false], ["clear_s", false]],
-}
 ## The measures deciding a SPECIALIST rule: the first one on which the two differ (by more than SAME) decides, at the 15% margin.
 const ORDER_SIEGE_TOWER := [["diner_lost", false], ["fence_hp_left", true]]
 ## D-294.6: the siege FENCE rule is decided by how long the fence stands (higher is better), diner HP lost breaking a tie.
@@ -67,8 +61,8 @@ const ORDER_SIEGE_FENCE := [["fence_stands_s", true], ["diner_lost", false]]
 const ORDER_HARE := [["diner_lost", false], ["hares_in_zone", false], ["clear_s", false]]
 ## [lane, specialist [tower, fence], reference [tower, fence], name, order, the mutation that fails the rule]
 const SPECIALISTS: Array = [
-	[&"siege", [&"longbow", &""], [&"volley", &""], "Longbow over Volley", ORDER_SIEGE_TOWER, "Longbow damage 60 (longbow.damage = 60.0); at the committed 2.0 s interval the brute multiplier 1.0 alone is not enough (siege 233 still beats Volley 706); damage 60 gives siege 2135"],
-	[&"siege", [&"", &"stone"], [&"", &"spike"], "Stone over Spike (fence fall time)", ORDER_SIEGE_FENCE, "Stone wall HP halved (stone.hp = 320.0)"],
+	[&"siege", [&"longbow", &""], [&"volley", &""], "Longbow over Volley", ORDER_SIEGE_TOWER, "Longbow damage 60 (longbow.damage = 60.0): siege lost 2835 against the bound"],
+	[&"siege", [&"", &"stone"], [&"", &"spike"], "Stone over Spike (fence fall time)", ORDER_SIEGE_FENCE, "Stone wall HP 160 (stone.hp = 160.0; 320 still passes: it stands 31.23 s against Spike's 25.23 s)"],
 	[&"hare", [&"volley", &""], [&"longbow", &""], "Volley over Longbow", ORDER_HARE, "Volley damage 5 (volley.damage = 5.0)"],
 	[&"hare", [&"", &"spike"], [&"", &"stone"], "Spike over Stone", ORDER_HARE, "Spike pass damage 0 (spike.pass_damage = 0.0)"],
 ]
@@ -81,17 +75,6 @@ static func same(a: float, b: float) -> bool:
 	if is_inf(a) or is_inf(b):
 		return is_inf(a) and is_inf(b) and signf(a) == signf(b)
 	return absf(a - b) <= SAME
-
-## Is `a` no worse than `b` on this lane type's floor order? {ok, why}.
-static func no_worse(a: Dictionary, b: Dictionary, lane: StringName) -> Dictionary:
-	for m in FLOOR_ORDER[lane]:
-		var name: String = m[0]
-		var higher: bool = m[1]
-		if same(float(a[name]), float(b[name])):
-			continue
-		var better: bool = float(a[name]) > float(b[name]) if higher else float(a[name]) < float(b[name])
-		return {"ok": better, "why": "%s %s vs %s" % [name, snappedf(float(a[name]), 0.01), snappedf(float(b[name]), 0.01)]}
-	return {"ok": true, "why": "tied on every floor measure"}
 
 ## Does the specialist beat the reference by MARGIN on the first measure of `order` that separates them?
 ## {ok, measure, a, b, bound, why}. `margin` (default MARGIN): lower-is-better a <= (1 - margin) b; higher-is-better a >= (1 + margin) b (INF if b is INF; a reference of 0 is beaten by any positive a).
@@ -172,21 +155,65 @@ static func neutral_rule(spec: Dictionary, unbranched: Dictionary) -> Dictionary
 	var bound := (1.0 + float(Balance.data.branches.bench_m_neu)) * u + float(Balance.data.branches.bench_a_floor)
 	return _verdict(a <= bound, "diner_lost", a, u, bound, "diner_lost: branch %.2f vs unbranched %.2f (needs <= %.2f)" % [a, u, bound])
 
-## The one-number mutation that turns each FLOOR row red, SEEN red in tests/unit/test_branch_bench.gd and tests/bench/test_branch_bench_full.gd
-## (E6 task 9 fix round). The Spike row is a one-sided guard: Spike keeps the level-3 fence HP on purchase (GameState.pay_into_branch),
-## so no Spike number can make it worse than the unbranched fence; it goes red only if the purchase lowers the fence HP
-## (pinned by tests/unit/test_branch_state.gd).
-const FLOOR_FAILS_WHEN := {
-	"longbow/-": "Longbow damage 30 (longbow.damage = 30.0)",
-	"volley/-": "Volley damage 2 (volley.damage = 2.0)",
-	"-/stone": "Stone wall HP 100 (stone.hp = 100.0)",
-	"-/spike": "one-sided guard: Spike keeps the level-3 fence HP, so only a purchase that lowers the fence HP turns it red",
+## The cfg_name of a branch alone on its building ("longbow" -> "longbow/-", "stone" -> "-/stone").
+static func branch_cfg(branch: StringName) -> String:
+	return "%s/-" % branch if branch in [&"longbow", &"volley"] else "-/%s" % branch
+
+## The verdict of one RULES row over the results of its lane (cfg_name -> run): {ok, measure, a, b, bound, why}.
+static func rule_verdict(row: Array, lane_res: Dictionary) -> Dictionary:
+	var spec: Dictionary = lane_res[branch_cfg(row[1])]
+	match row[0]:
+		&"ON":
+			var refs: Array = []
+			for r in row[5]:
+				refs.append(lane_res[r])
+			return on_rule(spec, refs, row[6])
+		&"OFF":
+			return off_rule(spec, lane_res[row[5][0]], row[3], row[4])
+	return neutral_rule(spec, lane_res[row[5][0]])
+
+## The comparison the branch's number must satisfy against the bound, for display.
+static func rule_op(row: Array) -> String:
+	match row[0]:
+		&"ON":
+			return ">=" if row[4] else "<="
+		&"OFF":
+			return "<=" if row[4] else ">="
+	return "<="
+
+static func rule_name(row: Array) -> String:
+	return "%s %s" % [row[0], row[1]]
+
+## The verdicts of every RULES row over `res` (lane -> cfg_name -> run): [{name, lane, ...verdict}].
+static func rule_verdicts(res: Dictionary) -> Array:
+	var out: Array = []
+	for row in RULES:
+		var v := rule_verdict(row, res[row[2]])
+		v["name"] = rule_name(row)
+		v["lane"] = row[2]
+		out.append(v)
+	return out
+
+## E8 (A4): the mutation that turns each RULE red under the shipped (E8) values, SEEN red in the bench (record in the Task 3 report).
+## Key "<rule> <branch>". Each value is the BranchBench.run override (or in-memory balance edit) and the lane that goes red.
+const RULE_FAILS_WHEN := {
+	"ON longbow": "Longbow damage 60 (longbow.damage = 60.0): siege lost 2835 against the bound 1513 (p12, 3 waves)",
+	"ON volley": "Volley damage 5 (volley.damage = 5.0): hare lost 2867 against the bound 1439",
+	"ON stone": "Stone wall HP 160 (stone.hp = 160.0): the fence stands 25.18 s against the bound 32.47 s",
+	"ON spike": "Spike pass damage 0 (spike.pass_damage = 0.0): hares in the zone / diner lost 1275 against the bound 1152 on the hare lane",
+	"OFF longbow": "Longbow hare multiplier 1.0 (override longbow_hare_mult = 1.0): hare lost 828 against the bound 1882",
+	"OFF volley": "Volley brute multiplier 1.0 (override volley_brute_mult = 1.0): siege lost 706 against the bound 1978",
+	"OFF spike": "Spike brute multiplier 1.0 (override spike_brute_mult = 1.0): the fence stands 30.23 s against the bound 25.41 s",
+	"NEUTRAL longbow": "Longbow damage 30 (longbow.damage = 30.0): neutral lost 4828 against the bound 664",
+	"NEUTRAL volley": "Volley damage 5 (volley.damage = 5.0): neutral lost 1291 against the bound 664",
+	"NEUTRAL stone": "Stone wall HP 160 (stone.hp = 160.0): neutral lost 690 against the bound 664",
+	"NEUTRAL spike": "Spike takes 10 x from boars and hares (damage_taken_mult_by_kind[boar] = [hare] = 10.0): neutral lost 775 against the bound 664 (the purchase keeps the level-3 HP, so an HP value cannot fail this row)",
 }
-## The mutation that turns each IDENTITY rule red (seen red in the fast identity tests and the full bench).
+## The mutation that turns each IDENTITY rule red under the E8 values (seen red in the fast identity tests and the full bench, p12).
 const IDENTITY_FAILS_WHEN := {
-	"longbow_siege": "Longbow damage 60 (longbow.damage = 60.0); at the committed 2.0 s interval the brute multiplier 1.0 alone is not enough (siege 233 still beats Volley 706); damage 60 gives siege 2135",
+	"longbow_siege": "Longbow damage 60 (longbow.damage = 60.0)",
 	"volley_hare": "Volley damage 5 (volley.damage = 5.0)",
-	"stone_stands": "Stone wall HP 100 (stone.hp = 100.0)",
+	"stone_stands": "Stone wall HP 160 (stone.hp = 160.0): stands 25.18 s against Spike's 25.23 s",
 	"spike_hares": "Spike pass damage 0 (spike.pass_damage = 0.0)",
 }
 
@@ -230,8 +257,11 @@ static func identity_spike_fewest_hares(hare: Dictionary) -> Dictionary:
 	return {"ok": sp < base and sp < st,
 		"why": "hare: Spike lets %d hares reach the zone vs unbranched %d / Stone %d" % [sp, base, st]}
 
+## Rules the fast subset judges on the whole night (`fast_results()["siege_full"]`, 2 more runs), see fast_results().
+const FULL_NIGHT_RULES: Array[String] = ["OFF spike"]
+
 ## The FAST subset's results (pressure 12, the LAST wave of each mix only, the five single-change configurations on all
-## three lane types: 15 runs), computed once per process and cached: lane -> cfg_name -> run result. The identity test reuses it.
+## three lane types: 15 runs, plus the two whole-night siege runs of FULL_NIGHT_RULES), computed once per process and cached: lane -> cfg_name -> run result. The identity test reuses it.
 static var _fast := {}
 
 ## The cached results, for synchronous code after `await fast_results()` has run (empty before).
@@ -247,6 +277,11 @@ static func fast_results() -> Dictionary:
 		out[lane] = {}
 		for cfg in FAST_CONFIGS:
 			out[lane][cfg_name(cfg)] = await run(lane, cfg[0], cfg[1], PRESSURE, {"last_wave_only": true})
+	# OFF Spike (siege) is judged on the WHOLE night: in the last wave alone the fence falls to the boars and Spike's thorns keep it up longer than
+	# the unbranched fence at any brute multiplier (measured at 4.0, 5.0, 6.0, 8.0: 25.78 s against 23.38 s), so the last wave cannot show the rule.
+	out["siege_full"] = {}
+	for cfg in [[&"", &""], [&"", &"spike"]]:
+		out["siege_full"][cfg_name(cfg)] = await run(&"siege", cfg[0], cfg[1], PRESSURE)
 	Balance.reset()
 	_fast = out
 	return _fast
@@ -299,7 +334,7 @@ static func plan_for(lane_type: StringName, pressure: int, brutes := -1, boars_o
 	return waves
 
 ## `overrides` (sensitivity tables only), applied in memory before the world exists and undone on return:
-## longbow_brute_mult, longbow_damage, longbow_interval (sets the RETUNE field), longbow_range, spike_pass, spike_thorn, stone_brute_mult, stone_hp (all floats), and
+## longbow_brute_mult, longbow_hare_mult, volley_brute_mult, spike_brute_mult, longbow_damage, longbow_interval (sets the RETUNE field), longbow_range, spike_pass, spike_thorn, stone_brute_mult, stone_hp (all floats), and
 ## brutes (int, siege lane: how many waves from the last carry a brute, see mix()), boars_only (bool: no hares, see mix()), last_wave_only (bool: the director plays only the LAST wave of the mix; GameState.lane_plan keeps the full plan so Spike's scale is unchanged).
 ## `&""` as a branch = unbranched.
 static func run(lane_type: StringName, tower_branch: StringName, fence_branch: StringName, pressure: int, overrides := {}) -> Dictionary:
@@ -308,10 +343,17 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	var saved := {
 		"mult": bb.longbow.kind_mults.duplicate(), "pass": bb.spike.pass_damage, "thorn": bb.spike.thorn_damage,
 		"dmg": bb.longbow.damage, "int": bb.longbow.interval, "rng": bb.longbow.attack_range,
+		"vmult": bb.volley.kind_mults.duplicate(), "spike_mult": bb.spike.damage_taken_mult_by_kind.duplicate(),
 		"diner": Balance.data.build.diner_max_hp, "stone_mult": bb.stone.damage_taken_mult_by_kind.duplicate(), "stone_hp": bb.stone.hp,
 	}
 	if overrides.has("longbow_brute_mult"):
 		bb.longbow.kind_mults[&"brute"] = float(overrides.longbow_brute_mult)
+	if overrides.has("longbow_hare_mult"):
+		bb.longbow.kind_mults[&"hare"] = float(overrides.longbow_hare_mult)
+	if overrides.has("volley_brute_mult"):
+		bb.volley.kind_mults[&"brute"] = float(overrides.volley_brute_mult)
+	if overrides.has("spike_brute_mult"):
+		bb.spike.damage_taken_mult_by_kind[&"brute"] = float(overrides.spike_brute_mult)
 	if overrides.has("longbow_damage"):
 		bb.longbow.damage = float(overrides.longbow_damage)
 	if overrides.has("longbow_interval"):
@@ -399,6 +441,8 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	tree.root.remove_child(main)
 	main.free()
 	bb.longbow.kind_mults = saved.mult
+	bb.volley.kind_mults = saved.vmult
+	bb.spike.damage_taken_mult_by_kind = saved.spike_mult
 	bb.spike.pass_damage = saved["pass"]
 	bb.spike.thorn_damage = saved.thorn
 	bb.longbow.damage = saved.dmg

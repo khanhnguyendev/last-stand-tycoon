@@ -1,9 +1,27 @@
 extends GutTest
+## E8 Task 3 (spec 3.1, D-313.2, D-314.9): REPLACED TESTS (replaced, not dropped). Old test | what replaces it | why.
+##  - bench test_3_matrix_flag_on_pressure_12 | test_3_matrix_at_the_cap | the matrix now prints at tier_cap[3] read from the balance (the cap is 12 today), not a literal.
+##  - bench test_4_floor_pressure_12 (the FLOOR loop, no_worse) | test_4_rules_on_off_neutral_at_the_tier_base and test_5_rules_on_off_neutral_at_the_tier_cap
+##    (BranchBench.RULES: 4 ON, 3 OFF, 4 NEUTRAL) | the FLOOR "paying never makes it worse" no longer holds by design: a specialist now pays on its off lane (OFF), and the
+##    neutral lane keeps a one-sided bound (NEUTRAL). CI runs the rules at tier_base[3] and tier_cap[3]; the middle pressures live in tests/bench_report/.
+##  - bench test_5_specialist_margin_pressure_12 | test_6_specialists_at_the_cap | same SPECIALISTS rows (their FAILS_WHEN restated), now at the cap read from the balance.
+##  - bench test_6_identity_pressure_12 | test_7_identity_at_the_cap | same four identity rules; "unbranched is never best" is restated from every lane type to the siege and hare
+##    lanes (the neutral lane is NEUTRAL's job, spec 3.1).
+##  - bench test_7_the_rule_at_the_final_cap (skipped while the cap was 12) | folded into tests 3 to 7, which run at the cap | no rule runs only "when the cap differs" any more.
+##  - unit test_branch_bench.gd::test_floor_every_branch_loses_no_more_than_the_unbranched_building | test_rules_on_off_and_neutral (last wave, pressure 12; OFF Spike on the whole night, see FULL_NIGHT_RULES) | same reason as the FLOOR.
+##  - unit test_branch_state.gd::test_spike_and_unbranched_take_full_brute_damage | test_spike_takes_four_times_a_brutes_hit_and_unbranched_takes_one_times | Spike's weakness (brute x4.0, D-314.18).
+##  - unit test_branch_identity.gd::test_e6_identity_unbranched_is_never_the_best_at_any_named_measure_on_any_lane_type | test_e6_identity_unbranched_is_never_the_best_on_the_siege_and_hare_lanes | spec 3.1.
+##  - unit test_branch_identity.gd::test_branch_spec_values | same test, with the three weakness tables asserted | the new stats.
+##  - unit test_branch_identity.gd::test_m5_fence_holds_longest_against_one_brute_stone | same test, Spike holds 3 hits (3.0 s) | 8 x 4.0 x 4.0 = 128 per hit, ceil(320 / 128) = 3.
+##  - unit test_branch_effects.gd::test_longbow_does_double_to_a_brute_and_exactly_120_to_the_rest | ..._double_to_a_brute_36_to_a_hare_and_exactly_120_to_the_rest | Longbow x0.3 against hares and the Baron.
+##  - unit test_branch_effects.gd::test_unbranched_and_volley_do_their_old_damage_to_a_brute | ..._unbranched_does_its_old_damage_to_a_brute_and_volley_a_third_of_it | Volley x0.3 against brutes (3.0).
+##  - unit test_branch_effects.gd::test_longbow_kind_mults_table | same test, tables {brute 2.0, hare 0.3} and Volley {brute 0.3} | the new tables.
+## Mutation tables (RULE_FAILS_WHEN, SPECIALISTS[*][5], IDENTITY_FAILS_WHEN in tests/support/branch_bench.gd) were each applied and SEEN red at p12 (Task 3 report).
 ## E6 Task 8 (spec 4.2 and 4.3, D-283, D-288, D-292): the FULL lane-type bench, its own suite (tests/bench/), with tick budgets like the sims.
 ## Measures: tests/support/branch_bench.gd (an invulnerable diner: the primary measure is the TOTAL diner HP lost over the whole run).
 ## It ranks branches relatively; it does not predict a real night (the real-play report does).
 ##
-## FLOOR (D-288.1): for every lane type and every branch, compared with the unbranched building of the SAME kind (the other building
+## (E6 history; the FLOOR below was replaced by the E8 RULES, see the table above.) FLOOR (D-288.1): for every lane type and every branch, compared with the unbranched building of the SAME kind (the other building
 ## unbranched in both runs): no worse on the primary measure (diner HP lost) and, when tied there (within 0.001), no worse on the lane
 ## type's first tie-breaker: siege = fence HP left (higher is better), hare = hares reaching the attack zone (fewer), neutral = time to
 ## clear (shorter).
@@ -24,7 +42,7 @@ extends GutTest
 ## Stone wall's fence stands longest against the brutes (the longest fence_fell_s of unbranched / Stone / Spike on siege, strictly); Spike lets the fewest hares reach the zone on the hare mix; unbranched is never
 ## best (some branch of each kind is strictly better on the primary measure) on every lane type.
 ##
-## Run at pressure 12 and at the final cap (skipped with a note while tier_cap[3] is 12). (The old-table rows of the single-branch configurations, the "before" numbers of the
+## Since E8: RULES at tier_base[3] and tier_cap[3]; the matrix, SPECIALISTS and IDENTITY at tier_cap[3] (A7). (The old-table rows of the single-branch configurations, the "before" numbers of the
 ## retune, were pinned as literals until the cleanup, D-307; they went with the off state.)
 ## The FLOOR keeps diner HP lost as primary on every lane type (D-294.6). The rule table (rule, the two numbers, the bound, PASS) is printed at the end.
 ## Results are cached per configuration inside this file; the TICKS of a test therefore include the runs it was the first to need.
@@ -85,14 +103,19 @@ func _print_matrix(title: String, pressure: int, configs: Array) -> void:
 			var r: Dictionary = await _run(lane, cfg[0], cfg[1], pressure)
 			gut.p("  %-8s %-18s %s" % [lane, _cfg_name(cfg), _fmt(r)])
 
-func _check_floor(pressure: int) -> void:
+## E8 (spec 3.1): ON, OFF and NEUTRAL (BranchBench.RULES) at one pressure; every rule's numbers are printed.
+func _check_rules(pressure: int) -> void:
+	var res := {}
 	for lane in LANES:
-		var base: Dictionary = await _run(lane, &"", &"", pressure)
-		for cfg in SINGLES:
-			var r: Dictionary = await _run(lane, cfg[0], cfg[1], pressure)
-			var v := BranchBench.no_worse(r, base, lane)
-			_row("FLOOR p%d %s %s" % [pressure, lane, _cfg_name(cfg)], "lost %.1f" % r.diner_lost, "%.1f" % base.diner_lost, "<= unbranched", v.ok)
-			assert_true(v.ok, "FLOOR p%d %s lane, %s must be no worse than unbranched: %s | unbranched %s | branch %s | fails when: %s" % [pressure, lane, _cfg_name(cfg), v.why, _fmt(base), _fmt(r), BranchBench.FLOOR_FAILS_WHEN[_cfg_name(cfg)]])
+		res[lane] = {}
+		for cfg in BranchBench.FAST_CONFIGS:
+			res[lane][_cfg_name(cfg)] = await _run(lane, cfg[0], cfg[1], pressure)
+	for row in BranchBench.RULES:
+		var v := BranchBench.rule_verdict(row, res[row[2]])
+		var name := BranchBench.rule_name(row)
+		gut.p("RULE p%d %-16s %-8s %s: %s -> %s" % [pressure, name, row[2], v.measure, v.why, "PASS" if v.ok else "FAIL"])
+		_row("%s p%d %s" % [name, pressure, row[2]], "%s %.2f" % [v.measure, v.a], "%.2f" % v.b, "%s %.2f" % [BranchBench.rule_op(row), v.bound], v.ok)
+		assert_true(v.ok, "%s p%d %s lane: %s | unbranched %s | branch %s | fails when: %s" % [name, pressure, row[2], v.why, _fmt(res[row[2]]["-/-"]), _fmt(res[row[2]][BranchBench.branch_cfg(row[1])]), BranchBench.RULE_FAILS_WHEN[name]])
 
 func _check_specialists(pressure: int) -> void:
 	for row in BranchBench.SPECIALISTS:
@@ -121,7 +144,7 @@ func _check_identity(pressure: int) -> void:
 	for r in rules:
 		_row(r[0], r[1].why, "", r[3], r[1].ok)
 		assert_true(r[1].ok, "IDENTITY p%d %s | fails when: %s" % [pressure, r[1].why, BranchBench.IDENTITY_FAILS_WHEN[r[2]]])
-	for lane in LANES:
+	for lane in [&"siege", &"hare"]:
 		var base: Dictionary = await _run(lane, &"", &"", pressure)
 		var towers := minf((await _run(lane, &"longbow", &"", pressure)).diner_lost, (await _run(lane, &"volley", &"", pressure)).diner_lost)
 		var fences := minf((await _run(lane, &"", &"stone", pressure)).diner_lost, (await _run(lane, &"", &"spike", pressure)).diner_lost)
@@ -161,34 +184,32 @@ func test_2_the_bench_is_deterministic() -> void:
 	assert_gt(int(a.ticks), 600, "the run really played the night (precondition)")
 	assert_true(a.diner_lost > 0.0 and a.diner_lost < BranchBench.INVULNERABLE_HP, "the invulnerable diner took damage and never fell")
 
-# ---- the matrix, the floor, the specialists, the identity -----------------------------------------------------------------------------------------------------------------
+# ---- the matrix, the rules, the specialists, the identity -----------------------------------------------------------------------------------------------------------------
 
-func test_3_matrix_flag_on_pressure_12() -> void:
+func _base() -> int:
+	return int(Balance.data.tiers.tier_base[3])
+
+func _cap() -> int:
+	return int(Balance.data.tiers.tier_cap[3])
+
+func test_3_matrix_at_the_cap() -> void:
 	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
-	await _print_matrix("SHIPPED BALANCE", PRESSURE, CONFIGS)
-	var r: Dictionary = await _run(&"siege", &"", &"", PRESSURE)
+	await _print_matrix("SHIPPED BALANCE, CAP", _cap(), CONFIGS)
+	var r: Dictionary = await _run(&"siege", &"", &"", _cap())
 	assert_gt(int(r.ticks), 600, "the matrix really ran")
 
-func test_4_floor_pressure_12() -> void:
+func test_4_rules_on_off_neutral_at_the_tier_base() -> void:
 	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
-	await _check_floor(PRESSURE)
+	await _check_rules(_base())
 
-func test_5_specialist_margin_pressure_12() -> void:
+func test_5_rules_on_off_neutral_at_the_tier_cap() -> void:
 	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
-	await _check_specialists(PRESSURE)
+	await _check_rules(_cap())
 
-func test_6_identity_pressure_12() -> void:
+func test_6_specialists_at_the_cap() -> void:
 	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
-	await _check_identity(PRESSURE)
+	await _check_specialists(_cap())
 
-func test_7_the_rule_at_the_final_cap() -> void:
+func test_7_identity_at_the_cap() -> void:
 	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
-	var cap: int = Balance.data.tiers.tier_cap[3]
-	if cap == PRESSURE:
-		gut.p("CAP PASS skipped: tier_cap[3] is %d, the pressure the tests above already ran" % cap)
-		assert_eq(cap, PRESSURE, "the cap pass is skipped only while the cap equals the pressure of the 12 tests")
-		return
-	await _print_matrix("SHIPPED BALANCE, CAP", cap, CONFIGS)
-	await _check_floor(cap)
-	await _check_specialists(cap)
-	await _check_identity(cap)
+	await _check_identity(_cap())

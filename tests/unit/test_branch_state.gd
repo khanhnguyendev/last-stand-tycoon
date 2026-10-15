@@ -240,13 +240,16 @@ func test_stone_halves_brute_damage_and_nothing_else() -> void:
 	hp -= 10.0
 	assert_eq(GameState.buildings[FENCE].hp, hp, "no kind: no reduction")
 
-func test_spike_and_unbranched_take_full_brute_damage() -> void:
+## E8 (spec 3.2, D-314.18): Spike takes 4.0 times a brute's hit (its weakness); the unbranched fence takes it as it is.
+func test_spike_takes_four_times_a_brutes_hit_and_unbranched_takes_one_times() -> void:
 	_max(FENCE)
 	_max(FENCE_B)
 	GameState.gold = _fc()
 	GameState.pay_into_branch(FENCE, &"spike", _fc())
-	GameState.damage_fence(FENCE, 100.0, &"brute")
-	assert_eq(GameState.buildings[FENCE].hp, _l3_hp() - 100.0)
+	GameState.damage_fence(FENCE, 50.0, &"brute")
+	assert_eq(GameState.buildings[FENCE].hp, _l3_hp() - 200.0, "Spike: 50 x 4.0")
+	GameState.damage_fence(FENCE, 10.0, &"boar")
+	assert_eq(GameState.buildings[FENCE].hp, _l3_hp() - 210.0, "a boar's hit is not multiplied")
 	GameState.damage_fence(FENCE_B, 100.0, &"brute")
 	assert_eq(GameState.buildings[FENCE_B].hp, _l3_hp() - 100.0)
 

@@ -375,17 +375,22 @@ func _longbow_shot_at(kind: StringName) -> float:
 	return t.hits
 
 ## Mutation: the multiplier is 1.0 for every kind (brute stays 120), or it is applied to every kind (boar gets 240).
-func test_longbow_does_double_to_a_brute_and_exactly_120_to_the_rest() -> void:
+func test_longbow_does_double_to_a_brute_36_to_a_hare_and_exactly_120_to_the_rest() -> void:
 	_branch(TOWER, &"longbow")
 	assert_eq(await _longbow_shot_at(&"brute"), 240.0, "120 x 2.0")
-	for kind in [&"boar", &"hare", &"baron", &"boss"]:
+	for kind in [&"boar", &"boss"]:
 		_targets.clear()
 		spot.attacker._cooldown = 0.0
 		spot.attacker._retarget = 0.0
 		assert_eq(await _longbow_shot_at(kind), 120.0, "no bonus against %s" % kind)
+	for kind in [&"hare", &"baron"]:
+		_targets.clear()
+		spot.attacker._cooldown = 0.0
+		spot.attacker._retarget = 0.0
+		assert_almost_eq(await _longbow_shot_at(kind), 36.0, 1e-4, "E8: 120 x 0.3 against %s (the Baron is a hare)" % kind)
 
 ## Mutation: the multiplier lives in the shared Attacker default or in stats_for, so an unbranched or Volley tower gets it.
-func test_unbranched_and_volley_do_their_old_damage_to_a_brute() -> void:
+func test_unbranched_does_its_old_damage_to_a_brute_and_volley_a_third_of_it() -> void:
 	_build_max(TOWER)
 	assert_eq(await _longbow_shot_at(&"brute"), 18.0, "unbranched level 3: 18")
 	var spot2: TowerSpot = main.world.build_spots["tower_ne"]
@@ -401,8 +406,8 @@ func test_unbranched_and_volley_do_their_old_damage_to_a_brute() -> void:
 	a.candidates = func(): return [{"position": t.global_position, "spawn_index": 1, "ref": t}]
 	a._physics_process(1.0 / 60.0)
 	await _settle()
-	assert_eq(t.hits, 10.0, "Volley: 10 per projectile, one target")
-	assert_true(a.kind_mults.is_empty())
+	assert_almost_eq(t.hits, 3.0, 1e-4, "E8: Volley 10 x 0.3 against a brute, one target")
+	assert_eq(a.kind_mults, {&"brute": 0.3}, "the Volley carries its own table")
 
 ## Mutation: pass damage still 10, or the value ignores the night's scale.
 func test_spike_pass_damage_is_24_times_the_scale() -> void:
@@ -439,10 +444,12 @@ func test_first_tier_3_night_scales_spike_by_pressure_10_over_12() -> void:
 ## Mutation: the table has an entry for any other kind, or no entry for the brute; Volley or the unbranched tower carry a table.
 func test_longbow_kind_mults_table() -> void:
 	var bb := Balance.data.branches
-	assert_eq(bb.longbow.kind_mults, {&"brute": 2.0})
+	assert_eq(bb.longbow.kind_mults, {&"brute": 2.0, &"hare": 0.3})
+	for kind in [&"boar", &"boss", &"no_such_kind"]:
+		assert_eq(float(bb.longbow.kind_mults.get(kind, 1.0)), 1.0, "no multiplier for %s" % kind)
+	assert_eq(bb.volley.kind_mults, {&"brute": 0.3})
 	for kind in [&"boar", &"hare", &"baron", &"boss", &"no_such_kind"]:
-		assert_eq(float(bb.longbow.kind_mults.get(kind, 1.0)), 1.0, "no bonus against %s" % kind)
-	assert_true(bb.volley.kind_mults.is_empty())
+		assert_eq(float(bb.volley.kind_mults.get(kind, 1.0)), 1.0, "Volley: no multiplier for %s" % kind)
 	assert_true(TowerSpot.stats_for(3, &"").kind_mults.is_empty())
 
 ## Mutation: pass damage is another number, or another fence has one.

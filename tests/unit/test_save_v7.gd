@@ -341,3 +341,27 @@ func test_malformed_lane_character_is_rejected() -> void:
 	assert_eq(SaveCodec.validate(s, Balance.data), "")
 	s.erase("lane_character")
 	assert_ne(SaveCodec.validate(s, Balance.data), "", "a v7 save must carry the field")
+
+# --- E8 Task 3 (plan Review Focus 5, A14): an old save with branches built before E8 loads with the new values --------
+
+## The committed fixture (all_b: five Volley towers, four Spike fences at 320 HP) predates the weaknesses; the stats come from the balance on load.
+## Mutation: the loader restores stats from the save (the Volley table empty, the Spike fence taking 1.0 x) or loses the fence HP.
+func test_a_v7_branch_save_loads_with_the_new_values() -> void:
+	var r := SaveCodec.decode(FileAccess.get_file_as_string("res://export/fixtures/tier3_cap_all_b.save.json"), GameState.SCHEMA_VERSION, Balance.data)
+	assert_true(r.ok, r.reason)
+	var main := Main.create()
+	add_child_autofree(main)
+	main.hero.input.player_control = false
+	main.phase_controller.start_new_game(71)
+	await get_tree().process_frame
+	GameState.from_dict(r.state)
+	main.world.rebuild_for_tier()
+	await get_tree().process_frame
+	var tower: TowerSpot = main.world.build_spots["tower_sw"]
+	assert_eq(GameState.branch_of("tower_sw"), &"volley", "the save's branch")
+	assert_eq(tower.attacker.kind_mults, {&"brute": 0.3}, "a Volley tower's table comes from the balance")
+	assert_eq(float(GameState.buildings["fence_sw"].hp), 320.0, "the fence HP after load")
+	GameState.damage_fence("fence_sw", 50.0, &"brute")
+	assert_almost_eq(320.0 - float(GameState.buildings["fence_sw"].hp), 200.0, 1e-6, "the Spike fence takes 4.0 x a brute's 50")
+	GameState.from_dict(r.state)
+	assert_eq(_decode(GameState.to_dict()).state, r.state, "a re-save equals the loaded state")

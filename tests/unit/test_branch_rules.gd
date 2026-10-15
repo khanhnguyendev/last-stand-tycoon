@@ -130,3 +130,11 @@ func test_rules_table_is_the_eleven_rows_of_spec_3_1() -> void:
 		[&"NEUTRAL", &"spike", &"neutral", "diner_lost", false, ["-/-"], []],
 	]
 	assert_eq(BranchBench.RULES, expected)
+
+## E8 Task 3 (A3): the bench-report scripts are not CI tests, so nothing runs them; they must still parse (they once called removed functions).
+func test_the_bench_report_scripts_parse() -> void:
+	for path in ["res://tests/bench_report/test_branch_bench_pressures.gd", "res://tests/bench_report/test_longbow_p4_r1.gd", "res://tests/bench_report/test_branch_sensitivity.gd"]:
+		var s: GDScript = load(path)
+		assert_not_null(s, path)
+		if s != null:
+			assert_true(s.can_instantiate(), "%s parses" % path)
