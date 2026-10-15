@@ -112,6 +112,7 @@ points and test A' stay valid. Boss reward rule (D-274.2): a boss drops one cap 
 - Longbow differs from section 3 of the brainstorm (45 per 1.0 s): with real hare HP (39.75 to 51.7 at pressure 12,
   46.5 to 72.85 at 15, the wave-size factor included) the D-272.3 ordering needs a slow, heavy shot. 120 per 3.0 s
   gives single-target 40 per second (unbranched 36, Volley 20) and the fewest hares per second at every wave (D-276).
+  (Superseded in E6: the Longbow fires every 2.0 s, 60 per second, D-302.)
 - Costs: `tower_branch_cost` 500, `fence_branch_cost` 300.
 - Longbow range rule (D-271): at any range a tower may reach the stop points OR the fence spot of at most 2 lanes.
   Probe maximum 10.28 m (bound by `tower_nw` and a SW stop point); Longbow = maximum minus 0.3 = 9.98.
@@ -241,12 +242,14 @@ cute-dangerous, heavy slow walk; a ground-thump effect and sound on each fence h
   `pass_damage` once (a per-monster flag, reset on pool reuse). Hares still walk past: their path and timing are
   unchanged (test).
 - **Identity test on Balance (D-272.3, D-273.0).** Named measures, computed in whole shots against real monster HP at
-  pressure 12 and 15:
+  pressure 12 and 15 (as shipped since E6, D-311: at the live tier-3 pressures 10 to 12; 15 is no longer reachable):
   1. single-target DPS (raw damage over interval): Longbow highest; in whole shots against a lone brute Longbow is
      never slower than the unbranched tower;
   2. range: Longbow longest;
-  3. DPS against 3 targets (raw): Volley highest;
-  4. hares killed per second (3 or more in range): Volley most, Longbow fewest;
+  3. DPS against 3 targets (raw): Volley highest (as shipped since E6, D-311: Volley and the Longbow tie at 60, the
+     Longbow firing every 2.0 s, D-302; neither is below the other);
+  4. hares killed per second (3 or more in range): Volley most, Longbow fewest (as shipped since E6, D-311: at the
+     live pressures 10 to 12; at 15 the unbranched tower would kill fewer);
   5. seconds a fence holds against one brute: Stone longest;
   6. damage to a passing hare: only Spike is above 0;
   7. the unbranched level 3 is the best at none of measures 1 to 6, a shared top included.
