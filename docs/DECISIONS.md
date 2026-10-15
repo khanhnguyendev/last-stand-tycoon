@@ -3601,3 +3601,11 @@ is no longer reachable. The tests already pin this (D-308.3).
     fence spot only at level 3 (7.81 m of 8.0) and covers about 3 m of the lane's path. The second tower, `tower_e2`
     (9.6, -2.2), covers east; the sign stands at (9.5, 13.0). Every lane has two towers by the range rule. Cost: the
     south-west lane's second tower is weak in practice; the layout needs the author's eye at checkpoint B.
+24. The back lot's towers follow spec 4.3's second fallback. A lane in `TOWER_LANES_T4` must be reached at level-1
+    range from the tower to that lane's fence spot, as every older table means (the test asserts the geometry). No
+    clear land reaches the south-west fence spot at level 1 (the pads or the telegraph row block every cell), so the
+    south-west lane keeps one tower. `tower_n2` (-5.0, -11.0) covers north (5.31 m), `tower_e2` (9.6, -2.2) covers
+    east (2.87 m); the tier-4 sign stands at (13.0, -2.2) on the north-east strip. Towers per lane at tier 4: west 2,
+    north 3, east 3, south-west 1. This replaces D-314.23's first fallback. Costs: it conflicts with D-314.5 ("every
+    lane two towers"): the south-west lane stays the thinnest; at tier 4 the east yard's kerb loses the pieces beside
+    `tower_e2` (a visible change for the author).
