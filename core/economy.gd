@@ -12,12 +12,3 @@ static func level_cost(spot_id: String, level: int, bb: BuildBalance) -> int:
 
 static func drain_per_tick(cost: int, bb: BuildBalance) -> int:
 	return maxi(1, int(ceil(float(cost) / float(bb.drain_divisor))))
-
-static func night_kills(day: int, wb: WaveBalance) -> int:
-	var total := 0
-	for w in wb.base_counts.size():
-		total += WaveMath.total_count(day, w, wb)
-	return total
-
-static func night_gold(day: int, bd: BalanceData) -> int:
-	return night_kills(day, bd.wave) * bd.economy.steaks_per_kill * bd.economy.gold_per_steak
