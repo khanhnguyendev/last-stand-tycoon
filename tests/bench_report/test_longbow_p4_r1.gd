@@ -48,12 +48,11 @@ func _intervals() -> Array:
 func _cn(cfg: Array) -> String:
 	return BranchBench.cfg_name(cfg)
 
-## Every bench rule over `res` (lane -> cfg name -> run), in the order floor, specialist, identity; the shared rule functions. [{name, ok}].
+## Every bench rule over `res` (lane -> cfg name -> run), in the order ON/OFF/NEUTRAL (E8 RULES), specialist, identity; the shared rule functions. [{name, ok}].
 func _rules(res: Dictionary) -> Array:
 	var out: Array = []
-	for lane in LANES:
-		for name in ["longbow/-", "volley/-", "-/stone", "-/spike"]:
-			out.append({"name": "FLOOR %s %s" % [lane, name], "ok": BranchBench.no_worse(res[lane][name], res[lane]["-/-"], lane).ok})
+	for v in BranchBench.rule_verdicts(res):
+		out.append({"name": "%s %s" % [v.name, v.lane], "ok": v.ok})
 	for row in BranchBench.SPECIALISTS:
 		var v := BranchBench.specialist_verdict(row, res[row[0]][_cn(row[1])], res[row[0]][_cn(row[2])])
 		out.append({"name": "SPEC %s %s" % [row[0], row[3]], "ok": v.ok})
@@ -61,7 +60,7 @@ func _rules(res: Dictionary) -> Array:
 	out.append({"name": "ID hare Volley least", "ok": BranchBench.identity_volley_hare(res[&"hare"]).ok})
 	out.append({"name": "ID siege Stone stands longest", "ok": BranchBench.identity_stone_stands_longest(res[&"siege"]).ok})
 	out.append({"name": "ID hare Spike fewest hares", "ok": BranchBench.identity_spike_fewest_hares(res[&"hare"]).ok})
-	for lane in LANES:
+	for lane in [&"siege", &"hare"]:  # E8: the neutral lane is NEUTRAL's job
 		var b: Dictionary = res[lane]["-/-"]
 		out.append({"name": "ID %s tower never best" % lane, "ok": minf(res[lane]["longbow/-"].diner_lost, res[lane]["volley/-"].diner_lost) < b.diner_lost - BranchBench.SAME})
 		out.append({"name": "ID %s fence never best" % lane, "ok": minf(res[lane]["-/stone"].diner_lost, res[lane]["-/spike"].diner_lost) < b.diner_lost - BranchBench.SAME})

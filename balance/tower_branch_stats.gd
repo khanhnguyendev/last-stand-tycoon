@@ -8,5 +8,5 @@ extends Resource
 @export var interval := 0.5
 ## Projectiles per attack, each at a different target (the first `count` of Targeting.select's order).
 @export var count := 1
-## Damage multiplier by the kind of the monster hit (an absent kind = 1.0). Handed to Attacker.kind_mults.
+## Damage multiplier by the kind CLASS of the monster hit (MonsterBalance.kind_class; an absent class = 1.0). Handed to Attacker.kind_mults.
 @export var kind_mults: Dictionary[StringName, float] = {}

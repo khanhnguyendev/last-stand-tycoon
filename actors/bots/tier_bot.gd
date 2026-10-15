@@ -124,7 +124,7 @@ static func tower_dps(stats: TowerBranchStats, hp_list: Array, kinds: Array) -> 
 		return 0.0
 	var per_hit := 0.0
 	for i in n:
-		per_hit += minf(stats.damage * float(stats.kind_mults.get(kinds[i], 1.0)), float(hp_list[i]))
+		per_hit += minf(stats.damage * float(stats.kind_mults.get(MonsterBalance.kind_class(kinds[i]), 1.0)), float(hp_list[i]))
 	per_hit /= float(n)
 	return float(mini(stats.count, n)) * per_hit / stats.interval
 

@@ -14,6 +14,15 @@ const FENCE_BRANCHES: Array[StringName] = [&"stone", &"spike"]
 @export var volley: TowerBranchStats = BranchBalance._volley()
 @export var stone: FenceBranchStats = BranchBalance._stone()
 @export var spike: FenceBranchStats = BranchBalance._spike()
+## E8 bench margins (spec 3.1). Fixed for E8 (D-314.8): they are balance values only so the bench reads them; changing one is an escalation.
+## ON: a specialist beats its references by this fraction on its own lane.
+@export var bench_m_on := 0.15
+## OFF: a branch is worse than unbranched by at least this fraction on the lane it gives up.
+@export var bench_m_off := 0.10
+## NEUTRAL: a branch loses at most this fraction more than unbranched on the neutral lane.
+@export var bench_m_neu := 0.15
+## The absolute HP term of the OFF and NEUTRAL bounds (covers an unbranched reference of 0).
+@export var bench_a_floor := 20.0
 
 static func _tower(range_m: float, damage: float, interval: float, count: int) -> TowerBranchStats:
 	var s := TowerBranchStats.new()
@@ -31,10 +40,15 @@ static func _tower(range_m: float, damage: float, interval: float, count: int) -
 static func _longbow() -> TowerBranchStats:
 	var s := BranchBalance._tower(9.98, 120.0, 2.0, 1)
 	s.kind_mults[&"brute"] = 2.0
+	## E8 (spec 3.2, D-313.2): the heavy arrow fails against hares. Start 0.3, pre-authorized range 0.15 to 0.42.
+	s.kind_mults[&"hare"] = 0.3
 	return s
 
+## E8 (spec 3.2): light arrows barely scratch brutes: `kind_mults[brute]` start 0.3, pre-authorized range 0.1 to 0.6.
 static func _volley() -> TowerBranchStats:
-	return BranchBalance._tower(8.0, 10.0, 0.5, 3)
+	var s := BranchBalance._tower(8.0, 10.0, 0.5, 3)
+	s.kind_mults[&"brute"] = 0.3
+	return s
 
 static func _stone() -> FenceBranchStats:
 	var s := FenceBranchStats.new()
@@ -48,6 +62,10 @@ static func _spike() -> FenceBranchStats:
 	s.thorn_damage = 6.0
 	s.pass_damage = 24.0  # E6 tuning round 1 (D-292): 24 (the pre-retune value was 10.0; first retune set: 16); hare 855 against the Stone wall's 1355. Tuning range 12 to 24.
 	s.pass_kinds = [&"hare", &"baron"]
+	## E8 (spec 3.2, D-314.18): brutes break it fast: `damage_taken_mult_by_kind[brute]`, range widened from 1.5-3.0 to 1.5-4.0, value 4.0. Reason (measured on the bench):
+	## the siege fence's stand time moves in 1.0 s steps and Spike's HP equals the unbranched fence's, so the multiplier is the only off-lane lever;
+	## 3.0 gives 26.23 s at p12 against the 25.41 s the OFF rule needs, 4.0 gives 25.23 s (p10: 26.23 s against 27.21 s).
+	s.damage_taken_mult_by_kind[&"brute"] = 4.0
 	return s
 
 func is_tower_branch(id: StringName) -> bool:

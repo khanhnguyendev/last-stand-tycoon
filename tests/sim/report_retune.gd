@@ -1,11 +1,11 @@
 extends SceneTree
 ## E6 tier-3 retune report (Task 16, spec 8.1, D-285, D-290, D-292 to D-294). NOT a CI test (the name does not start with test_); asserts nothing, changes no balance value.
-## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|3|4 --final --days=32 --parallel=3 --dry=1 --bot-rule=walk|far|old --deadline-min=20]
-## Sets: `tuning` (default; 5 seeds: one per siege lane from the scan, plus the promoted north 14, D-304), `3` (E7 measurement set #3, 8 seeds, two per siege lane: scan positions 6 and 7), `4` (E7 measurement set #4, scan positions 8 and 9; scan positions 10 and 11 are reserved, unseen, not named in code).
+## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|3|4|5|6 --final --days=32 --parallel=3 --dry=1 --bot-rule=walk|far|old --deadline-min=20]
+## Sets: `tuning` (default; 5 seeds: one per siege lane from the scan, plus the promoted north 14, D-304), `3` (E7 measurement set #3, 8 seeds, two per siege lane: scan positions 6 and 7), `4` (E7 measurement set #4, scan positions 8 and 9), `5` (E8 measurement set #5, scan positions 10 and 11; --final, walk bot, 32 days) and `6` (E8 measurement set #6, scan positions 12 and 13; --final, --days=45 is the only length it accepts, E8 spec 3.5).
 ## Hold-out set #2 is SPENT (D-307) and refused always like set #1 (message names D-307; results stay in the history). `--bot-rule=walk|far|old` (default walk) is passed to every child sweep, printed in the header and stored in the history entry
-## (`bot_rule`); sets #3 and #4 may be run once per bot rule (walk, far, old; a history entry `new` is `far`) (a repeat with a rule already used by a COMPLETE entry is refused; an entry whose run printed no verdict has `complete: false` and does not block). Hold-out set #1 is
+## (`bot_rule`); sets #3 to #6 may be run once per bot rule (walk, far, old; a history entry `new` is `far`) (a repeat with a rule already used by a COMPLETE entry is refused; an entry whose run printed no verdict has `complete: false` and does not block). Hold-out set #1 is
 ## RETIRED (D-304: seed 14 failed it, was diagnosed and moved to the tuning set): `--set=1` is refused always, with or without `--final`, exit 2, nothing started; its literal and its
-## results stay for the history. The seeds are pinned in SweepMath (SCAN_TUNING_SET, PROMOTED_TO_TUNING, TUNING_SET, HOLDOUT_SET_1, HOLDOUT_SET_2); at the start the report scans seeds upward from 1
+## results stay for the history. The seeds are pinned in SweepMath (SCAN_TUNING_SET, PROMOTED_TO_TUNING, TUNING_SET, HOLDOUT_SET_1, HOLDOUT_SET_2, MEASURE_SET_3 to MEASURE_SET_6); at the start the report scans seeds upward from 1
 ## (the siege lane of a seed is `LaneCharacter.for_run(seed).siege`) and exits 2 if the scan does not give exactly the pinned literals (the scan's tuning seeds + the promotion = TUNING_SET). The hold-out sets run ONLY with `--final` (D-290): without it the report refuses and starts nothing; with it the output header
 ## carries the commit and the set number, the run is appended to the history in tests/sim/retune_final.json (COMMITTED, so earlier finals survive across worktrees; Task 20 commits it with the output), and every earlier entry is printed (FINAL_EARLIER),
 ## with FINAL_REPEAT when it is a second run (a different commit is spelled out). `--dry=1` prints the header (rule, seeds, gate) and runs nothing.
@@ -15,7 +15,7 @@ extends SceneTree
 ## is about 40 to 45 min; a hold-out set, 48 runs, about an hour). A missing or failed run (no result line, a hard break, no tier-3 night) prints NO verdict lines and exits 1.
 ## D-298: `unbranched` is the floor reference: RETRY_NIGHTS prints its count but does not judge it; UNBRANCHED_RETRIES / UNBRANCHED_FLAG and UNSPENT_T3 / UNSPENT_AFTER_LADDER are report-only lines.
 ## Verdict lines (SweepMath; each followed by its per-seed and per-siege-lane lines): THREAT_LEAD, THREAT_LEAD_BY_LANE, RETRY_NIGHTS, FIRST_T3_NIGHT, FENCE_TAX, FIXED_SPREAD,
-## HARE_SHARE, LANE_CAP_GUARD. Targets that fail still exit 0 (the output is the verdict); the last line says how many passed.
+## HARE_SHARE, LANE_CAP_GUARD, plus FIRST_NIGHT_BAND (E8: the pooled median of the branch policies' first tier-3 night is 50 to 80 percent; counted). FIXED_SPREAD is information since E8 (spread >= 5 expected, not a must-hold). Targets that fail still exit 0 (the output is the verdict); the last line says how many passed.
 ## `--final` is refused with the tuning set, on a dirty tree and on an unknown commit (the recorded commit must identify the values); a record file that does not parse exits 2 and is
 ## never overwritten. Each entry: set, commit, the commit's date (from git), and at the end of the run `done` and `ok`. Unknown arguments exit 2.
 ## Child runs: each has a wall-time deadline (RUN_DEADLINE_MSEC, killed and counted as failed when exceeded), must exit 0 and must leave no `SCRIPT ERROR` line in its log (a plain
@@ -56,12 +56,13 @@ func _initialize() -> void:
 	var tag := set_id + "_" + bot_rule  # file names: a run with another bot rule never overwrites another rule's logs
 	var seed_set: Dictionary = SweepMath.set_by_id(set_id)
 	if seed_set.is_empty():
-		push_error("bad --set=%s (tuning|3|4; 1 is retired, 2 is spent)" % set_id)
+		push_error("bad --set=%s (tuning|3|4|5|6; 1 is retired, 2 is spent)" % set_id)
 		quit(2)
 		return
 	var lc = load("res://core/lane_character.gd")
 	var scan: Dictionary = SweepMath.seed_scan(func(s): return String(lc.for_run(s).siege), SweepMath.SIEGE_LANES)
 	if scan.tuning != SweepMath.SCAN_TUNING_SET or scan.holdout1 != SweepMath.HOLDOUT_SET_1 or scan.holdout2 != SweepMath.HOLDOUT_SET_2 or scan.set3 != SweepMath.MEASURE_SET_3 or scan.set4 != SweepMath.MEASURE_SET_4 \
+			or scan.set5 != SweepMath.MEASURE_SET_5 or scan.set6 != SweepMath.MEASURE_SET_6 \
 			or SweepMath.with_promotion(scan.tuning, SweepMath.PROMOTED_TO_TUNING) != SweepMath.TUNING_SET:
 		push_error("the seed scan no longer gives the pinned sets (LaneCharacter.for_run changed?): %s" % str(scan))
 		quit(2)
@@ -100,7 +101,7 @@ func _initialize() -> void:
 	lines.append_array(gate.lines)
 	lines.append("SEED_PROMOTED north 14 (D-304): failed hold-out #1, diagnosed, now tuning data")
 	lines.append("HOLDOUT_1 retired (D-304), HOLDOUT_2 spent (D-307): results stay in the history")
-	lines.append("SEED_RULE scan seeds upward from 1; a seed's siege lane is LaneCharacter.for_run(seed).siege; per lane the 1st seed is the scan's tuning seed, the next 2 hold-out set #1 (RETIRED), the next 2 hold-out set #2 (SPENT), the next 2 measurement set #3, the next 2 measurement set #4 (positions 10 and 11 reserved, unseen); the tuning set run = the scan's tuning seeds + the promoted north 14 (D-304)")
+	lines.append("SEED_RULE scan seeds upward from 1; a seed's siege lane is LaneCharacter.for_run(seed).siege; per lane the 1st seed is the scan's tuning seed, the next 2 hold-out set #1 (RETIRED), the next 2 hold-out set #2 (SPENT), the next 2 measurement set #3, the next 2 measurement set #4, the next 2 measurement set #5 (E8), the next 2 measurement set #6 (E8); the tuning set run = the scan's tuning seeds + the promoted north 14 (D-304)")
 	for l in SweepMath.SIEGE_LANES:
 		lines.append("SEEDS %s %s: %s" % ["tuning" if set_id == "tuning" else "set #" + set_id, l, str(seed_set[l])])
 	lines.append("NOTE a retried night counts its final (mercy) attempt, EXCEPT the first tier-3 night (FIRST_T3_NIGHT): a retried first night counts as lost, 0%; the night statistics count tier-3 nights only; hare share and the lane-cap guard are read from each run's own plan; with the retune flag on the first two tier-3 nights are below the cap (pressure 10, 11, then 12, D-304/D-305), so the at-cap columns (cap_nights, fence_rebuild_gold_median_at_cap, income_at_cap, hence FENCE_TAX) count from the third tier-3 night and are not like for like with runs before D-305")
@@ -193,7 +194,7 @@ func _initialize() -> void:
 	var res: Dictionary = SweepMath.retune_report(rows, expected, set_id != "tuning")
 	lines.append_array(res.lines)
 	if int(res.exit) == 0:
-		lines.append("TARGETS %s%s (counted: THREAT_LEAD, THREAT_LEAD_BY_LANE, RETRY_NIGHTS, FIRST_T3_NIGHT, FENCE_TAX, FIXED_SPREAD, LANE_CAP_GUARD; HARE_SHARE flags, UNBRANCHED_* and UNSPENT_* are information; read every line, the per-seed and per-lane lines most of all)" % [
+		lines.append("TARGETS %s%s (counted: THREAT_LEAD, THREAT_LEAD_BY_LANE, RETRY_NIGHTS, FIRST_T3_NIGHT, FIRST_NIGHT_BAND, FENCE_TAX, LANE_CAP_GUARD; FIXED_SPREAD (spread >= 5), HARE_SHARE flags, UNBRANCHED_* and UNSPENT_* are information; read every line, the per-seed and per-lane lines most of all)" % [
 			"ALL PASS" if res.ok else "NOT ALL PASS", "" if res.ok else " (failing: " + ", ".join(res.failed) + ")"])
 	if is_final and _commit(proj) != commit:
 		lines.append("FINAL_COMMIT_CHANGED: the commit was %s at the start and is %s now: HEAD or the tree changed during the run; the record says ok=false" % [commit, _commit(proj)])

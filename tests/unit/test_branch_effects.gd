@@ -19,6 +19,16 @@ class FakeTarget:
 	func take_hit(a: float) -> void:
 		hits += a
 
+## A target with no `kind` property at all.
+class FakeNoKind:
+	extends Node3D
+	var alive := true
+	var spawn_index := 1
+	var generation := 1
+	var hits := 0.0
+	func take_hit(a: float) -> void:
+		hits += a
+
 var main: Main
 var spot: TowerSpot
 var fired: Array = []
@@ -365,17 +375,22 @@ func _longbow_shot_at(kind: StringName) -> float:
 	return t.hits
 
 ## Mutation: the multiplier is 1.0 for every kind (brute stays 120), or it is applied to every kind (boar gets 240).
-func test_longbow_does_double_to_a_brute_and_exactly_120_to_the_rest() -> void:
+func test_longbow_does_double_to_a_brute_36_to_a_hare_and_exactly_120_to_the_rest() -> void:
 	_branch(TOWER, &"longbow")
 	assert_eq(await _longbow_shot_at(&"brute"), 240.0, "120 x 2.0")
-	for kind in [&"boar", &"hare", &"baron", &"boss"]:
+	for kind in [&"boar", &"boss"]:
 		_targets.clear()
 		spot.attacker._cooldown = 0.0
 		spot.attacker._retarget = 0.0
 		assert_eq(await _longbow_shot_at(kind), 120.0, "no bonus against %s" % kind)
+	for kind in [&"hare", &"baron"]:
+		_targets.clear()
+		spot.attacker._cooldown = 0.0
+		spot.attacker._retarget = 0.0
+		assert_almost_eq(await _longbow_shot_at(kind), 36.0, 1e-4, "E8: 120 x 0.3 against %s (the Baron is a hare)" % kind)
 
 ## Mutation: the multiplier lives in the shared Attacker default or in stats_for, so an unbranched or Volley tower gets it.
-func test_unbranched_and_volley_do_their_old_damage_to_a_brute() -> void:
+func test_unbranched_does_its_old_damage_to_a_brute_and_volley_three_tenths_of_its_own() -> void:
 	_build_max(TOWER)
 	assert_eq(await _longbow_shot_at(&"brute"), 18.0, "unbranched level 3: 18")
 	var spot2: TowerSpot = main.world.build_spots["tower_ne"]
@@ -391,8 +406,8 @@ func test_unbranched_and_volley_do_their_old_damage_to_a_brute() -> void:
 	a.candidates = func(): return [{"position": t.global_position, "spawn_index": 1, "ref": t}]
 	a._physics_process(1.0 / 60.0)
 	await _settle()
-	assert_eq(t.hits, 10.0, "Volley: 10 per projectile, one target")
-	assert_true(a.kind_mults.is_empty())
+	assert_almost_eq(t.hits, 3.0, 1e-4, "E8: Volley 10 x 0.3 against a brute, one target")
+	assert_eq(a.kind_mults, {&"brute": 0.3}, "the Volley carries its own table")
 
 ## Mutation: pass damage still 10, or the value ignores the night's scale.
 func test_spike_pass_damage_is_24_times_the_scale() -> void:
@@ -426,13 +441,15 @@ func test_first_tier_3_night_scales_spike_by_pressure_10_over_12() -> void:
 	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 5.3208, 0.0001)
 	GameState.day = saved_day
 
-## Mutation: the table has an entry for any other kind, or no entry for the brute; Volley or the unbranched tower carry a table.
+## Mutation: the Longbow table has an entry for any other kind or lacks the brute / hare entry; the Volley table has anything but its brute entry; the unbranched tower carries a table.
 func test_longbow_kind_mults_table() -> void:
 	var bb := Balance.data.branches
-	assert_eq(bb.longbow.kind_mults, {&"brute": 2.0})
+	assert_eq(bb.longbow.kind_mults, {&"brute": 2.0, &"hare": 0.3})
+	for kind in [&"boar", &"boss", &"no_such_kind"]:
+		assert_eq(float(bb.longbow.kind_mults.get(kind, 1.0)), 1.0, "no multiplier for %s" % kind)
+	assert_eq(bb.volley.kind_mults, {&"brute": 0.3})
 	for kind in [&"boar", &"hare", &"baron", &"boss", &"no_such_kind"]:
-		assert_eq(float(bb.longbow.kind_mults.get(kind, 1.0)), 1.0, "no bonus against %s" % kind)
-	assert_true(bb.volley.kind_mults.is_empty())
+		assert_eq(float(bb.volley.kind_mults.get(kind, 1.0)), 1.0, "Volley: no multiplier for %s" % kind)
 	assert_true(TowerSpot.stats_for(3, &"").kind_mults.is_empty())
 
 ## Mutation: pass damage is another number, or another fence has one.
@@ -464,3 +481,72 @@ func test_volley_and_unbranched_keep_their_interval() -> void:
 	assert_eq(spot.attacker.interval, 0.5)
 	_branch("tower_ne", &"volley")
 	assert_eq((main.world.build_spots["tower_ne"] as TowerSpot).attacker.interval, 0.5)
+
+# --- E8 Task 1: kind classes (D-314.10) -----------------------------------------------
+
+## Mutation: the attacker looks the table up by the raw kind (the Baron then takes 120).
+func test_a_longbow_hare_multiplier_applies_to_a_hare_and_to_a_baron() -> void:
+	Balance.data.branches.longbow.kind_mults[&"hare"] = 0.5
+	_branch(TOWER, &"longbow")
+	assert_eq(await _longbow_shot_at(&"hare"), 60.0, "120 x 0.5")
+	_targets.clear()
+	spot.attacker._cooldown = 0.0
+	spot.attacker._retarget = 0.0
+	assert_eq(await _longbow_shot_at(&"baron"), 60.0, "the Baron is a hare")
+
+## Mutation: damage_fence looks the table up by the raw kind (the Baron then does the plain hit).
+func test_a_spike_hare_multiplier_applies_to_a_baron_hit_on_the_fence() -> void:
+	Balance.data.branches.spike.damage_taken_mult_by_kind[&"hare"] = 2.0
+	_branch(FENCE, &"spike")
+	var before := float(GameState.buildings[FENCE].hp)
+	GameState.damage_fence(FENCE, 10.0, &"baron")
+	assert_almost_eq(before - float(GameState.buildings[FENCE].hp), 20.0, 1e-6, "10 x 2.0")
+	GameState.damage_fence(FENCE, 10.0, &"hare")
+	assert_almost_eq(before - float(GameState.buildings[FENCE].hp), 40.0, 1e-6, "a hare takes the same")
+	GameState.damage_fence(FENCE, 10.0, &"boar")
+	assert_almost_eq(before - float(GameState.buildings[FENCE].hp), 50.0, 1e-6, "another kind is unchanged")
+
+## Mutation: the tier bot's clear-time estimate reads the raw kind (the Baron then keeps 120).
+func test_tier_bot_tower_dps_uses_the_baron_class() -> void:
+	var st := TowerBranchStats.new()
+	st.damage = 120.0
+	st.interval = 2.0
+	st.count = 1
+	st.kind_mults = {&"hare": 0.5}
+	assert_almost_eq(TierBot.tower_dps(st, [1000.0], [&"baron"]), 30.0, 1e-6, "120 x 0.5 per 2.0 s")
+	assert_almost_eq(TierBot.tower_dps(st, [1000.0], [&"hare"]), 30.0, 1e-6)
+	assert_almost_eq(TierBot.tower_dps(st, [1000.0], [&"boar"]), 60.0, 1e-6)
+
+## Mutation: BranchMath.pass_damage compares the raw kind (the Baron then takes 0) or skips the class (a boar takes 24).
+func test_pass_damage_looks_the_kind_up_by_class() -> void:
+	var f := FenceBranchStats.new()
+	f.pass_damage = 24.0
+	f.pass_kinds = [&"hare"]
+	assert_almost_eq(BranchMath.pass_damage(f, &"baron", 1.0), 24.0, 1e-6, "the Baron is a hare")
+	assert_almost_eq(BranchMath.pass_damage(f, &"hare", 1.0), 24.0, 1e-6)
+	assert_eq(BranchMath.pass_damage(f, &"boar", 1.0), 0.0)
+
+## Mutation: fence_hold_seconds reads the raw kind (the Baron then holds as long as a boar).
+func test_fence_hold_seconds_looks_the_kind_up_by_class() -> void:
+	var f := FenceBranchStats.new()
+	f.damage_taken_mult_by_kind = {&"hare": 2.0}
+	var m := MonsterStats.new()
+	m.damage = 10.0
+	m.attack_interval = 1.0
+	m.fence_damage_mult = 1.0
+	var plain := BranchMath.fence_hold_seconds(320.0, m, f, &"boar")
+	assert_almost_eq(BranchMath.fence_hold_seconds(320.0, m, f, &"baron"), plain / 2.0, 1e-6, "the Baron takes the hare's x2.0")
+	assert_almost_eq(BranchMath.fence_hold_seconds(320.0, m, f, &"hare"), plain / 2.0, 1e-6)
+
+## Mutation: Attacker._damage_against reads target.kind without the null guard (a target with no kind errors or loses its damage).
+func test_a_target_without_a_kind_takes_full_damage_from_a_branched_tower() -> void:
+	_branch(TOWER, &"longbow")
+	_arm()
+	assert_false(spot.attacker.kind_mults.is_empty(), "precondition: the Longbow carries a table")
+	var t := FakeNoKind.new()
+	add_child_autofree(t)
+	t.global_position = Vector3(spot.global_position.x + 5.0, 0.0, spot.global_position.z)
+	_targets.append(t)
+	_attack_once()
+	await _settle()
+	assert_eq(t.hits, 120.0, "no kind means no multiplier: full damage")

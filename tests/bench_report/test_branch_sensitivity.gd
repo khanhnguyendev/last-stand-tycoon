@@ -6,7 +6,7 @@ extends GutTest
 ## Pressure 12, an invulnerable diner (tests/support/branch_bench.gd). Every row is a real bench run with the lever set in memory.
 ##
 ## Reading a row: "lost" = total diner HP lost, "fence" = fence HP left, "hares" = hares reaching the zone, "clear" = seconds to clear.
-## FLOOR: no worse than the unbranched building (primary, then the lane type's first tie-breaker). SPEC: the 15% margin over the other
+## FLOOR (information only since E8; the rows now show the ON, OFF and NEUTRAL rules of BranchBench.RULES): no worse than the unbranched building on diner HP lost. SPEC: the 15% margin over the other
 ## branch, on the first measure that separates them (siege order: lost, fence; hare order: lost, hares, clear); shown for Longbow on
 ## siege (over Volley) and for Spike on hare (over Stone). ID: Longbow loses least of the three tower states (siege).
 ##
@@ -45,11 +45,12 @@ func _run(lane: StringName, tb: StringName, fb: StringName, ov := {}) -> Diction
 		_cache[key] = await BranchBench.run(lane, tb, fb, PRESSURE, ov)
 	return _cache[key]
 
+## Information only (E8: the FLOOR rule is gone, ON/OFF/NEUTRAL replace it): this run loses no more diner HP than the unbranched building.
+func _floor(a: Dictionary, b: Dictionary, _lane: StringName) -> bool:
+	return float(a.diner_lost) <= float(b.diner_lost) + SAME
+
 func _fmt(r: Dictionary) -> String:
 	return "lost %7.1f fence %5.1f hares %2d clear %6.2f" % [r.diner_lost, r.fence_hp_left, r.hares_in_zone, r.clear_s]
-
-func _floor(a: Dictionary, b: Dictionary, lane: StringName) -> bool:
-	return BranchBench.no_worse(a, b, lane).ok
 
 ## The shared margin rule (tests/support/branch_bench.gd) as a report string. `v` is the verdict of beats_by_margin / stone_over_spike.
 func _spec_text(v: Dictionary) -> String:
@@ -70,7 +71,7 @@ func _longbow_row(label: String, ov: Dictionary) -> void:
 	for lane in LANES:
 		var base := await _run(lane, &"", &"")
 		var r := await _run(lane, &"longbow", &"", ov)
-		var line := "  %-26s %-7s Longbow %s | floor %s" % [label, lane, _fmt(r), "ok" if _floor(r, base, lane) else "FAIL"]
+		var line := "  %-26s %-7s Longbow %s | info: no worse than unbranched %s" % [label, lane, _fmt(r), "yes" if _floor(r, base, lane) else "no"]
 		if lane == &"siege":
 			var vol := await _run(lane, &"volley", &"")
 			line += " | spec vs Volley: %s | ID %s" % [_spec_text(BranchBench.beats_by_margin(r, vol, BranchBench.ORDER_SIEGE_TOWER)), "ok" if r.diner_lost < base.diner_lost - SAME and r.diner_lost < vol.diner_lost - SAME else "FAIL"]
@@ -80,7 +81,7 @@ func _spike_row(label: String, ov: Dictionary) -> void:
 	for lane in LANES:
 		var base := await _run(lane, &"", &"")
 		var r := await _run(lane, &"", &"spike", ov)
-		var line := "  %-26s %-7s Spike %s | floor %s" % [label, lane, _fmt(r), "ok" if _floor(r, base, lane) else "FAIL"]
+		var line := "  %-26s %-7s Spike %s | info: no worse than unbranched %s" % [label, lane, _fmt(r), "yes" if _floor(r, base, lane) else "no"]
 		if lane == &"hare":
 			line += " | spec vs Stone: %s" % _spec_text(BranchBench.beats_by_margin(r, await _run(lane, &"", &"stone"), BranchBench.ORDER_HARE))
 		if lane == &"siege":
@@ -173,28 +174,19 @@ func _rule(name: String, ok: bool, text: String) -> Dictionary:
 ## Every rule of the fast file (full=false: primary measure only) or the full file (full=true: tie-breakers too) over `res`.
 func _evaluate(res: Dictionary, full: bool) -> Array:
 	var out: Array = []
-	for lane in res:
-		if not res[lane].has("-/-"):
+	# E8 (spec 3.1): ON, OFF and NEUTRAL replace the FLOOR; a row is judged only when its lane holds every configuration it names.
+	for row in BranchBench.RULES:
+		if not res.has(row[2]):
 			continue
-		var base: Dictionary = res[lane]["-/-"]
-		for name in ["longbow/-", "volley/-", "-/stone", "-/spike"]:
-			if not res[lane].has(name):
-				continue
-			var r: Dictionary = res[lane][name]
-			var ok := false
-			var text := ""
-			if full:
-				ok = _floor(r, base, lane)
-				var shown := "diner_lost"
-				for m in BranchBench.FLOOR_ORDER[lane]:
-					shown = m[0]
-					if not BranchBench.same(float(r[m[0]]), float(base[m[0]])):
-						break
-				text = "%s %.1f <= unbranched %.1f%s" % [shown, float(r[shown]), float(base[shown]), " (higher is better)" if shown == "fence_hp_left" else ""]
-			else:
-				ok = float(r.diner_lost) <= float(base.diner_lost) + SAME
-				text = "lost %.1f <= unbranched %.1f" % [r.diner_lost, base.diner_lost]
-			out.append(_rule("FLOOR %s %s" % [lane, name], ok, text))
+		var lane_res: Dictionary = res[row[2]]
+		var need: Array = [BranchBench.branch_cfg(row[1])] + row[5]
+		var have := true
+		for n in need:
+			have = have and lane_res.has(n)
+		if not have:
+			continue
+		var v := BranchBench.rule_verdict(row, lane_res)
+		out.append(_rule(BranchBench.rule_name(row) + " " + String(row[2]), v.ok, "%s %.1f vs %.1f, bound %s %.1f" % [v.measure, v.a, v.b, BranchBench.rule_op(row), v.bound]))
 	for row in BranchBench.SPECIALISTS:
 		if not res.has(row[0]) or not res[row[0]].has(BranchBench.cfg_name(row[1])):
 			continue
@@ -221,7 +213,9 @@ func _evaluate(res: Dictionary, full: bool) -> Array:
 	if full:
 		var idst := BranchBench.identity_stone_stands_longest(sg)
 		out.append(_rule("ID siege: Stone wall's fence stands longest (D-294.6)", idst.ok, idst.why))
-	for lane in res:
+	for lane in [&"siege", &"hare"]:  # E8: the neutral lane is NEUTRAL's job
+		if not res.has(lane):
+			continue
 		var b2: Dictionary = res[lane]["-/-"]
 		var tw := minf(res[lane]["longbow/-"].diner_lost, res[lane]["volley/-"].diner_lost)
 		var fn := minf(res[lane]["-/stone"].diner_lost, res[lane]["-/spike"].diner_lost)

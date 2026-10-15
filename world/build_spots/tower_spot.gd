@@ -62,7 +62,7 @@ func _apply_level(p_level: int, b: Dictionary) -> void:
 		var st := TowerSpot.stats_for(p_level, StringName(String(b.get("branch", ""))))
 		attacker.configure(st.damage, st.attack_range, st.interval, Balance.data.hero.retarget_interval, 1.0,
 			Balance.data.build.tower_projectile_speed, st.count)
-		# E6 (D-283): the Longbow's kind multipliers (its stats' own table); every other level and branch has none.
+		# E6 (D-283): the branch's kind-class multipliers (its stats' own table; empty when the stats name none).
 		attacker.kind_mults = st.kind_mults.duplicate()
 
 func _pip_y(p_level: int) -> float:

@@ -11,6 +11,12 @@ const KINDS: Array[StringName] = [&"boar", &"hare", &"boss", &"brute", &"baron"]
 @export var brute: MonsterStats = MonsterBalance._brute()
 @export var baron: MonsterStats = MonsterBalance._baron()
 
+## E8 (D-314.10): the class a kind meets branch multipliers as. Bosses share their kin's numbers.
+const KIND_CLASS := {&"baron": &"hare"}
+
+static func kind_class(kind: StringName) -> StringName:
+	return KIND_CLASS.get(kind, kind)
+
 static func _hare() -> MonsterStats:
 	var s := MonsterStats.new()
 	s.hp = 15.0

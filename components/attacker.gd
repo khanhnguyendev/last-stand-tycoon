@@ -13,8 +13,8 @@ var projectile_speed := 14.0
 var enabled := true
 ## Projectiles per attack, one at each of the first `count` targets of Targeting.select_many (Volley, E5 tier 3).
 var count := 1
-## E6 (D-283): damage x this by the target's `kind` (an absent kind = 1.0). Empty for every shooter but a Longbow tower
-## with the retune on. Resolved at launch: a projectile can only hit the target it was launched at (it is lost if that
+## E6 (D-283): damage x this by the target's kind class (MonsterBalance.kind_class; an absent class = 1.0). Empty for every shooter but a
+## branched tower whose stats name a class (the table is filled for the Longbow and, from E8 Task 3, the Volley). Resolved at launch: a projectile can only hit the target it was launched at (it is lost if that
 ## target dies), and a monster's kind never changes, so the launch-time multiplier is the hit-time one.
 var kind_mults: Dictionary = {}
 ## Which projectile art this shooter's shots wear (S4 Task 7a, D-191): the hero's is &"knife".
@@ -90,7 +90,10 @@ func _volley(origin: Vector3, delta: float) -> void:
 func _damage_against(target: Object) -> float:
 	if kind_mults.is_empty():
 		return damage
-	return damage * float(kind_mults.get(target.get(&"kind"), 1.0))
+	var kind: Variant = target.get(&"kind")  # a target without a kind gets no multiplier
+	if kind == null:
+		return damage
+	return damage * float(kind_mults.get(MonsterBalance.kind_class(StringName(kind)), 1.0))
 
 func _target_valid(origin: Vector3) -> bool:
 	if _target.is_empty():

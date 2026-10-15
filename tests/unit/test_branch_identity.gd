@@ -120,10 +120,11 @@ func test_live_pressure_range_real_hp_and_identity_hold() -> void:
 
 ## E6 (D-304): tier 3 starts at pressure 10 and ramps to the cap 12, so the live range is [10, 11, 12] (tables above).
 
-## The live Longbow: the balance's Longbow (its 2.0 s interval) with its damage x its own multiplier for a monster of `kind` (an absent kind = 1.0).
+## The live Longbow: the balance's Longbow (its 2.0 s interval) with its damage x its own multiplier for a monster of `kind`, looked up by the
+## kind's class like the attack path does (an absent class = 1.0).
 func _longbow_on(kind: StringName = &"") -> TowerBranchStats:
 	var lb: TowerBranchStats = bb.tower(&"longbow").duplicate()
-	lb.damage = bb.longbow.damage * float(bb.longbow.kind_mults.get(kind, 1.0))
+	lb.damage = bb.longbow.damage * float(bb.longbow.kind_mults.get(MonsterBalance.kind_class(kind), 1.0))
 	return lb
 
 func test_live_pressure_range_real_hp_is_pinned() -> void:
@@ -258,8 +259,9 @@ func test_m5_fence_holds_longest_against_one_brute_stone() -> void:
 	var v := {}
 	for id in f:
 		v[id] = BranchMath.fence_hold_seconds(f[id].hp, brute, f[id], &"brute")
-	# brute 8 x 4.0 = 32 per hit: 320 hp = 10 hits, Stone 640 hp at 16 per hit = 40 hits (thorns never shorten it).
-	assert_eq([v[&""], v[&"stone"], v[&"spike"]], [10.0, 40.0, 10.0])
+	# brute 8 x 4.0 = 32 per hit: 320 hp = 10 hits; Stone 640 hp at 16 per hit = 40 hits; Spike takes 4.0 x: 128 per hit, ceil(320 / 128) = 3 hits
+	# (thorns never shorten it).
+	assert_eq([v[&""], v[&"stone"], v[&"spike"]], [10.0, 40.0, 3.0])
 	assert_eq(_best(v), &"stone")
 	gut.p("M5 fence hold vs one brute (s): unbranched %.1f stone %.1f spike %.1f" % [v[&""], v[&"stone"], v[&"spike"]])
 
@@ -354,15 +356,17 @@ func test_branch_spec_values() -> void:
 	assert_eq(Array(BranchBalance.FENCE_BRANCHES), [&"stone", &"spike"])
 	var lb := bb.tower(&"longbow")
 	assert_eq([lb.attack_range, lb.damage, lb.interval, lb.count], [9.98, 120.0, 2.0, 1])
+	assert_eq(lb.kind_mults, {&"brute": 2.0, &"hare": 0.3}, "E8: the Longbow's weakness is the hare (range 0.15 to 0.42)")
 	var vo := bb.tower(&"volley")
 	assert_eq([vo.attack_range, vo.damage, vo.interval, vo.count], [8.0, 10.0, 0.5, 3])
+	assert_eq(vo.kind_mults, {&"brute": 0.3}, "E8: the Volley's weakness is the brute (range 0.1 to 0.6)")
 	var st := bb.fence(&"stone")
 	assert_eq([st.hp, st.thorn_damage, st.pass_damage], [640.0, 0.0, 0.0])
 	assert_eq(st.damage_taken_mult_by_kind, {&"brute": 0.5})
 	var sp := bb.fence(&"spike")
 	assert_eq([sp.hp, sp.thorn_damage, sp.pass_damage], [320.0, 6.0, 24.0])
 	assert_eq(Array(sp.pass_kinds), [&"hare", &"baron"])
-	assert_eq(sp.damage_taken_mult_by_kind, {})
+	assert_eq(sp.damage_taken_mult_by_kind, {&"brute": 4.0}, "E8: Spike's weakness is the brute (range 1.5 to 4.0, D-314.18)")
 
 func test_branch_data_survives_a_balance_reset_as_a_deep_copy() -> void:
 	bb.longbow.damage = 1.0
@@ -447,9 +451,10 @@ func test_e6_identity_spike_fence_lets_the_fewest_hares_reach_the_zone_on_the_ha
 	var v := BranchBench.identity_spike_fewest_hares(f[&"hare"])
 	assert_true(v.ok, "%s | fails when: %s" % [v.why, BranchBench.IDENTITY_FAILS_WHEN["spike_hares"]])
 
-func test_e6_identity_unbranched_is_never_the_best_at_any_named_measure_on_any_lane_type() -> void:
+## E8 (spec 3.1): restated from "on every lane type" to the siege and hare lanes; the neutral lane is the NEUTRAL rule's job.
+func test_e6_identity_unbranched_is_never_the_best_on_the_siege_and_hare_lanes() -> void:
 	var f := await _fast()
-	for lane in BranchBench.LANES:
+	for lane in [&"siege", &"hare"]:
 		var l: Dictionary = f[lane]
 		_ok_runs(l, lane)
 		var base: Dictionary = l["-/-"]

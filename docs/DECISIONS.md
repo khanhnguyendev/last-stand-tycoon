@@ -3577,3 +3577,19 @@ is no longer reachable. The tests already pin this (D-308.3).
 15. The spec's third version applies the re-review (7 important, 7 minor).
 16. The plan details phase 1 now; phase 2 is planned when phase 1's hold-out has run, because its planner, layout
     and boss numbers depend on phase 1's tuned values. Cost: phase 2's plan gets its own review later.
+17. The Stone wall's ON check breaks ties on fence HP left (`ORDER_STONE_ON`), one of the tie-breakers spec 3.1
+    names. Cost: none known.
+18. The Spike fence's brute range is widened from 1.5 to 3.0 up to 1.5 to 4.0, and the value is 4.0. The fence's
+    stand time moves in 1 s steps; 3.0 gives 26.23 s against the 25.41 s the OFF rule needs at pressure 12.
+    Cost: this goes beyond the range the spec pre-authorized (D-314.1); brutes now deal 16 times a boar's hit to a
+    Spike fence; the rule passes by 0.18 s, so later strength changes can flip it.
+19. The weakness row's brute icon is the siege ram (the lane-character set, as row 2 uses), not the HUD's brute
+    head that amendment A11 named. Cost: one icon differs from the telegraph's count row; a one-line swap.
+20. The unit fast subset judges OFF Spike on the whole night (`FULL_NIGHT_RULES`), because on the last wave alone
+    the Spike fence outlasts the unbranched one at every multiplier. The full bench judges every rule on whole
+    nights. Cost: two extra bench runs in the unit subset.
+21. Tuning stops after two rounds. Round 1 (the weaknesses, start pressure 10): THREAT_LEAD +5.7 passes, every
+    target passes but FIRST_NIGHT_BAND (median 95.7%). Round 2 (start pressure 11): the band only reaches 90.0% and
+    FIRST_T3_NIGHT breaks (the unbranched player keeps 7.7%). The start pressure moves both, so the band and the
+    floor conflict on that lever; round 2 is reverted. The band is escalated to the author with options, not tuned
+    further. Cost: phase 1's first tier-3 night stays easy for branch builds.

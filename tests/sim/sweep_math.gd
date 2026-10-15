@@ -253,8 +253,9 @@ static func two_by_two(runs: Array) -> Dictionary:
 
 const SIEGE_LANES := ["east", "sw", "west", "north"]
 ## The seed sets, pinned as literals (D-285). The rule: scan seeds upward from 1; a seed belongs to the lane `LaneCharacter.for_run(seed).siege`; per lane the first seed is
-## the scan's tuning seed, the next two are hold-out set #1, the two after those hold-out set #2, the two after those measurement set #3 (E7), the two after those measurement set #4 (E7, escalation 16).
-## report_retune.gd asserts the scan still gives exactly SCAN_TUNING_SET, HOLDOUT_SET_1, HOLDOUT_SET_2, MEASURE_SET_3 and MEASURE_SET_4.
+## the scan's tuning seed, the next two are hold-out set #1, the two after those hold-out set #2, the two after those measurement set #3 (E7), the two after those measurement set #4 (E7, escalation 16),
+## the two after those measurement set #5 and the two after those measurement set #6 (E8, spec 3.5).
+## report_retune.gd asserts the scan still gives exactly SCAN_TUNING_SET, HOLDOUT_SET_1, HOLDOUT_SET_2, MEASURE_SET_3, MEASURE_SET_4, MEASURE_SET_5 and MEASURE_SET_6.
 const SCAN_TUNING_SET := {"east": [1], "sw": [3], "west": [4], "north": [7]}
 ## D-304: seed 14 failed hold-out set #1, was diagnosed, and is therefore tuning data now. The tuning set that is RUN is the scan's tuning seeds plus this promotion.
 const PROMOTED_TO_TUNING := {"north": [14]}
@@ -268,12 +269,16 @@ const HOLDOUT_SET_2 := {"east": [8, 11], "sw": [21, 23], "west": [18, 25], "nort
 const MEASURE_SET_3 := {"east": [15, 17], "sw": [28, 29], "west": [30, 36], "north": [22, 26]}
 ## MEASUREMENT set #4 (E7, escalation 16, the walk-time rule): scan positions 8 and 9 per lane, the same rules as set #3. Scan positions 10 and 11 stay unnamed.
 const MEASURE_SET_4 := {"east": [20, 24], "sw": [33, 34], "west": [39, 48], "north": [27, 32]}
+## MEASUREMENT set #5 (E8 phase 1, spec 3.5): scan positions 10 and 11 per lane; run once per bot rule, --final, walk bot, 32 days. No tuning on it.
+const MEASURE_SET_5 := {"east": [31, 35], "sw": [42, 44], "west": [59, 66], "north": [38, 43]}
+## MEASUREMENT set #6 (E8 phase 2, spec 3.5): scan positions 12 and 13 per lane; run once per bot rule, --final, 45 days (the days of phase 2). No tuning on it.
+const MEASURE_SET_6 := {"east": [37, 40], "sw": [45, 47], "west": [68, 76], "north": [49, 53]}
 ## The hold-out sets that may no longer be run (D-304).
 const RETIRED_SETS := ["1"]
 ## The hold-out sets that are spent (D-307): refused always, like the retired set.
 const SPENT_SETS := ["2"]
-## The scan positions the sets use (1-based, per lane): 9 seeds per lane are scanned (tuning 1, set #1 2-3, set #2 4-5, set #3 6-7, set #4 8-9); 10 and 11 stay unnamed.
-const SCAN_PER_LANE := 9
+## The scan positions the sets use (1-based, per lane): 13 seeds per lane are scanned (tuning 1, set #1 2-3, set #2 4-5, set #3 6-7, set #4 8-9, set #5 10-11, set #6 12-13).
+const SCAN_PER_LANE := 13
 ## The bot rules a report run may use (E7, D-310, escalation 16): `walk` = the shipped TierBot (walk-time rule), `far` = the D-310 never-cross rule, `old` = no rule (the bot before D-310).
 ## A history entry recorded as `new` (before escalation 16) was a `far` run: see canon_bot_rule.
 const BOT_RULES := ["walk", "far", "old"]
@@ -292,8 +297,22 @@ const REFERENCE_POLICY := "unbranched"
 const AHEAD_MARGIN := 1.0
 ## The only length a final run may have (the 32-day runs the targets are stated for).
 const FINAL_DAYS := 32
+## The days a final run of a set must have: set #6 is the phase-2 set (45 days, spec 3.5); every other measurement set is 32.
+const FINAL_DAYS_BY_SET := {"6": 45}
+## The measurement sets a final run may use.
+const MEASURE_SET_IDS := ["3", "4", "5", "6"]
+## The policies that build branches: FIRST_NIGHT_BAND reads these (the unbranched reference is left out).
+const BRANCH_POLICIES := ["all_a", "all_b", "mixed", "volley_stone", "threat"]
+## FIRST_NIGHT_BAND (E8 spec 3.3, plan A12): the pooled median of the first tier-3 nights, in percent of the diner's HP, inclusive.
+const FIRST_NIGHT_BAND_LOW := 50.0
+const FIRST_NIGHT_BAND_HIGH := 80.0
+## FIXED_SPREAD turned around (E8 spec 3.5): the builds should now differ; reported as information.
+const FIXED_SPREAD_EXPECTED := 5.0
 
-## The scan. `siege_of`: Callable(seed) -> siege lane name. Returns {tuning, holdout1, holdout2, set3, set4}, each {lane: [seeds]} in scan order.
+static func final_days(set_id: String) -> int:
+	return int(FINAL_DAYS_BY_SET.get(set_id, FINAL_DAYS))
+
+## The scan. `siege_of`: Callable(seed) -> siege lane name. Returns {tuning, holdout1, holdout2, set3, set4, set5, set6}, each {lane: [seeds]} in scan order.
 static func seed_scan(siege_of: Callable, lanes: Array, per_lane := SCAN_PER_LANE, start := 1) -> Dictionary:
 	var found := {}
 	for l in lanes:
@@ -311,13 +330,15 @@ static func seed_scan(siege_of: Callable, lanes: Array, per_lane := SCAN_PER_LAN
 			break
 		s += 1
 		guard += 1
-	var out := {"tuning": {}, "holdout1": {}, "holdout2": {}, "set3": {}, "set4": {}}
+	var out := {"tuning": {}, "holdout1": {}, "holdout2": {}, "set3": {}, "set4": {}, "set5": {}, "set6": {}}
 	for l in lanes:
 		out.tuning[l] = found[l].slice(0, 1)
 		out.holdout1[l] = found[l].slice(1, 3)
 		out.holdout2[l] = found[l].slice(3, 5)
 		out.set3[l] = found[l].slice(5, 7)
 		out.set4[l] = found[l].slice(7, 9)
+		out.set5[l] = found[l].slice(9, 11)
+		out.set6[l] = found[l].slice(11, 13)
 	return out
 
 ## The seeds of a set, lane order of SIEGE_LANES, scan order inside a lane.
@@ -352,37 +373,37 @@ static func retired_gate(set_id: String) -> Dictionary:
 		return {"refused": true, "lines": ["REFUSED: hold-out set #%s is spent (D-307): a spent set is never reused; its results stay in the history (tests/sim/retune_final.json); no run was started" % set_id]}
 	return {"refused": false, "lines": []}
 
-## The set the report runs: "tuning", "1", "2" or "3" -> its dictionary ({} for anything else).
+## The set the report runs: "tuning", "1" to "6" ->  its dictionary ({} for anything else).
 static func set_by_id(set_id: String) -> Dictionary:
-	return {"tuning": TUNING_SET, "1": HOLDOUT_SET_1, "2": HOLDOUT_SET_2, "3": MEASURE_SET_3, "4": MEASURE_SET_4}.get(set_id, {})
+	return {"tuning": TUNING_SET, "1": HOLDOUT_SET_1, "2": HOLDOUT_SET_2, "3": MEASURE_SET_3, "4": MEASURE_SET_4, "5": MEASURE_SET_5, "6": MEASURE_SET_6}.get(set_id, {})
 
 ## D-290: hold-out sets run only with --final, never on a dirty tree or an unknown commit (the recorded commit must identify the values), and `--final` with the tuning set
 ## is refused (it would run without a FINAL line or a record). The record is {"history": [{set, commit, date, done, ok}]} (tests/sim/retune_final.json, committed with the
 ## output); `date` is passed in (the commit's date from git: no clock in the maths). Returns {allowed, lines, record}: the header lines and the record with this run appended
 ## (done=false, ok=false until final_finish). Every earlier entry is printed as FINAL_EARLIER; a repeat of the same set adds FINAL_REPEAT.
 ##
-## E7 (D-310, escalation 16): the measurement sets (#3, #4) may be run once per bot rule (`bot_rule`, "walk", "far" or "old", stored in the entry): a further run of the same set is allowed only when its bot_rule differs from
+## E7 (D-310, escalation 16): the measurement sets (#3 to #6) may be run once per bot rule (`bot_rule`, "walk", "far" or "old", stored in the entry): a further run of the same set is allowed only when its bot_rule differs from
 ## every earlier COMPLETE entry of that set (`new` and an entry without a bot_rule count as "far"; an entry without `complete` counts as complete; an entry with `complete: false`, a run that
 ## printed no verdict, does not block a re-run); a repeat with a rule already used by a complete entry is refused. Sets #1 and #2 are refused always (retired, spent).
-static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary, date := "", days := FINAL_DAYS, bot_rule := "walk") -> Dictionary:
+static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary, date := "", days := FINAL_DAYS, bot_rule := "walk") -> Dictionary:  # days: 32, or 45 for set #6 (final_days)
 	var refuse := func(msg: String) -> Dictionary:
 		return {"allowed": false, "lines": ["REFUSED: " + msg], "record": record}
 	if set_id == "tuning":
 		if final_flag:
-			return refuse.call("--final is for the hold-out set (--set=3); the tuning set runs without it")
+			return refuse.call("--final is for the measurement sets (--set=3|4|5|6); the tuning set runs without it")
 		return {"allowed": true, "lines": [], "record": record}
 	if set_id in RETIRED_SETS or set_id in SPENT_SETS:  # D-304, D-307: refused here too, with or without --final (the report also checks retired_gate first)
 		return {"allowed": false, "lines": retired_gate(set_id).lines, "record": record}
-	if not set_id in ["3", "4"]:
-		return refuse.call("unknown set '%s' (tuning|3|4)" % set_id)
+	if not set_id in MEASURE_SET_IDS:
+		return refuse.call("unknown set '%s' (tuning|3|4|5|6)" % set_id)
 	if not bot_rule in BOT_RULES:
 		return refuse.call("unknown bot rule '%s' (walk|far|old)" % bot_rule)
 	if not final_flag:
 		return refuse.call("hold-out set #%s runs only with --final (D-290); no run was started" % set_id)
 	if commit == "" or commit == "unknown" or commit.ends_with("-dirty"):
 		return refuse.call("a final run needs a clean tree at a known commit (got '%s'): the recorded commit must identify the values (D-290)" % commit)
-	if days != FINAL_DAYS:
-		return refuse.call("a final run is %d days (--days=%d given): the targets are stated for the 32-day runs" % [FINAL_DAYS, days])
+	if days != final_days(set_id):
+		return refuse.call("a final run of set #%s is %d days (--days=%d given): the targets are stated for runs of that length" % [set_id, final_days(set_id), days])
 	var lines: Array = ["FINAL set=#%s commit=%s date=%s days=%d bot_rule=%s" % [set_id, commit, date, days, bot_rule]]
 	var history: Array = record.get("history", [])
 	var differs := ""
@@ -780,15 +801,39 @@ static func _spread(rows: Array) -> float:
 			vals.append(v)
 	return NAN if vals.is_empty() else float(vals.max()) - float(vals.min())
 
-## FIXED_SPREAD: best minus worst mean points of the four fixed pairs <= 15 (exactly 15 passes).
+## FIXED_SPREAD (E8 spec 3.5, plan A12): INFORMATION, not a target. It turned around: the four fixed pairs' mean points should now differ by at least 5 (best minus worst); `ok` is that
+## "spread >= 5" reading (exactly 5 counts) and never enters the failed list.
 static func fixed_spread(rows: Array) -> Dictionary:
 	var sp := _spread(rows)
-	var ok := not is_nan(sp) and _le(sp, 15.0)
+	var ok := not is_nan(sp) and _ge(sp, FIXED_SPREAD_EXPECTED)
 	var parts: Array = []
 	for p in FIXED_PAIRS:
 		parts.append("%s %s" % [p, _num(_policy_points(rows, p), "%.1f")])
-	var head := "FIXED_SPREAD: %s (spread %s points: %s; needs <= 15.0)" % ["PASS" if ok else "FAIL", _num(sp, "%.1f"), ", ".join(parts)]
+	var head := "FIXED_SPREAD: %s (spread %s points: %s; information: the builds should differ, spread >= %.1f expected, not a must-hold)" % ["spread >= %d" % int(FIXED_SPREAD_EXPECTED) if ok else "spread < %d" % int(FIXED_SPREAD_EXPECTED), _num(sp, "%.1f"), ", ".join(parts), FIXED_SPREAD_EXPECTED]
 	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return _spread(sub), "spread %.1f")}
+
+## FIRST_NIGHT_BAND (E8 spec 3.3, plan A12): ONE pooled median over the first tier-3 night of every branch-policy run (all_a, all_b, mixed, volley_stone, threat; `policies` overrides),
+## in percent of the diner's HP; a retried first night counts 0. Passes in [50, 80] inclusive. Fails with no run.
+static func first_night_band(rows: Array, policies := BRANCH_POLICIES) -> Dictionary:
+	var vals: Array = []
+	var retried: Array = []
+	for r in rows:
+		if not r.policy in policies:
+			continue
+		vals.append(_first_night(r))
+		if int(r.get("first_t3_retries", 0)) > 0:
+			retried.append("  retried first night: seed %d %s (counted as 0%%)" % [r.seed, r.policy])
+	var med := _median_or_nan(vals)
+	var ok := not is_nan(med) and _ge(med, FIRST_NIGHT_BAND_LOW) and _le(med, FIRST_NIGHT_BAND_HIGH)
+	var head := "FIRST_NIGHT_BAND: %s (pooled median of the first tier-3 night %s%% over %d branch-policy runs, a retried night counts 0%%; needs %.1f to %.1f inclusive)" % [
+		"PASS" if ok else "FAIL", _num(med, "%.1f"), vals.size(), FIRST_NIGHT_BAND_LOW, FIRST_NIGHT_BAND_HIGH]
+	var lines: Array = [head]
+	for p in policies:
+		var mine := rows.filter(func(r): return r.policy == p)
+		if not mine.is_empty():
+			lines.append("  policy %s: median %s%% over %d runs" % [p, _num(_median_or_nan(mine.map(func(r): return _first_night(r))), "%.1f"), mine.size()])
+	lines.append_array(retried)
+	return {"ok": ok, "median": med, "lines": lines}
 
 ## HARE_SHARE: night-level share of the hares that walk the hare lane, per seed (mean over the runs of the seed that had hares, each the mean over its tier-3 nights with hares;
 ## runs holding -1 had no hares and are left out); a seed below 0.6 is FLAGGED (exactly 0.6 is not; a seed with no value at all too). The lowest single night per seed is printed.
@@ -852,10 +897,10 @@ static func retune_report(rows: Array, expected: Array, final := false) -> Dicti
 	var lines: Array = []
 	var failed: Array = []
 	var results := {"THREAT_LEAD": threat_lead(rows, final), "THREAT_LEAD_BY_LANE": threat_lead_by_lane(rows), "RETRY_NIGHTS": retry_nights(rows), "FIRST_T3_NIGHT": first_t3_night(rows),
-		"FENCE_TAX": fence_tax(rows), "FIXED_SPREAD": fixed_spread(rows), "HARE_SHARE": hare_share(rows), "LANE_CAP_GUARD": lane_cap_guard(rows)}
+		"FIRST_NIGHT_BAND": first_night_band(rows), "FENCE_TAX": fence_tax(rows), "FIXED_SPREAD": fixed_spread(rows), "HARE_SHARE": hare_share(rows), "LANE_CAP_GUARD": lane_cap_guard(rows)}
 	for name in results:
 		lines.append_array(results[name].lines)
-		if name != "HARE_SHARE" and not results[name].ok:  # HARE_SHARE only flags (spec 8.1)
+		if name != "HARE_SHARE" and name != "FIXED_SPREAD" and not results[name].ok:  # HARE_SHARE only flags (spec 8.1); FIXED_SPREAD is information (E8 spec 3.5)
 			failed.append(name)
 	lines.append_array(unbranched_report(rows).lines)
 	lines.append_array(worst_night_lines(rows))

@@ -39,3 +39,9 @@ func test_hare_and_boss_spec_values() -> void:
 func test_unknown_kind_is_rejected() -> void:
 	assert_false(Balance.data.monsters.has_kind(&"dragon"))
 	assert_true(Balance.data.monsters.has_kind(&"hare"))
+
+## E8 (D-314.10): the Baron meets branch multipliers as a hare; every other kind (and an unknown one) as itself.
+func test_kind_class_maps_the_baron_to_the_hare_and_the_rest_to_themselves() -> void:
+	assert_eq(MonsterBalance.kind_class(&"baron"), &"hare")
+	for kind in [&"boar", &"hare", &"brute", &"boss", &"no_such_kind"]:
+		assert_eq(MonsterBalance.kind_class(kind), kind, "%s is its own class" % kind)

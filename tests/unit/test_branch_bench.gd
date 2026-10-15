@@ -7,8 +7,7 @@ extends GutTest
 ## code the full bench runs; only the length of the night differs. The results are cached per process (BranchBench.fast_results()) and the
 ## identity test (test_branch_identity.gd) reuses them.
 ##
-## FLOOR: every branch loses no more diner HP than the unbranched building of its kind (tied within 0.001 counts as no worse). Diner HP lost
-##   is primary on every lane type.
+## RULES (E8, spec 3.1, replacing E6's FLOOR): ON, OFF and NEUTRAL per branch (BranchBench.RULES), at the last wave of pressure 12.
 ## SPECIALIST: on its own lane type the specialist beats the other branch by 15% on the first measure of its order that separates them:
 ##   Longbow over Volley (siege, diner HP lost), Volley over Longbow and Spike over Stone (hare, diner HP lost, then hares in the zone,
 ##   then time to clear) and, D-294.6, Stone over Spike on siege by how long the fence STANDS (fence_fell_s, higher is better, a fence that
@@ -31,7 +30,7 @@ func before_all() -> void:
 
 func after_all() -> void:
 	Balance.reset()
-	gut.p("FAST SUBSET (last wave only, 15 runs) wall time of the runs %.1f s (0 when another file computed them first)" % _wall)
+	gut.p("FAST SUBSET (last wave only, 15 runs, plus 2 whole-night siege runs for FULL_NIGHT_RULES = 17) wall time of the runs %.1f s (0 when another file computed them first)" % _wall)
 	gut.p("FAST RULE TABLE: rule | the two numbers | bound | verdict")
 	for r in _rows:
 		gut.p("  %-52s %14s vs %-14s %-18s %s" % [r[0], r[1], r[2], r[3], "PASS" if r[4] else "FAIL"])
@@ -44,18 +43,17 @@ func _res(lane: StringName, name: String) -> Dictionary:
 func _row(rule: String, a: String, b: String, bound: String, ok: bool) -> void:
 	_rows.append([rule, a, b, bound, ok])
 
-func test_floor_every_branch_loses_no_more_than_the_unbranched_building() -> void:
-	for lane in BranchBench.LANES:
-		var base := _res(lane, "-/-")
-		for cfg in BranchBench.FAST_CONFIGS.slice(1):
-			var name := BranchBench.cfg_name(cfg)
-			var r := _res(lane, name)
-			var ok := float(r.diner_lost) <= float(base.diner_lost) + BranchBench.SAME
-			_row("FLOOR %s %s" % [lane, name], "%.1f" % r.diner_lost, "%.1f" % base.diner_lost, "<= unbranched", ok)
-			assert_true(ok, "FLOOR %s: %s %.1f vs unbranched %.1f | fails when: %s" % [lane, name, r.diner_lost, base.diner_lost, BranchBench.FLOOR_FAILS_WHEN[name]])
-			# The full floor order (a tie on diner HP lost falls to the lane type's next measure).
-			var v := BranchBench.no_worse(r, base, lane)
-			assert_true(v.ok, "FLOOR %s: %s no worse than unbranched on the floor order: %s | fails when: %s" % [lane, name, v.why, BranchBench.FLOOR_FAILS_WHEN[name]])
+func test_rules_on_off_and_neutral() -> void:
+	var f := BranchBench.fast_cached()
+	for row in BranchBench.RULES:
+		var lane_res: Dictionary = f["siege_full"] if BranchBench.rule_name(row) in BranchBench.FULL_NIGHT_RULES else f[row[2]]
+		var v := BranchBench.rule_verdict(row, lane_res)
+		for lane in f:
+			for name in f[lane]:
+				assert_false(f[lane][name].timed_out, "%s %s did not clear" % [lane, name])
+		var whole := " (whole night)" if BranchBench.rule_name(row) in BranchBench.FULL_NIGHT_RULES else ""
+		_row("%s p%d %s %s%s" % [row[0], BranchBench.PRESSURE, row[1], row[2], whole], "%s %.2f" % [v.measure, v.a], "%.2f" % v.b, "%s %.2f" % [BranchBench.rule_op(row), v.bound], v.ok)
+		assert_true(v.ok, "%s %s on the %s lane: %s | fails when: %s" % [row[0], row[1], row[2], v.why, BranchBench.RULE_FAILS_WHEN[BranchBench.rule_name(row)]])
 
 func test_specialist_margin_on_its_own_lane_type() -> void:
 	for row in BranchBench.SPECIALISTS:
