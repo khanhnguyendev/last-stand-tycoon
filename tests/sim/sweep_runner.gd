@@ -57,6 +57,11 @@ func _run() -> void:
 		push_error("unknown --bot=%s (planner|upgrader|tier)" % args.bot)
 		get_tree().quit(2)
 		return
+	var out_arg := String(args.out)  # checked before the sweep runs (it used to be checked after, and `--out=dir/` ended in a script error)
+	if out_arg != "" and (out_arg.begins_with("/") or ".." in out_arg or out_arg.ends_with("/")):
+		push_error("bad --out=%s (a file name or a relative path under tests/sim/out/, no '..', not a directory)" % out_arg)
+		get_tree().quit(2)
+		return
 	if not (String(args.policy) in TierBot.POLICIES or String(args.policy) in TierBot.REPORT_POLICIES) or not String(args.tier3) in ["on", "off"]:
 		push_error("bad --policy=%s (all_a|all_b|mixed|threat|volley_stone|unbranched) or --tier3=%s (on|off)" % [args.policy, args.tier3])
 		get_tree().quit(2)
