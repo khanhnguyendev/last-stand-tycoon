@@ -140,10 +140,10 @@ static func _add_pads(g: WaypointGraph, spot_ids: Array) -> void:
 ## The two stand points (beside the mesh, inside BUILD_RADIUS) and their pads. The tier-4 sign (`tier_sign_4`) is not here: no sign stands once tier 4
 ## is bought; the bot's tier-3 graph gains it when the bot may buy tier 4 (Task 8).
 static func _add_tier4(g: WaypointGraph) -> void:
-	# beside the mesh and off both pads' circles and the south-west telegraph row (test_telegraph: the hero is never under a row)
-	g.add_node("tower_sw2", MapLayout.tower_spot("tower_sw2") + Vector2(0.9, 0.0))
+	# beside the mesh and off both pads' circles (test_telegraph: the hero is never under a telegraph row)
+	g.add_node("tower_n2", MapLayout.tower_spot("tower_n2") + Vector2(0.9, 0.0))
 	g.add_node("tower_e2", MapLayout.tower_spot("tower_e2") + Vector2(-0.9, 0.0))
-	for e in [["home", "tower_sw2"], ["ne", "tower_e2"], ["tower_e", "tower_e2"]]:
+	for e in [["nw", "tower_n2"], ["fence_n", "tower_n2"], ["ne", "tower_e2"], ["tower_e", "tower_e2"]]:
 		g.add_edge(e[0], e[1])
 	_add_pads(g, MapLayout.TIER_SPOTS[4])
 

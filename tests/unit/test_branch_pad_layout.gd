@@ -232,7 +232,7 @@ const SHIPPED := {
 }
 
 ## E8 phase 2 Task 6: the back lot's pads, pinned as literals (the tier-3 table above is unchanged and still pinned).
-const SHIPPED_T4 := {"tower_sw2": [Vector2(4.5, 11.6), Vector2(6.3, 12.9)], "tower_e2": [Vector2(11.3, -1.9), Vector2(11.6, -4.1)]}
+const SHIPPED_T4 := {"tower_n2": [Vector2(-7.0, -11.0), Vector2(-3.8, -12.6)], "tower_e2": [Vector2(11.3, -1.9), Vector2(11.6, -4.1)]}
 
 func test_the_table_is_the_pinned_nine_spots_and_the_accessor_agrees() -> void:
 	var t3_part := {}
@@ -442,11 +442,11 @@ func test_t4_the_building_and_the_other_pad_are_on_screen_from_either_pad() -> v
 
 func test_t4_a_rule_would_catch_a_bad_back_lot_pad() -> void:
 	_tier = 4
-	# negative controls: on the sw tower, on the east lane, on the queue's road line, and on the sw2 tower's own neighbour pad
-	assert_lt(float(_least(_clearances(MapLayout.tower_spot("tower_sw2") + Vector2(0.5, 0), "tower_sw2", []))[0]), 0.0)
+	# negative controls: on the north tower, on the east lane, on the north lane, and on a neighbour pad
+	assert_lt(float(_least(_clearances(MapLayout.tower_spot("tower_n2") + Vector2(0.5, 0), "tower_n2", []))[0]), 0.0)
 	assert_lt(float(_least(_clearances(Vector2(7.0, -3.0), "tower_e2", []))[0]), 0.0, "on the east lane")
-	assert_lt(float(_least(_clearances(Vector2(4.5, 10.6), "tower_sw2", []))[0]), 0.0, "on the traveler road line")
-	assert_lt(float(_least(_clearances(MapLayout.BRANCH_PADS["tower_sw2"][1] + Vector2(0.5, 0), "tower_sw2", [MapLayout.BRANCH_PADS["tower_sw2"][1]]))[0]), 0.0, "on another pad")
+	assert_lt(float(_least(_clearances(Vector2(0.5, -10.0), "tower_n2", []))[0]), 0.0, "on the north lane")
+	assert_lt(float(_least(_clearances(MapLayout.BRANCH_PADS["tower_n2"][1] + Vector2(0.5, 0), "tower_n2", [MapLayout.BRANCH_PADS["tower_n2"][1]]))[0]), 0.0, "on another pad")
 
 func test_t4_the_graph_reaches_the_back_lot_pads_and_tier_3_has_none() -> void:
 	var g3 := WaypointGraph.create_for_tier(3)

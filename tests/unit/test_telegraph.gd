@@ -303,8 +303,8 @@ func test_tier3_rows_clear_every_cost_label_pip_the_hero_and_the_queue() -> void
 						assert_false(_row_rect(_marker(lane), v).intersects(body), "%s row on the queue slot %s" % [lane, slot])
 
 ## E8 phase 2 Task 6: the hero standing at any tier-4 place (the back lot's towers, their stand points and pads, the tier-4 sign) is not covered by a
-## telegraph row, at the three aspects. (The cost labels of the back lot's spots are checked when the world builds them, Task 7.) The south tower's
-## first layout put pad a under the south-west row; this test is why the pads and the tower stand east of it.
+## telegraph row, at the three aspects. (The cost labels of the back lot's spots are checked when the world builds them, Task 7.) A first south-of-the-road
+## layout put pad a under the south-west row; this test is why no tower stands there (D-314.24).
 func test_tier4_places_keep_the_hero_off_every_row() -> void:
 	_tier3()
 	await get_tree().physics_frame

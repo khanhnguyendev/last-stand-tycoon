@@ -266,7 +266,7 @@ func test_owned_props_keep_clear() -> void:
 		for id in MapLayout.yards_for_tier(tier):
 			var items: Array = PropsLayout.OWNED.get(id, [])
 			if items.is_empty():
-				assert_true(MapLayout.yard_tier(id) in [3, 4], "only the tier-3 front lot and the tier-4 back lot have no props yet (%s)" % id)
+				assert_eq(MapLayout.yard_tier(id), 3 if id == "front" else 4, "only the tier-3 front lot and the tier-4 back lot have no props yet (%s)" % id)
 				continue
 			for it in items:
 				seen += 1

@@ -1,6 +1,9 @@
 extends SceneTree
-## E8 phase 2 Task 6 probe (spec 4.3): the back lot. Pad search for the tier-4 towers (a copy of probe_t3_layout with TIER 4).
-## (old header follows) E5 tier 3 layout probe (spec 4, D-271). Headless, reads every coordinate from MapLayout (no private copies).
+## E8 phase 2 Task 6 probe (spec 4.3): the back lot. Pad search for the tier-4 towers, a copy of probe_t3_layout with TIER 4 (its older header follows).
+## Run: "$GODOT" --headless --path . -s res://tools/probe_t4_layout.gd   (reads MapLayout.TIER_SPOTS[4]; prints the best pad pair per tier-4 tower)
+## Env: SCAN="id;x1,x2;z1,z2" scans tower positions for `id`; MINPADX / MAXPADX / MAXPADZ limit the pads; NOSTONES=1 ignores the south-west lane stones
+##   (the tier-4 stones skip the pads: LaneStrip tier 4).
+## E5 tier 3 layout probe (spec 4, D-271). Headless, reads every coordinate from MapLayout (no private copies).
 ## Run: "$GODOT" --headless --path . -s res://tools/probe_t3_layout.gd
 ## Prints, for the four-lane tier-3 map:
 ##   1  the south-west lane's on-screen seconds before hero range at six aspects (hero at the zone centre and at the lane end);
@@ -197,6 +200,8 @@ func search_spot(id: String, c0: Vector2, placed2: Array, thr: float) -> Diction
 			if OS.get_environment("MINPADX") != "" and p.x < float(OS.get_environment("MINPADX")):
 				continue
 			if OS.get_environment("MAXPADX") != "" and p.x > float(OS.get_environment("MAXPADX")):
+				continue
+			if OS.get_environment("MAXPADZ") != "" and p.y > float(OS.get_environment("MAXPADZ")):
 				continue
 			if p.distance_to(c0) > 2.8:
 				continue

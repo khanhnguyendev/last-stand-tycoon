@@ -98,10 +98,10 @@ func test_lanes_and_spots_per_tier() -> void:
 	assert_eq(MapLayout.lanes_for_tier(4), MapLayout.lanes_for_tier(3))
 	assert_eq(MapLayout.spots_for_tier(3), MapLayout.spots_for_tier(2) + ["tower_sw", "fence_sw"])
 	assert_eq(MapLayout.ALL_SPOT_IDS, MapLayout.spots_for_tier(4), "ALL_SPOT_IDS lists every spot of the build; tier 3's are its first nine")
-	assert_eq(MapLayout.spots_for_tier(4), MapLayout.spots_for_tier(3) + ["tower_sw2", "tower_e2"])
-	assert_eq(MapLayout.TIER_SPOTS[4], ["tower_sw2", "tower_e2"])
-	assert_eq([MapLayout.spot_tier("tower_sw2"), MapLayout.spot_tier("tower_e2")], [4, 4])
-	assert_eq(MapLayout.yards_for_tier(4), ["west", "east", "front", "south", "northeast"])
+	assert_eq(MapLayout.spots_for_tier(4), MapLayout.spots_for_tier(3) + ["tower_n2", "tower_e2"])
+	assert_eq(MapLayout.TIER_SPOTS[4], ["tower_n2", "tower_e2"])
+	assert_eq([MapLayout.spot_tier("tower_n2"), MapLayout.spot_tier("tower_e2")], [4, 4])
+	assert_eq(MapLayout.yards_for_tier(4), ["west", "east", "front", "north", "northeast"])
 	assert_eq([MapLayout.spot_tier("tower_sw"), MapLayout.spot_tier("fence_sw")], [3, 3])
 	assert_eq([MapLayout.spot_kind("tower_sw"), MapLayout.spot_kind("fence_sw")], ["tower", "fence"])
 	assert_eq(MapLayout.TIER_SPOTS[3], ["tower_sw", "fence_sw"])
@@ -338,10 +338,10 @@ func test_tier_3_spots_are_clear_of_the_tier_2_kerb() -> void:
 			assert_gt(Geometry.dist_point_rect(MapLayout.spot_position(id), MapLayout.yard_rect(y)), YardStones.PAD_CLEAR, "%s vs the %s yard" % [id, y])
 
 # --- E8 phase 2 Task 6 (spec 4.3, D-314.5): the back lot --------------------------------------------------------------------------
-# Two parcels: "south" (tower_sw2 and the tier-4 sign, below the road) and "northeast" (tower_e2, north of the east yard). Every number is
+# Two parcels: "north" (tower_n2, north of the diner beside the north lane) and "northeast" (tower_e2 and the tier-4 sign, north of the east yard). Every number is
 # pinned here, as D-240 asks; the clearances are the rules of the tier-2 yards and the tier-3 lot, over the tier-4 map.
 
-const T4_TOWERS := ["tower_sw2", "tower_e2"]
+const T4_TOWERS := ["tower_n2", "tower_e2"]
 const ASPECTS_T4 := [9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0]
 
 func _t4_lane_dist(p: Vector2) -> float:
@@ -421,27 +421,27 @@ func test_t4_the_towers_clear_the_lanes_and_everything_that_exists() -> void:
 				assert_gt(t.distance_to(MapLayout.spot_position(other)), 2.0 * MapLayout.BUILD_RADIUS, "%s and %s build circles overlap" % [id, other])
 
 func test_t4_the_pinned_coordinates() -> void:
-	assert_eq(MapLayout.tower_spot("tower_sw2"), Vector2(3.6, 12.9))
+	assert_eq(MapLayout.tower_spot("tower_n2"), Vector2(-5.0, -11.0))
 	assert_eq(MapLayout.tower_spot("tower_e2"), Vector2(9.6, -2.2))
-	assert_eq(MapLayout.tower_lanes("tower_sw2"), ["sw"])
+	assert_eq(MapLayout.tower_lanes("tower_n2"), ["north"])
 	assert_eq(MapLayout.tower_lanes("tower_e2"), ["east"])
-	assert_eq(MapLayout.yard_rect("south"), Rect2(2.6, 12.0, 8.4, 1.95))
-	assert_eq(MapLayout.yard_rect("northeast"), Rect2(9.1, -3.0, 4.6, 1.5))
-	assert_eq([MapLayout.yard_tier("south"), MapLayout.yard_tier("northeast")], [4, 4])
-	assert_eq(MapLayout.tier_sign(4), Vector2(9.5, 13.0))
-	assert_eq(MapLayout.spot_kind("tower_sw2"), "tower")
-	assert_eq(MapLayout.spot_position("tower_sw2"), MapLayout.tower_spot("tower_sw2"), "spot_position knows TOWER_SPOTS_T4")
+	assert_eq(MapLayout.yard_rect("north"), Rect2(-8.2, -13.6, 4.8, 3.2))
+	assert_eq(MapLayout.yard_rect("northeast"), Rect2(9.1, -2.8, 4.6, 1.3))
+	assert_eq([MapLayout.yard_tier("north"), MapLayout.yard_tier("northeast")], [4, 4])
+	assert_eq(MapLayout.tier_sign(4), Vector2(13.0, -2.2))
+	assert_eq(MapLayout.spot_kind("tower_n2"), "tower")
+	assert_eq(MapLayout.spot_position("tower_n2"), MapLayout.tower_spot("tower_n2"), "spot_position knows TOWER_SPOTS_T4")
 	assert_eq(MapLayout.spot_position("tower_e2"), MapLayout.tower_spot("tower_e2"))
-	assert_eq(MapLayout.all_yards(), ["west", "east", "front", "south", "northeast"])
+	assert_eq(MapLayout.all_yards(), ["west", "east", "front", "north", "northeast"])
 	# the shared and tier-3 dictionaries do not hold the back lot (D-271, D-277)
 	for d in [MapLayout.TOWER_SPOTS, MapLayout.TOWER_LANES, MapLayout.TOWER_SPOTS_T3, MapLayout.TOWER_LANES_T3, MapLayout.YARDS, MapLayout.YARDS_T3]:
-		for id in T4_TOWERS + ["south", "northeast"]:
+		for id in T4_TOWERS + ["north", "northeast"]:
 			assert_false(d.has(id), "%s is in a lower tier's table" % id)
 
 func test_t4_the_yards_are_on_the_land_clear_of_lanes_zones_bodies_and_other_yards() -> void:
 	var need: float = Balance.data.enemy.lateral_spread + 1.0
 	var play := Rect2(MapLayout.BOUNDS_MIN, MapLayout.BOUNDS_MAX - MapLayout.BOUNDS_MIN)
-	for id in ["south", "northeast"]:
+	for id in ["north", "northeast"]:
 		var r := MapLayout.yard_rect(id)
 		assert_gte(_t4_rect_lane_dist(r), need, "%s yard clears the lanes by %.2f" % [id, need])
 		assert_true(play.encloses(r), "%s inside the bounds" % id)
@@ -455,15 +455,17 @@ func test_t4_the_yards_are_on_the_land_clear_of_lanes_zones_bodies_and_other_yar
 				assert_false(r.grow(0.5).intersects(MapLayout.yard_rect(other)), "%s is within 0.5 m of the %s yard" % [id, other])
 		for o in _t4_obstacles():
 			assert_gt(Geometry.dist_point_rect(o[0], r), float(o[1]), "%s yard overlaps %s" % [id, o[2]])
+		for pd in _t4_pads():  # the tier-3 pads: a yard keeps off every pad's circle (the northeast one first overlapped fence_e's second pad)
+			assert_gt(Geometry.dist_point_rect(pd[0], r), float(pd[1]), "%s yard overlaps %s" % [id, pd[2]])
 		for line in _t4_road_lines():
 			for k in 21:
 				var p: Vector2 = (line[0] as Vector2).lerp(line[1], k / 20.0)
 				assert_false(r.has_point(p), "%s yard crosses a traveler or tank line at %s" % [id, p])
 
 func test_t4_every_tower_and_the_sign_stand_on_their_land() -> void:
-	assert_true(MapLayout.yard_rect("south").grow(-MapLayout.TOWER_VISUAL_RADIUS).has_point(MapLayout.spot_position("tower_sw2")), "tower_sw2 on the south yard")
+	assert_true(MapLayout.yard_rect("north").grow(-MapLayout.TOWER_VISUAL_RADIUS).has_point(MapLayout.spot_position("tower_n2")), "tower_n2 on the north yard")
 	assert_true(MapLayout.yard_rect("northeast").grow(-MapLayout.TOWER_VISUAL_RADIUS).has_point(MapLayout.spot_position("tower_e2")), "tower_e2 on the north-east yard")
-	assert_true(MapLayout.yard_rect("south").has_point(MapLayout.tier_sign(4)), "the tier-4 sign stands on the land it sells (D-240)")
+	assert_true(MapLayout.yard_rect("northeast").has_point(MapLayout.tier_sign(4)), "the tier-4 sign stands on the land it sells (D-240)")
 	for id in MapLayout.yards_for_tier(3):
 		assert_false(MapLayout.yard_rect(id).has_point(MapLayout.tier_sign(4)), "and not on the %s yard" % id)
 
@@ -477,12 +479,11 @@ func test_t4_the_tower_and_the_sign_are_on_screen_from_where_the_hero_stands() -
 	for aspect in ASPECTS_T4:
 		var xf := CameraMath.camera_transform(CameraMath.focus_for(s), Balance.ui)
 		assert_true(CameraMath.on_screen(MapLayout.to3(s), xf, CameraMath.projection(Balance.ui, aspect)), "the sign from itself at %.2f" % aspect)
-	# the south tower is also in the HOME camera at 9:16 (the east one, 15 m away, is not)
+	# tower_e2 is not in the HOME camera at 9:16 (documented: the tier-2 and tier-3 yard towers are not either); tower_n2 is, at the top of the screen
 	var home := CameraMath.camera_transform(CameraMath.focus_for(MapLayout.HOME), Balance.ui)
 	var p916 := CameraMath.projection(Balance.ui, 720.0 / 1280.0)
-	assert_true(CameraMath.on_screen(MapLayout.to3(MapLayout.spot_position("tower_sw2")), home, p916), "tower_sw2 from HOME at 9:16")
-	assert_true(CameraMath.on_screen(MapLayout.to3(MapLayout.BRANCH_PADS["tower_sw2"][0]), home, p916), "its pad a from HOME at 9:16")
-	assert_false(CameraMath.on_screen(MapLayout.to3(MapLayout.spot_position("tower_e2")), home, p916), "tower_e2 is off the HOME view (documented)")
+	assert_false(CameraMath.on_screen(MapLayout.to3(MapLayout.spot_position("tower_e2")), home, p916), "tower_e2 is off the HOME view")
+	assert_true(CameraMath.on_screen(MapLayout.to3(MapLayout.spot_position("tower_n2")), home, p916), "tower_n2 is on the HOME view")
 
 ## B2: a capped bot (tier 3) must never pay the tier-4 sign by standing near it: it stands farther than STATION_RADIUS + HERO_RADIUS from every node of
 ## its graph, from every pad and from every stand point. (`tier_sign_4` itself, the node Task 8 adds, is not counted.)
@@ -511,10 +512,14 @@ func test_t4_the_sign_is_far_from_everything_a_tier_3_bot_stands_on() -> void:
 	for line in _t4_road_lines():
 		assert_gt(Geometry.dist_point_segment(s, line[0], line[1]), need, "the sign is on a traveler line")
 	assert_gte(_t4_lane_dist(s) - MapLayout.STATION_RADIUS, Balance.data.enemy.lateral_spread + 1.0, "clear of the lanes")
-	assert_gt(s.distance_to(MapLayout.tower_spot("tower_sw2")), MapLayout.STATION_RADIUS + MapLayout.BUILD_RADIUS, "off the future tower pad")
+	for id in T4_TOWERS:
+		assert_gt(s.distance_to(MapLayout.tower_spot(id)), MapLayout.STATION_RADIUS + MapLayout.BUILD_RADIUS, "off the future pad of %s" % id)
 
-## B2 / D-314.5: after tier 4 every lane of the tier is covered by at least two towers.
-func test_t4_every_lane_is_covered_by_at_least_two_towers() -> void:
+## D-314.24 (spec 4.3 second fallback): a tower's lane in the tables is a lane whose FENCE SPOT it reaches at level 1 (tower_range[0]), like every table before.
+## After tier 4 every lane is covered by at least two towers except the south-west lane, which keeps its one tower: no free land reaches its fence spot at
+## level 1 clear of the telegraph rows, the queue, the lanes and the pads (spec 4.3, searched again for D-314.24).
+func test_t4_every_lane_but_sw_is_covered_by_at_least_two_towers_and_the_geometry_holds() -> void:
+	var l1: float = Balance.data.build.tower_range[0]
 	var count := {}
 	for lane in MapLayout.lanes_for_tier(4):
 		count[lane] = 0
@@ -523,56 +528,40 @@ func test_t4_every_lane_is_covered_by_at_least_two_towers() -> void:
 			continue
 		for lane in MapLayout.tower_lanes(id):
 			count[lane] += 1
+			assert_lte(MapLayout.spot_position(id).distance_to(MapLayout.fence_spot(lane)), l1, "%s lists %s but does not reach its fence spot at level 1" % [id, lane])
 	gut.p("towers per lane at tier 4: %s" % count)
 	for lane in count:
-		assert_gte(int(count[lane]), 2, "lane %s is covered by %d tower(s)" % [lane, count[lane]])
-	# the rule has teeth: without the back lot the south-west lane has one
-	var without := {}
-	for lane in MapLayout.lanes_for_tier(3):
-		without[lane] = 0
-	for id in MapLayout.spots_for_tier(3):
-		if MapLayout.spot_kind(id) == "tower":
-			for lane in MapLayout.tower_lanes(id):
-				without[lane] += 1
-	assert_eq(without["sw"], 1)
+		if lane == "sw":
+			assert_eq(int(count[lane]), 1, "the south-west lane keeps its one tower (D-314.24)")
+		else:
+			assert_gte(int(count[lane]), 2, "lane %s is covered by %d tower(s)" % [lane, count[lane]])
+	# the geometry assert has teeth: a tower moved 5 m away from its lane's fence would fail it
+	for id in T4_TOWERS:
+		var lane: String = MapLayout.tower_lanes(id)[0]
+		var away := MapLayout.spot_position(id) + (MapLayout.spot_position(id) - MapLayout.fence_spot(lane)).normalized() * 5.0
+		assert_gt(away.distance_to(MapLayout.fence_spot(lane)), l1, "a tower 5 m farther out would not reach %s's fence spot" % lane)
+	# and no free tower of tier 4 reaches the sw fence spot at level 1
+	for id in MapLayout.spots_for_tier(4):
+		if MapLayout.spot_kind(id) == "tower" and not "sw" in MapLayout.tower_lanes(id):
+			gut.p("%s to the sw fence spot: %.2f m" % [id, MapLayout.spot_position(id).distance_to(MapLayout.fence_spot("sw"))])
 
-## What "covered" means for a back-lot tower. The east tower reaches its lane like the yard towers: every zone corner and the fence spot within level-1
-## range. The south tower is the spec 4.3 fallback: the land near the sw zone is taken, and the land that is free is under the telegraph row (the hero
-## standing on a tower or pad must not be covered by the row: test_telegraph), which puts the tower east of x = 3.2. From there it reaches the sw fence spot and
-## the road in front of it only at its top level (tower_range[2]), not at level 1 and not the zone (pinned, so the deviation stays visible).
+## What the back-lot towers reach, as information and pinned: the fence spot of their lane (the rule), the nearest stop point and the far zone corner.
 func test_t4_what_the_back_lot_towers_reach() -> void:
 	var l1: float = Balance.data.build.tower_range[0]
-	var l3: float = Balance.data.build.tower_range[2]
 	var eb := Balance.data.enemy
 	for id in T4_TOWERS:
 		var t := MapLayout.spot_position(id)
-		var r := l1 if id == "tower_e2" else l3
 		for lane in MapLayout.tower_lanes(id):
-			var fence := t.distance_to(MapLayout.fence_spot(lane))
 			var nearest := INF
 			for i in 41:
 				nearest = minf(nearest, t.distance_to(EnemyPath.position_at(lane, MapLayout.path_length(lane), lerpf(-1.0, 1.0, i / 40.0) * eb.lateral_spread, eb.offset_fade_distance)))
 			var far_corner := 0.0
 			for c in Geometry.rect_corners(MapLayout.zone_rect(lane)):
 				far_corner = maxf(far_corner, t.distance_to(c))
-			gut.p("%s -> %s: fence spot %.2f, nearest stop point %.2f, far zone corner %.2f (range L1 %.1f, L3 %.1f)" % [id, lane, fence, nearest, far_corner, l1, l3])
-			assert_lte(fence, r, "%s reaches the %s fence spot (level %d range)" % [id, lane, 1 if id == "tower_e2" else 3])
+			gut.p("%s -> %s: fence spot %.2f, nearest stop point %.2f, far zone corner %.2f (level-1 range %.1f)" % [id, lane, t.distance_to(MapLayout.fence_spot(lane)), nearest, far_corner, l1])
 			if id == "tower_e2":
 				assert_lte(far_corner, l1, "tower_e2 reaches every corner of the east zone at level 1")
 				assert_lte(nearest, l1)
-			else:
-				assert_gt(fence, l1, "tower_sw2 does not reach the sw fence spot at level 1 (fallback, spec 4.3)")
-				assert_gt(far_corner, l3, "nor the far corner of the sw zone")
-	# the road in front of the south tower: at least 5 m of the sw lane's path lie inside its top-level range
-	var inside := 0.0
-	var d := 0.0
-	var length := MapLayout.path_length("sw")
-	while d <= length:
-		if EnemyPath.position_at("sw", d, 0.0, eb.offset_fade_distance).distance_to(MapLayout.spot_position("tower_sw2")) <= l3:
-			inside += 0.1
-		d += 0.1
-	gut.p("sw lane path inside tower_sw2's level-3 range: %.1f m of %.1f" % [inside, length])
-	assert_almost_eq(inside, 3.0, 0.3, "the lane's path inside its range is short: 3 m (pinned; the fence spot is what the tower covers)")
 
 ## The Longbow rule (test_longbow_reach) over the tier-4 towers: the third-nearest lane is beyond the Longbow range and beyond the 10.2 m margin.
 func test_t4_the_third_nearest_lane_is_beyond_the_longbow_range() -> void:
@@ -600,4 +589,6 @@ func test_t4_the_bot_graph_follows_the_tier() -> void:
 		for i in 2:
 			assert_false(four.shortest("zone_sw", "pad_%s_%s" % [id, "ab"[i]]).is_empty())
 	assert_true(four.nodes.has("zone_sw"))
-	assert_eq(WaypointGraph.create_for_bot(5).nodes.size(), four.nodes.size(), "a tier above 4 is the tier-4 graph")
+	var five := WaypointGraph.create_for_bot(5)
+	assert_eq(five.nodes, four.nodes, "a tier above 4 is the tier-4 graph")
+	assert_eq(five.edges, four.edges)

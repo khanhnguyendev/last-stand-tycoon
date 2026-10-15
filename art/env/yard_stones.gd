@@ -118,14 +118,10 @@ static func _segments_closer(a: Vector2, b: Vector2, c: Vector2, d: Vector2, dis
 		minf(Geometry.dist_point_segment(c, a, b), Geometry.dist_point_segment(d, a, b))) < dist
 
 ## ONE MultiMeshInstance3D for the kerb of every yard in `yards` (MapLayout yard ids).
-## `tier` 0 = the spots and pads the kerb avoids are tier 3's, plus the back lot's once a tier-4 yard is among `yards`. A reveal stage that builds only the
-## older yards of a tier-4 map passes 4, so its kerb is the one the full map has (tower_e2 leaves a gap in the east yard's kerb).
-static func build(yards: Array, lane_spread := DEFAULT_LANE_SPREAD, tier := 0) -> MultiMeshInstance3D:
+## `tier` (E8 B2) is explicit: the tier whose spots and pads the kerb leaves free. 3 for a map of tiers 1 to 3; the caller passes 4 for a tier-4 map, and for a
+## reveal stage that builds only the older yards of one (tower_e2 leaves a gap in the east yard's kerb, so the stage and the full kerb must read the same tier).
+static func build(yards: Array, lane_spread := DEFAULT_LANE_SPREAD, tier := 3) -> MultiMeshInstance3D:
 	var xfs: Array[Transform3D] = []
-	if tier == 0:
-		tier = 3
-		for id in yards:
-			tier = maxi(tier, MapLayout.yard_tier(id))
 	for id in yards:
 		xfs.append_array(transforms(MapLayout.yard_rect(id), MapLayout.yard_tier(id) >= 3, lane_spread, tier))
 	return _instance(xfs)

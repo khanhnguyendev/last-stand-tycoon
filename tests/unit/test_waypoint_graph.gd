@@ -295,6 +295,6 @@ func test_the_tier_4_graph_is_the_tier_3_graph_plus_the_back_lot() -> void:
 		if not t3.nodes.has(n):
 			extra.append(n)
 	extra.sort()
-	assert_eq(extra, ["pad_tower_e2_a", "pad_tower_e2_b", "pad_tower_sw2_a", "pad_tower_sw2_b", "tower_e2", "tower_sw2"])
+	assert_eq(extra, ["pad_tower_e2_a", "pad_tower_e2_b", "pad_tower_n2_a", "pad_tower_n2_b", "tower_e2", "tower_n2"])
 	for n in t3.nodes:
 		assert_eq(t4.position_of(n), t3.position_of(n), n)

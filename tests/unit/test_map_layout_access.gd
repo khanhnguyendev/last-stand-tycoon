@@ -24,7 +24,7 @@ func _files(dir: String, out: Array) -> void:
 ## The ONE pattern the scan and its self-test share.
 static func _pattern() -> RegEx:
 	var rx := RegEx.new()
-	rx.compile("(MapLayout|layout)\\.(%s)(_T3)?\\b|\\bLanePlanner\\.LANES\\b|\\bLANES_TIER3\\b" % "|".join(BANNED))
+	rx.compile("(MapLayout|layout)\\.(%s)(_T3|_T4)?\\b|\\bLanePlanner\\.LANES\\b|\\bLANES_TIER3\\b" % "|".join(BANNED))
 	return rx
 
 ## The line without its trailing comment; a # inside a string literal does not start one.
@@ -91,6 +91,7 @@ func test_the_pattern_matches_direct_reads_and_nothing_else() -> void:
 	var rx := _pattern()
 	assert_not_null(rx.search("var p = MapLayout.LANE_PATHS[lane]"))
 	assert_not_null(rx.search("var p = MapLayout.TOWER_SPOTS_T3.tower_sw"))
+	assert_not_null(rx.search("var p = MapLayout.TOWER_SPOTS_T4.tower_e2"))
 	assert_not_null(rx.search("MapLayout.YARD_TIER[id]"))
 	assert_not_null(rx.search("for l in LanePlanner.LANES:"))
 	assert_null(rx.search("var p = MapLayout.lane_path(lane)"))
@@ -102,7 +103,7 @@ func test_a_hash_inside_a_string_does_not_hide_a_read() -> void:
 	assert_null(_pattern().search(_code("## MapLayout.YARDS")))
 
 func test_all_yards_lists_every_yard_in_yard_order() -> void:
-	assert_eq(MapLayout.all_yards(), ["west", "east", "front", "south", "northeast"])
+	assert_eq(MapLayout.all_yards(), ["west", "east", "front", "north", "northeast"])
 
 func test_the_allow_list_entries_are_still_needed() -> void:
 	for path in ALLOW:
