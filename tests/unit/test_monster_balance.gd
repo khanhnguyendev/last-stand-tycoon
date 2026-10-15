@@ -61,31 +61,39 @@ func test_the_wreckers_values() -> void:
 	assert_eq(w.reach, brute.reach)
 	assert_eq(w.speed, brute.speed)
 
-## The brute's class: a Longbow does 240 (0.3 x 800 = 240 is the E8 brute multiplier), a Stone wall halves its hits, a Spike takes 4x.
+## The brute's class: a Longbow does 240 (120 x its brute multiplier 2.0), a Stone wall halves its hits, a Spike takes 4x.
 func test_the_wrecker_meets_the_brutes_branch_multipliers() -> void:
 	var bb := Balance.data.branches
+	var w := Balance.data.monsters.stats(&"wrecker")
 	var cls := MonsterBalance.kind_class(&"wrecker")
 	assert_eq(cls, &"brute")
 	assert_eq(float(bb.longbow.kind_mults.get(cls, 1.0)), float(bb.longbow.kind_mults.get(&"brute", 1.0)))
 	assert_almost_eq(bb.longbow.damage * float(bb.longbow.kind_mults.get(cls, 1.0)), 240.0, 1e-6, "a Longbow arrow does 240 to a Wrecker")
 	assert_eq(float(bb.stone.damage_taken_mult_by_kind.get(cls, 1.0)), 0.5, "a Stone wall halves its hits")
 	assert_eq(float(bb.spike.damage_taken_mult_by_kind.get(cls, 1.0)), 4.0, "a Spike takes 4x")
+	var fh := BranchMath.fence_hold_seconds(640, w, bb.stone, &"wrecker")
+	assert_eq(fh, BranchMath.fence_hold_seconds(640, w, bb.stone, &"brute"), "a Wrecker is held by a Stone wall as a brute is")
+	assert_eq(BranchMath.pass_damage(bb.spike, &"wrecker", 1.0), 0.0, "a Spike wall does no pass damage to a Wrecker")
 
-## Sim 2's rule as arithmetic (spec 4.2): the Wrecker alone needs at least boss_min_hold_s to fell a full diner.
-## Its damage does not scale with hp_mult, so the cap multiplier only changes its HP, not the time it takes at the diner.
+## Sim 2's rule as arithmetic (spec 4.2), measured as sim 2 does (tests/unit/test_baron.gd): from the first hit on the diner to the hit that fells it,
+## (ceil(diner_max_hp / damage) - 1) * attack_interval. The damage does not scale with hp_mult, so the cap multiplier only changes its HP.
 func _hold_s(w: MonsterStats) -> float:
-	return Balance.data.build.diner_max_hp / (w.damage / w.attack_interval)
+	var hits := int(ceil(Balance.data.build.diner_max_hp / w.damage))
+	return (hits - 1) * w.attack_interval
 
 func test_the_wrecker_alone_holds_the_diner_for_the_minimum() -> void:
 	var w := Balance.data.monsters.stats(&"wrecker")
 	var hold := _hold_s(w)
-	assert_almost_eq(hold, 20.0, 1e-9, "300 HP at 15 per second")
+	assert_almost_eq(hold, 19.0, 1e-9, "ceil(300 / 15) = 20 hits, the 20th 19 intervals after the first")
 	assert_gte(hold, Balance.data.tiers.boss_min_hold_s)
 
-## Recorded mutation: damage 21 per second would fell the diner in 14.3 s, under the 15 s minimum, so the rule must catch it.
+## Recorded mutations: damage 21 (15 hits, 14 s) and damage 20 (15 hits, 14 s) are under the 15 s minimum, so the rule must catch them.
 func test_the_hold_rule_catches_a_stronger_wrecker() -> void:
 	var w: MonsterStats = Balance.data.monsters.stats(&"wrecker").duplicate()
 	w.damage = 21.0
+	assert_lt(_hold_s(w), Balance.data.tiers.boss_min_hold_s)
+	w.damage = 20.0
+	assert_eq(_hold_s(w), 14.0, "ceil(300 / 20) = 15 hits, 14 intervals")
 	assert_lt(_hold_s(w), Balance.data.tiers.boss_min_hold_s)
 	w.damage = 15.0
 	w.attack_interval = 0.7

@@ -263,7 +263,7 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 
 
 ## The tier-4 third group of one saved wave (E8 spec 4.4): the four keys on every wave at tier 4 and above, none below;
-## side2 a lane of the tier, different from main and side; the three counts whole and >= 0; fast_side2 <= side2_count.
+## side2 a lane of the tier, different from main and side; no extra group and a non-empty side; the three counts whole and >= 0; fast_side2 <= side2_count.
 static func _validate_side2(w: Dictionary, lanes: Array, known_tier: int) -> String:
 	var keys := ["side2", "side2_count", "fast_side2", "brute_side2"]
 	for k in keys:
@@ -271,6 +271,10 @@ static func _validate_side2(w: Dictionary, lanes: Array, known_tier: int) -> Str
 			return "lane " + k
 	if known_tier < 4:
 		return ""
+	if w.has("extra"):
+		return "lane extra"  # tier 4 plans never carry an extra group (LaneCharacter.apply drops it)
+	if String(w.side) == "":
+		return "lane side"  # all three groups have a lane at tier 4
 	if typeof(w.side2) != TYPE_STRING or not String(w.side2) in lanes or String(w.side2) == String(w.main) \
 			or String(w.side2) == String(w.side):
 		return "lane side2"

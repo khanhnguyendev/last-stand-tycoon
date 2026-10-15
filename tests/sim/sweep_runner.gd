@@ -2,6 +2,7 @@ extends Node
 ## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1-14 by default -> tests/sim/out/sweep.csv.
 ## `--bot=upgrader` runs the UpgraderBot and writes `sweep_upgrader.csv` with a `stations` column (E1).
 ## `--bot=tier` runs the TierBot -> `sweep_tier.csv` (+ tier,boss_night,boss_retries) and prints a TIER line (E5).
+## `--bot-max-tier=<1 to tiers.max_tier>` caps the tier bot: it never pays a tier above it (E8, D-314.12; tools/baseline_t3.sh and the tier-3 tools pass 3). Like --policy it only applies to --bot=tier (a warning for the other bots).
 ## `--policy=all_a|all_b|mixed|threat|volley_stone|unbranched` sets the tier bot's branch policy (default threat). `--tier3=off` removes the tier-3 cost entry in memory,
 ## and the run then asserts that no brute died, no wave came from the south-west and no branch was chosen (the Task 21 assertion, D-279):
 ## a TIER3_GATE line, exit code 1 on a violation. Tier rows end with brute_kills,sw_waves,branches (per day, appended after the old columns; sw_waves counts waves with a south-west lane, formerly named sw_spawns).
@@ -66,8 +67,8 @@ func _run() -> void:
 		push_error("bad --policy=%s (all_a|all_b|mixed|threat|volley_stone|unbranched) or --tier3=%s (on|off)" % [args.policy, args.tier3])
 		get_tree().quit(2)
 		return
-	if not String(args.bot) == "tier" and (args.policy != "threat" or args.tier3 != "on"):
-		print("WARNING: --policy and --tier3 only apply to --bot=tier; ignored for --bot=%s" % args.bot)
+	if not String(args.bot) == "tier" and (args.policy != "threat" or args.tier3 != "on" or String(args["bot-max-tier"]) != ""):
+		print("WARNING: --policy, --tier3 and --bot-max-tier only apply to --bot=tier; ignored for --bot=%s" % args.bot)
 	Balance.reset()
 	if String(args.tier3) == "off":
 		Balance.data.tiers.tier_costs.resize(2)  # in memory only: no sign sells tier 3
@@ -94,8 +95,8 @@ func _run() -> void:
 	if String(args["bot-rule"]) != "walk":
 		ov.append("bot-rule=%s" % args["bot-rule"])  # E7 (D-310): old = the tier bot before D-310, far = the never-cross rule (set on the bot below), for the before/after measurement
 	if String(args["bot-max-tier"]) != "":
-		if not String(args["bot-max-tier"]).is_valid_int() or int(args["bot-max-tier"]) < 1 or int(args["bot-max-tier"]) > 5:
-			push_error("bad --bot-max-tier=%s (integer 1 to 5)" % args["bot-max-tier"])
+		if not String(args["bot-max-tier"]).is_valid_int() or int(args["bot-max-tier"]) < 1 or int(args["bot-max-tier"]) > Balance.data.tiers.max_tier:
+			push_error("bad --bot-max-tier=%s (integer 1 to %d)" % [args["bot-max-tier"], Balance.data.tiers.max_tier])
 			get_tree().quit(2)
 			return
 		ov.append("bot-max-tier=%d" % int(args["bot-max-tier"]))  # E8 (D-314.12): the tier bot never pays a tier above it (set on the bot below)

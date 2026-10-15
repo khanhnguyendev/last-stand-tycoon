@@ -122,7 +122,7 @@ func _is_older_step_addition(line: String, from_v: int) -> bool:
 		return line == "/stations: added " + str(a) or line == "/stations: added " + str(b)
 	return false
 
-## Schema 7 (E6) adds one more field to what this chain produces: an empty `lane_character` and `lane_character_shown: false` (E6 Task 11); they are the only additions allowed besides the v6 ones.
+## Schema 7 (E6) adds one more field to what this chain produces: an empty `lane_character` and `lane_character_shown: false` (E6 Task 11); they are the only additions allowed besides the v6 ones; schema 8 (E8) adds nothing.
 func test_every_old_fixture_migrates_to_v8_adding_only_the_branch_fields_and_an_empty_lane_character() -> void:
 	assert_eq(GameState.SCHEMA_VERSION, 8)
 	for f in _fixture_files():

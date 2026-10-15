@@ -50,8 +50,8 @@ func _initialize() -> void:
 	var bot_rule := String(args["bot-rule"])
 	var max_tier_arg := ""  # E8 (D-314.12): passed to every child sweep when given
 	if String(args["bot-max-tier"]) != "":
-		if not String(args["bot-max-tier"]).is_valid_int() or int(args["bot-max-tier"]) < 1 or int(args["bot-max-tier"]) > 5:
-			push_error("bad --bot-max-tier=%s (integer 1 to 5)" % args["bot-max-tier"])
+		if not String(args["bot-max-tier"]).is_valid_int() or int(args["bot-max-tier"]) < 1 or int(args["bot-max-tier"]) > Balance.data.tiers.max_tier:
+			push_error("bad --bot-max-tier=%s (integer 1 to %d)" % [args["bot-max-tier"], Balance.data.tiers.max_tier])
 			quit(2)
 			return
 		max_tier_arg = " --bot-max-tier=%d" % int(args["bot-max-tier"])

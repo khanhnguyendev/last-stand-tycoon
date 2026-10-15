@@ -327,6 +327,7 @@ func _play_real() -> bool:
 	var bot = load("res://actors/bots/tier_bot.gd").new()
 	main.add_child(bot)
 	bot.setup(main)
+	bot.max_tier = 3  # E8 (D-314.12): the tier-3 fixtures are the tier-3 game, as tools/baseline_t3.sh plays it
 	root.get_node("EventBus").snapshot_taken.connect(_on_t3_snapshot)
 	root.get_node("EventBus").phase_changed.connect(_on_t3_phase)
 	main.phase_controller.start_new_game(20260930)
@@ -476,6 +477,7 @@ func _run_retune() -> bool:
 	var bot = load("res://actors/bots/tier_bot.gd").new()
 	main.add_child(bot)
 	bot.setup(main)
+	bot.max_tier = 3  # E8 (D-314.12): the retune capture plays the tier-3 game
 	root.get_node("EventBus").snapshot_taken.connect(_on_rt_snapshot)
 	root.get_node("EventBus").phase_changed.connect(_on_rt_phase)
 	main.phase_controller.start_new_game(_retune_seed)

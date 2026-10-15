@@ -82,7 +82,7 @@ func _initialize() -> void:
 			var j: Array = jobs.pop_front()
 			var log := _log_path(out_dir, j[0], j[1])
 			var first := "REPORT_RUN commit=%s seed=%d policy=%s days=%d" % [commit, j[0], j[1], days]
-			var cmd := "echo %s > %s && exec %s --headless --path %s --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=%d --seed=%d --policy=%s --out=policies/policy_%d_%s.csv >> %s 2>&1" % [
+			var cmd := "echo %s > %s && exec %s --headless --path %s --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=%d --seed=%d --policy=%s --bot-max-tier=3 --out=policies/policy_%d_%s.csv >> %s 2>&1" % [
 				_q(first), _q(log), _q(OS.get_executable_path()), _q(proj), days, j[0], j[1], j[0], j[1], _q(log)]
 			var pid := OS.create_process("/bin/sh", ["-c", cmd])
 			if pid < 0:

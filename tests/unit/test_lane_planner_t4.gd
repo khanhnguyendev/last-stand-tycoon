@@ -3,7 +3,7 @@ extends GutTest
 
 const T3_HASHES := "res://tests/fixtures/plans_tier3_hashes.json"
 const V7_FIXTURE := "res://tests/fixtures/v7_tier3_cap_threat.save.json"
-const V7_FIXTURE_CHECK := 2144137198
+const V7_FIXTURE_CHECK := 273485684
 
 var wb: WaveBalance
 var tb: TierBalance
@@ -42,6 +42,7 @@ func test_tier3_plans_after_apply_equal_the_pre_task_hashes() -> void:
 
 ## Re-derives a tier-4 wave's lanes by hand from the two streams, as B6 fixes them.
 func test_the_order_of_draws_is_pinned_by_hand() -> void:
+	var redraws := 0
 	for s in [1, 7, 20260930]:
 		for day in [20, 23]:
 			var ch := LaneCharacter.for_run(s)
@@ -57,10 +58,12 @@ func test_the_order_of_draws_is_pinned_by_hand() -> void:
 					rng.randi_range(0, others.size() - 1)
 				var rest: String = neutral[rng4.randi_range(0, 1)]
 				if main == rest:
+					redraws += 1
 					var o: Array = LanePlanner.LANES_TIER3.filter(func(l): return l != rest)
 					main = o[rng4.randi_range(0, 2)]
 				var left: Array = LanePlanner.LANES_TIER3.filter(func(l): return l != main and l != rest)
 				assert_eq([p[w].main, p[w].side, p[w].side2], [main, left[0], left[1]], "seed %d day %d wave %d" % [s, day, w])
+	assert_gt(redraws, 0, "setup: some waves drew the resting lane as main, so the redraw branch is covered")
 
 func test_tier4_waves_carry_the_four_keys_and_the_splits_add_up() -> void:
 	for s in range(1, 41):
@@ -76,7 +79,10 @@ func test_tier4_waves_carry_the_four_keys_and_the_splits_add_up() -> void:
 				assert_eq(int(wave.side_count) - int(wave.side2_count), int(counts.side) % 2, "the odd unit to side")
 				assert_true(int(wave.fast_side) <= int(wave.side_count) and int(wave.fast_side2) <= int(wave.side2_count))
 				assert_eq(int(wave.brute_side) - int(wave.brute_side2), (int(wave.brute_side) + int(wave.brute_side2)) % 2, "brutes: odd to side")
-				assert_eq([wave.main, wave.side, wave.side2].size(), 3)
+				var resting: Array = LanePlanner.LANES_TIER3.filter(func(l): return l != wave.main and l != wave.side and l != wave.side2)
+				var ch := LaneCharacter.for_run(s)
+				assert_eq(resting.size(), 1)
+				assert_true(resting[0] != ch.siege and resting[0] != ch.hare, "the resting lane is neutral: seed %d day %d wave %d" % [s, day, w])
 				assert_eq(Dictionary({wave.main: 1, wave.side: 1, wave.side2: 1}).size(), 3, "three distinct lanes")
 
 func test_the_splits_of_hares_and_brutes_add_up_to_the_unsplit_totals() -> void:
@@ -137,6 +143,8 @@ func _wave3(hare_group: String, fast: Array, counts: Array) -> Dictionary:
 func test_step_b_worked_example() -> void:
 	var p := LanePlanner.plan(1, 40, wb, 4, 20, tb)
 	assert_eq(WaveMath.pressure(40, 4, 20, tb), 15)
+	var real: Dictionary = p[2]  # the real planner's third wave (seed 1, day 40), before LaneCharacter.apply
+	assert_eq([real.main_count, real.side_count, real.side2_count, real.fast_main, real.fast_side, real.fast_side2], [16, 7, 7, 6, 3, 2], "the example's groups and hares are the planner's")
 	var base := _wave3("north", [6, 3, 2], [16, 7, 7])
 	var out: Dictionary = LaneCharacter.apply([base], {"siege": "sw", "hare": "north"}, tb)[0]
 	assert_eq([out.fast_main, out.fast_side, out.fast_side2], [4, 7, 0])
@@ -223,6 +231,15 @@ func test_validate_rejects_a_missing_or_bad_side2() -> void:
 	var s3 := _state_t4()
 	s3.lane_plan[0].fast_side2 = int(s3.lane_plan[0].side2_count) + 1
 	assert_eq(SaveCodec.validate(s3, Balance.data), "lane fast_side2")
+
+## Mutation: the codec accepts an extra group, or an empty side lane, on a tier-4 wave.
+func test_validate_rejects_extra_and_an_empty_side_on_a_tier_4_wave() -> void:
+	var s := _state_t4()
+	s.lane_plan[0]["extra"] = [{"lane": "west", "count": 1, "fast": 0}]
+	assert_eq(SaveCodec.validate(s, Balance.data), "lane extra", "extra on a tier-4 wave")
+	var t := _state_t4()
+	t.lane_plan[0].side = ""
+	assert_eq(SaveCodec.validate(t, Balance.data), "lane side", "an empty side on a tier-4 wave")
 
 func test_validate_rejects_the_tier4_keys_below_tier_4() -> void:
 	GameState.new_game(20260930)

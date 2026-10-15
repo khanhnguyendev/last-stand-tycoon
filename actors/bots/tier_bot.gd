@@ -30,9 +30,9 @@ var _graph_tier := 1
 var rule := "walk"
 ## Far moves refused by the walk-time rule (or by "far"), counted per re-decision at tier 3 (the sweep's FAR_KEPT). A hero that keeps its lane is asked again every second, so this counts refusals, not distinct moves.
 var far_kept := 0
-## E8 (D-314.12): the highest tier the bot pays for. The bot never walks to the sign of a tier above it (idle_goal and day_think's hold). 5 = uncapped.
+## E8 (D-314.12): the highest tier the bot pays for. The bot never walks to the sign of a tier above it (idle_goal and day_think's hold). the balance's tiers.max_tier (5) = uncapped.
 ## The tier-3 sims and tools/baseline_t3.sh cap it at 3 (the sweep's `--bot-max-tier=3`) so they keep playing the tier-3 game once tier 4 is for sale.
-var max_tier := 5
+var max_tier: int = Balance.data.tiers.max_tier
 ## E7 (D-310): a zone-to-zone walk longer than this (metres, straight line between the two zone nodes) is a far walk.
 const FAR_WALK_M := 9.0
 

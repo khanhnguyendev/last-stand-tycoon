@@ -202,6 +202,28 @@ func test_it_walks_to_the_front_lot_sign_after_its_tier_2_purchases() -> void:
 	assert_eq(bot.graph.position_of(bot.goal), MapLayout.tier_sign(3))
 	assert_ne(bot.graph.position_of(bot.goal), MapLayout.TIER_SIGN, "not the tier-2 sign's west position")
 
+## E8 (D-314.12): day_think's mid-payment hold respects the cap. A bot at tier 2 standing on the tier-3 sign with a part-payment keeps the goal when
+## uncapped (control), and with max_tier 2 it does not hold: day_think falls through and the goal is dropped. Mutation: the hold without `_may_pay_next_tier()`.
+func test_a_capped_bot_does_not_hold_the_sign_mid_payment() -> void:
+	var bot := await _bot_world(2)
+	_max_all_spots()
+	GameState.stations[&"counter"].level = Balance.data.stations.max_level  # test-only setup
+	GameState.stations[&"freezer"].level = Balance.data.stations.max_level  # test-only setup
+	GameState.tier_paid = 100  # test-only setup: a part-payment
+	GameState.add_gold(500)
+	await get_tree().physics_frame  # the bot's think() swaps the graph for the tier-2 one (it has the front-lot sign node)
+	var at := bot.graph.position_of("tier_sign_3")
+	bot.hero.global_position = Vector3(at.x, bot.hero.global_position.y, at.y)  # test-only setup: the hero on the node
+	bot.reset_route()
+	bot.goal = "tier_sign_3"  # an empty route and the hero on the node: arrived
+	assert_true(bot.arrived(), "setup: standing on the sign")
+	assert_gt(GameState.tier_remaining_cost(), 0)
+	bot.day_think(0.0)
+	assert_eq(bot.goal, "tier_sign_3", "control: uncapped, it keeps standing on the sign")
+	bot.max_tier = 2
+	bot.day_think(0.0)
+	assert_ne(bot.goal, "tier_sign_3", "capped at 2: no hold, the goal is re-picked")
+
 ## The bot really pays tier 3 by standing at the front-lot sign. Mutation: a tier-3 sign node unreachable or on a collider (stuck, no payment).
 func test_it_pays_tier_3_at_the_front_lot_sign() -> void:
 	var bot := await _bot_world(2)
