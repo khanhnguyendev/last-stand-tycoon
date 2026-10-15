@@ -3456,3 +3456,9 @@ recommendations and answered three questions put to them one by one.
    `auto_start`); the identity tool writes its own CSV; no wall-clock read in the bots, the sweep or the harness;
    the phase timers run on physics; the one gameplay-side wall-clock read (`kaykit_visual.hit`, the hit-reaction
    cooldown) drives an animation only. Still unknown; next step is a controlled run under load.
+
+**D-311 Spec 6.4 follows the shipped game (review queue E6-5; author's choice, 2026-10-15).** The E5 tier-3 spec's
+branch identity measures are restated, not the values changed: measure 3 (DPS against three targets) is a tie
+between Volley and the Longbow at 60 per second since the Longbow fires every 2.0 s (D-302); measures are computed
+at the live tier-3 pressures 10 to 12 (D-305), where measure 4 (Longbow fewest hares per second) holds; pressure 15
+is no longer reachable. The tests already pin this (D-308.3).
