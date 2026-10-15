@@ -31,7 +31,7 @@ static func kills_per_second(hp: float, t: TowerBranchStats, n_in_range: int) ->
 ## damage x fence_damage_mult x the fence's damage_taken_mult_by_kind[kind], one per attack interval.
 ## Spike's thorns do not shorten it: a thorn hurts the attacker, it never stops the attack.
 static func fence_hold_seconds(fence_hp: float, attacker: MonsterStats, fence: FenceBranchStats, attacker_kind: StringName) -> float:
-	var taken: float = float(fence.damage_taken_mult_by_kind.get(attacker_kind, 1.0))
+	var taken: float = float(fence.damage_taken_mult_by_kind.get(MonsterBalance.kind_class(attacker_kind), 1.0))
 	var per_hit := attacker.damage * attacker.fence_damage_mult * taken
 	if per_hit <= 0.0:
 		return INF  # immune: the fence never falls
@@ -39,7 +39,7 @@ static func fence_hold_seconds(fence_hp: float, attacker: MonsterStats, fence: F
 
 ## Damage a hare-kind monster takes crossing the fence's line (once). `scale` = spike_scale(...).
 static func pass_damage(fence: FenceBranchStats, kind: StringName, scale: float) -> float:
-	return fence.pass_damage * scale if kind in fence.pass_kinds else 0.0
+	return fence.pass_damage * scale if MonsterBalance.kind_class(kind) in fence.pass_kinds else 0.0
 
 ## Spike's numbers grow with the night's HP multiplier relative to the multiplier at the tier-3 base (D-272.1).
 static func spike_scale(hp_mult_now: float, hp_mult_base: float) -> float:

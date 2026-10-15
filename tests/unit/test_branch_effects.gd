@@ -464,3 +464,38 @@ func test_volley_and_unbranched_keep_their_interval() -> void:
 	assert_eq(spot.attacker.interval, 0.5)
 	_branch("tower_ne", &"volley")
 	assert_eq((main.world.build_spots["tower_ne"] as TowerSpot).attacker.interval, 0.5)
+
+# --- E8 Task 1: kind classes (D-314.10) -----------------------------------------------
+
+## Mutation: the attacker looks the table up by the raw kind (the Baron then takes 120).
+func test_a_longbow_hare_multiplier_applies_to_a_hare_and_to_a_baron() -> void:
+	Balance.data.branches.longbow.kind_mults[&"hare"] = 0.5
+	_branch(TOWER, &"longbow")
+	assert_eq(await _longbow_shot_at(&"hare"), 60.0, "120 x 0.5")
+	_targets.clear()
+	spot.attacker._cooldown = 0.0
+	spot.attacker._retarget = 0.0
+	assert_eq(await _longbow_shot_at(&"baron"), 60.0, "the Baron is a hare")
+
+## Mutation: damage_fence looks the table up by the raw kind (the Baron then does the plain hit).
+func test_a_spike_hare_multiplier_applies_to_a_baron_hit_on_the_fence() -> void:
+	Balance.data.branches.spike.damage_taken_mult_by_kind[&"hare"] = 2.0
+	_branch(FENCE, &"spike")
+	var before := float(GameState.buildings[FENCE].hp)
+	GameState.damage_fence(FENCE, 10.0, &"baron")
+	assert_almost_eq(before - float(GameState.buildings[FENCE].hp), 20.0, 1e-6, "10 x 2.0")
+	GameState.damage_fence(FENCE, 10.0, &"hare")
+	assert_almost_eq(before - float(GameState.buildings[FENCE].hp), 40.0, 1e-6, "a hare takes the same")
+	GameState.damage_fence(FENCE, 10.0, &"boar")
+	assert_almost_eq(before - float(GameState.buildings[FENCE].hp), 50.0, 1e-6, "another kind is unchanged")
+
+## Mutation: the tier bot's clear-time estimate reads the raw kind (the Baron then keeps 120).
+func test_tier_bot_tower_dps_uses_the_baron_class() -> void:
+	var st := TowerBranchStats.new()
+	st.damage = 120.0
+	st.interval = 2.0
+	st.count = 1
+	st.kind_mults = {&"hare": 0.5}
+	assert_almost_eq(TierBot.tower_dps(st, [1000.0], [&"baron"]), 30.0, 1e-6, "120 x 0.5 per 2.0 s")
+	assert_almost_eq(TierBot.tower_dps(st, [1000.0], [&"hare"]), 30.0, 1e-6)
+	assert_almost_eq(TierBot.tower_dps(st, [1000.0], [&"boar"]), 60.0, 1e-6)

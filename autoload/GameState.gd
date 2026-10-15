@@ -272,7 +272,7 @@ func damage_fence(spot_id: String, amount: float, attacker_kind: StringName = &"
 	if int(b.level) < 1 or float(b.hp) <= 0.0:
 		return
 	if String(b.branch) != "" and attacker_kind != &"":
-		amount *= float(Balance.data.branches.fence(StringName(b.branch)).damage_taken_mult_by_kind.get(attacker_kind, 1.0))
+		amount *= float(Balance.data.branches.fence(StringName(b.branch)).damage_taken_mult_by_kind.get(MonsterBalance.kind_class(attacker_kind), 1.0))
 	b.hp = maxf(float(b.hp) - amount, 0.0)
 	EventBus.building_changed.emit(StringName(spot_id), b.level, b.paid)
 
