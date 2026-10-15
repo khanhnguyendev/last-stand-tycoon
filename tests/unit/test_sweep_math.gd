@@ -528,9 +528,8 @@ func test_fixed_spread_is_information_and_reads_spread_at_least_5() -> void:
 			r.mean_frac = 0.99
 		elif r.policy == "unbranched":
 			r.mean_frac = 0.01
-		elif r.policy == "all_a":
-			r.mean_frac = 0.55
-	assert_true(SweepMath.fixed_spread(rows).ok, "threat and unbranched are not fixed pairs")
+	assert_false(SweepMath.fixed_spread(rows).ok, "threat and unbranched are not fixed pairs")
+	assert_string_contains(SweepMath.fixed_spread(rows).lines[0], "4.9")
 
 func test_fixed_spread_never_fails_the_report() -> void:
 	var res := SweepMath.retune_report(_grid(), _expected(), true)  # every fixed pair equal: spread 0
@@ -828,10 +827,10 @@ func _expected() -> Array:
 		out.append([r.seed, r.policy])
 	return out
 
-func test_report_with_every_run_prints_the_eight_verdict_lines_and_exits_0() -> void:
+func test_report_with_every_run_prints_the_nine_verdict_lines_and_exits_0() -> void:
 	var res := SweepMath.retune_report(_grid(), _expected())
 	assert_eq(res.exit, 0)
-	for key in ["THREAT_LEAD:", "THREAT_LEAD_BY_LANE:", "RETRY_NIGHTS:", "FIRST_T3_NIGHT:", "FENCE_TAX:", "FIXED_SPREAD:", "HARE_SHARE:", "LANE_CAP_GUARD:"]:
+	for key in ["THREAT_LEAD:", "THREAT_LEAD_BY_LANE:", "RETRY_NIGHTS:", "FIRST_T3_NIGHT:", "FIRST_NIGHT_BAND:", "FENCE_TAX:", "FIXED_SPREAD:", "HARE_SHARE:", "LANE_CAP_GUARD:"]:
 		assert_ne(_line(res, key), "", key)
 
 ## A missing run (no row), a failed run (hard break) and a run that never reached tier 3 each remove every verdict line and give exit 1.
@@ -849,7 +848,7 @@ func test_report_with_a_missing_or_failed_run_has_no_verdicts_and_exits_1() -> v
 		var res := SweepMath.retune_report(cases[k], _expected())
 		assert_eq(res.exit, 1, k)
 		assert_string_contains(res.lines[0], "FAILED")
-		for key in ["THREAT_LEAD", "RETRY_NIGHTS", "FIRST_T3_NIGHT", "FENCE_TAX", "FIXED_SPREAD", "HARE_SHARE", "LANE_CAP_GUARD"]:
+		for key in ["THREAT_LEAD", "RETRY_NIGHTS", "FIRST_T3_NIGHT", "FIRST_NIGHT_BAND", "FENCE_TAX", "FIXED_SPREAD", "HARE_SHARE", "LANE_CAP_GUARD"]:
 			assert_eq(_line(res, key), "", "%s: no %s line" % [k, key])
 
 func test_ladder_done_for_the_unbranched_policy_needs_no_branches() -> void:
@@ -1022,15 +1021,18 @@ func test_first_night_band_is_inclusive_at_exactly_50_and_80() -> void:
 	assert_false(SweepMath.first_night_band(_band_rows([0.801])).ok, "80.1 fails")
 
 func test_first_night_band_pools_one_median_over_every_branch_policy_run() -> void:
-	# 5 policies x 8 seeds = 40 runs; 19 at 0.40, 21 at 0.70: the pooled median is 70 (a median of per-policy medians would differ).
-	var rows := _band_rows([0.70])
-	var n := 0
+	# 40 runs. all_a, all_b, mixed: 4 runs at 0.30 and 4 at 0.60 each; volley_stone and threat: all 0.95.
+	# Pooled: 12 at 30, 12 at 60, 16 at 95 -> the 20th and 21st values are 60 -> median 60 -> PASS.
+	# A median of the per-policy medians would be 45, 45, 45, 95, 95 -> 45, which FAILS: the test tells the two apart.
+	var rows := _band_rows([0.95])
+	var seen := {}
 	for r in rows:
-		if n < 19:
-			r.first_t3_frac = 0.40
-		n += 1
+		if r.policy in ["all_a", "all_b", "mixed"]:
+			var k := int(seen.get(r.policy, 0))
+			r.first_t3_frac = 0.30 if k < 4 else 0.60
+			seen[r.policy] = k + 1
 	var res := SweepMath.first_night_band(rows)
-	assert_almost_eq(float(res.median), 70.0, 1e-9)
+	assert_almost_eq(float(res.median), 60.0, 1e-9)
 	assert_true(res.ok)
 	assert_string_contains(res.lines[0], "over 40 branch-policy runs")
 
@@ -1102,6 +1104,8 @@ func test_final_gate_sets_5_and_6_and_their_days() -> void:
 		var done := SweepMath.final_finish(SweepMath.final_gate(id, true, "abc1234", {"history": []}, DATE, days, "walk").record, true)
 		assert_false(SweepMath.final_gate(id, true, "def5678", done, DATE, days, "walk").allowed, "set #%s, walk rule, second run" % id)
 		assert_true(SweepMath.final_gate(id, true, "def5678", done, DATE, days, "far").allowed, "set #%s with another rule is open" % id)
+		var incomplete := SweepMath.final_finish(SweepMath.final_gate(id, true, "abc1234", {"history": []}, DATE, days, "walk").record, false, "", false)
+		assert_true(SweepMath.final_gate(id, true, "def5678", incomplete, DATE, days, "walk").allowed, "set #%s: an incomplete entry does not block a same-rule re-run" % id)
 	assert_false(SweepMath.set_by_id("5").is_empty())
 	assert_false(SweepMath.set_by_id("6").is_empty())
 	assert_eq(SweepMath.final_days("3"), 32)

@@ -809,10 +809,9 @@ static func fixed_spread(rows: Array) -> Dictionary:
 	var parts: Array = []
 	for p in FIXED_PAIRS:
 		parts.append("%s %s" % [p, _num(_policy_points(rows, p), "%.1f")])
-	var head := "FIXED_SPREAD: %s (spread %s points: %s; information: the builds should differ, spread >= 5.0 expected, not a must-hold)" % ["spread >= 5" if ok else "spread < 5", _num(sp, "%.1f"), ", ".join(parts)]
+	var head := "FIXED_SPREAD: %s (spread %s points: %s; information: the builds should differ, spread >= %.1f expected, not a must-hold)" % ["spread >= %d" % int(FIXED_SPREAD_EXPECTED) if ok else "spread < %d" % int(FIXED_SPREAD_EXPECTED), _num(sp, "%.1f"), ", ".join(parts), FIXED_SPREAD_EXPECTED]
 	return {"ok": ok, "lines": [head] + _breakdown(rows, func(sub): return _spread(sub), "spread %.1f")}
 
-## The first tier-3 night as FIRST_NIGHT_BAND reads it, in percent: a first night that needed ANY retry counts 0 (as _first_night does).
 ## FIRST_NIGHT_BAND (E8 spec 3.3, plan A12): ONE pooled median over the first tier-3 night of every branch-policy run (all_a, all_b, mixed, volley_stone, threat; `policies` overrides),
 ## in percent of the diner's HP; a retried first night counts 0. Passes in [50, 80] inclusive. Fails with no run.
 static func first_night_band(rows: Array, policies := BRANCH_POLICIES) -> Dictionary:
