@@ -435,7 +435,7 @@ func _ladder_done() -> bool:
 	var stations: Array = []
 	for sid in StationEffects.IDS:
 		stations.append(GameState.station_level(sid))
-	return SweepMath.ladder_done(spots, stations, int(Balance.data.build.max_level), int(Balance.data.stations.max_level), _policy != "unbranched")
+	return SweepMath.ladder_done(spots, stations, int(Balance.data.build.max_level), int(Balance.data.stations.max_level), _policy != SweepMath.REFERENCE_POLICY)
 
 var _picked := ""
 var _knockouts := 0
