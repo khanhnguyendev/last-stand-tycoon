@@ -161,6 +161,8 @@ func _run() -> void:
 				await h.run_day()
 			t0 = h.elapsed
 			_knockouts = 0  # per attempt: the row reports the last attempt's knockouts
+			_fence_hp = {}  # per attempt too: the fence columns report the last attempt's fall
+			_fence_branch = {}
 			n = await h.run_night()
 		retries_per_day.append(retries)  # hard-break days count too
 		var lost_now := 0
