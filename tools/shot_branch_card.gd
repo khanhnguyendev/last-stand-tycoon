@@ -1,12 +1,12 @@
 extends SceneTree
 ## The branch card (E6 Task 13, spec 5.2). Run WITH rendering (not --headless):
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_branch_card.gd -- --out=docs/review/media/e6/interface
-## Seed 1 (SIEGE east, HARE west, north and south-west neutral), the retune flag on, tier 3 forced, all nine buildings at level 3.
+## Seed 1 (SIEGE east, HARE west, north and south-west neutral), tier 3 forced, all nine buildings at level 3.
 ## The hero WALKS onto a pad (a teleport would leave the pad unarmed and the card hidden). Writes, each 720x1280 plus a _40 copy:
 ##   card_longbow (tower_nw: west road with the hare icon, north path with none: a two-lane tower), card_volley (tower_w: hare lane),
 ##   card_stone (fence_e: siege lane), card_spike (fence_n: neutral lane), card_partial (tower_ne Volley, 200 of 500 paid),
 ##   card_vietnamese (fence_w Stone wall with the Vietnamese sample).
-## The world labels above the hero (name, effect, warning) are still there: a later task removes them behind the flag.
+## The world labels above the hero (name, effect, warning) are still there: a later task removed them.
 
 var _out := "docs/review/media/e6/interface"
 var _failed := false

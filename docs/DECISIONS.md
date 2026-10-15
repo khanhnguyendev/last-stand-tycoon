@@ -3457,8 +3457,78 @@ recommendations and answered three questions put to them one by one.
    the phase timers run on physics; the one gameplay-side wall-clock read (`kaykit_visual.hit`, the hit-reaction
    cooldown) drives an animation only. Still unknown; next step is a controlled run under load.
 
+**D-310 The tier bot's hero keeps its lane (review queue E6-3; author's choice "no far walk", 2026-10-14).**
+1. **Rule:** at tier 3 the bot's hero does not walk to a zone more than 9 m away (the far side of the diner:
+   south-west to north 10.8 m, west to east 10.4, south-west to east 9.5) while its own lane still has monsters.
+   Near moves (north to west or east 7.35, south-west to west 5.7) are unchanged; so are the stay-in-range rule
+   and the breach ranking otherwise. It is the in-memory what-if `--far` of D-305, now shipped
+   (`TierBot.keep_own_lane`).
+2. **Measured defect:** a new sweep line `FAR_WALKS` counts those walks over tier-3 nights. On the tier-3
+   baseline run (seed 20260930, threat, 32 days): 19 over 14 nights with the old bot, 0 with the new (0 by
+   construction). `--bot-rule=old` restores the old bot for comparison; the study's `--oldbot=1` keeps the D-305
+   rows reproducible.
+3. **Baselines:** tier 1 and 2 identical (they use other bots). The tier-3 baseline differed (5 rows, night lengths;
+   every night still at full diner HP) and was re-recorded at `0bc6943` with the new bot, as the author ruled
+   (D-307.6: re-record the affected baselines). Tier-sim tick budgets updated (six sims, all assertions pass).
+4. **E6-4 (parallel load):** not reproducible in seven conditions (alone; all 8 cores busy; beside the unit suite,
+   the sim suites, two other tier sweeps; a fresh worktree after and during its import). The two earlier sightings
+   came from one session that was editing files and regenerating fixtures mid-run. The tier-3 tool now imports
+   first, fails on a sweep error instead of reading a stale file, and keeps its log plus the list of Godot
+   processes when it differs, so a next sighting carries evidence. Closed as not reproduced.
+5. **Re-measure (the author's choice for E6-1, E6-2):** measurement set #3 from the scan, positions 6 and 7 per
+   lane (east 15, 17; south-west 28, 29; west 30, 36; north 22, 26), run once with the old bot and once with the
+   new, `--final`; no tuning. Set #2 is spent and refused. Positions 8 and 9 stay unseen for the next balance slice.
+6. **Result (set #3, `--final`, both complete):** the new rule makes the bot WORSE at survival on unseen seeds.
+
+   | | old bot (`eb31dc3`) | new bot (`9a86ae2`) |
+   |---|---|---|
+   | far walks over 48 runs | 1995 (about 42 a run) | 0 |
+   | lead over Longbow + Stone | +2.6, ahead on 6 of 8 | +3.5, ahead on 6 of 8 |
+   | lowest lane lead | north +2.2 | east, north +1.9 (sw +5.6, west +4.7) |
+   | retry nights, branch policies | 0 | 2 (Volley + Spike, Volley + Stone; seed 26) |
+   | lowest first tier-3 night | 40.7% | 0.0% (seed 26, Volley policies retried); Longbow 22.3% (old 70.7%) |
+   | unbranched retry nights | 3 | 11 (flag tripped: seed 29, 4) |
+   | fence tax, fixed spread | 4.9%, 4.5 | 4.9%, 4.8 |
+
+   Reading: the old bot thrashes (about 42 crossings a run), and that thrashing hid real lane differences (the lead
+   rises to +3.5 without it). But never crossing loses nights where crossing was right: seed 26 (north) first night
+   70.7% to 22.3%. The rule was chosen on seed 14 alone; set #3 shows it does not generalise. The round's
+   targets were not tuned against set #3. The bot rule is NOT merged until the author decides (escalation 16).
+   Outputs: `docs/review/media/e6/tuning/e7_set3_old_bot.txt`, `e7_set3_new_bot.txt`.
 **D-311 Spec 6.4 follows the shipped game (review queue E6-5; author's choice, 2026-10-15).** The E5 tier-3 spec's
 branch identity measures are restated, not the values changed: measure 3 (DPS against three targets) is a tie
 between Volley and the Longbow at 60 per second since the Longbow fires every 2.0 s (D-302); measures are computed
 at the live tier-3 pressures 10 to 12 (D-305), where measure 4 (Longbow fewest hares per second) holds; pressure 15
 is no longer reachable. The tests already pin this (D-308.3).
+
+**D-312 The walk-time rule replaces never-cross; the re-measure (escalation 16, author's choice, 2026-10-15).**
+1. **Rule (shipped default `walk`):** at tier 3 a near move (zone distance 9 m or less) goes as before; a far move
+   with monsters left on the hero's lane goes only if the far lane's clear time (its live monsters' HP over the
+   damage per second of the towers covering it, each hit capped by the HP it can remove, Volley up to its targets)
+   is longer than the walk time (the bot's route length over hero speed). `--bot-rule=old|far|walk` keeps the bot
+   before D-310 and the never-cross rule for comparison. Review found and fixed the overkill error before any
+   measured run; the tower-coverage test pins which towers count. Known simplifications: a Volley's arrows are
+   counted against the picked lane only, and a two-lane tower counts its full rate for each of its lanes.
+2. **Seeds:** tuning set plus set #3 (both known data) for the rule; set #4 (scan positions 8 and 9: east 20, 24;
+   south-west 33, 34; west 39, 48; north 27, 32), once per rule, as the confirmation. Scan positions 10 and 11 are
+   the next unseen sets (D-307.7).
+3. **Results (`--final`, complete):**
+
+   | | set #3 old | set #3 walk | set #4 old | set #4 walk |
+   |---|---|---|---|---|
+   | far walks, 48 runs | 1995 | 1435 | 2148 | 1646 |
+   | lead over Longbow + Stone | +2.6 (6 of 8) | +2.7 (6 of 8) | +2.0 (5 of 8) | +2.3 (5 of 8) |
+   | lowest lane lead | north +2.2 | sw +2.5 | sw +1.1 | north +1.4 |
+   | retry nights, branch builds | 0 | 0 | 0 | 0 |
+   | lowest first tier-3 night | 40.7% | 40.7% | 48.7% | 48.7% |
+   | unbranched retry nights | 3 | 4 | 7 | 6 |
+   | fixed spread | 4.5 | 4.5 | 4.9 | 4.2 |
+
+   The walk-time rule cuts far walks by about a quarter and changes the survival and balance readings by less than
+   the noise (2 points). The never-cross rule (D-310) lost nights; this one does not. Outputs:
+   `docs/review/media/e6/tuning/e7_*.txt`.
+4. **E6-1 re-measured:** with the better bot the lead is still +2.3 to +2.7 against 5: reading lane character does
+   not pay, and it was not a bot artefact. Stays tier-4 input.
+5. **E6-2 re-measured:** branch builds keep a median 97% of the diner on their first tier-3 night (minimum 68.0% on
+   set #3, 78.3% on set #4; 33 to 36 of 40 runs at 90% or more). The first tier-3 night is easy. Stays input for the
+   next balance work, no tuning now.

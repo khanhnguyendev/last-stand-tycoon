@@ -11,7 +11,7 @@ var visual: Node3D
 var marker: Node3D
 var _world: World
 var _pips: Array = []
-## E6 (flag on only, visual): the level pips hide while one of this spot's own branch pads is in use (anything but FAR).
+## E6 (visual): the level pips hide while one of this spot's own branch pads is in use (anything but FAR).
 var _pips_covered := false
 var _fx: FlyFx
 ## Paid ticks since the last empty refresh; drives the build dust only (S5 Task 5, visual).

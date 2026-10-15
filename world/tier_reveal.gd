@@ -186,7 +186,7 @@ func _on_tier_reached(tier: int) -> void:
 	var hold := minf(float(_steps.size()) * ui.tier_reveal_step_s, Balance.data.tiers.tier_reveal_time - ui.tier_reveal_in_s - ui.tier_reveal_out_s)
 	var centres: Array[Vector3] = []
 	for m in _badge_markers:
-		centres.append(m.badge.position)  # the badges this reveal holds: none with the flag off
+		centres.append(m.badge.position)  # the badges this reveal holds: none without a lane character
 	var frame := frame_for(tier, ui, CameraMath.ASPECT, badge_corners(centres))
 	EventBus.camera_reveal_requested.emit(ui.tier_reveal_in_s, maxf(hold, 0.0), ui.tier_reveal_out_s, frame.zoom, frame.focus)
 	_tween = create_tween()
@@ -258,7 +258,7 @@ func _plan_tier3() -> void:
 			_hidden_spots.append(s)
 
 ## E6 (spec 5.4): with a lane character, the step after the lane's where both badges pop. Hides the badges until then. Returns the step, or
-## {} with no badge (flag off: the list stays the five steps of E5).
+## {} with no badge (no lane character: the list stays the five steps of E5).
 func _plan_lane_character() -> Dictionary:
 	# The badges (made by the tier-up's refresh, only with a lane character) say which lane is which: this node reads and writes no game
 	# data. The controller schedules the lines after the pick.

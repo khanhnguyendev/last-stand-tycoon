@@ -15,6 +15,76 @@
       "done": true,
       "ok": false,
       "set": "2"
+    },
+    {
+      "bot_rule": "old",
+      "commit": "8d63539",
+      "complete": false,
+      "date": "2026-10-14T21:44:21+07:00",
+      "days": 32,
+      "done": true,
+      "ok": false,
+      "set": "3"
+    },
+    {
+      "bot_rule": "new",
+      "commit": "b5cc16a",
+      "complete": false,
+      "date": "2026-10-14T22:11:58+07:00",
+      "days": 32,
+      "done": true,
+      "ok": false,
+      "set": "3"
+    },
+    {
+      "bot_rule": "old",
+      "commit": "eb31dc3",
+      "complete": true,
+      "date": "2026-10-14T22:51:05+07:00",
+      "days": 32,
+      "done": true,
+      "ok": false,
+      "set": "3"
+    },
+    {
+      "bot_rule": "new",
+      "commit": "9a86ae2",
+      "complete": true,
+      "date": "2026-10-14T23:57:48+07:00",
+      "days": 32,
+      "done": true,
+      "ok": false,
+      "set": "3"
+    },
+    {
+      "bot_rule": "walk",
+      "commit": "63bee44",
+      "complete": true,
+      "date": "2026-10-15T12:18:53+07:00",
+      "days": 32,
+      "done": true,
+      "ok": false,
+      "set": "3"
+    },
+    {
+      "bot_rule": "old",
+      "commit": "b5e0891",
+      "complete": true,
+      "date": "2026-10-15T13:52:32+07:00",
+      "days": 32,
+      "done": true,
+      "ok": false,
+      "set": "4"
+    },
+    {
+      "bot_rule": "walk",
+      "commit": "5eb59c6",
+      "complete": true,
+      "date": "2026-10-15T14:50:12+07:00",
+      "days": 32,
+      "done": true,
+      "ok": false,
+      "set": "4"
     }
   ]
 }

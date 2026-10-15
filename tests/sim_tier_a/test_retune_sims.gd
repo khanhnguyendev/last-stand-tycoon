@@ -4,10 +4,10 @@ extends GutTest
 ##  (a) retune_siege_night: the close-up of day 25 (tier_day 23), the threat-matched build as the bot had bought it. A wave's brutes have the siege lane (sw) as neither the drawn main nor side lane;
 ##      the plan step moves them to sw and the hares' share comes as an extra group on west. The night is held.
 ##  (b) retune_first_t3_night: the start of the first tier-3 day (day 23); the threat-matched bot plays the day and the night; the night is survived at or above 25% diner HP (D-281).
-##  (c) retune_respawn: a CONSTRUCTED state (make_save.gd): the first tier-3 day's buildings (south-west spots unbuilt, the zone fills) with tier_day moved back two days (day 23, tier_day 21), resumed at NIGHT, so the night is at the cap pressure 12 with the brute ramp complete; sim 7 of test_tier3_sims.gd with the flag on.
-##      Why constructed: on the real first tier-3 night (flag on, pressure 10) the precondition that failed is the CROWD one: fewer than CROWD (6) enemies ever stood in the south-west zone while the tank was posted, so the knock-out was never forced (forced = -1.0) and the respawn was never watched.
+##  (c) retune_respawn: a CONSTRUCTED state (make_save.gd): the first tier-3 day's buildings (south-west spots unbuilt, the zone fills) with tier_day moved back two days (day 23, tier_day 21), resumed at NIGHT, so the night is at the cap pressure 12 with the brute ramp complete; sim 7 of test_tier3_sims.gd on the retuned game.
+##      Why constructed: on the real first tier-3 night (pressure 10) the precondition that failed is the CROWD one: fewer than CROWD (6) enemies ever stood in the south-west zone while the tank was posted, so the knock-out was never forced (forced = -1.0) and the respawn was never watched.
 ## Every fixture carries a SAVED lane plan, so each sim asserts that the DECODED STORED plan equals the planner's plan for that day (raw LanePlanner.plan, then LaneCharacter.apply), and that the load
-## path re-derives it: a stored plan replaced by the unapplied one comes back equal to the planner's after GameState.from_dict (flag on, spec 3.4).
+## path re-derives it: a stored plan replaced by the unapplied one comes back equal to the planner's after GameState.from_dict (spec 3.4).
 ## Wall-clock prints are information only, never asserted. Reads only signals and GameState (D-113), plus the pool `grew` signals.
 
 ## (a)'s lower bound on the minimum diner fraction during the night. Three recorded runs of this sim gave 0.96, 0.96 and 0.96 (the game is deterministic, so they agree).
@@ -21,7 +21,7 @@ const FLOOR_B := 0.85
 const SIEGE_STEM := "retune_siege_night"
 const FIRST_STEM := "retune_first_t3_night"
 const RESPAWN_STEM := "retune_respawn"
-## Sim (c) forces the knockout once at least this many enemies stand in the south-west zone. Flag on, the first tier-3 night's south-west enemies come one or two at a time at first
+## Sim (c) forces the knockout once at least this many enemies stand in the south-west zone. The first tier-3 night's south-west enemies come one or two at a time at first
 ## (the zone is empty three seconds after a knockout at the first one), so the respawn must be into a crowd, not into the first arrival.
 const CROWD := 6
 ## Sim (c) only: the diner's HP in memory. At the real 300 HP the constructed night (south-west spots unbuilt) is lost 119.2 s into the night, 0.12 s after the first respawn (119.1 s; knock-out forced at 116.1 s), so the 5 s after the respawn could not be watched. Re-measured: the whole test takes about 3 s of wall time (2.9 to 3.4 s, on a loaded machine).
@@ -72,7 +72,7 @@ func after_each() -> void:
 		if sig.is_connected(pair[1]):
 			sig.disconnect(pair[1])
 	h.finish()
-	Balance.reset()  # the flag back to off for every later test
+	Balance.reset()  # back to the shipped balance for every later test
 	gut.p("  wall time %.1f s" % ((Time.get_ticks_msec() - _t0) / 1000.0))
 
 func _watch_pools() -> void:
@@ -94,7 +94,7 @@ func _decode(stem: String) -> Dictionary:
 	assert_true(r.ok, "%s: %s" % [stem, r.get("reason", "")])
 	return r.state
 
-## The planner's plan for the state's run and day, as the game makes it: LanePlanner.plan, then the lane character's step (flag on, tier 3).
+## The planner's plan for the state's run and day, as the game makes it: LanePlanner.plan, then the lane character's step (tier 3).
 func _planner_plan(s: Dictionary) -> Array:
 	var raw := LanePlanner.plan(int(s.run_seed), int(s.day), Balance.data.wave, int(s.tier), int(s.tier_day), Balance.data.tiers)
 	return LaneCharacter.apply(raw, LaneCharacter.for_run(int(s.run_seed)), Balance.data.tiers)
@@ -117,7 +117,7 @@ func _norm(v: Variant) -> Variant:
 	return v
 
 ## Stale-fixture guard, in three parts. 1: the plan STORED in the fixture file (decoded, never touched by GameState) equals the planner's plan for that day. 2: the load path re-derives
-## the plan: the stored plan replaced by the planner's plan WITHOUT the lane character comes back as the one with it (GameState.from_dict, flag on). 3: the running game has it.
+## the plan: the stored plan replaced by the planner's plan WITHOUT the lane character comes back as the one with it (GameState.from_dict). 3: the running game has it.
 ## Mutations: a fixture made before a planner change (1); the lane character ignored on load (2 and 3).
 ## Call it BEFORE the game starts (it loads a state into GameState). Returns the planner's plan for `_assert_loaded_plan` after the start.
 func _assert_fresh_plan(stem: String, boss_night := false) -> Array:
@@ -243,7 +243,7 @@ func test_b_the_first_tier3_night_is_survived_at_or_above_25_percent_by_the_thre
 	assert_eq(h.bot.skipped_goals, 0, "the bot skipped no goal")
 	assert_eq(growth, [], "the enemy, steak and projectile pools never grew at runtime")
 
-# ---- (c) respawn, flag on ---------------------------------------------------------------------------------------------
+# ---- (c) respawn ---------------------------------------------------------------------------------------------
 
 func _on_ko(id: StringName) -> void:
 	_knock_times[id] = _knock_times.get(id, []) + [h.elapsed]
@@ -259,7 +259,7 @@ func _enemies_in_zone(lane: String) -> int:
 			n += 1
 	return n
 
-## Sim (c): sim 7 of test_tier3_sims.gd with the flag on. WHAT IS RECORDED: the first tier-3 day's start of seed 3 from real flag-on bot play (its plan, cards, tank guard and
+## Sim (c): sim 7 of test_tier3_sims.gd on the retuned game. WHAT IS RECORDED: the first tier-3 day's start of seed 3 from real bot play (its plan, cards, tank guard and
 ## buildings; tower_sw and fence_sw unbuilt); retune_respawn is that state CONSTRUCTED with tier_day = day - 2 (day 23, tier_day 21: pressure 12, the full brute ramp, 3 planned brutes), because the real first night (pressure 10) never fills the zone to CROWD. WHAT IS INSTRUMENTED (this is an instrumented scene, as sim 7 always was): the phase is overridden to NIGHT (the fixture resumes at
 ## once, no day is played); the tank's max HP is 1 in memory (any hit kills it, so only the respawn protection can keep it alive); the knock-out is scripted through
 ## GameState.damage_guard once >= CROWD enemies stand in the south-west zone; the diner has DINER_HP_C HP in memory. WHAT IT PROVES: in a crowded siege-lane zone (the south-west lane is this
@@ -281,7 +281,7 @@ func test_c_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again
 	assert_eq(GameState.tier, 3)
 	# The CONSTRUCTED state (make_save.gd): the first tier-3 day's buildings with tier_day moved back two days, so the night is at the cap pressure with the brute ramp complete.
 	assert_eq([GameState.day, GameState.tier_day], [23, 21], "the constructed respawn state: day 23, tier_day 21 (third tier-3 night)")
-	assert_eq(GameState.pressure(), 12, "the night is at the tier-3 cap pressure (flag on: tier 3 starts at 10 and ramps to 12)")
+	assert_eq(GameState.pressure(), 12, "the night is at the tier-3 cap pressure (tier 3 starts at 10 and ramps to 12)")
 	var planned_brutes := 0
 	for w in GameState.lane_plan:
 		planned_brutes += int(w.get("brute_main", 0)) + int(w.get("brute_side", 0))

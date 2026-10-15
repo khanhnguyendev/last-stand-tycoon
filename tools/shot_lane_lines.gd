@@ -1,5 +1,5 @@
 extends SceneTree
-## E6 Task 11 fix: the tier-3 reveal with both lane badges (retune flag on), and each lane-character banner line showing after the card pick. Run WITH rendering:
+## E6 Task 11 fix: the tier-3 reveal with both lane badges (shipped), and each lane-character banner line showing after the card pick. Run WITH rendering:
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/shot_lane_lines.gd -- --out=docs/review/media/e6/reveal
 ## Writes reveal_badges (after step 3, both badges popped), lane_line_pick (the pick banner), lane_line_siege, lane_line_hare, each with a _40 copy.
 

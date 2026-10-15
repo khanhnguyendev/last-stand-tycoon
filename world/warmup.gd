@@ -12,7 +12,7 @@ const SPREAD := 1.0
 const FRAMES := 3
 ## Five per row (x in -2..2 m) and nine rows centred vertically (y in -4..4 m), 6 m from the camera: on a 9:21 phone (KEEP_WIDTH,
 ## camera_fov_h 42) the half-width there is 6 * tan 21 deg = 2.30 m and at 9:16 the half-height is 4.09 m (the outer rows' centres are inside it).
-## Room for 45 nodes (37 at tier 3 with the flag on: E6 added the guard HP bar boxes, the lane badge icons and the hero's and pile's front variants).
+## Room for 45 nodes (37 at tier 3: E6 added the guard HP bar boxes, the lane badge icons and the hero's and pile's front variants).
 const ROW := 5
 const ROWS := 9
 const CAPACITY := ROW * ROWS

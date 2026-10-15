@@ -1,6 +1,6 @@
 extends GutTest
 ## E6 phase 4, tuning round 1 (D-292): the Longbow sensitivity grid, interval x damage per shot x brute multiplier, on the lane-type bench.
-## A REPORT, not a CI test (outside tests/unit and tests/bench): it asserts nothing about the numbers. Flag ON, pressure 12, all other values as committed.
+## A REPORT, not a CI test (outside tests/unit and tests/bench): it asserts nothing about the numbers. Pressure 12, all other values as committed.
 ## Run it by hand (all 24 candidates, one process; about 40 min), or split by interval across up to 3 processes with LB_INTERVALS:
 ##   LB_INTERVALS=2.4,2.2 "$GODOT" --headless --path . --fixed-fps 60 -s res://addons/gut/gut_cmdln.gd -gconfig= -gtest=res://tests/bench_report/test_longbow_p4_r1.gd -gexit
 ## Each candidate prints one machine-readable line: `CAND interval dmg_pct mult | siege lost | hare lost | neutral lost | siege1 | siege2 | boars | RULES ok|FAIL <first failing rule>`.

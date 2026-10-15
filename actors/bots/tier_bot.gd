@@ -24,6 +24,14 @@ var _pad_wait := 0
 var _blocked_pads := {}
 var _blocked_day := -1
 var _graph_tier := 1
+## E7 (D-310, escalation 16): the re-decision rule at tier 3. "walk" (shipped): a far move is made only when the picked lane's clear time exceeds the walk time there;
+## "far": the D-310 never-cross rule (no far move while the own lane has monsters), kept for comparison; "old": no rule, the bot before D-310.
+## The sweep's `--bot-rule=` and the study's `--oldbot=1` (= "old") set it.
+var rule := "walk"
+## Far moves refused by the walk-time rule (or by "far"), counted per re-decision at tier 3 (the sweep's FAR_KEPT). A hero that keeps its lane is asked again every second, so this counts refusals, not distinct moves.
+var far_kept := 0
+## E7 (D-310): a zone-to-zone walk longer than this (metres, straight line between the two zone nodes) is a far walk.
+const FAR_WALK_M := 9.0
 
 func _init() -> void:
 	graph = _make_graph(1)
@@ -65,7 +73,108 @@ func _pick_lane(lanes: Array, counts: Dictionary, wd: WaveDirector) -> String:
 		var walks_past: bool = not (b.stats().priority as Array).has(&"fence_on_lane")  # the game's own test for hares and the Baron
 		if enemy_breached(lane, float(b.dist), float(b.stats().reach), TargetProviders.fence_stop_dist(b) < INF, walks_past):
 			breached[lane] += 1
-	return pick_lane(lanes, counts, breached, character)
+	var picked := pick_lane(lanes, counts, breached, character)
+	if rule != "old" and goal.begins_with("zone_") and picked != "" and graph.nodes.has("zone_" + picked):
+		var mine := goal.trim_prefix("zone_")
+		if mine != picked and graph.nodes.has(goal):
+			var dist := graph.position_of(goal).distance_to(graph.position_of("zone_" + picked))
+			var keep := false
+			if rule == "far":
+				keep = keep_own_lane(mine, picked, counts, dist)
+			elif keep_own_lane(mine, picked, counts, dist):  # a far move with monsters left on the own lane: decide by time (the scene is read only now)
+				var walk_s := walk_time(route_length(hero.xz(), graph.route_from(hero.xz(), "zone_" + picked)), hero.move_speed())
+				keep = keep_by_walk_time(mine, picked, counts, dist, clear_time(_lane_hp(wd, picked), _lane_dps(wd, picked)), walk_s)
+			if keep:
+				far_kept += 1
+				return mine
+	return picked
+
+## The current HP of the live enemies of `lane` (scene read).
+func _lane_hp(wd: WaveDirector, lane: String) -> Array:
+	var out: Array = []
+	for b in wd.alive_enemies():
+		if String(b.lane) == lane:
+			out.append(float(b.health.hp))
+	return out
+
+## Damage per second of every built tower that covers `lane`, against the live enemies of `lane` and their current HP (scene read; each tower's stats as TowerSpot applies them).
+func _lane_dps(wd: WaveDirector, lane: String) -> Array:
+	var kinds: Array = []
+	var hps: Array = []
+	for b in wd.alive_enemies():
+		if String(b.lane) == lane:
+			kinds.append(b.kind)
+			hps.append(float(b.health.hp))
+	var out: Array = []
+	for id in GameState.buildings:
+		if MapLayout.spot_kind(id) != "tower" or not lane in MapLayout.tower_lanes(id):
+			continue
+		var level := int(GameState.buildings[id].level)
+		if level < 1:
+			continue
+		out.append(tower_dps(TowerSpot.stats_for(level, GameState.branch_of(id)), hps, kinds))
+	return out
+
+## Pure. Damage per second one tower deals against the live enemies of a lane: `hp_list` is their current HP, `kinds` their kinds (same order). A hit removes at most
+## what is left, so the effective damage per hit is the mean over the enemies k of min(damage x kind multiplier_k, hp_k) (the tower may hit any of them; absent kind
+## multiplier = 1.0); a tower makes min(count, n) hits per `interval`. No enemies or no interval: 0.
+static func tower_dps(stats: TowerBranchStats, hp_list: Array, kinds: Array) -> float:
+	var n := mini(hp_list.size(), kinds.size())
+	if n == 0 or stats.interval <= 0.0:
+		return 0.0
+	var per_hit := 0.0
+	for i in n:
+		per_hit += minf(stats.damage * float(stats.kind_mults.get(kinds[i], 1.0)), float(hp_list[i]))
+	per_hit /= float(n)
+	return float(mini(stats.count, n)) * per_hit / stats.interval
+
+## Pure. Seconds the towers need to clear a lane: the sum of the enemies' HP over the sum of the towers' damage per second. INF when no tower deals damage.
+static func clear_time(hp_list: Array, dps_list: Array) -> float:
+	var hp := 0.0
+	for h in hp_list:
+		hp += float(h)
+	var dps := 0.0
+	for d in dps_list:
+		dps += float(d)
+	if dps <= 0.0:
+		return INF
+	return hp / dps
+
+## Pure. Length of a walk: from `from` through the route points `pts` (graph.route_from's result) in order.
+static func route_length(from: Vector2, pts: Array) -> float:
+	var total := 0.0
+	var at := from
+	for p in pts:
+		total += at.distance_to(p)
+		at = p
+	return total
+
+## Pure. Seconds to walk `length` metres at `speed` m/s.
+static func walk_time(length: float, speed: float) -> float:
+	return length / speed if speed > 0.0 else INF
+
+## Pure. The walk-time rule for a FAR move (zones more than FAR_WALK_M apart, the own lane still has monsters): go only when the towers need longer to clear the picked lane than
+## the hero needs to walk there (`clear_s` > `walk_s`; INF clear time = the towers will not clear it: go). Otherwise keep the own lane.
+static func go_by_time(clear_s: float, walk_s: float) -> bool:
+	return clear_s > walk_s
+
+## Pure. The whole decision: true when the hero keeps `mine` instead of going to `picked`. Near moves (dist_m <= FAR_WALK_M), an empty own lane (`counts`) and picked == mine are never kept.
+static func keep_by_walk_time(mine: String, picked: String, counts: Dictionary, dist_m: float, clear_s: float, walk_s: float) -> bool:
+	if picked == mine or int(counts.get(mine, 0)) <= 0 or dist_m <= FAR_WALK_M:
+		return false
+	return not go_by_time(clear_s, walk_s)
+
+## Pure. D-310 (rule "far"): the hero does not cross to the far side of the diner while its own lane has monsters. True when the hero, whose
+## current zone goal is `mine`, keeps `mine` instead of walking to `picked`: `mine` has live enemies (`counts`), `picked` differs, and the zones are
+## more than FAR_WALK_M apart (`dist_m`). Zone distances at tier 3 (straight line, MapLayout lane ends): sw-north 10.8, west-east 10.4, sw-east 9.5 are far;
+## north-west and north-east 7.35, sw-west 5.7 are near. Only called with a lane character (tier 3).
+static func keep_own_lane(mine: String, picked: String, counts: Dictionary, dist_m: float) -> bool:
+	return picked != mine and int(counts.get(mine, 0)) > 0 and dist_m > FAR_WALK_M
+
+## Pure. E7 sweep metric (FAR_WALKS): true when a hero goal change from the zone of `prev_lane` to the zone of `new_lane` is a far walk made while the previous lane
+## had live enemies (`prev_live`). Counts the far moves that were made (with rule "far" it is 0 by construction).
+static func is_far_walk(prev_lane: String, new_lane: String, prev_live: int, dist_m: float) -> bool:
+	return prev_lane != new_lane and prev_live > 0 and dist_m > FAR_WALK_M
 
 ## Where a fence-stopping kind of `reach` waits at the fence of `lane`: TargetProviders.fence_stop_dist returns this while the fence stands, but INF once
 ## it has fallen, so the bot keeps the formula (a test pins that the two agree for every lane and kind).

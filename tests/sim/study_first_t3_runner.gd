@@ -1,13 +1,15 @@
 extends Node
-## E6 phase 4 study runner (see study_first_t3.gd). One REAL tier-bot run with the retune flag on, replayed with extra READ-ONLY logging; it changes no balance
+## E6 phase 4 study runner (see study_first_t3.gd). One REAL tier-bot run on the shipped game, replayed with extra READ-ONLY logging; it changes no balance
 ## value and no production file. Arguments (after `--`): --seed=N --policy=<tier bot policy> --days=N --force=none|first|all --out=<file under tests/sim/out/study/>.
 ## --force (Q6, in memory only): `first` = the FIRST branch bought is a Longbow on the first tower (spots order) that covers the run's siege lane; `all` = Longbow on EVERY
 ## tower covering the siege lane before any other branch. Everything after that is the threat rule unchanged. The bot waits (buys no other branch) until it can pay.
 ## Output lines (stdout, one fact per line, parsed by hand into docs/review/media/e6/study_first_t3.md):
 ##   RUN, ROW, GOAL, BUY, STATE, PLAN, NIGHT_BEGIN, NIGHT_END, SPAWN, DMG, FENCE_FALL, FENCE_HP, SHOTS, SRC, BOT.
-## Phase-4 round-2 additions (all in memory, study runner only): --interval=<s> sets the flag-on Longbow interval; --variant=<letters> changes the threat bot's branch choice
+## Phase-4 round-2 additions (all in memory, study runner only): --interval=<s> sets the Longbow interval; --variant=<letters> changes the threat bot's branch choice
 ## (b: a tower that covers the hare lane takes Volley even if it also covers the siege lane; c: purchase order first ONE siege-lane tower, then the hare-lane towers, then the
 ## other siege-lane towers); --pin=<lane>:<from_s>:<row> pins the hero's night lane choice to <lane> from <from_s> seconds after the night of row <row> starts to the end of that night (attempt 1 and retries).
+## --far=1 (D-304 what-if 3) is SHIPPED since D-310 (TierBot._pick_lane, keep_own_lane); the branch below is kept only to reproduce the D-305 rows, which ran on the old bot:
+## add --oldbot=1 (sets TierBot.rule = "old", the bot without any D-310 / escalation-16 rule) to every such run. Without --oldbot=1 every run here plays the shipped (walk-time) rule. (The RUN line does not print oldbot, so the old rows stay byte-comparable.)
 ## No global rand call is made here (the unit suite bans them).
 
 const DELTA := 1.0 / 60.0
@@ -167,7 +169,7 @@ func _out(s: String) -> void:
 	print(s)
 
 func _run() -> void:
-	_args = {"seed": "1", "policy": "threat", "days": "24", "force": "none", "out": "", "bench": "", "variant": "", "pin": "", "interval": "", "hold": "", "commit": "", "base": "", "far": ""}
+	_args = {"seed": "1", "policy": "threat", "days": "24", "force": "none", "out": "", "bench": "", "variant": "", "pin": "", "interval": "", "hold": "", "commit": "", "base": "", "far": "", "oldbot": ""}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if kv.size() == 2:
@@ -191,6 +193,7 @@ func _run() -> void:
 	var forced := String(_args.force) != "none" or String(_args.variant) != "" or String(_args.pin) != "" or String(_args.hold) == "1" or String(_args.commit) == "1" or String(_args.far) == "1"
 	_h.start(int(_args.seed), ForcedBot if forced else TierBot)
 	_h.bot.policy = String(_args.policy)
+	_h.bot.rule = "old" if String(_args.oldbot) == "1" else "walk"
 	if forced:
 		_h.bot.force = String(_args.force)
 		_h.bot.hold = String(_args.hold) == "1"

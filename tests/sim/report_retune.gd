@@ -1,7 +1,9 @@
 extends SceneTree
 ## E6 tier-3 retune report (Task 16, spec 8.1, D-285, D-290, D-292 to D-294). NOT a CI test (the name does not start with test_); asserts nothing, changes no balance value.
-## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|2 --final --days=32 --parallel=3 --dry=1]
-## Sets: `tuning` (default; 5 seeds: one per siege lane from the scan, plus the promoted north 14, D-304), `2` (hold-out set #2, 8 seeds, two per siege lane). Hold-out set #1 is
+## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|3|4 --final --days=32 --parallel=3 --dry=1 --bot-rule=walk|far|old --deadline-min=20]
+## Sets: `tuning` (default; 5 seeds: one per siege lane from the scan, plus the promoted north 14, D-304), `3` (E7 measurement set #3, 8 seeds, two per siege lane: scan positions 6 and 7), `4` (E7 measurement set #4, scan positions 8 and 9; scan positions 10 and 11 are reserved, unseen, not named in code).
+## Hold-out set #2 is SPENT (D-307) and refused always like set #1 (message names D-307; results stay in the history). `--bot-rule=walk|far|old` (default walk) is passed to every child sweep, printed in the header and stored in the history entry
+## (`bot_rule`); sets #3 and #4 may be run once per bot rule (walk, far, old; a history entry `new` is `far`) (a repeat with a rule already used by a COMPLETE entry is refused; an entry whose run printed no verdict has `complete: false` and does not block). Hold-out set #1 is
 ## RETIRED (D-304: seed 14 failed it, was diagnosed and moved to the tuning set): `--set=1` is refused always, with or without `--final`, exit 2, nothing started; its literal and its
 ## results stay for the history. The seeds are pinned in SweepMath (SCAN_TUNING_SET, PROMOTED_TO_TUNING, TUNING_SET, HOLDOUT_SET_1, HOLDOUT_SET_2); at the start the report scans seeds upward from 1
 ## (the siege lane of a seed is `LaneCharacter.for_run(seed).siege`) and exits 2 if the scan does not give exactly the pinned literals (the scan's tuning seeds + the promotion = TUNING_SET). The hold-out sets run ONLY with `--final` (D-290): without it the report refuses and starts nothing; with it the output header
@@ -22,12 +24,12 @@ extends SceneTree
 ## D-150: a `-s` script compiles before the autoloads exist; this one names only the pure helpers (SweepMath, ReportMath) and loads LaneCharacter at run time.
 
 const RECORD_PATH := "res://tests/sim/retune_final.json"
-const RUN_DEADLINE_MSEC := 20 * 60 * 1000  # per child run (a run takes about 220 s idle)
-const KNOWN_ARGS := ["set", "days", "parallel", "dry", "final"]
+const DEFAULT_DEADLINE_MIN := 20  # per child run (a run takes about 220 s idle); --deadline-min=<5..240>
+const KNOWN_ARGS := ["set", "days", "parallel", "dry", "final", "bot-rule", "deadline-min"]
 const RUN_FIELDS := ["nights", "retry_nights", "min", "median", "mean", "fences_lost_mean", "branches", "branch_gold", "unspent_last_day", "hard_break_day"]
 
 func _initialize() -> void:
-	var args := {"set": "tuning", "days": "32", "parallel": "3", "dry": "0", "final": "0"}
+	var args := {"set": "tuning", "days": "32", "parallel": "3", "dry": "0", "final": "0", "bot-rule": "walk", "deadline-min": str(DEFAULT_DEADLINE_MIN)}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if not kv[0] in KNOWN_ARGS:
@@ -39,15 +41,27 @@ func _initialize() -> void:
 		push_error("bad --days=%s or --parallel=%s (integers)" % [args.days, args.parallel])
 		quit(2)
 		return
+	if not String(args["deadline-min"]).is_valid_int() or int(args["deadline-min"]) < 5 or int(args["deadline-min"]) > 240:
+		push_error("bad --deadline-min=%s (integer 5 to 240)" % args["deadline-min"])
+		quit(2)
+		return
+	var deadline_min := int(args["deadline-min"])
+	var run_deadline_msec := deadline_min * 60 * 1000
+	var bot_rule := String(args["bot-rule"])
+	if not bot_rule in SweepMath.BOT_RULES:
+		push_error("bad --bot-rule=%s (walk|far|old)" % bot_rule)
+		quit(2)
+		return
 	var set_id := String(args.set)
+	var tag := set_id + "_" + bot_rule  # file names: a run with another bot rule never overwrites another rule's logs
 	var seed_set: Dictionary = SweepMath.set_by_id(set_id)
 	if seed_set.is_empty():
-		push_error("bad --set=%s (tuning|2; 1 is retired)" % set_id)
+		push_error("bad --set=%s (tuning|3|4; 1 is retired, 2 is spent)" % set_id)
 		quit(2)
 		return
 	var lc = load("res://core/lane_character.gd")
 	var scan: Dictionary = SweepMath.seed_scan(func(s): return String(lc.for_run(s).siege), SweepMath.SIEGE_LANES)
-	if scan.tuning != SweepMath.SCAN_TUNING_SET or scan.holdout1 != SweepMath.HOLDOUT_SET_1 or scan.holdout2 != SweepMath.HOLDOUT_SET_2 \
+	if scan.tuning != SweepMath.SCAN_TUNING_SET or scan.holdout1 != SweepMath.HOLDOUT_SET_1 or scan.holdout2 != SweepMath.HOLDOUT_SET_2 or scan.set3 != SweepMath.MEASURE_SET_3 or scan.set4 != SweepMath.MEASURE_SET_4 \
 			or SweepMath.with_promotion(scan.tuning, SweepMath.PROMOTED_TO_TUNING) != SweepMath.TUNING_SET:
 		push_error("the seed scan no longer gives the pinned sets (LaneCharacter.for_run changed?): %s" % str(scan))
 		quit(2)
@@ -55,7 +69,7 @@ func _initialize() -> void:
 	var retired: Dictionary = SweepMath.retired_gate(set_id)
 	if retired.refused:
 		print("SEED_PROMOTED north 14 (D-304): failed hold-out #1, diagnosed, now tuning data")
-		print("HOLDOUT_1 retired (D-304): results stay in the history")
+		print("HOLDOUT_1 retired (D-304), HOLDOUT_2 spent (D-307): results stay in the history")
 		print("\n".join(retired.lines))
 		quit(2)
 		return
@@ -73,7 +87,7 @@ func _initialize() -> void:
 		push_error("%s exists but does not parse as a record ({\"history\": [...]}); fix or restore it by hand: the report never overwrites it" % record_path)
 		quit(2)
 		return
-	var gate: Dictionary = SweepMath.final_gate(set_id, String(args.final) == "1", commit, parsed.record, _commit_date(proj), days)
+	var gate: Dictionary = SweepMath.final_gate(set_id, String(args.final) == "1", commit, parsed.record, _commit_date(proj), days, bot_rule)
 	var seeds: Array = SweepMath.set_seeds(seed_set)
 	var lines: Array = []
 	if not gate.allowed:
@@ -81,12 +95,14 @@ func _initialize() -> void:
 		quit(2)
 		return
 	lines.append("RETUNE_REPORT set=%s commit=%s days=%d" % ["tuning" if set_id == "tuning" else "#" + set_id, commit, days])
+	lines.append("DEADLINE %d min per child run (--deadline-min)" % deadline_min)
+	lines.append("BOT_RULE %s (passed to every child sweep as --bot-rule=%s)" % [bot_rule, bot_rule])
 	lines.append_array(gate.lines)
 	lines.append("SEED_PROMOTED north 14 (D-304): failed hold-out #1, diagnosed, now tuning data")
-	lines.append("HOLDOUT_1 retired (D-304): results stay in the history")
-	lines.append("SEED_RULE scan seeds upward from 1; a seed's siege lane is LaneCharacter.for_run(seed).siege; per lane the 1st seed is the scan's tuning seed, the next 2 hold-out set #1 (RETIRED), the next 2 hold-out set #2; the tuning set run = the scan's tuning seeds + the promoted north 14 (D-304)")
+	lines.append("HOLDOUT_1 retired (D-304), HOLDOUT_2 spent (D-307): results stay in the history")
+	lines.append("SEED_RULE scan seeds upward from 1; a seed's siege lane is LaneCharacter.for_run(seed).siege; per lane the 1st seed is the scan's tuning seed, the next 2 hold-out set #1 (RETIRED), the next 2 hold-out set #2 (SPENT), the next 2 measurement set #3, the next 2 measurement set #4 (positions 10 and 11 reserved, unseen); the tuning set run = the scan's tuning seeds + the promoted north 14 (D-304)")
 	for l in SweepMath.SIEGE_LANES:
-		lines.append("SEEDS %s %s: %s" % ["tuning" if set_id == "tuning" else "hold-out #" + set_id, l, str(seed_set[l])])
+		lines.append("SEEDS %s %s: %s" % ["tuning" if set_id == "tuning" else "set #" + set_id, l, str(seed_set[l])])
 	lines.append("NOTE a retried night counts its final (mercy) attempt, EXCEPT the first tier-3 night (FIRST_T3_NIGHT): a retried first night counts as lost, 0%; the night statistics count tier-3 nights only; hare share and the lane-cap guard are read from each run's own plan; with the retune flag on the first two tier-3 nights are below the cap (pressure 10, 11, then 12, D-304/D-305), so the at-cap columns (cap_nights, fence_rebuild_gold_median_at_cap, income_at_cap, hence FENCE_TAX) count from the third tier-3 night and are not like for like with runs before D-305")
 	if String(args.dry) == "1":
 		lines.append("DRY RUN: nothing started")
@@ -103,7 +119,7 @@ func _initialize() -> void:
 			jobs.append([s, p])
 	for j in jobs:  # a stale run must not be read as this run's
 		for ext in [".log", ".csv"]:
-			var old: String = _log_path(out_dir, set_id, j[0], j[1]).get_basename() + ext
+			var old: String = _log_path(out_dir, tag, j[0], j[1]).get_basename() + ext
 			DirAccess.make_dir_recursive_absolute(old.get_base_dir())
 			if FileAccess.file_exists(old):
 				DirAccess.remove_absolute(old)
@@ -114,11 +130,11 @@ func _initialize() -> void:
 	while not failed and (not jobs.is_empty() or not running.is_empty()):
 		var still: Array = []
 		for r in running:
-			var rlog: String = _log_path(out_dir, set_id, r.seed, r.policy)
+			var rlog: String = _log_path(out_dir, tag, r.seed, r.policy)
 			if OS.is_process_running(int(r.pid)):
-				if Time.get_ticks_msec() - int(r.t0) > RUN_DEADLINE_MSEC:
+				if Time.get_ticks_msec() - int(r.t0) > run_deadline_msec:
 					OS.kill(int(r.pid))
-					bad["%d:%s" % [r.seed, r.policy]] = "killed after the %d s deadline" % (RUN_DEADLINE_MSEC / 1000)
+					bad["%d:%s" % [r.seed, r.policy]] = "killed after the %d s deadline" % (run_deadline_msec / 1000)
 					failed = true
 				else:
 					still.append(r)
@@ -134,10 +150,10 @@ func _initialize() -> void:
 		running = still
 		while not failed and running.size() < parallel and not jobs.is_empty():
 			var j: Array = jobs.pop_front()
-			var log := _log_path(out_dir, set_id, j[0], j[1])
-			var first := "REPORT_RUN commit=%s set=%s seed=%d policy=%s days=%d" % [commit, set_id, j[0], j[1], days]
-			var cmd := "echo %s > %s && exec %s --headless --path %s --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=%d --seed=%d --policy=%s --out=retune/retune_%s_%d_%s.csv >> %s 2>&1" % [
-				_q(first), _q(log), _q(OS.get_executable_path()), _q(proj), days, j[0], j[1], set_id, j[0], j[1], _q(log)]
+			var log := _log_path(out_dir, tag, j[0], j[1])
+			var first := "REPORT_RUN commit=%s set=%s seed=%d policy=%s days=%d bot_rule=%s" % [commit, tag, j[0], j[1], days, bot_rule]
+			var cmd := "echo %s > %s && exec %s --headless --path %s --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=%d --seed=%d --policy=%s --bot-rule=%s --out=retune/retune_%s_%d_%s.csv >> %s 2>&1" % [
+				_q(first), _q(log), _q(OS.get_executable_path()), _q(proj), days, j[0], j[1], bot_rule, tag, j[0], j[1], _q(log)]
 			var pid := OS.create_process("/bin/sh", ["-c", cmd])
 			if pid < 0:
 				push_error("could not start the run seed=%d policy=%s" % [j[0], j[1]])
@@ -155,7 +171,7 @@ func _initialize() -> void:
 	for s in seeds:
 		for p in SweepMath.RETUNE_POLICIES:
 			expected.append([s, p])
-			var log: String = _log_path(out_dir, set_id, s, p)
+			var log: String = _log_path(out_dir, tag, s, p)
 			var kv := _read_line(log, "T3RUN ")
 			var ld := _read_line(log, "LADDER ")
 			var rt := _read_line(log, "RETUNE ")
@@ -182,11 +198,11 @@ func _initialize() -> void:
 	if is_final and _commit(proj) != commit:
 		lines.append("FINAL_COMMIT_CHANGED: the commit was %s at the start and is %s now: HEAD or the tree changed during the run; the record says ok=false" % [commit, _commit(proj)])
 	if is_final:
-		_write_record(record_path, SweepMath.final_finish(gate.record, int(res.exit) == 0 and bool(res.ok), _commit(proj)))
+		_write_record(record_path, SweepMath.final_finish(gate.record, int(res.exit) == 0 and bool(res.ok), _commit(proj), int(res.exit) == 0))
 	lines.append("WALL %.0f s (parallel=%d, %d runs)" % [(Time.get_ticks_msec() - t0) / 1000.0, parallel, total])
 	var text := "\n".join(lines)
 	print(text)
-	var f := FileAccess.open(out_dir.path_join("retune_%s_%s.txt" % [set_id, commit]), FileAccess.WRITE)
+	var f := FileAccess.open(out_dir.path_join("retune_%s_%s.txt" % [tag, commit]), FileAccess.WRITE)
 	f.store_string(text + "\n")
 	f.close()
 	quit(int(res.exit))

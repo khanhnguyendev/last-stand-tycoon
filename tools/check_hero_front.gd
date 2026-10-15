@@ -2,7 +2,7 @@ extends SceneTree
 ## E6 Task 14 round 5 (D-294.8): the RENDER check that the hero is drawn in front of everything a pad draws, and that nothing drawn around him paints over him.
 ## Run WITH rendering (not --headless), desktop or the web build (see export/README.md and the report):
 ##   "$GODOT" --path . --resolution 720x1280 -s res://tools/check_hero_front.gd [-- --mutate=over_hero|prepass|tether_over] [--dump=<path prefix>]
-## Flag on, tier 3, every building at level 3, the hero off every pad (or on one) in views where a pad's glyph, cost or tether meets his body, or where his ring, his
+## Tier 3, every building at level 3, the hero off every pad (or on one) in views where a pad's glyph, cost or tether meets his body, or where his ring, his
 ## blob shadow, an FX burst or a pad's ring and disc are on him. Per view, pictures of the same frozen scene:
 ##   N  none of the extras (pad glyphs and texts, pad rings and discs, the hero's ring, the blob shadows, the FX) shown,
 ##   D  N with the hero hidden: the hero's silhouette is where N and D differ by more than 60/255, eroded by 2 px (the antialiased edge blends with what is behind it),

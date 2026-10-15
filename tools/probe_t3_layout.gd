@@ -67,7 +67,7 @@ func fence_bar(lane: String) -> Array:
 
 var _kerb: Array = []  ## [centre-line a, b] of every kerb piece of the tier-2 yards
 var _props: Array = []  ## {pos, radius, height} of every owned-land prop of the tier-2 yards
-var retune := false  ## env RETUNE=1: the flag-on pad table and the lot rules
+var retune := false  ## env RETUNE=1: the retuned pad table and the lot rules (the shipped one)
 var _lot_kerb: Array = []  ## [a, b] of every kerb piece of the front lot as laid out (retune only)
 var _lot_props: Array = []  ## the front lot's props (retune only)
 var _stones: Array = []  ## the south-west lane's edge stones (retune only)

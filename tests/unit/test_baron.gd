@@ -140,7 +140,7 @@ func test_a_pending_boss_at_the_top_tier_spawns_none() -> void:
 	GameState.debug_set_tier(top, GameState.day)
 	main.world.rebuild_for_tier()
 	GameState.boss_pending = true  # test-only: a clamped or hand-edited save
-	GameState.lane_plan = LanePlanner.with_boss(GameState.lane_plan)  # test-only: the flag is on the plan
+	GameState.lane_plan = LanePlanner.with_boss(GameState.lane_plan)  # test-only: the boss flag is on the plan
 	assert_false(GameState.is_boss_night(), "no moon: the plan flag means nothing where no boss exists")
 	var alive := await _boss_wave_alive()
 	assert_gt(alive.size(), 0)

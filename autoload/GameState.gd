@@ -138,8 +138,8 @@ func from_dict(d: Dictionary) -> void:
 	# A pending boss always rides tonight's plan (a hand-edited save cannot skip it), when the tier has a boss to send.
 	if boss_pending and not lane_plan.is_empty() and TierEffects.boss_kind_for(tier, Balance.data.tiers) != &"":
 		lane_plan[lane_plan.size() - 1].boss = true
-	# E6 (spec 3.4, D-286.4): with a lane character (tier 3, flag on) the stored plan is never trusted: it is re-derived under
-	# today's rules, so extra groups hold and a plan made under the old rules is replaced. Flag off / below tier 3: untouched.
+	# E6 (spec 3.4, D-286.4): with a lane character (tier 3) the stored plan is never trusted: it is re-derived under
+	# today's rules, so extra groups hold and a plan made under the old rules is replaced. Below tier 3: untouched.
 	var derived := lane_character()
 	if not derived.is_empty():
 		var stored = d.get("lane_character", {})

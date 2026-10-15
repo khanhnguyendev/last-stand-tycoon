@@ -124,7 +124,7 @@ func _load_v6() -> void:
 	GameState.new_game(7)
 	GameState.from_dict(r.state)
 
-## Flag on: the character comes from run_seed (same on two loads) and the plan is re-derived.
+## Tier 3: the character comes from run_seed (same on two loads) and the plan is re-derived.
 ## Mutation: the re-derive removed (the stored plan kept) or the plan taken without apply.
 func test_v6_fixture_flag_on_derives_character_and_plan() -> void:
 	_load_v6()

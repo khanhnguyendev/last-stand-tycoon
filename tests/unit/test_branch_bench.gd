@@ -1,8 +1,8 @@
 extends GutTest
 ## E6 Task 8/9 (D-288, D-292.2, D-294.6, D-294.7): the FAST subset of the lane-type bench, in the unit suite.
-## THIS IS A SHORTER NIGHT THAN THE FULL BENCH, kept as an early warning: flag on, pressure 12, all three lane types, the LAST wave of each
+## THIS IS A SHORTER NIGHT THAN THE FULL BENCH, kept as an early warning: pressure 12, all three lane types, the LAST wave of each
 ## mix only (one wave instead of three), the five single-change configurations per lane type (15 runs): unbranched, Longbow, Volley (with an
-## unbranched fence) and Stone, Spike (with an unbranched tower). The full three-wave bench (tie-breakers, pairs, the cap, the flag-off pins,
+## unbranched fence) and Stone, Spike (with an unbranched tower). The full three-wave bench (tie-breakers, pairs, the cap, the pins of the old table,
 ## the tables) is tests/bench/test_branch_bench_full.gd, the CI `bench` job. The rules live in tests/support/branch_bench.gd and are the same
 ## code the full bench runs; only the length of the night differs. The results are cached per process (BranchBench.fast_results()) and the
 ## identity test (test_branch_identity.gd) reuses them.

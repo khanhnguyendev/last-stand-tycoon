@@ -168,7 +168,7 @@ static func identity_spike_fewest_hares(hare: Dictionary) -> Dictionary:
 	return {"ok": sp < base and sp < st,
 		"why": "hare: Spike lets %d hares reach the zone vs unbranched %d / Stone %d" % [sp, base, st]}
 
-## The FAST subset's results (flag ON, pressure 12, the LAST wave of each mix only, the five single-change configurations on all
+## The FAST subset's results (pressure 12, the LAST wave of each mix only, the five single-change configurations on all
 ## three lane types: 15 runs), computed once per process and cached: lane -> cfg_name -> run result. The identity test reuses it.
 static var _fast := {}
 
@@ -237,7 +237,7 @@ static func plan_for(lane_type: StringName, pressure: int, brutes := -1, boars_o
 	return waves
 
 ## `overrides` (sensitivity tables only), applied in memory before the world exists and undone on return:
-## longbow_brute_mult, longbow_damage, longbow_interval (sets the RETUNE field: it does nothing with the flag off), longbow_range, spike_pass, spike_thorn, stone_brute_mult, stone_hp (all floats), and
+## longbow_brute_mult, longbow_damage, longbow_interval (sets the RETUNE field), longbow_range, spike_pass, spike_thorn, stone_brute_mult, stone_hp (all floats), and
 ## brutes (int, siege lane: how many waves from the last carry a brute, see mix()), boars_only (bool: no hares, see mix()), last_wave_only (bool: the director plays only the LAST wave of the mix; GameState.lane_plan keeps the full plan so Spike's scale is unchanged).
 ## `&""` as a branch = unbranched.
 static func run(lane_type: StringName, tower_branch: StringName, fence_branch: StringName, pressure: int, overrides := {}) -> Dictionary:
