@@ -30,7 +30,7 @@ func before_all() -> void:
 
 func after_all() -> void:
 	Balance.reset()
-	gut.p("FAST SUBSET (last wave only, 15 runs) wall time of the runs %.1f s (0 when another file computed them first)" % _wall)
+	gut.p("FAST SUBSET (last wave only, 15 runs, plus 2 whole-night siege runs for FULL_NIGHT_RULES = 17) wall time of the runs %.1f s (0 when another file computed them first)" % _wall)
 	gut.p("FAST RULE TABLE: rule | the two numbers | bound | verdict")
 	for r in _rows:
 		gut.p("  %-52s %14s vs %-14s %-18s %s" % [r[0], r[1], r[2], r[3], "PASS" if r[4] else "FAIL"])
@@ -51,7 +51,8 @@ func test_rules_on_off_and_neutral() -> void:
 		for lane in f:
 			for name in f[lane]:
 				assert_false(f[lane][name].timed_out, "%s %s did not clear" % [lane, name])
-		_row("%s p%d %s %s" % [row[0], BranchBench.PRESSURE, row[1], row[2]], "%s %.2f" % [v.measure, v.a], "%.2f" % v.b, "%s %.2f" % [BranchBench.rule_op(row), v.bound], v.ok)
+		var whole := " (whole night)" if BranchBench.rule_name(row) in BranchBench.FULL_NIGHT_RULES else ""
+		_row("%s p%d %s %s%s" % [row[0], BranchBench.PRESSURE, row[1], row[2], whole], "%s %.2f" % [v.measure, v.a], "%.2f" % v.b, "%s %.2f" % [BranchBench.rule_op(row), v.bound], v.ok)
 		assert_true(v.ok, "%s %s on the %s lane: %s | fails when: %s" % [row[0], row[1], row[2], v.why, BranchBench.RULE_FAILS_WHEN[BranchBench.rule_name(row)]])
 
 func test_specialist_margin_on_its_own_lane_type() -> void:

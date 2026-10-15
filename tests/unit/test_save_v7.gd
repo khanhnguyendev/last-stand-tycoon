@@ -354,14 +354,15 @@ func test_a_v7_branch_save_loads_with_the_new_values() -> void:
 	main.hero.input.player_control = false
 	main.phase_controller.start_new_game(71)
 	await get_tree().process_frame
+	# The hand path, not phase_controller.resume_from: the fixture's resume_phase is NIGHT, so resume_from would also start the night (waves,
+	# banner), which this test does not want; from_dict + rebuild_for_tier is what a restore does to the stats.
 	GameState.from_dict(r.state)
 	main.world.rebuild_for_tier()
 	await get_tree().process_frame
+	assert_eq(_decode(GameState.to_dict()).state, r.state, "a re-save equals the loaded state")
 	var tower: TowerSpot = main.world.build_spots["tower_sw"]
 	assert_eq(GameState.branch_of("tower_sw"), &"volley", "the save's branch")
 	assert_eq(tower.attacker.kind_mults, {&"brute": 0.3}, "a Volley tower's table comes from the balance")
 	assert_eq(float(GameState.buildings["fence_sw"].hp), 320.0, "the fence HP after load")
 	GameState.damage_fence("fence_sw", 50.0, &"brute")
 	assert_almost_eq(320.0 - float(GameState.buildings["fence_sw"].hp), 200.0, 1e-6, "the Spike fence takes 4.0 x a brute's 50")
-	GameState.from_dict(r.state)
-	assert_eq(_decode(GameState.to_dict()).state, r.state, "a re-save equals the loaded state")

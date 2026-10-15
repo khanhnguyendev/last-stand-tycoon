@@ -81,7 +81,7 @@ func _identity(pressure: int) -> void:
 	for r in [["siege: Longbow best tower state", BranchBench.identity_longbow_siege(siege)], ["hare: Volley best tower state", BranchBench.identity_volley_hare(hare)],
 			["siege: Stone's fence stands longest", BranchBench.identity_stone_stands_longest(siege)], ["hare: Spike fewest hares in the zone", BranchBench.identity_spike_fewest_hares(hare)]]:
 		_row(pressure, "IDENTITY " + r[0], r[1].why, r[1].ok)
-	for lane in BranchBench.LANES:
+	for lane in [&"siege", &"hare"]:  # E8: the neutral lane is NEUTRAL's job
 		var base: Dictionary = await _run(lane, &"", &"", pressure)
 		var towers := minf((await _run(lane, &"longbow", &"", pressure)).diner_lost, (await _run(lane, &"volley", &"", pressure)).diner_lost)
 		var fences := minf((await _run(lane, &"", &"stone", pressure)).diner_lost, (await _run(lane, &"", &"spike", pressure)).diner_lost)

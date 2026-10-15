@@ -9,12 +9,14 @@ extends GutTest
 ##    lanes (the neutral lane is NEUTRAL's job, spec 3.1).
 ##  - bench test_7_the_rule_at_the_final_cap (skipped while the cap was 12) | folded into tests 3 to 7, which run at the cap | no rule runs only "when the cap differs" any more.
 ##  - unit test_branch_bench.gd::test_floor_every_branch_loses_no_more_than_the_unbranched_building | test_rules_on_off_and_neutral (last wave, pressure 12; OFF Spike on the whole night, see FULL_NIGHT_RULES) | same reason as the FLOOR.
+##  - bench_report test_branch_bench_pressures.gd::test_rules_at_pressures_10_11_12 | test_rules_at_every_tier_3_pressure | FLOOR -> RULES at every pressure from tier_base[3] to tier_cap[3], read from the balance.
+##  - bench_report test_branch_sensitivity.gd::_evaluate and test_longbow_p4_r1.gd::_rules (their FLOOR rows) | the RULES rows (BranchBench.RULES / rule_verdicts) | same reason; their "unbranched never best" loops are restated to siege and hare.
 ##  - unit test_branch_state.gd::test_spike_and_unbranched_take_full_brute_damage | test_spike_takes_four_times_a_brutes_hit_and_unbranched_takes_one_times | Spike's weakness (brute x4.0, D-314.18).
 ##  - unit test_branch_identity.gd::test_e6_identity_unbranched_is_never_the_best_at_any_named_measure_on_any_lane_type | test_e6_identity_unbranched_is_never_the_best_on_the_siege_and_hare_lanes | spec 3.1.
 ##  - unit test_branch_identity.gd::test_branch_spec_values | same test, with the three weakness tables asserted | the new stats.
 ##  - unit test_branch_identity.gd::test_m5_fence_holds_longest_against_one_brute_stone | same test, Spike holds 3 hits (3.0 s) | 8 x 4.0 x 4.0 = 128 per hit, ceil(320 / 128) = 3.
 ##  - unit test_branch_effects.gd::test_longbow_does_double_to_a_brute_and_exactly_120_to_the_rest | ..._double_to_a_brute_36_to_a_hare_and_exactly_120_to_the_rest | Longbow x0.3 against hares and the Baron.
-##  - unit test_branch_effects.gd::test_unbranched_and_volley_do_their_old_damage_to_a_brute | ..._unbranched_does_its_old_damage_to_a_brute_and_volley_a_third_of_it | Volley x0.3 against brutes (3.0).
+##  - unit test_branch_effects.gd::test_unbranched_and_volley_do_their_old_damage_to_a_brute | ..._unbranched_does_its_old_damage_to_a_brute_and_volley_three_tenths_of_its_own | Volley x0.3 against brutes (3.0).
 ##  - unit test_branch_effects.gd::test_longbow_kind_mults_table | same test, tables {brute 2.0, hare 0.3} and Volley {brute 0.3} | the new tables.
 ## Mutation tables (RULE_FAILS_WHEN, SPECIALISTS[*][5], IDENTITY_FAILS_WHEN in tests/support/branch_bench.gd) were each applied and SEEN red at p12 (Task 3 report).
 ## E6 Task 8 (spec 4.2 and 4.3, D-283, D-288, D-292): the FULL lane-type bench, its own suite (tests/bench/), with tick budgets like the sims.

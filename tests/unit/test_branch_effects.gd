@@ -390,7 +390,7 @@ func test_longbow_does_double_to_a_brute_36_to_a_hare_and_exactly_120_to_the_res
 		assert_almost_eq(await _longbow_shot_at(kind), 36.0, 1e-4, "E8: 120 x 0.3 against %s (the Baron is a hare)" % kind)
 
 ## Mutation: the multiplier lives in the shared Attacker default or in stats_for, so an unbranched or Volley tower gets it.
-func test_unbranched_does_its_old_damage_to_a_brute_and_volley_a_third_of_it() -> void:
+func test_unbranched_does_its_old_damage_to_a_brute_and_volley_three_tenths_of_its_own() -> void:
 	_build_max(TOWER)
 	assert_eq(await _longbow_shot_at(&"brute"), 18.0, "unbranched level 3: 18")
 	var spot2: TowerSpot = main.world.build_spots["tower_ne"]
@@ -441,7 +441,7 @@ func test_first_tier_3_night_scales_spike_by_pressure_10_over_12() -> void:
 	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 5.3208, 0.0001)
 	GameState.day = saved_day
 
-## Mutation: the table has an entry for any other kind, or no entry for the brute; Volley or the unbranched tower carry a table.
+## Mutation: the Longbow table has an entry for any other kind or lacks the brute / hare entry; the Volley table has anything but its brute entry; the unbranched tower carries a table.
 func test_longbow_kind_mults_table() -> void:
 	var bb := Balance.data.branches
 	assert_eq(bb.longbow.kind_mults, {&"brute": 2.0, &"hare": 0.3})

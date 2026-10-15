@@ -71,7 +71,7 @@ func _longbow_row(label: String, ov: Dictionary) -> void:
 	for lane in LANES:
 		var base := await _run(lane, &"", &"")
 		var r := await _run(lane, &"longbow", &"", ov)
-		var line := "  %-26s %-7s Longbow %s | floor %s" % [label, lane, _fmt(r), "ok" if _floor(r, base, lane) else "FAIL"]
+		var line := "  %-26s %-7s Longbow %s | info: no worse than unbranched %s" % [label, lane, _fmt(r), "yes" if _floor(r, base, lane) else "no"]
 		if lane == &"siege":
 			var vol := await _run(lane, &"volley", &"")
 			line += " | spec vs Volley: %s | ID %s" % [_spec_text(BranchBench.beats_by_margin(r, vol, BranchBench.ORDER_SIEGE_TOWER)), "ok" if r.diner_lost < base.diner_lost - SAME and r.diner_lost < vol.diner_lost - SAME else "FAIL"]
@@ -81,7 +81,7 @@ func _spike_row(label: String, ov: Dictionary) -> void:
 	for lane in LANES:
 		var base := await _run(lane, &"", &"")
 		var r := await _run(lane, &"", &"spike", ov)
-		var line := "  %-26s %-7s Spike %s | floor %s" % [label, lane, _fmt(r), "ok" if _floor(r, base, lane) else "FAIL"]
+		var line := "  %-26s %-7s Spike %s | info: no worse than unbranched %s" % [label, lane, _fmt(r), "yes" if _floor(r, base, lane) else "no"]
 		if lane == &"hare":
 			line += " | spec vs Stone: %s" % _spec_text(BranchBench.beats_by_margin(r, await _run(lane, &"", &"stone"), BranchBench.ORDER_HARE))
 		if lane == &"siege":
@@ -213,7 +213,9 @@ func _evaluate(res: Dictionary, full: bool) -> Array:
 	if full:
 		var idst := BranchBench.identity_stone_stands_longest(sg)
 		out.append(_rule("ID siege: Stone wall's fence stands longest (D-294.6)", idst.ok, idst.why))
-	for lane in res:
+	for lane in [&"siege", &"hare"]:  # E8: the neutral lane is NEUTRAL's job
+		if not res.has(lane):
+			continue
 		var b2: Dictionary = res[lane]["-/-"]
 		var tw := minf(res[lane]["longbow/-"].diner_lost, res[lane]["volley/-"].diner_lost)
 		var fn := minf(res[lane]["-/stone"].diner_lost, res[lane]["-/spike"].diner_lost)

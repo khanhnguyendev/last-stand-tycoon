@@ -194,13 +194,15 @@ static func rule_verdicts(res: Dictionary) -> Array:
 		out.append(v)
 	return out
 
-## E8 (A4): the mutation that turns each RULE red under the shipped (E8) values, SEEN red in the bench (record in the Task 3 report).
-## Key "<rule> <branch>". Each value is the BranchBench.run override (or in-memory balance edit) and the lane that goes red.
+## E8 (A4): the mutation that turns each RULE red under the shipped (E8) values. Key "<rule> <branch>"; each value is the BranchBench.run override (or in-memory
+## balance edit) and the numbers it gives. WHERE SEEN RED: every row was applied at p12 on the FULL 3-wave night (the numbers quoted below are those runs, a
+## scratch harness over the shared rule functions) AND through the fast subset (BranchBench.fast_results(): last wave only, p12; OFF Spike on the whole night),
+## where each one turned its own rule red (and its SPECIALIST / IDENTITY twin where one exists). Not run through the CI bench file itself with the mutation in place.
 const RULE_FAILS_WHEN := {
 	"ON longbow": "Longbow damage 60 (longbow.damage = 60.0): siege lost 2835 against the bound 1513 (p12, 3 waves)",
 	"ON volley": "Volley damage 5 (volley.damage = 5.0): hare lost 2867 against the bound 1439",
 	"ON stone": "Stone wall HP 160 (stone.hp = 160.0): the fence stands 25.18 s against the bound 32.47 s",
-	"ON spike": "Spike pass damage 0 (spike.pass_damage = 0.0): hares in the zone / diner lost 1275 against the bound 1152 on the hare lane",
+	"ON spike": "Spike pass damage 0 (spike.pass_damage = 0.0): hares_in_zone ties with the Stone wall's, so the deciding measure is diner_lost: 1275 against the bound 1151.75 on the hare lane",
 	"OFF longbow": "Longbow hare multiplier 1.0 (override longbow_hare_mult = 1.0): hare lost 828 against the bound 1882",
 	"OFF volley": "Volley brute multiplier 1.0 (override volley_brute_mult = 1.0): siege lost 706 against the bound 1978",
 	"OFF spike": "Spike brute multiplier 1.0 (override spike_brute_mult = 1.0): the fence stands 30.23 s against the bound 25.41 s",
@@ -209,7 +211,8 @@ const RULE_FAILS_WHEN := {
 	"NEUTRAL stone": "Stone wall HP 160 (stone.hp = 160.0): neutral lost 690 against the bound 664",
 	"NEUTRAL spike": "Spike takes 10 x from boars and hares (damage_taken_mult_by_kind[boar] = [hare] = 10.0): neutral lost 775 against the bound 664 (the purchase keeps the level-3 HP, so an HP value cannot fail this row)",
 }
-## The mutation that turns each IDENTITY rule red under the E8 values (seen red in the fast identity tests and the full bench, p12).
+## The mutation that turns each IDENTITY rule red under the E8 values. Seen red through the fast subset (last wave, p12) and on the full 3-wave night (p12), by the same
+## scratch harness as RULE_FAILS_WHEN; not run through the CI test files with the mutation in place.
 const IDENTITY_FAILS_WHEN := {
 	"longbow_siege": "Longbow damage 60 (longbow.damage = 60.0)",
 	"volley_hare": "Volley damage 5 (volley.damage = 5.0)",

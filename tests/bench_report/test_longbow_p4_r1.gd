@@ -60,7 +60,7 @@ func _rules(res: Dictionary) -> Array:
 	out.append({"name": "ID hare Volley least", "ok": BranchBench.identity_volley_hare(res[&"hare"]).ok})
 	out.append({"name": "ID siege Stone stands longest", "ok": BranchBench.identity_stone_stands_longest(res[&"siege"]).ok})
 	out.append({"name": "ID hare Spike fewest hares", "ok": BranchBench.identity_spike_fewest_hares(res[&"hare"]).ok})
-	for lane in LANES:
+	for lane in [&"siege", &"hare"]:  # E8: the neutral lane is NEUTRAL's job
 		var b: Dictionary = res[lane]["-/-"]
 		out.append({"name": "ID %s tower never best" % lane, "ok": minf(res[lane]["longbow/-"].diner_lost, res[lane]["volley/-"].diner_lost) < b.diner_lost - BranchBench.SAME})
 		out.append({"name": "ID %s fence never best" % lane, "ok": minf(res[lane]["-/stone"].diner_lost, res[lane]["-/spike"].diner_lost) < b.diner_lost - BranchBench.SAME})

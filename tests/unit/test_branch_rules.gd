@@ -131,6 +131,10 @@ func test_rules_table_is_the_eleven_rows_of_spec_3_1() -> void:
 	]
 	assert_eq(BranchBench.RULES, expected)
 
+## Mutation: the whole-night list grows or loses OFF Spike (the fast subset would then judge it on the last wave, where it cannot be seen).
+func test_the_fast_subset_judges_only_off_spike_on_the_whole_night() -> void:
+	assert_eq(BranchBench.FULL_NIGHT_RULES, ["OFF spike"])
+
 ## E8 Task 3 (A3): the bench-report scripts are not CI tests, so nothing runs them; they must still parse (they once called removed functions).
 func test_the_bench_report_scripts_parse() -> void:
 	for path in ["res://tests/bench_report/test_branch_bench_pressures.gd", "res://tests/bench_report/test_longbow_p4_r1.gd", "res://tests/bench_report/test_branch_sensitivity.gd"]:
