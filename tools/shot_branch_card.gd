@@ -6,6 +6,7 @@ extends SceneTree
 ##   card_longbow (tower_nw: west road with the hare icon, north path with none: a two-lane tower), card_volley (tower_w: hare lane),
 ##   card_stone (fence_e: siege lane), card_spike (fence_n: neutral lane), card_partial (tower_ne Volley, 200 of 500 paid),
 ##   card_vietnamese (fence_w Stone wall with the Vietnamese sample).
+## E8 Task 4: the card has a fourth line (row 6, the weakness); the E8 pack is written with --out=docs/review/media/e8/card.
 ## The world labels above the hero (name, effect, warning) are still there: a later task removed them.
 
 var _out := "docs/review/media/e6/interface"
@@ -56,6 +57,7 @@ func _run() -> void:
 	await _card(main, camera_math, layout, "card_volley", "tower_w", 1, &"volley")
 	await _card(main, camera_math, layout, "card_stone", "fence_e", 0, &"stone")
 	await _card(main, camera_math, layout, "card_spike", "fence_n", 1, &"spike")
+	await _card(main, camera_math, layout, "card_sw", "fence_sw", 0, &"stone")
 	gs.gold = 200
 	gs.pay_into_branch("tower_ne", &"volley", 200)
 	gs.gold = 0
@@ -63,8 +65,8 @@ func _run() -> void:
 	# the Vietnamese sample through a real Translation, the way a locale would arrive
 	var vi := Translation.new()
 	vi.locale = "vi"
-	for k in {"Stone wall": "Tường đá", "holds brutes": "chặn quái nặng", "west road": "đường phía tây", "lost if broken": "mất nếu bị phá"}:
-		vi.add_message(k, {"Stone wall": "Tường đá", "holds brutes": "chặn quái nặng", "west road": "đường phía tây", "lost if broken": "mất nếu bị phá"}[k])
+	for k in {"Stone wall": "Tường đá", "holds brutes": "chặn quái nặng", "west road": "đường phía tây", "lost if broken": "mất nếu bị phá", "useless on hares": "vô dụng với thỏ"}:
+		vi.add_message(k, {"Stone wall": "Tường đá", "holds brutes": "chặn quái nặng", "west road": "đường phía tây", "lost if broken": "mất nếu bị phá", "useless on hares": "vô dụng với thỏ"}[k])
 	TranslationServer.add_translation(vi)
 	TranslationServer.set_locale("vi")
 	await _card(main, camera_math, layout, "card_vietnamese", "fence_w", 0, &"stone", "Tường đá")
