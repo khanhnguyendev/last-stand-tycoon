@@ -74,7 +74,7 @@ higher is better is written H (seconds the fence stands).
 |---|---|---|---|---|
 | Longbow | 120 per 2.0 s, x2 against brutes | `kind_mults[hare]`: the heavy arrow fails against hares | 0.3 | 0.15 to 0.42 |
 | Volley | 3 targets x 10 per 0.5 s | `kind_mults[brute]`: light arrows barely scratch brutes | 0.3 | 0.1 to 0.6 |
-| Spike fence | thorns 6, pass damage 24 to hares | `damage_taken_mult_by_kind[brute]`: brutes break it fast | 2.0 | 1.5 to 3.0 |
+| Spike fence | thorns 6, pass damage 24 to hares | `damage_taken_mult_by_kind[brute]`: brutes break it fast | 4.0 (D-314.18) | 1.5 to 4.0 (widened, D-314.18) |
 | Stone wall | 640 HP, brutes deal x0.5 | none (3.1) | - | - |
 
 - The Longbow weakness works in shots to kill. Tier-3 hare HP is 35.25 to 51.675 at pressures 10 to 12. Below 0.43,
