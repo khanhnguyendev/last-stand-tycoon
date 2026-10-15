@@ -127,6 +127,22 @@ func test_at_tier_2_with_5000_gold_the_bot_seeks_the_tier_3_sign() -> void:
 	autofree(bot)
 	assert_eq(bot.idle_goal(), "tier_sign_3")
 
+## E8 (D-314.12): the cap. A bot with max_tier 2 never walks to the tier-3 sign, however much gold it holds; uncapped it does (control).
+## Mutation: dropping the `_may_pay_next_tier()` check in idle_goal makes the capped bot seek the sign.
+func test_a_bot_with_max_tier_2_never_walks_to_the_tier_3_sign() -> void:
+	GameState.new_game(1)
+	GameState.debug_set_tier(2, 1)
+	GameState.add_gold(9000)
+	var bot := TierBot.new()
+	autofree(bot)
+	assert_eq(bot.max_tier, 5, "uncapped by default")
+	assert_eq(bot.idle_goal(), "tier_sign_3", "control: uncapped, it seeks the sign")
+	bot.max_tier = 2
+	assert_ne(bot.idle_goal(), "tier_sign_3", "capped at 2: no walk to the tier-3 sign")
+	assert_ne(bot.idle_goal(), "tier_sign")
+	bot.max_tier = 3
+	assert_eq(bot.idle_goal(), "tier_sign_3", "capped at 3: it pays tier 3")
+
 ## The rule: rem > 0 and rem <= gold in hand (idle_goal runs only after next_purchase found nothing). Mutations: no affordability check
 ## (seeks at 1499), `rem >= gold` (not at 1500).
 func test_the_tier_3_sign_is_sought_at_exactly_the_cost_and_not_one_gold_below() -> void:

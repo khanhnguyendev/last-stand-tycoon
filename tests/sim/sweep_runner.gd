@@ -48,7 +48,7 @@ func _ready() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	var args := {"seed": "20260930", "days": "14", "bot": "planner", "policy": "threat", "tier3": "on", "tier3-cap": "", "brute-caps": "", "brute-hp": "", "fence-mult": "", "out": "", "cols": "", "bot-rule": "walk"}
+	var args := {"seed": "20260930", "days": "14", "bot": "planner", "policy": "threat", "tier3": "on", "tier3-cap": "", "brute-caps": "", "brute-hp": "", "fence-mult": "", "out": "", "cols": "", "bot-rule": "walk", "bot-max-tier": ""}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if kv.size() == 2:
@@ -93,6 +93,12 @@ func _run() -> void:
 		ov.append("fence-mult=%s" % args["fence-mult"])
 	if String(args["bot-rule"]) != "walk":
 		ov.append("bot-rule=%s" % args["bot-rule"])  # E7 (D-310): old = the tier bot before D-310, far = the never-cross rule (set on the bot below), for the before/after measurement
+	if String(args["bot-max-tier"]) != "":
+		if not String(args["bot-max-tier"]).is_valid_int() or int(args["bot-max-tier"]) < 1 or int(args["bot-max-tier"]) > 5:
+			push_error("bad --bot-max-tier=%s (integer 1 to 5)" % args["bot-max-tier"])
+			get_tree().quit(2)
+			return
+		ov.append("bot-max-tier=%d" % int(args["bot-max-tier"]))  # E8 (D-314.12): the tier bot never pays a tier above it (set on the bot below)
 	if not String(args["bot-rule"]) in ["old", "far", "walk"]:
 		push_error("bad --bot-rule=%s (old|far|walk)" % args["bot-rule"])
 		get_tree().quit(2)
@@ -109,6 +115,8 @@ func _run() -> void:
 	if tier_mode:
 		h.bot.policy = String(args.policy)
 		h.bot.rule = String(args["bot-rule"])
+		if String(args["bot-max-tier"]) != "":
+			h.bot.max_tier = int(args["bot-max-tier"])
 		EventBus.enemy_killed.connect(_on_enemy_killed)
 		EventBus.wave_started.connect(_on_wave_started)
 		EventBus.branch_chosen.connect(_on_branch_chosen)

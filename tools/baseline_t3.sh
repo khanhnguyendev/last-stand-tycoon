@@ -11,7 +11,7 @@ mkdir -p tests/sim/out
 LOG=tests/sim/out/tier3_check.log
 rm -f "$OUT"  # a stale CSV must never pass or be recorded
 rc=0
-"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=32 --seed=20260930 --policy=threat --cols=extra --out=tier3_check.csv >"$LOG" 2>&1 || rc=$?
+"$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=32 --seed=20260930 --policy=threat --cols=extra --bot-max-tier=3 --out=tier3_check.csv >"$LOG" 2>&1 || rc=$?
 [ "$rc" -eq 0 ] || { echo "tier-3: sweep exit $rc, log $LOG" >&2; exit 1; }
 [ -s "$OUT" ] || { echo "tier-3: the sweep wrote no rows" >&2; exit 1; }
 if [ "${1:-}" = "--record" ]; then cp "$OUT" "$BASE"; echo "tier-3 recorded $(git rev-parse --short HEAD) ($(wc -l < "$BASE" | tr -d ' ') lines)"; exit 0; fi

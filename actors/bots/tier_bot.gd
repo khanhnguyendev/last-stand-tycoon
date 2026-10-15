@@ -30,6 +30,9 @@ var _graph_tier := 1
 var rule := "walk"
 ## Far moves refused by the walk-time rule (or by "far"), counted per re-decision at tier 3 (the sweep's FAR_KEPT). A hero that keeps its lane is asked again every second, so this counts refusals, not distinct moves.
 var far_kept := 0
+## E8 (D-314.12): the highest tier the bot pays for. The bot never walks to the sign of a tier above it (idle_goal and day_think's hold). 5 = uncapped.
+## The tier-3 sims and tools/baseline_t3.sh cap it at 3 (the sweep's `--bot-max-tier=3`) so they keep playing the tier-3 game once tier 4 is for sale.
+var max_tier := 5
 ## E7 (D-310): a zone-to-zone walk longer than this (metres, straight line between the two zone nodes) is a far walk.
 const FAR_WALK_M := 9.0
 
@@ -278,7 +281,7 @@ func _on_tier_reached(_tier: int) -> void:
 
 func day_think(delta: float) -> void:
 	# keep standing on the sign mid-payment (gold and remaining cost fall together)
-	if (goal == "tier_sign" or goal == "tier_sign_3") and arrived() and GameState.tier_paid > 0 and GameState.gold > 0 \
+	if (goal == "tier_sign" or goal == "tier_sign_3") and _may_pay_next_tier() and arrived() and GameState.tier_paid > 0 and GameState.gold > 0 \
 			and GameState.tier_remaining_cost() > 0:
 		return
 	# the same for a yard tower spot (the planner's check covers SPOT_IDS only)
@@ -307,13 +310,17 @@ func day_think(delta: float) -> void:
 		goal = ""
 	super.day_think(delta)
 
+## The cap: the next tier (the one the sign sells) is within max_tier.
+func _may_pay_next_tier() -> bool:
+	return GameState.tier + 1 <= max_tier
+
 ## The tier-up when the gold in hand finishes it, else the upgrader's cheapest station level, else the sign.
 ## Rule (tiers 2 and 3 alike): this runs only when next_purchase() found nothing to build, so the gold in hand is what is left after
 ## the defense purchases; the sign is sought when the remaining cost is above 0 (not paid, not the top tier) and the gold covers it.
 func idle_goal() -> String:
 	_sync_graph()
 	var rem := GameState.tier_remaining_cost()
-	if rem > 0 and rem <= GameState.gold:
+	if rem > 0 and rem <= GameState.gold and _may_pay_next_tier():
 		return "tier_sign_3" if GameState.tier >= 2 else "tier_sign"
 	return super.idle_goal()
 

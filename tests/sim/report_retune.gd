@@ -1,6 +1,6 @@
 extends SceneTree
 ## E6 tier-3 retune report (Task 16, spec 8.1, D-285, D-290, D-292 to D-294). NOT a CI test (the name does not start with test_); asserts nothing, changes no balance value.
-## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|3|4|5|6 --final --days=32 --parallel=3 --dry=1 --bot-rule=walk|far|old --deadline-min=20]
+## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|3|4|5|6 --final --days=32 --parallel=3 --dry=1 --bot-rule=walk|far|old --bot-max-tier=<1-5> --deadline-min=20]
 ## Sets: `tuning` (default; 5 seeds: one per siege lane from the scan, plus the promoted north 14, D-304), `3` (E7 measurement set #3, 8 seeds, two per siege lane: scan positions 6 and 7), `4` (E7 measurement set #4, scan positions 8 and 9), `5` (E8 measurement set #5, scan positions 10 and 11; --final, walk bot, 32 days) and `6` (E8 measurement set #6, scan positions 12 and 13; --final, --days=45 is the only length it accepts, E8 spec 3.5).
 ## Hold-out set #2 is SPENT (D-307) and refused always like set #1 (message names D-307; results stay in the history). `--bot-rule=walk|far|old` (default walk) is passed to every child sweep, printed in the header and stored in the history entry
 ## (`bot_rule`); sets #3 to #6 may be run once per bot rule (walk, far, old; a history entry `new` is `far`) (a repeat with a rule already used by a COMPLETE entry is refused; an entry whose run printed no verdict has `complete: false` and does not block). Hold-out set #1 is
@@ -25,11 +25,11 @@ extends SceneTree
 
 const RECORD_PATH := "res://tests/sim/retune_final.json"
 const DEFAULT_DEADLINE_MIN := 20  # per child run (a run takes about 220 s idle); --deadline-min=<5..240>
-const KNOWN_ARGS := ["set", "days", "parallel", "dry", "final", "bot-rule", "deadline-min"]
+const KNOWN_ARGS := ["set", "days", "parallel", "dry", "final", "bot-rule", "bot-max-tier", "deadline-min"]
 const RUN_FIELDS := ["nights", "retry_nights", "min", "median", "mean", "fences_lost_mean", "branches", "branch_gold", "unspent_last_day", "hard_break_day"]
 
 func _initialize() -> void:
-	var args := {"set": "tuning", "days": "32", "parallel": "3", "dry": "0", "final": "0", "bot-rule": "walk", "deadline-min": str(DEFAULT_DEADLINE_MIN)}
+	var args := {"set": "tuning", "days": "32", "parallel": "3", "dry": "0", "final": "0", "bot-rule": "walk", "bot-max-tier": "", "deadline-min": str(DEFAULT_DEADLINE_MIN)}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if not kv[0] in KNOWN_ARGS:
@@ -48,6 +48,13 @@ func _initialize() -> void:
 	var deadline_min := int(args["deadline-min"])
 	var run_deadline_msec := deadline_min * 60 * 1000
 	var bot_rule := String(args["bot-rule"])
+	var max_tier_arg := ""  # E8 (D-314.12): passed to every child sweep when given
+	if String(args["bot-max-tier"]) != "":
+		if not String(args["bot-max-tier"]).is_valid_int() or int(args["bot-max-tier"]) < 1 or int(args["bot-max-tier"]) > 5:
+			push_error("bad --bot-max-tier=%s (integer 1 to 5)" % args["bot-max-tier"])
+			quit(2)
+			return
+		max_tier_arg = " --bot-max-tier=%d" % int(args["bot-max-tier"])
 	if not bot_rule in SweepMath.BOT_RULES:
 		push_error("bad --bot-rule=%s (walk|far|old)" % bot_rule)
 		quit(2)
@@ -153,8 +160,8 @@ func _initialize() -> void:
 			var j: Array = jobs.pop_front()
 			var log := _log_path(out_dir, tag, j[0], j[1])
 			var first := "REPORT_RUN commit=%s set=%s seed=%d policy=%s days=%d bot_rule=%s" % [commit, tag, j[0], j[1], days, bot_rule]
-			var cmd := "echo %s > %s && exec %s --headless --path %s --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=%d --seed=%d --policy=%s --bot-rule=%s --out=retune/retune_%s_%d_%s.csv >> %s 2>&1" % [
-				_q(first), _q(log), _q(OS.get_executable_path()), _q(proj), days, j[0], j[1], bot_rule, tag, j[0], j[1], _q(log)]
+			var cmd := "echo %s > %s && exec %s --headless --path %s --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=%d --seed=%d --policy=%s --bot-rule=%s%s --out=retune/retune_%s_%d_%s.csv >> %s 2>&1" % [
+				_q(first), _q(log), _q(OS.get_executable_path()), _q(proj), days, j[0], j[1], bot_rule, max_tier_arg, tag, j[0], j[1], _q(log)]
 			var pid := OS.create_process("/bin/sh", ["-c", cmd])
 			if pid < 0:
 				push_error("could not start the run seed=%d policy=%s" % [j[0], j[1]])

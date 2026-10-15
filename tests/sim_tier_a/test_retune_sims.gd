@@ -83,6 +83,7 @@ func _watch_pools() -> void:
 
 func _start(stem: String, phase := "") -> void:
 	h.start_from(stem, TierBot, 0, phase)
+	(h.bot as TierBot).max_tier = 3  # E8 (D-314.12): these are the tier-3 sims; the bot never pays for tier 4
 	_watch_pools()
 	EventBus.enemy_killed.connect(_on_kill)
 
