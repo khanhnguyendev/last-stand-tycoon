@@ -94,9 +94,9 @@ static func no_worse(a: Dictionary, b: Dictionary, lane: StringName) -> Dictiona
 	return {"ok": true, "why": "tied on every floor measure"}
 
 ## Does the specialist beat the reference by MARGIN on the first measure of `order` that separates them?
-## {ok, measure, a, b, bound, why}. Lower-is-better: a <= 0.85 b. Higher-is-better: a >= 1.15 b (INF if b is INF; a reference of 0 is beaten by any positive a).
+## {ok, measure, a, b, bound, why}. `margin` (default MARGIN): lower-is-better a <= (1 - margin) b; higher-is-better a >= (1 + margin) b (INF if b is INF; a reference of 0 is beaten by any positive a).
 ## If no measure separates them, ok is false.
-static func beats_by_margin(spec: Dictionary, ref: Dictionary, order: Array) -> Dictionary:
+static func beats_by_margin(spec: Dictionary, ref: Dictionary, order: Array, margin := MARGIN) -> Dictionary:
 	for m in order:
 		var name: String = m[0]
 		var higher: bool = m[1]
@@ -104,11 +104,73 @@ static func beats_by_margin(spec: Dictionary, ref: Dictionary, order: Array) -> 
 		var b := float(ref[name])
 		if same(a, b):
 			continue
-		var need := (1.0 + MARGIN) * b if higher else (1.0 - MARGIN) * b
+		var need := (1.0 + margin) * b if higher else (1.0 - margin) * b
 		var ok: bool = a >= need if higher else a <= need
 		return {"ok": ok, "measure": name, "a": a, "b": b, "bound": need,
 			"why": "first separating measure %s: specialist %.2f vs reference %.2f (needs %s %.2f)" % [name, a, b, ">=" if higher else "<=", need]}
 	return {"ok": false, "measure": "none", "a": 0.0, "b": 0.0, "bound": 0.0, "why": "no measure separates the two"}
+
+# ---- E8 rules (spec 3.1, D-313.2, D-314.14): ON, OFF and NEUTRAL, as pure functions on result dictionaries -----------------------
+## [rule, branch, lane, measure, higher, refs, order]. `refs` are cfg_name()s of the reference configurations: ON names the unbranched
+## building and the other branch of its kind; OFF and NEUTRAL name unbranched. `order` is the tie-break order, primary measure first
+## (ON only; OFF and NEUTRAL read the single `measure`). One row per line of spec 3.1: 4 ON, 3 OFF (the Stone wall has none, D-314.4), 4 NEUTRAL.
+## The Stone wall's ON order: how long the fence stands, then diner HP lost, then fence HP left (spec 3.1 tie-breakers, D-314.17).
+const ORDER_STONE_ON := [["fence_stands_s", true], ["diner_lost", false], ["fence_hp_left", true]]
+const ORDER_SPIKE_ON := [["hares_in_zone", false], ["diner_lost", false], ["clear_s", false]]
+const RULES: Array = [
+	[&"ON", &"longbow", &"siege", "diner_lost", false, ["-/-", "volley/-"], ORDER_SIEGE_TOWER],
+	[&"ON", &"volley", &"hare", "diner_lost", false, ["-/-", "longbow/-"], ORDER_HARE],
+	[&"ON", &"stone", &"siege", "fence_stands_s", true, ["-/-", "-/spike"], ORDER_STONE_ON],
+	[&"ON", &"spike", &"hare", "hares_in_zone", false, ["-/-", "-/stone"], ORDER_SPIKE_ON],
+	[&"OFF", &"longbow", &"hare", "diner_lost", false, ["-/-"], []],
+	[&"OFF", &"volley", &"siege", "diner_lost", false, ["-/-"], []],
+	[&"OFF", &"spike", &"siege", "fence_stands_s", true, ["-/-"], []],
+	[&"NEUTRAL", &"longbow", &"neutral", "diner_lost", false, ["-/-"], []],
+	[&"NEUTRAL", &"volley", &"neutral", "diner_lost", false, ["-/-"], []],
+	[&"NEUTRAL", &"stone", &"neutral", "diner_lost", false, ["-/-"], []],
+	[&"NEUTRAL", &"spike", &"neutral", "diner_lost", false, ["-/-"], []],
+]
+
+static func _verdict(ok: bool, measure: String, a: float, b: float, bound: float, why: String) -> Dictionary:
+	return {"ok": ok, "measure": measure, "a": a, "b": b, "bound": bound, "why": why}
+
+## Is `x` strictly better than `y`? The first measure of `order` that separates them decides; tied on all -> false.
+static func _better(x: Dictionary, y: Dictionary, order: Array) -> bool:
+	for m in order:
+		var name: String = m[0]
+		if same(float(x[name]), float(y[name])):
+			continue
+		return float(x[name]) > float(y[name]) if m[1] else float(x[name]) < float(y[name])
+	return false
+
+## ON: ONE beats_by_margin call against the better reference on the primary measure (order[0]), at m_on. A tie on the primary measure
+## fails unless a tie-breaker of `order` separates the runs in the specialist's favour (D-314.14).
+static func on_rule(spec: Dictionary, refs: Array, order: Array) -> Dictionary:
+	var best: Dictionary = refs[0]
+	for r in refs:
+		if _better(r, best, order):
+			best = r
+	return beats_by_margin(spec, best, order, float(Balance.data.branches.bench_m_on))
+
+## OFF: the branch is worse than unbranched by m_off. L: a >= (1 + m_off) u + a_floor. H: a <= (1 - m_off) u.
+## Both runs INF, or both 0, fail (D-314.14).
+static func off_rule(spec: Dictionary, unbranched: Dictionary, measure: String, higher: bool) -> Dictionary:
+	var a := float(spec[measure])
+	var u := float(unbranched[measure])
+	var m := float(Balance.data.branches.bench_m_off)
+	var floor_hp := float(Balance.data.branches.bench_a_floor)
+	if same(a, u) and (is_inf(a) or absf(a) <= SAME):
+		return _verdict(false, measure, a, u, u, "%s ties with unbranched (%s vs %s): no off-lane cost" % [measure, a, u])
+	var bound := (1.0 - m) * u if higher else (1.0 + m) * u + floor_hp
+	var ok: bool = a <= bound if higher else a >= bound
+	return _verdict(ok, measure, a, u, bound, "%s: branch %.2f vs unbranched %.2f (needs %s %.2f)" % [measure, a, u, "<=" if higher else ">=", bound])
+
+## NEUTRAL (one-sided): diner HP lost <= (1 + m_neu) x unbranched + a_floor. Far better than unbranched passes.
+static func neutral_rule(spec: Dictionary, unbranched: Dictionary) -> Dictionary:
+	var a := float(spec["diner_lost"])
+	var u := float(unbranched["diner_lost"])
+	var bound := (1.0 + float(Balance.data.branches.bench_m_neu)) * u + float(Balance.data.branches.bench_a_floor)
+	return _verdict(a <= bound, "diner_lost", a, u, bound, "diner_lost: branch %.2f vs unbranched %.2f (needs <= %.2f)" % [a, u, bound])
 
 ## The one-number mutation that turns each FLOOR row red, SEEN red in tests/unit/test_branch_bench.gd and tests/bench/test_branch_bench_full.gd
 ## (E6 task 9 fix round). The Spike row is a one-sided guard: Spike keeps the level-3 fence HP on purchase (GameState.pay_into_branch),
