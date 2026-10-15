@@ -3575,3 +3575,5 @@ is no longer reachable. The tests already pin this (D-308.3).
 14. Bench ties and infinities fail ON and OFF as E6's tie rule does; the SPECIALISTS rows stay. Cost: some
     weakness values may need a larger step to separate the runs.
 15. The spec's third version applies the re-review (7 important, 7 minor).
+16. The plan details phase 1 now; phase 2 is planned when phase 1's hold-out has run, because its planner, layout
+    and boss numbers depend on phase 1's tuned values. Cost: phase 2's plan gets its own review later.
