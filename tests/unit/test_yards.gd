@@ -233,7 +233,7 @@ func _keep_clear(tier: int) -> Array:
 		out.append({"seg": [MapLayout.TRAVELER_ENTER, q], "lateral": 1.0, "what": "traveler entry line"})
 	out.append({"seg": [MapLayout.SERVICE_POINT, MapLayout.traveler_exit(tier)], "lateral": 1.0, "what": "traveler path"})
 	if tier >= 3:  # pads only exist from tier 3
-		for id in MapLayout.BRANCH_PADS:
+		for id in MapLayout.spots_for_tier(tier):  # E8: the pads of the spots that exist at this tier
 			for p in MapLayout.BRANCH_PADS[id]:
 				out.append({"pos": p, "r": MapLayout.BRANCH_PAD_RADIUS, "what": "pad of %s" % id})
 	for id in MapLayout.yards_for_tier(tier):
@@ -241,9 +241,9 @@ func _keep_clear(tier: int) -> Array:
 	return out
 
 ## Tiers checked: the tier-2 yards' props must also stay clear of everything tier 3 adds (pads, lane, zone, bar, tower, queue, lines).
-## The front lot (tier 3) has no props yet; its empty list is skipped, never its tier.
+## The front lot (tier 3) and the back lot (tier 4) have no props yet; an empty list is skipped, never its tier.
 func _owned_tiers() -> Array:
-	return [2, 3]
+	return [2, 3, 4]
 
 ## The least allowed distance from a prop's centre to `rule` (see _keep_clear).
 func _least_distance(rule: Dictionary, radius: float, height: float) -> float:
@@ -266,7 +266,7 @@ func test_owned_props_keep_clear() -> void:
 		for id in MapLayout.yards_for_tier(tier):
 			var items: Array = PropsLayout.OWNED.get(id, [])
 			if items.is_empty():
-				assert_eq(MapLayout.yard_tier(id), 3, "only the tier-3 front lot has no props yet (%s)" % id)
+				assert_eq(MapLayout.yard_tier(id), 3 if id == "front" else 4, "only the tier-3 front lot and the tier-4 back lot have no props yet (%s)" % id)
 				continue
 			for it in items:
 				seen += 1

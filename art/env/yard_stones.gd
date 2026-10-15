@@ -38,22 +38,18 @@ const PAD_MARGIN_T3 := 0.2
 const BRANCH_PAD_CLEAR := MapLayout.BRANCH_PAD_RADIUS + WIDTH * 0.5 + PAD_MARGIN_T3
 const PAD_CLEAR_T3 := MapLayout.BUILD_RADIUS + WIDTH * 0.5 + PAD_MARGIN_T3
 
-## Pads and stations the kerb leaves free (every tier's spots: a spot not yet built is skipped by its position anyway).
-## Unchanged by tier 3 (pinned byte-identical by test_tier3_world_layout); the tier-3 plot adds branch_pad_points() and tier3_keep_free().
-static func pad_points() -> Array:
+## Pads and stations the kerb leaves free (the spots of `tier`, which is 3 unless a tier-4 yard is built: E8 B2, tiers 1 to 3 never read the back
+## lot's spots). Unchanged by tier 3 (pinned byte-identical by test_tier3_world_layout); the tier-3 plot adds branch_pad_points() and tier3_keep_free().
+static func pad_points(tier := 3) -> Array:
 	var out: Array = []
-	for id in MapLayout.ALL_SPOT_IDS:
+	for id in MapLayout.spots_for_tier(tier):
 		out.append(MapLayout.spot_position(id))
 	out.append_array(MapLayout.STATION_PADS.values())
 	return out
 
-## The branch pad centres of tier 3 (spec 4.3): the tier-3 plot's kerb leaves every one of them free where it touches an edge.
-static func branch_pad_points() -> Array:
-	var out: Array = []
-	var table := MapLayout.BRANCH_PADS
-	for id in table:
-		out.append_array(table[id])
-	return out
+## The branch pad centres of `tier` (spec 4.3): the tier-3 plot's kerb leaves every one of them free where it touches an edge.
+static func branch_pad_points(tier := 3) -> Array:
+	return MapLayout.branch_pads_for_tier(tier)
 
 ## The tier-3 plot's extra no-kerb zones as segments with the clear distance each keeps from a piece's centre line:
 ## the south-west lane (centre line, the monsters' lateral spread + half the kerb width + LANE_MARGIN: the whole lane width, no piece
@@ -76,10 +72,11 @@ static func tier3_keep_free(lane_spread := DEFAULT_LANE_SPREAD) -> Array:
 ## The kerb pieces of `rect`: a transform per piece, origin on the outline at half the height, yawed along the edge,
 ## x scaled to the piece length (the unit mesh is 1 x HEIGHT x WIDTH).
 ## `tier3` (the front lot only): also leave free the SW lane's width, every fence bar and every branch pad.
-static func transforms(rect: Rect2, tier3 := false, lane_spread := DEFAULT_LANE_SPREAD) -> Array[Transform3D]:
+## `tier` (E8 B2): the tier whose spots and pads the kerb leaves free; 3 for every yard of tiers 2 and 3, 4 for the back lot.
+static func transforms(rect: Rect2, tier3 := false, lane_spread := DEFAULT_LANE_SPREAD, tier := 3) -> Array[Transform3D]:
 	var out: Array[Transform3D] = []
-	var pads := pad_points()
-	var branch := branch_pad_points() if tier3 else []
+	var pads := pad_points(tier)
+	var branch := branch_pad_points(tier) if tier3 else []
 	var free := tier3_keep_free(lane_spread) if tier3 else []
 	var spacing := SPACING_T3 if tier3 else SPACING
 	var pad_clear := PAD_CLEAR_T3 if tier3 else PAD_CLEAR
@@ -121,10 +118,12 @@ static func _segments_closer(a: Vector2, b: Vector2, c: Vector2, d: Vector2, dis
 		minf(Geometry.dist_point_segment(c, a, b), Geometry.dist_point_segment(d, a, b))) < dist
 
 ## ONE MultiMeshInstance3D for the kerb of every yard in `yards` (MapLayout yard ids).
-static func build(yards: Array, lane_spread := DEFAULT_LANE_SPREAD) -> MultiMeshInstance3D:
+## `tier` (E8 B2) is explicit: the tier whose spots and pads the kerb leaves free. 3 for a map of tiers 1 to 3; the caller passes 4 for a tier-4 map, and for a
+## reveal stage that builds only the older yards of one (tower_e2 leaves a gap in the east yard's kerb, so the stage and the full kerb must read the same tier).
+static func build(yards: Array, lane_spread := DEFAULT_LANE_SPREAD, tier := 3) -> MultiMeshInstance3D:
 	var xfs: Array[Transform3D] = []
 	for id in yards:
-		xfs.append_array(transforms(MapLayout.yard_rect(id), MapLayout.yard_tier(id) >= 3, lane_spread))
+		xfs.append_array(transforms(MapLayout.yard_rect(id), MapLayout.yard_tier(id) >= 3, lane_spread, tier))
 	return _instance(xfs)
 
 ## One piece at the origin: the warm-up draws it so the kerb's mesh and material are uploaded before the tier-2 reveal.
