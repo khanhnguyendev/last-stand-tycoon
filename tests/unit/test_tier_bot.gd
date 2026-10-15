@@ -804,29 +804,131 @@ func test_below_tier_3_the_pick_ignores_the_far_walk_rule() -> void:
 	bot.goal = "zone_west"
 	assert_eq(_live_pick(bot), "east")
 
-## At tier 3 the live pick keeps the own lane across the diner, and switches (as before) once the own lane is clear or with the rule off.
-func test_the_live_pick_does_not_cross_the_diner_while_the_own_lane_has_monsters() -> void:
+## Rule "far" (D-310, kept for comparison): the live pick keeps the own lane across the diner, and switches (as before) once the own lane is clear or with the rule off.
+func test_the_far_rule_does_not_cross_the_diner_while_the_own_lane_has_monsters() -> void:
 	var bot := await _bot_world(3)
+	bot.rule = "far"
 	var wd := bot.main.world.wave_director
 	_spawn_at(wd, "west", &"boar", 2.0)
 	for i in 3:
 		_spawn_at(wd, "east", &"boar", 2.0)
 	bot.goal = "zone_west"
 	assert_eq(_live_pick(bot), "west", "east is 10.4 m away: stay")
-	bot.keep_lane = false
+	assert_eq(bot.far_kept, 1, "the refusal is counted")
+	bot.rule = "old"
 	assert_eq(_live_pick(bot), "east", "rule off: the shipped pick")
-	bot.keep_lane = true
+	bot.rule = "far"
 	_spawn_at(wd, "north", &"boar", 2.0)  # north has a monster too, so the rule is consulted and decided by the distance alone
 	bot.goal = "zone_north"  # north-east is near (7.35 m, under FAR_WALK_M): the shipped pick is taken although north is live
 	assert_eq(_live_pick(bot), "east")
 
-## The rule overrides the breach ranking: a hare past the east fence line is breaching (east would win the ranking), but the hero's own lane west has a monster and east is far.
-func test_the_far_walk_rule_overrides_the_breach_ranking() -> void:
+## Rule "far": the rule overrides the breach ranking: a hare past the east fence line is breaching (east would win the ranking), but the hero's own lane west has a monster and east is far.
+func test_the_far_rule_overrides_the_breach_ranking() -> void:
 	var bot := await _bot_world(3)
+	bot.rule = "far"
 	var wd := bot.main.world.wave_director
 	_spawn_at(wd, "west", &"boar", 2.0)
 	_spawn_at(wd, "east", &"hare", MapLayout.path_length("east") - 1.0)
 	bot.goal = "zone_west"
 	assert_eq(_live_pick(bot), "west", "west keeps the hero though east has the breach")
-	bot.keep_lane = false
+	bot.rule = "old"
 	assert_eq(_live_pick(bot), "east", "rule off: the breach ranking sends the hero east")
+
+# --- E7 (escalation 16): the walk-time rule -----------------------------------------------------------------------------------------------------------
+
+## The decision's truth table. Fails if the near case, the own-lane-empty case, the equality (clear == walk keeps) or the INF clear time is mishandled.
+func test_walk_time_truth_table() -> void:
+	var live := {"west": 2, "east": 3}
+	assert_false(TierBot.keep_by_walk_time("west", "north", live, 7.35, 0.1, 99.0), "near: go, whatever the times")
+	assert_false(TierBot.keep_by_walk_time("west", "east", live, TierBot.FAR_WALK_M, 0.1, 99.0), "exactly 9.0 m is not far: go")
+	assert_false(TierBot.keep_by_walk_time("west", "east", live, 10.4, 6.0, 5.0), "far, clear 6 s > walk 5 s: go")
+	assert_true(TierBot.keep_by_walk_time("west", "east", live, 10.4, 4.0, 5.0), "far, clear 4 s < walk 5 s: keep")
+	assert_true(TierBot.keep_by_walk_time("west", "east", live, 10.4, 5.0, 5.0), "far, clear == walk: keep (the rule is clear > walk)")
+	assert_false(TierBot.keep_by_walk_time("west", "east", live, 10.4, INF, 5.0), "no tower damage: INF clear time: go")
+	assert_false(TierBot.keep_by_walk_time("west", "east", {"west": 0, "east": 3}, 10.4, 0.1, 5.0), "own lane empty: go")
+	assert_false(TierBot.keep_by_walk_time("west", "east", {"east": 3}, 10.4, 0.1, 5.0), "own lane unknown: go")
+	assert_false(TierBot.keep_by_walk_time("west", "west", live, 0.0, 0.1, 5.0), "pick equals own: nothing to keep")
+	assert_true(TierBot.go_by_time(INF, 5.0))
+	assert_false(TierBot.go_by_time(1.0, 5.0))
+
+## clear_time: HP over damage per second; INF without damage. 45 hp (three hares of 15) over 72 dps (two unbranched level-3 towers of 36) = 0.625 s.
+func test_clear_time_is_hp_over_dps_and_inf_without_damage() -> void:
+	assert_almost_eq(TierBot.clear_time([15.0, 15.0, 15.0], [36.0, 36.0]), 0.625, 1e-6)
+	assert_eq(TierBot.clear_time([15.0], []), INF, "no tower")
+	assert_eq(TierBot.clear_time([15.0], [0.0, 0.0]), INF, "towers dealing nothing")
+	assert_almost_eq(TierBot.clear_time([], [36.0]), 0.0, 1e-9, "nothing left to clear")
+
+## walk_time: metres over m/s. The speed is the hero's (5.0 m/s in the balance, before cards).
+func test_walk_time_is_length_over_speed() -> void:
+	assert_almost_eq(TierBot.walk_time(28.0, 4.0), 7.0, 1e-9)
+	assert_eq(TierBot.walk_time(10.0, 0.0), INF)
+	assert_almost_eq(TierBot.route_length(Vector2(0, 0), [Vector2(3, 0), Vector2(3, 4)]), 7.0, 1e-9, "3 + 4")
+	assert_eq(TierBot.route_length(Vector2(1, 1), []), 0.0)
+
+## The walk length on the real tier-3 graph, west zone to east zone, by the bot's own route (graph.route_from). Pinned: the route runs zone_west (-5.2, 0), nw (-7, -7),
+## zone_north (0, -5.2), ne (7, -7), zone_east (5.2, 0). Recomputed by hand: each of the four legs is sqrt(1.8^2 + 7^2) = sqrt(3.24 + 49) = 7.22772, so 4 x 7.22772 = 28.9109 m;
+## the straight line is only 10.4 m. At 5.0 m/s (hero.move_speed with no cards) that is 5.78 s. Fails if the route is replaced by the straight line.
+func test_walk_length_on_the_tier_3_graph_follows_the_route_not_the_straight_line() -> void:
+	var g := WaypointGraph.create_for_bot(3)
+	var from := g.position_of("zone_west")
+	var len := TierBot.route_length(from, g.route_from(from, "zone_east"))
+	assert_almost_eq(len, 28.9109, 0.001)
+	assert_almost_eq(TierBot.walk_time(len, Balance.data.hero.move_speed), 5.7822, 0.001)
+	assert_gt(len, from.distance_to(g.position_of("zone_east")) * 2.5)
+
+## Damage per second of one tower against `kinds`. Numbers from the balance: unbranched level 3 = tower_damage[2] 18 / tower_interval 0.5 s = 36; Longbow = 120 x 2.0 (brute) / 2.0 s = 120
+## (60 against a boar); Volley = 10 x min(3, n) / 0.5 s = 20 (1 enemy), 40 (2 enemies), 60 (3 or more).
+func test_tower_dps_uses_the_shipped_stats() -> void:
+	var plain := TowerSpot.stats_for(3, &"")
+	assert_almost_eq(TierBot.tower_dps(plain, [&"boar"]), 36.0, 1e-6)
+	assert_almost_eq(TierBot.tower_dps(plain, [&"boar", &"brute", &"hare"]), 36.0, 1e-6, "one hit per attack, no kind multiplier")
+	assert_almost_eq(TierBot.tower_dps(TowerSpot.stats_for(1, &""), [&"boar"]), 16.0, 1e-6, "level 1: 8 / 0.5")
+	var longbow := TowerSpot.stats_for(3, &"longbow")
+	assert_almost_eq(TierBot.tower_dps(longbow, [&"brute"]), 120.0, 1e-6, "120 x 2.0 / 2.0 s")
+	assert_almost_eq(TierBot.tower_dps(longbow, [&"boar"]), 60.0, 1e-6, "no multiplier against a boar")
+	assert_almost_eq(TierBot.tower_dps(longbow, [&"brute", &"boar"]), 90.0, 1e-6, "the multiplier averaged over the lane: (2 + 1) / 2 x 60")
+	var volley := TowerSpot.stats_for(3, &"volley")
+	assert_almost_eq(TierBot.tower_dps(volley, [&"boar"]), 20.0, 1e-6, "min(3, 1) hits")
+	assert_almost_eq(TierBot.tower_dps(volley, [&"boar", &"boar"]), 40.0, 1e-6, "min(3, 2) hits: 2 x 10 / 0.5 s")
+	assert_almost_eq(TierBot.tower_dps(volley, [&"boar", &"boar", &"boar", &"boar"]), 60.0, 1e-6, "capped at 3 targets")
+	assert_eq(TierBot.tower_dps(volley, []), 0.0, "no enemy")
+
+## Scene: the walk-time rule at tier 3. West keeps one hare, east holds three (the most): without towers the towers' clear time is INF, so the hero goes east; with every
+## tower built the three hares (45 hp) die in 0.625 s, far under the walk (over 10 m at 5 m/s), so the hero keeps west and the refusal is counted; with 1000x hp enemies the
+## clear time exceeds the walk and the hero goes.
+func test_the_walk_time_rule_in_the_scene() -> void:
+	var bot := await _bot_world(3)
+	assert_eq(bot.rule, "walk", "the shipped rule")
+	var wd := bot.main.world.wave_director
+	_spawn_at(wd, "west", &"hare", 2.0)
+	for i in 3:
+		_spawn_at(wd, "east", &"hare", 2.0)
+	bot.goal = "zone_west"
+	assert_eq(_live_pick(bot), "east", "no tower built: INF clear time: go")
+	assert_eq(bot.far_kept, 0)
+	_max_all_spots()
+	var walk_len := TierBot.route_length(bot.hero.xz(), bot.graph.route_from(bot.hero.xz(), "zone_east"))
+	assert_gt(walk_len / bot.hero.move_speed(), 0.7, "precondition: the walk is longer than the 0.625 s clear")
+	assert_eq(_live_pick(bot), "west", "towers clear east in 0.625 s, before the hero would arrive: keep")
+	assert_eq(bot.far_kept, 1)
+	bot.rule = "far"
+	assert_eq(_live_pick(bot), "west", "rule far: keep as well")
+	bot.rule = "old"
+	assert_eq(_live_pick(bot), "east", "rule old: go")
+	bot.rule = "walk"
+	for b in wd.alive_enemies():
+		if String(b.lane) == "east":
+			b.health.hp = 1.0e6  # test-only setup: towers need hours
+	assert_eq(_live_pick(bot), "east", "clear time over the walk: go")
+
+## A near move is not decided by time: north to west is 7.35 m (under 9.0), so the shipped pick is taken whatever the towers do.
+func test_the_walk_time_rule_leaves_a_near_move_alone() -> void:
+	var bot := await _bot_world(3)
+	var wd := bot.main.world.wave_director
+	_max_all_spots()
+	_spawn_at(wd, "north", &"hare", 2.0)
+	for i in 3:
+		_spawn_at(wd, "west", &"hare", 2.0)
+	bot.goal = "zone_north"
+	assert_eq(_live_pick(bot), "west")
+	assert_eq(bot.far_kept, 0)

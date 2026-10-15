@@ -244,8 +244,13 @@ const RETIRED_SETS := ["1"]
 const SPENT_SETS := ["2"]
 ## The scan positions the sets use (1-based, per lane): 7 seeds per lane are scanned (tuning 1, set #1 2-3, set #2 4-5, set #3 6-7); 8 and 9 stay unnamed.
 const SCAN_PER_LANE := 7
-## The bot rules a report run may use (E7, D-310): `new` = the shipped TierBot, `old` = without the no-far-walk rule.
-const BOT_RULES := ["new", "old"]
+## The bot rules a report run may use (E7, D-310, escalation 16): `walk` = the shipped TierBot (walk-time rule), `far` = the D-310 never-cross rule, `old` = no rule (the bot before D-310).
+## A history entry recorded as `new` (before escalation 16) was a `far` run: see canon_bot_rule.
+const BOT_RULES := ["walk", "far", "old"]
+
+## The rule name of a history entry's `bot_rule`: `new` (written before escalation 16, when it meant the never-cross bot) is `far`; an entry without the field is `new`, hence `far`.
+static func canon_bot_rule(entry_rule: String) -> String:
+	return "far" if entry_rule == "new" else entry_rule
 const FIXED_PAIRS := ["all_a", "all_b", "mixed", "volley_stone"]
 const RETUNE_POLICIES := ["all_a", "all_b", "mixed", "volley_stone", "threat", "unbranched"]
 ## Policies whose towers are Longbow on the siege lane (all_a, mixed: every tower; threat: the tower covering the siege lane, spec 4.4).
@@ -325,10 +330,10 @@ static func set_by_id(set_id: String) -> Dictionary:
 ## output); `date` is passed in (the commit's date from git: no clock in the maths). Returns {allowed, lines, record}: the header lines and the record with this run appended
 ## (done=false, ok=false until final_finish). Every earlier entry is printed as FINAL_EARLIER; a repeat of the same set adds FINAL_REPEAT.
 ##
-## E7 (D-310): set #3 may be run twice, once per bot rule (`bot_rule`, "new" or "old", stored in the entry): a second run of set #3 is allowed only when its bot_rule differs from
-## every earlier COMPLETE set-#3 entry (an entry without a bot_rule counts as "new"; an entry without `complete` counts as complete; an entry with `complete: false`, a run that
+## E7 (D-310, escalation 16): the measurement sets (#3, #4) may be run once per bot rule (`bot_rule`, "walk", "far" or "old", stored in the entry): a further run of the same set is allowed only when its bot_rule differs from
+## every earlier COMPLETE entry of that set (`new` and an entry without a bot_rule count as "far"; an entry without `complete` counts as complete; an entry with `complete: false`, a run that
 ## printed no verdict, does not block a re-run); a repeat with a rule already used by a complete entry is refused. Sets #1 and #2 are refused always (retired, spent).
-static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary, date := "", days := FINAL_DAYS, bot_rule := "new") -> Dictionary:
+static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary, date := "", days := FINAL_DAYS, bot_rule := "walk") -> Dictionary:
 	var refuse := func(msg: String) -> Dictionary:
 		return {"allowed": false, "lines": ["REFUSED: " + msg], "record": record}
 	if set_id == "tuning":
@@ -340,7 +345,7 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 	if not set_id in ["3"]:
 		return refuse.call("unknown set '%s' (tuning|3)" % set_id)
 	if not bot_rule in BOT_RULES:
-		return refuse.call("unknown bot rule '%s' (new|old)" % bot_rule)
+		return refuse.call("unknown bot rule '%s' (walk|far|old)" % bot_rule)
 	if not final_flag:
 		return refuse.call("hold-out set #%s runs only with --final (D-290); no run was started" % set_id)
 	if commit == "" or commit == "unknown" or commit.ends_with("-dirty"):
@@ -355,7 +360,7 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 		lines.append("FINAL_EARLIER set=#%s commit=%s date=%s done=%s ok=%s" % [e.set, e.commit, e.get("date", ""), str(e.get("done", false)).to_lower(), str(e.get("ok", false)).to_lower()])
 		lines[lines.size() - 1] += " complete=%s" % str(e.get("complete", true)).to_lower()
 		if String(e.set) == set_id:
-			if String(e.get("bot_rule", "new")) == bot_rule and bool(e.get("complete", true)):
+			if canon_bot_rule(String(e.get("bot_rule", "new"))) == bot_rule and bool(e.get("complete", true)):
 				return refuse.call("set #%s was already run with bot rule '%s' (commit %s): a measurement set runs once per bot rule (D-307, D-310); no run was started" % [set_id, bot_rule, e.commit])
 			same_set = true
 			if String(e.commit) != commit:
@@ -470,7 +475,7 @@ static func run_row(seed: int, lane: String, policy: String, kv: Dictionary, ld:
 		"failed": hard, "failed_reason": "hard break on day %s" % kv.get("hard_break_day", "?") if hard else "",
 		"max_retries": int(rt.get("max_retries", "0")), "max_retries_day": int(rt.get("max_retries_day", "-1")), "unspent_before": _gold_array(String(rt.get("unspent_before", "-"))),
 		"unspent_after": _gold_array(String(rt.get("unspent_after", "-"))), "unspent_last": int(kv.get("unspent_last_day", "0")), "ladder_done": int(ld.get("ladder_done_day", "-1")) >= 0,
-		"first_t3_retries": int(rt.get("first_t3_retries", "0")), "far_walks": int(rt.get("far_walks", "0")), "worst_night_frac": float(rt.get("worst_night_frac", "-1")), "worst_night_day": int(rt.get("worst_night_day", "-1"))}
+		"first_t3_retries": int(rt.get("first_t3_retries", "0")), "far_walks": int(rt.get("far_walks", "0")), "far_kept": int(rt.get("far_kept", "0")), "worst_night_frac": float(rt.get("worst_night_frac", "-1")), "worst_night_day": int(rt.get("worst_night_day", "-1"))}
 	if ld.is_empty():
 		row.failed = true
 		row.failed_reason = "LADDER line missing"
@@ -789,17 +794,17 @@ static func lane_cap_guard(rows: Array) -> Dictionary:
 
 ## The whole report. `expected`: [[seed, policy], ...]. A missing run, a run with `failed`, or a run that never reached tier 3 (first_t3_frac < 0) = NO verdict lines, exit 1.
 ## Information line (not a target, E7 D-310): FAR_WALKS summed per policy over the seeds, from each run's RETUNE far_walks=.
-static func far_walks_total_line(rows: Array) -> String:
+static func far_walks_total_line(rows: Array, key := "far_walks", label := "FAR_WALKS_TOTAL") -> String:
 	var parts: Array = []
 	var all := 0
 	for p in RETUNE_POLICIES:
 		var n := 0
 		for r in rows:
 			if r.policy == p:
-				n += int(r.get("far_walks", 0))
+				n += int(r.get(key, 0))
 		all += n
 		parts.append("%s=%d" % [p, n])
-	return "FAR_WALKS_TOTAL %s all=%d (information, not a target)" % [" ".join(parts), all]
+	return "%s %s all=%d (information, not a target)" % [label, " ".join(parts), all]
 
 static func retune_report(rows: Array, expected: Array, final := false) -> Dictionary:
 	var problems: Array = []
@@ -825,4 +830,5 @@ static func retune_report(rows: Array, expected: Array, final := false) -> Dicti
 	lines.append_array(worst_night_lines(rows))
 	lines.append_array(unspent_lines(rows))
 	lines.append(far_walks_total_line(rows))
+	lines.append(far_walks_total_line(rows, "far_kept", "FAR_KEPT_TOTAL"))
 	return {"exit": 0, "ok": failed.is_empty(), "failed": failed, "lines": lines}

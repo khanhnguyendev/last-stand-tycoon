@@ -1,9 +1,9 @@
 extends SceneTree
 ## E6 tier-3 retune report (Task 16, spec 8.1, D-285, D-290, D-292 to D-294). NOT a CI test (the name does not start with test_); asserts nothing, changes no balance value.
-## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|3 --final --days=32 --parallel=3 --dry=1 --bot-rule=new|old --deadline-min=20]
+## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|3 --final --days=32 --parallel=3 --dry=1 --bot-rule=walk|far|old --deadline-min=20]
 ## Sets: `tuning` (default; 5 seeds: one per siege lane from the scan, plus the promoted north 14, D-304), `3` (E7 measurement set #3, 8 seeds, two per siege lane: scan positions 6 and 7; scan positions 8 and 9 are reserved, unseen, not named in code).
-## Hold-out set #2 is SPENT (D-307) and refused always like set #1 (message names D-307; results stay in the history). `--bot-rule=new|old` (default new) is passed to every child sweep, printed in the header and stored in the history entry
-## (`bot_rule`); set #3 may be run twice, once per bot rule (a repeat with a rule already used by a COMPLETE entry is refused; an entry whose run printed no verdict has `complete: false` and does not block). Hold-out set #1 is
+## Hold-out set #2 is SPENT (D-307) and refused always like set #1 (message names D-307; results stay in the history). `--bot-rule=walk|far|old` (default walk) is passed to every child sweep, printed in the header and stored in the history entry
+## (`bot_rule`); sets #3 and #4 may be run once per bot rule (walk, far, old; a history entry `new` is `far`) (a repeat with a rule already used by a COMPLETE entry is refused; an entry whose run printed no verdict has `complete: false` and does not block). Hold-out set #1 is
 ## RETIRED (D-304: seed 14 failed it, was diagnosed and moved to the tuning set): `--set=1` is refused always, with or without `--final`, exit 2, nothing started; its literal and its
 ## results stay for the history. The seeds are pinned in SweepMath (SCAN_TUNING_SET, PROMOTED_TO_TUNING, TUNING_SET, HOLDOUT_SET_1, HOLDOUT_SET_2); at the start the report scans seeds upward from 1
 ## (the siege lane of a seed is `LaneCharacter.for_run(seed).siege`) and exits 2 if the scan does not give exactly the pinned literals (the scan's tuning seeds + the promotion = TUNING_SET). The hold-out sets run ONLY with `--final` (D-290): without it the report refuses and starts nothing; with it the output header
@@ -29,7 +29,7 @@ const KNOWN_ARGS := ["set", "days", "parallel", "dry", "final", "bot-rule", "dea
 const RUN_FIELDS := ["nights", "retry_nights", "min", "median", "mean", "fences_lost_mean", "branches", "branch_gold", "unspent_last_day", "hard_break_day"]
 
 func _initialize() -> void:
-	var args := {"set": "tuning", "days": "32", "parallel": "3", "dry": "0", "final": "0", "bot-rule": "new", "deadline-min": str(DEFAULT_DEADLINE_MIN)}
+	var args := {"set": "tuning", "days": "32", "parallel": "3", "dry": "0", "final": "0", "bot-rule": "walk", "deadline-min": str(DEFAULT_DEADLINE_MIN)}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if not kv[0] in KNOWN_ARGS:
@@ -49,11 +49,11 @@ func _initialize() -> void:
 	var run_deadline_msec := deadline_min * 60 * 1000
 	var bot_rule := String(args["bot-rule"])
 	if not bot_rule in SweepMath.BOT_RULES:
-		push_error("bad --bot-rule=%s (new|old)" % bot_rule)
+		push_error("bad --bot-rule=%s (walk|far|old)" % bot_rule)
 		quit(2)
 		return
 	var set_id := String(args.set)
-	var tag := set_id + ("_old" if bot_rule == "old" else "")  # file names: an old-rule run never overwrites a new-rule run's logs
+	var tag := set_id + ("" if bot_rule == "walk" else "_" + bot_rule)  # file names: a run with another bot rule never overwrites the walk-rule run's logs
 	var seed_set: Dictionary = SweepMath.set_by_id(set_id)
 	if seed_set.is_empty():
 		push_error("bad --set=%s (tuning|3; 1 is retired, 2 is spent)" % set_id)

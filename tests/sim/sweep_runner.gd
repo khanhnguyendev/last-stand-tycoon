@@ -48,7 +48,7 @@ func _ready() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	var args := {"seed": "20260930", "days": "14", "bot": "planner", "policy": "threat", "tier3": "on", "tier3-cap": "", "brute-caps": "", "brute-hp": "", "fence-mult": "", "out": "", "cols": "", "bot-rule": "new"}
+	var args := {"seed": "20260930", "days": "14", "bot": "planner", "policy": "threat", "tier3": "on", "tier3-cap": "", "brute-caps": "", "brute-hp": "", "fence-mult": "", "out": "", "cols": "", "bot-rule": "walk"}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if kv.size() == 2:
@@ -86,10 +86,10 @@ func _run() -> void:
 	if String(args["fence-mult"]) != "":
 		Balance.data.monsters.brute.fence_damage_mult = float(args["fence-mult"])
 		ov.append("fence-mult=%s" % args["fence-mult"])
-	if String(args["bot-rule"]) == "old":
-		ov.append("bot-rule=old")  # E7 (D-310): the tier bot without the no-far-walk rule (set on the bot below), for the before/after measurement
-	elif String(args["bot-rule"]) != "new":
-		push_error("bad --bot-rule=%s (new|old)" % args["bot-rule"])
+	if String(args["bot-rule"]) != "walk":
+		ov.append("bot-rule=%s" % args["bot-rule"])  # E7 (D-310): old = the tier bot before D-310, far = the never-cross rule (set on the bot below), for the before/after measurement
+	if not String(args["bot-rule"]) in ["old", "far", "walk"]:
+		push_error("bad --bot-rule=%s (old|far|walk)" % args["bot-rule"])
 		get_tree().quit(2)
 		return
 	print("OVERRIDES %s" % (" ".join(ov) if not ov.is_empty() else "none"))
@@ -103,7 +103,7 @@ func _run() -> void:
 	h.start(int(args.seed), TierBot if tier_mode else (UpgraderBot if upgrader else PlannerBot))
 	if tier_mode:
 		h.bot.policy = String(args.policy)
-		h.bot.keep_lane = String(args["bot-rule"]) != "old"
+		h.bot.rule = String(args["bot-rule"])
 		EventBus.enemy_killed.connect(_on_enemy_killed)
 		EventBus.wave_started.connect(_on_wave_started)
 		EventBus.branch_chosen.connect(_on_branch_chosen)
@@ -269,12 +269,13 @@ func _run() -> void:
 		print(SweepMath.unspent_target_line(ls))
 		print(SweepMath.fence_tax_line(ls))
 		print("FAR_WALKS n=%d nights=%d" % [_far_walks, t3n])
+		print("FAR_KEPT n=%d nights=%d" % [_far_kept(), t3n])
 		var rt := SweepMath.retune_run_stats(nights)
 		if int(rt.t3_nights) > 0:  # a run that played a tier-3 night has a lane character (E6, D-282)
 			var us := SweepMath.unspent_split(day_records)
 			var ch := LaneCharacter.for_run(int(args.seed))
-			print("RETUNE seed=%s policy=%s siege=%s hare=%s first_t3_frac=%.4f hare_share_mean=%.3f hare_share_min=%.3f far_walks=%d guard_hits=%d t3_nights=%d max_retries=%d max_retries_day=%d unspent_before=%s unspent_after=%s first_t3_retries=%d worst_night_frac=%.4f worst_night_day=%d" % [
-				args.seed, args.policy, ch.siege, ch.hare, rt.first_t3_frac, rt.hare_share_mean, rt.hare_share_min, _far_walks, rt.guard_hits, rt.t3_nights, rt.max_retries, rt.max_retries_day,
+			print("RETUNE seed=%s policy=%s siege=%s hare=%s first_t3_frac=%.4f hare_share_mean=%.3f hare_share_min=%.3f far_walks=%d far_kept=%d guard_hits=%d t3_nights=%d max_retries=%d max_retries_day=%d unspent_before=%s unspent_after=%s first_t3_retries=%d worst_night_frac=%.4f worst_night_day=%d" % [
+				args.seed, args.policy, ch.siege, ch.hare, rt.first_t3_frac, rt.hare_share_mean, rt.hare_share_min, _far_walks, _far_kept(), rt.guard_hits, rt.t3_nights, rt.max_retries, rt.max_retries_day,
 				_gold_list(us.before), _gold_list(us.after), rt.first_t3_retries, rt.worst_night_frac, rt.worst_night_day])
 		if String(args.tier3) == "off" and tier3_events != 0:
 			push_error("tier 3 is not for sale but %d brute kills, south-west spawns and branches were counted" % tier3_events)
@@ -306,8 +307,11 @@ func _night_hare_share(character: Dictionary) -> float:
 var _h: SimHarness
 
 ## E7 (D-310) FAR_WALKS: over tier-3 nights, every hero goal change from one lane zone to another more than TierBot.FAR_WALK_M away while the previous zone's lane had
-## live enemies. With the shipped rule (TierBot.keep_lane) the bot never makes one at a re-decision, so the count is 0 by construction; `--bot-rule=old` shows the defect.
+## live enemies: the far moves that were made. FAR_KEPT (TierBot.far_kept) counts the re-decisions that refused one (rule far or walk). With `--bot-rule=far` FAR_WALKS is 0 by construction.
 var _far_walks := 0
+
+func _far_kept() -> int:
+	return int(_h.bot.far_kept) if _h != null and _h.bot is TierBot else 0
 var _last_goal := ""
 
 func _count_far_walks() -> void:

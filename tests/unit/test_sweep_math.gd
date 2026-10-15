@@ -590,13 +590,13 @@ func test_final_gate_set_3_needs_final_and_runs_once_per_bot_rule() -> void:
 	assert_eq(first.record.history[0].bot_rule, "old")
 	assert_string_contains(_line(first, "FINAL set=#3"), "bot_rule=old")
 	var done := SweepMath.final_finish(first.record, false)
-	var second := SweepMath.final_gate("3", true, "def5678", done, DATE, 32, "new")
+	var second := SweepMath.final_gate("3", true, "def5678", done, DATE, 32, "walk")
 	assert_true(second.allowed, "a different bot rule is the second allowed run")
 	assert_eq(second.record.history.size(), 2)
-	assert_eq(second.record.history[1].bot_rule, "new")
+	assert_eq(second.record.history[1].bot_rule, "walk")
 	assert_string_contains(_line(second, "FINAL_REPEAT"), "abc1234")
 	var done2 := SweepMath.final_finish(second.record, true)
-	for rule in ["old", "new"]:
+	for rule in ["old", "walk"]:
 		var again := SweepMath.final_gate("3", true, "fff9999", done2, DATE, 32, rule)
 		assert_false(again.allowed, "a repeat with rule %s is refused" % rule)
 		assert_string_contains(again.lines[0], "bot rule '%s'" % rule)
@@ -605,7 +605,18 @@ func test_final_gate_set_3_needs_final_and_runs_once_per_bot_rule() -> void:
 	assert_false(bad.allowed)
 	# an entry from a set #1 / #2 run never blocks set #3
 	var other := {"history": [{"set": "2", "commit": "b820c89", "date": DATE, "days": 32, "done": true, "ok": false}]}
-	assert_true(SweepMath.final_gate("3", true, "abc1234", other, DATE, 32, "new").allowed)
+	assert_true(SweepMath.final_gate("3", true, "abc1234", other, DATE, 32, "walk").allowed)
+
+## Escalation 16: three rules, one run each per measurement set; a history entry `new` (before the walk-time rule) is the never-cross bot, `far`; set #4 is gated like set #3 and independent of it.
+func test_final_gate_three_bot_rules_set_4_and_the_legacy_new_entry() -> void:
+	assert_eq(SweepMath.BOT_RULES, ["walk", "far", "old"])
+	var legacy := {"history": [{"set": "3", "commit": "9a86ae2", "date": DATE, "days": 32, "bot_rule": "new", "done": true, "ok": false, "complete": true}]}
+	assert_false(SweepMath.final_gate("3", true, "abc1234", legacy, DATE, 32, "far").allowed, "a legacy `new` entry is a far run")
+	assert_true(SweepMath.final_gate("3", true, "abc1234", legacy, DATE, 32, "walk").allowed, "set #3 with the walk-time rule is still open")
+	assert_true(SweepMath.final_gate("3", true, "abc1234", legacy, DATE, 32, "old").allowed)
+	assert_false(SweepMath.final_gate("3", true, "abc1234", legacy, DATE, 32, "new").allowed, "`new` is no longer a rule to run")
+	assert_eq(SweepMath.canon_bot_rule("new"), "far")
+	assert_eq(SweepMath.canon_bot_rule("walk"), "walk")
 
 ## A run that printed no verdict (complete false) did not read the set: it does not block a re-run with its bot rule; a complete entry, or one without the field, does.
 func test_final_gate_incomplete_entry_does_not_block_a_rerun() -> void:
@@ -621,7 +632,7 @@ func test_final_gate_incomplete_entry_does_not_block_a_rerun() -> void:
 	assert_false(blocked.allowed, "a complete entry blocks")
 	var nofield := {"history": [{"set": "3", "commit": "abc1234", "date": DATE, "days": 32, "bot_rule": "old", "done": true, "ok": false}]}
 	assert_false(SweepMath.final_gate("3", true, "def5678", nofield, DATE, 32, "old").allowed, "a missing field counts as complete")
-	assert_string_contains(_line(SweepMath.final_gate("3", true, "def5678", nofield, DATE, 32, "new"), "FINAL_EARLIER"), "complete=true")
+	assert_string_contains(_line(SweepMath.final_gate("3", true, "def5678", nofield, DATE, 32, "walk"), "FINAL_EARLIER"), "complete=true")
 
 func test_far_walks_total_line_sums_per_policy() -> void:
 	var rows: Array = [{"policy": "all_a", "far_walks": 2}, {"policy": "all_a", "far_walks": 3}, {"policy": "threat", "far_walks": 1}, {"policy": "mixed"}]
@@ -632,7 +643,9 @@ func test_far_walks_total_line_sums_per_policy() -> void:
 	assert_string_contains(line, "mixed=0")
 	assert_string_contains(line, "all=6")
 	var kv := {"mean": "0.5", "hard_break_day": "-1"}
-	assert_eq(SweepMath.run_row(5, "east", "threat", kv, {"x": "1"}, {"far_walks": "4", "first_t3_frac": "0.5"}).far_walks, 4)
+	assert_eq(SweepMath.run_row(5, "east", "threat", kv, {"x": "1"}, {"far_walks": "4", "far_kept": "7", "first_t3_frac": "0.5"}).far_walks, 4)
+	assert_eq(SweepMath.run_row(5, "east", "threat", kv, {"x": "1"}, {"far_walks": "4", "far_kept": "7", "first_t3_frac": "0.5"}).far_kept, 7)
+	assert_string_contains(SweepMath.far_walks_total_line([{"policy": "all_a", "far_kept": 3}, {"policy": "threat", "far_kept": 2}], "far_kept", "FAR_KEPT_TOTAL"), "FAR_KEPT_TOTAL all_a=3")
 
 func test_final_gate_refuses_final_with_the_tuning_set() -> void:
 	var g := SweepMath.final_gate("tuning", true, "abc1234", {"history": []}, DATE)
@@ -653,7 +666,7 @@ func test_final_gate_records_set_commit_and_date_then_finish_marks_done_and_ok()
 	var g := SweepMath.final_gate("3", true, "abc1234", {"history": []}, DATE)
 	assert_true(g.allowed)
 	assert_string_contains(g.lines[0], "FINAL set=#3 commit=abc1234")
-	assert_eq(g.record, {"history": [{"set": "3", "commit": "abc1234", "date": DATE, "days": 32, "bot_rule": "new", "done": false, "ok": false}]}, "recorded at the start: done is false until the run ends")
+	assert_eq(g.record, {"history": [{"set": "3", "commit": "abc1234", "date": DATE, "days": 32, "bot_rule": "walk", "done": false, "ok": false}]}, "recorded at the start: done is false until the run ends")
 	var fin := SweepMath.final_finish(g.record, true)
 	assert_eq(fin.history[0].done, true)
 	assert_eq(fin.history[0].ok, true)
@@ -667,14 +680,14 @@ func test_final_gate_shows_every_earlier_entry_and_a_repeat_at_a_different_commi
 	var two := SweepMath.final_gate("3", true, "bbb2222", old, DATE, 32, "old")
 	assert_eq(_line(two, "FINAL_REPEAT"), "", "set #3 was never run")
 	assert_string_contains(_line(two, "FINAL_EARLIER set=#1 commit=abc1234"), "ok=false")
-	var again := SweepMath.final_gate("3", true, "def5678", SweepMath.final_finish(two.record, false), DATE, 32, "new")
+	var again := SweepMath.final_gate("3", true, "def5678", SweepMath.final_finish(two.record, false), DATE, 32, "walk")
 	assert_true(again.allowed)
 	var earlier: Array = again.lines.filter(func(l): return String(l).begins_with("FINAL_EARLIER"))
 	assert_eq(earlier.size(), 2, "one line per earlier entry, both sets")
 	assert_string_contains(_line(again, "FINAL_REPEAT"), "bbb2222")
 	assert_string_contains(_line(again, "FINAL_REPEAT"), "def5678")
 	assert_eq(again.record.history.size(), 3)
-	var same := SweepMath.final_gate("3", true, "bbb2222", two.record, DATE, 32, "new")
+	var same := SweepMath.final_gate("3", true, "bbb2222", two.record, DATE, 32, "walk")
 	assert_string_contains(_line(same, "FINAL_REPEAT"), "same commit")
 
 func test_parse_record_accepts_empty_and_valid_text_and_rejects_a_broken_file() -> void:
