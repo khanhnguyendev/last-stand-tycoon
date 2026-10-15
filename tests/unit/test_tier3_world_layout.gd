@@ -255,7 +255,7 @@ func test_the_front_lot_kerb_is_closed_except_where_the_things_of_tier_3_stand()
 	var bar := _bar("sw")
 	_front_clearance("fence_sw's bar", func(a, b): return _seg_seg(a, b, bar[0], bar[1]), BAR_HALF_DEPTH + half_w)
 	var pads := 0
-	for id in MapLayout.BRANCH_PADS:
+	for id in MapLayout.spots_for_tier(3):  # tier 3's pads (the back lot's are far from the lot: test_branch_pad_layout pins that the kerb is the same at tier 4)
 		for p in MapLayout.BRANCH_PADS[id]:
 			pads += 1
 			_front_clearance("branch pad %s of %s" % [p, id], func(a, b): return Geometry.dist_point_segment(p, a, b), MapLayout.BRANCH_PAD_RADIUS + half_w)
@@ -616,7 +616,7 @@ func _seg_clearances(tier: int, p0: Vector2, p1: Vector2, stats: Dictionary) -> 
 		stats.zone = minf(stats.zone, Geometry.dist_point_rect(p1, MapLayout.zone_rect(lane)) - TRAVELER_RADIUS)
 	if tier < 3:  # branch pads exist from tier 3
 		return
-	for id in MapLayout.BRANCH_PADS:
+	for id in MapLayout.spots_for_tier(tier):  # the pads that exist at this tier (the back lot's are the tier-4 layout test's)
 		for pad in MapLayout.BRANCH_PADS[id]:
 			stats.pad = minf(stats.pad, Geometry.dist_point_segment(pad, p0, p1) - MapLayout.BRANCH_PAD_RADIUS)
 

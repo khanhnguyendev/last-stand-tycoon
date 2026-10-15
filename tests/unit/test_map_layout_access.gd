@@ -102,7 +102,7 @@ func test_a_hash_inside_a_string_does_not_hide_a_read() -> void:
 	assert_null(_pattern().search(_code("## MapLayout.YARDS")))
 
 func test_all_yards_lists_every_yard_in_yard_order() -> void:
-	assert_eq(MapLayout.all_yards(), ["west", "east", "front"])
+	assert_eq(MapLayout.all_yards(), ["west", "east", "front", "south", "northeast"])
 
 func test_the_allow_list_entries_are_still_needed() -> void:
 	for path in ALLOW:
