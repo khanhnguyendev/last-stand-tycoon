@@ -2344,7 +2344,10 @@ func _dist_to_hull(p: Vector2, hull: PackedVector2Array) -> float:
 
 func test_warmup_run_places_the_pad_visuals_only_when_the_build_has_tier_3() -> void:
 	await _start()
-	var expected := Warmup.branch_pad_visuals().size()
+	var probe := Warmup.branch_pad_visuals()
+	var expected := probe.size()
+	for n in probe:
+		n.free()  # the probe nodes were never in the tree
 	assert_eq(expected, 2 + BranchIcons.KINDS.size() * 2, "two rings and every glyph with both materials")
 	var w := Warmup.new()
 	main.add_child(w)

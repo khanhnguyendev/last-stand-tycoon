@@ -772,8 +772,12 @@ func test_a_reload_in_the_middle_of_the_tier3_reveal_resumes_at_the_card_pick_wi
 	var saved: Dictionary = SaveStore.with_dir(dir).read().state
 	assert_eq(String(saved.resume_phase), "CARD_PICK", "the autosave wrote the card pick at the tier-up")
 	assert_eq(int(saved.tier), 3)
+	# the reveal holds the new storey's art detached until step 5; freeing Main does not reach it, so free it here (it was an orphan at the end of the run)
+	var kept: Node3D = _reveal()._diner_kept
 	remove_child(main)
 	main.free()
+	if kept != null and is_instance_valid(kept) and kept.get_parent() == null:
+		kept.free()
 	GameState.new_game(1)  # a reload is a process restart
 	# session 2: boots from the save
 	main = Main.create()
