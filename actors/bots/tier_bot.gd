@@ -291,7 +291,7 @@ func _on_tier_reached(_tier: int) -> void:
 
 func day_think(delta: float) -> void:
 	# keep standing on the sign mid-payment (gold and remaining cost fall together)
-	if (goal == "tier_sign" or goal == "tier_sign_3") and _may_pay_next_tier() and arrived() and GameState.tier_paid > 0 and GameState.gold > 0 \
+	if goal == next_sign_name() and _may_pay_next_tier() and arrived() and GameState.tier_paid > 0 and GameState.gold > 0 \
 			and GameState.tier_remaining_cost() > 0:
 		return
 	# the same for a yard tower spot (the planner's check covers SPOT_IDS only)
@@ -320,18 +320,42 @@ func day_think(delta: float) -> void:
 		goal = ""
 	super.day_think(delta)
 
-## The cap: the next tier (the one the sign sells) is within max_tier.
+## The cap: the next tier (the one the sign sells) is within max_tier. E8 B10: tier 4 is also bought only when the build sells it
+## (top tier >= 4), and (idle_goal only, see `_ladder_done_for_tier_4`) only after the tier-3 ladder.
 func _may_pay_next_tier() -> bool:
-	return GameState.tier + 1 <= max_tier
+	var next := GameState.tier + 1
+	if next >= 4 and TierEffects.top_tier(Balance.data.tiers) < next:
+		return false
+	return next <= max_tier
+
+## E8 B10: the node name of the sign that sells the next tier: "tier_sign" (tier 2), "tier_sign_3", "tier_sign_4" (the sign of tier N sells tier N).
+func next_sign_name() -> String:
+	var next := GameState.tier + 1
+	return "tier_sign" if next <= 2 else "tier_sign_%d" % next
+
+## E8 B10: "after the ladder" is SweepMath.ladder_done for the tier-3 build: every tier-3 spot at max level, every tower and fence branched
+## (the `unbranched` policy needs no branch), the stations at max. Read at tier 3 only; true below it (no ladder gates tiers 2 and 3).
+func _ladder_done_for_tier_4() -> bool:
+	if GameState.tier != 3:
+		return true
+	var spots: Array = []
+	for id in MapLayout.spots_for_tier(3):
+		if GameState.buildings.has(id):
+			spots.append({"kind": MapLayout.spot_kind(id), "level": int(GameState.buildings[id].level), "branch": String(GameState.buildings[id].branch)})
+	var stations: Array = []
+	for sid in StationEffects.IDS:
+		stations.append(GameState.station_level(sid))
+	return SweepMath.ladder_done(spots, stations, int(Balance.data.build.max_level), int(Balance.data.stations.max_level), policy != "unbranched")
 
 ## The tier-up when the gold in hand finishes it, else the upgrader's cheapest station level, else the sign.
-## Rule (tiers 2 and 3 alike): this runs only when next_purchase() found nothing to build, so the gold in hand is what is left after
+## Rule (tiers 2, 3 and 4 alike): this runs only when next_purchase() found nothing to build, so the gold in hand is what is left after
 ## the defense purchases; the sign is sought when the remaining cost is above 0 (not paid, not the top tier) and the gold covers it.
+## Tier 4 is bought only once the tier-3 ladder is complete.
 func idle_goal() -> String:
 	_sync_graph()
 	var rem := GameState.tier_remaining_cost()
-	if rem > 0 and rem <= GameState.gold and _may_pay_next_tier():
-		return "tier_sign_3" if GameState.tier >= 2 else "tier_sign"
+	if rem > 0 and rem <= GameState.gold and _may_pay_next_tier() and _ladder_done_for_tier_4():
+		return next_sign_name()
 	return super.idle_goal()
 
 ## Defense first, exactly the planner's over the tier-1 spots. Only when it has nothing: the yard spots the planner

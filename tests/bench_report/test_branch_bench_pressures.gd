@@ -88,6 +88,28 @@ func _identity(pressure: int) -> void:
 		_row(pressure, "IDENTITY %s: unbranched tower never best" % lane, "best branch %.1f vs base %.1f" % [towers, base.diner_lost], towers < base.diner_lost - SAME)
 		_row(pressure, "IDENTITY %s: unbranched fence never best" % lane, "best branch %.1f vs base %.1f" % [fences, base.diner_lost], fences < base.diner_lost - SAME)
 
+## E8 phase 2 Task 8 (spec 4.5): the tier-4 base (tier_base[4]) and the tier-4 cap (tier_cap[4], the control: it must reproduce the CI bench), the RULES on the tier-4 mixes.
+func test_rules_at_the_tier_4_base_and_cap() -> void:
+	await wait_physics_frames(10)
+	for p in [int(Balance.data.tiers.tier_base[4]), int(Balance.data.tiers.tier_cap[4])]:
+		gut.p("TIER 4 PRESSURE %d (shipped balance)" % p)
+		var res := {}
+		for lane in BranchBench.LANES:
+			res[lane] = {}
+			for cfg in BranchBench.FAST_CONFIGS:
+				var run: Dictionary = await BranchBench.run(lane, cfg[0], cfg[1], p, {"tier": 4})
+				res[lane][BranchBench.cfg_name(cfg)] = run
+				gut.p("  t4 p%d %-8s %-14s %s" % [p, lane, BranchBench.cfg_name(cfg), _fmt(run)])
+				if run.timed_out:
+					gut.p("  t4 p%d TIMEOUT %s %s did not clear in time  FAIL" % [p, lane, BranchBench.cfg_name(cfg)])
+		var fails := 0
+		for row in BranchBench.RULES:
+			var v := BranchBench.rule_verdict(row, res[row[2]])
+			fails += 0 if v.ok else 1
+			gut.p("  t4 p%d %-62s %s  %s" % [p, "%s %s" % [BranchBench.rule_name(row), row[2]], "%s %.2f vs %.2f, bound %s %.2f" % [v.measure, v.a, v.b, BranchBench.rule_op(row), v.bound], "PASS" if v.ok else "FAIL"])
+		gut.p("SUMMARY t4 p%d: %d rule(s) FAIL, %d PASS, %d rules" % [p, fails, BranchBench.RULES.size() - fails, BranchBench.RULES.size()])
+	assert_true(true)
+
 func test_rules_at_every_tier_3_pressure() -> void:
 	await wait_physics_frames(10)
 	var pressures := _pressures()
