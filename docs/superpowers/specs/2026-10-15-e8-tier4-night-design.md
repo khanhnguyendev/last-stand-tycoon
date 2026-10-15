@@ -102,7 +102,7 @@ weakness, at most 3 words, through `tr()`:
 - Longbow: "weak to hares";
 - Volley: "weak to brutes";
 - Spike fence: "brutes smash it";
-- Stone wall: "no use on hares".
+- Stone wall: "useless on hares".
 
 The specialty row and the fence's "lost if broken" note stay where they are. The card grows by one row. Its obstacle
 and clipping tests are updated to the new height. A shot pack shows all four cards (D-314.3).
