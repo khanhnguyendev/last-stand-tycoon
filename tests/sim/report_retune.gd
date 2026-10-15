@@ -53,7 +53,7 @@ func _initialize() -> void:
 		quit(2)
 		return
 	var set_id := String(args.set)
-	var tag := set_id + ("" if bot_rule == "walk" else "_" + bot_rule)  # file names: a run with another bot rule never overwrites the walk-rule run's logs
+	var tag := set_id + "_" + bot_rule  # file names: a run with another bot rule never overwrites another rule's logs
 	var seed_set: Dictionary = SweepMath.set_by_id(set_id)
 	if seed_set.is_empty():
 		push_error("bad --set=%s (tuning|3|4; 1 is retired, 2 is spent)" % set_id)

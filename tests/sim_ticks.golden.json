@@ -31,7 +31,7 @@
   "res://tests/sim_tier_b/test_tier3_sims.gd::test_3_the_baron_night_without_the_yard_towers_is_lost": 6023,
   "res://tests/sim_tier_b/test_tier3_sims.gd::test_4_the_hero_at_the_zone_reaches_the_baron_before_it_reaches_the_zone": 2159,
   "res://tests/sim_tier_b/test_tier3_sims.gd::test_5_the_tier_bot_holds_the_first_tier3_night_with_0_retries": 23375,
-  "res://tests/sim_tier_b/test_tier3_sims.gd::test_6_every_branch_policy_holds_the_tier3_cap_with_0_retries": 25401,
+  "res://tests/sim_tier_b/test_tier3_sims.gd::test_6_every_branch_policy_holds_the_tier3_cap_with_0_retries": 25409,
   "res://tests/sim_tier_b/test_tier3_sims.gd::test_7_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again_within_5_s": 5617,
   "res://tests/sim_tier_b/test_tier3_sims.gd::test_8a_tier1_and_tier2_plans_and_the_sweep_row_inputs_are_unchanged": 10,
   "res://tests/sim_tier_b/test_tier3_sims.gd::test_8b_the_tier2_fixture_night_ends_as_recorded": 5889

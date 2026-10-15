@@ -362,7 +362,7 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 	var same_set := false
 	for e in history:
 		lines.append("FINAL_EARLIER set=#%s commit=%s date=%s done=%s ok=%s" % [e.set, e.commit, e.get("date", ""), str(e.get("done", false)).to_lower(), str(e.get("ok", false)).to_lower()])
-		lines[lines.size() - 1] += " complete=%s" % str(e.get("complete", true)).to_lower()
+		lines[lines.size() - 1] += " complete=%s bot_rule=%s" % [str(e.get("complete", true)).to_lower(), canon_bot_rule(String(e.get("bot_rule", "new")))]
 		if String(e.set) == set_id:
 			if canon_bot_rule(String(e.get("bot_rule", "new"))) == bot_rule and bool(e.get("complete", true)):
 				return refuse.call("set #%s was already run with bot rule '%s' (commit %s): a measurement set runs once per bot rule (D-307, D-310); no run was started" % [set_id, bot_rule, e.commit])

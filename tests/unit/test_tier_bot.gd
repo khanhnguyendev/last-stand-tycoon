@@ -876,25 +876,51 @@ func test_walk_length_on_the_tier_3_graph_follows_the_route_not_the_straight_lin
 	assert_almost_eq(TierBot.walk_time(len, Balance.data.hero.move_speed), 5.7822, 0.001)
 	assert_gt(len, from.distance_to(g.position_of("zone_east")) * 2.5)
 
-## Damage per second of one tower against `kinds`. Numbers from the balance: unbranched level 3 = tower_damage[2] 18 / tower_interval 0.5 s = 36; Longbow = 120 x 2.0 (brute) / 2.0 s = 120
-## (60 against a boar); Volley = 10 x min(3, n) / 0.5 s = 20 (1 enemy), 40 (2 enemies), 60 (3 or more).
-func test_tower_dps_uses_the_shipped_stats() -> void:
+## Damage per second of one tower against enemies given as (hp, kind). A hit removes at most the enemy's HP left, so the effective damage per hit is the mean over the enemies of
+## min(damage x kind multiplier, hp); a tower makes min(count, n) hits per interval. Numbers from the balance: unbranched level 3 = tower_damage[2] 18, tower_interval 0.5 s;
+## level 1 = 8; Longbow = 120 (x2.0 against a brute) every 2.0 s, 1 target; Volley = 10 every 0.5 s, 3 targets. Enemy HP used here: hare 15, boar 30, "brute" 100 (a test number).
+func test_tower_dps_is_capped_by_the_hp_a_hit_can_remove() -> void:
 	var plain := TowerSpot.stats_for(3, &"")
-	assert_almost_eq(TierBot.tower_dps(plain, [&"boar"]), 36.0, 1e-6)
-	assert_almost_eq(TierBot.tower_dps(plain, [&"boar", &"brute", &"hare"]), 36.0, 1e-6, "one hit per attack, no kind multiplier")
-	assert_almost_eq(TierBot.tower_dps(TowerSpot.stats_for(1, &""), [&"boar"]), 16.0, 1e-6, "level 1: 8 / 0.5")
+	assert_almost_eq(TierBot.tower_dps(plain, [30.0], [&"boar"]), 36.0, 1e-6, "18 < 30 hp: min = 18; 18 / 0.5")
+	assert_almost_eq(TierBot.tower_dps(plain, [15.0, 15.0, 15.0], [&"hare", &"hare", &"hare"]), 30.0, 1e-6, "hares: min(18, 15) = 15 per hit; 15 / 0.5")
+	assert_almost_eq(TierBot.tower_dps(plain, [15.0], [&"hare"]), 30.0, 1e-6, "an unbranched tower against a hare (18 vs 15 hp): 15 / 0.5")
+	assert_almost_eq(TierBot.tower_dps(TowerSpot.stats_for(1, &""), [15.0], [&"hare"]), 16.0, 1e-6, "level 1: min(8, 15) = 8; 8 / 0.5")
 	var longbow := TowerSpot.stats_for(3, &"longbow")
-	assert_almost_eq(TierBot.tower_dps(longbow, [&"brute"]), 120.0, 1e-6, "120 x 2.0 / 2.0 s")
-	assert_almost_eq(TierBot.tower_dps(longbow, [&"boar"]), 60.0, 1e-6, "no multiplier against a boar")
-	assert_almost_eq(TierBot.tower_dps(longbow, [&"brute", &"boar"]), 90.0, 1e-6, "the multiplier averaged over the lane: (2 + 1) / 2 x 60")
+	assert_almost_eq(TierBot.tower_dps(longbow, [30.0, 30.0, 30.0, 30.0], [&"boar", &"boar", &"boar", &"boar"]), 15.0, 1e-6, "four 30-hp boars: min(120, 30) = 30 per hit; 30 / 2.0 s")
+	assert_almost_eq(TierBot.tower_dps(longbow, [100.0, 30.0], [&"brute", &"boar"]), 32.5, 1e-6, "brute min(240, 100) = 100, boar min(120, 30) = 30: mean 65; 65 / 2.0 s")
+	assert_almost_eq(TierBot.tower_dps(longbow, [1000.0], [&"brute"]), 120.0, 1e-6, "a brute with hp to spare: 120 x 2.0 = 240; 240 / 2.0 s")
+	assert_almost_eq(TierBot.tower_dps(longbow, [1000.0], [&"boar"]), 60.0, 1e-6, "no multiplier against a boar: 120 / 2.0 s")
 	var volley := TowerSpot.stats_for(3, &"volley")
-	assert_almost_eq(TierBot.tower_dps(volley, [&"boar"]), 20.0, 1e-6, "min(3, 1) hits")
-	assert_almost_eq(TierBot.tower_dps(volley, [&"boar", &"boar"]), 40.0, 1e-6, "min(3, 2) hits: 2 x 10 / 0.5 s")
-	assert_almost_eq(TierBot.tower_dps(volley, [&"boar", &"boar", &"boar", &"boar"]), 60.0, 1e-6, "capped at 3 targets")
-	assert_eq(TierBot.tower_dps(volley, []), 0.0, "no enemy")
+	assert_almost_eq(TierBot.tower_dps(volley, [30.0], [&"boar"]), 20.0, 1e-6, "min(3, 1) hits of min(10, 30) = 10; 10 / 0.5 s")
+	assert_almost_eq(TierBot.tower_dps(volley, [30.0, 5.0], [&"boar", &"boar"]), 30.0, 1e-6, "2 enemies: per hit mean(10, 5) = 7.5; min(3, 2) = 2 hits: 15 / 0.5 s")
+	assert_almost_eq(TierBot.tower_dps(volley, [30.0, 30.0, 30.0, 30.0], [&"boar", &"boar", &"boar", &"boar"]), 60.0, 1e-6, "capped at 3 targets: 3 x 10 / 0.5 s")
+	assert_eq(TierBot.tower_dps(volley, [], []), 0.0, "no enemy")
+
+## The bot's per-tower DPS list for a lane: exactly the built towers that cover it, in GameState.buildings order (spots_for_tier(3): tower_nw, tower_ne, ..., tower_w, tower_e, ...).
+## East is covered by tower_ne and tower_e. Three hares (15 hp) sit in the east lane: an unbranched level-3 tower deals min(18, 15) / 0.5 = 30 each; a Longbow min(120, 15) / 2.0 = 7.5.
+func test_lane_dps_lists_exactly_the_towers_covering_the_lane() -> void:
+	var bot := await _bot_world(3)
+	var wd := bot.main.world.wave_director
+	for i in 3:
+		_spawn_at(wd, "east", &"hare", 2.0)
+	assert_eq(bot._lane_dps(wd, "east"), [], "nothing built")
+	_max_all_spots()
+	var got: Array = bot._lane_dps(wd, "east")
+	assert_eq(got.size(), 2, "tower_ne and tower_e only (not tower_nw, tower_w, tower_sw, nor a fence)")
+	assert_almost_eq(float(got[0]), 30.0, 1e-6, "tower_ne, unbranched")
+	assert_almost_eq(float(got[1]), 30.0, 1e-6, "tower_e, unbranched")
+	GameState.buildings["tower_e"].branch = "longbow"
+	got = bot._lane_dps(wd, "east")
+	assert_eq(got.size(), 2)
+	assert_almost_eq(float(got[0]), 30.0, 1e-6, "tower_ne unchanged")
+	assert_almost_eq(float(got[1]), 7.5, 1e-6, "tower_e as a Longbow: overkill-capped 15 per hit every 2.0 s")
+	GameState.buildings["tower_ne"].level = 0
+	got = bot._lane_dps(wd, "east")
+	assert_eq(got.size(), 1, "a level 0 tower gives no entry")
+	assert_almost_eq(float(got[0]), 7.5, 1e-6, "only tower_e is left")
 
 ## Scene: the walk-time rule at tier 3. West keeps one hare, east holds three (the most): without towers the towers' clear time is INF, so the hero goes east; with every
-## tower built the three hares (45 hp) die in 0.625 s, far under the walk (over 10 m at 5 m/s), so the hero keeps west and the refusal is counted; with 1000x hp enemies the
+## tower built the three hares (45 hp) die in 0.75 s (each tower: min(18, 15) / 0.5 = 30 dps, two cover east: 45 / 60), far under the walk (over 10 m at 5 m/s), so the hero keeps west and the refusal is counted; with 1000x hp enemies the
 ## clear time exceeds the walk and the hero goes.
 func test_the_walk_time_rule_in_the_scene() -> void:
 	var bot := await _bot_world(3)
@@ -908,8 +934,8 @@ func test_the_walk_time_rule_in_the_scene() -> void:
 	assert_eq(bot.far_kept, 0)
 	_max_all_spots()
 	var walk_len := TierBot.route_length(bot.hero.xz(), bot.graph.route_from(bot.hero.xz(), "zone_east"))
-	assert_gt(walk_len / bot.hero.move_speed(), 0.7, "precondition: the walk is longer than the 0.625 s clear")
-	assert_eq(_live_pick(bot), "west", "towers clear east in 0.625 s, before the hero would arrive: keep")
+	assert_gt(walk_len / bot.hero.move_speed(), 0.8, "precondition: the walk is longer than the 0.75 s clear")
+	assert_eq(_live_pick(bot), "west", "towers clear east in 0.75 s, before the hero would arrive: keep")
 	assert_eq(bot.far_kept, 1)
 	bot.rule = "far"
 	assert_eq(_live_pick(bot), "west", "rule far: keep as well")

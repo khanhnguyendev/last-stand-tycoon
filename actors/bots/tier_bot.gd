@@ -97,12 +97,14 @@ func _lane_hp(wd: WaveDirector, lane: String) -> Array:
 			out.append(float(b.health.hp))
 	return out
 
-## Damage per second of every built tower that covers `lane`, against the live enemies of `lane` (scene read; each tower's stats as TowerSpot applies them).
+## Damage per second of every built tower that covers `lane`, against the live enemies of `lane` and their current HP (scene read; each tower's stats as TowerSpot applies them).
 func _lane_dps(wd: WaveDirector, lane: String) -> Array:
 	var kinds: Array = []
+	var hps: Array = []
 	for b in wd.alive_enemies():
 		if String(b.lane) == lane:
 			kinds.append(b.kind)
+			hps.append(float(b.health.hp))
 	var out: Array = []
 	for id in GameState.buildings:
 		if MapLayout.spot_kind(id) != "tower" or not lane in MapLayout.tower_lanes(id):
@@ -110,19 +112,21 @@ func _lane_dps(wd: WaveDirector, lane: String) -> Array:
 		var level := int(GameState.buildings[id].level)
 		if level < 1:
 			continue
-		out.append(tower_dps(TowerSpot.stats_for(level, GameState.branch_of(id)), kinds))
+		out.append(tower_dps(TowerSpot.stats_for(level, GameState.branch_of(id)), hps, kinds))
 	return out
 
-## Pure. Damage per second one tower deals against enemies of the given `kinds` (one entry per live enemy): min(count, n) hits per `interval`, each of damage x the
-## tower's kind multiplier (Longbow against brutes; absent kind = 1.0), the multiplier averaged over the enemies (the tower may hit any of them). No enemies: 0.
-static func tower_dps(stats: TowerBranchStats, kinds: Array) -> float:
-	if kinds.is_empty() or stats.interval <= 0.0:
+## Pure. Damage per second one tower deals against the live enemies of a lane: `hp_list` is their current HP, `kinds` their kinds (same order). A hit removes at most
+## what is left, so the effective damage per hit is the mean over the enemies k of min(damage x kind multiplier_k, hp_k) (the tower may hit any of them; absent kind
+## multiplier = 1.0); a tower makes min(count, n) hits per `interval`. No enemies or no interval: 0.
+static func tower_dps(stats: TowerBranchStats, hp_list: Array, kinds: Array) -> float:
+	var n := mini(hp_list.size(), kinds.size())
+	if n == 0 or stats.interval <= 0.0:
 		return 0.0
-	var mult := 0.0
-	for k in kinds:
-		mult += float(stats.kind_mults.get(k, 1.0))
-	mult /= float(kinds.size())
-	return float(mini(stats.count, kinds.size())) * stats.damage * mult / stats.interval
+	var per_hit := 0.0
+	for i in n:
+		per_hit += minf(stats.damage * float(stats.kind_mults.get(kinds[i], 1.0)), float(hp_list[i]))
+	per_hit /= float(n)
+	return float(mini(stats.count, n)) * per_hit / stats.interval
 
 ## Pure. Seconds the towers need to clear a lane: the sum of the enemies' HP over the sum of the towers' damage per second. INF when no tower deals damage.
 static func clear_time(hp_list: Array, dps_list: Array) -> float:

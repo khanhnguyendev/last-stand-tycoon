@@ -647,7 +647,11 @@ func test_final_gate_incomplete_entry_does_not_block_a_rerun() -> void:
 	assert_false(blocked.allowed, "a complete entry blocks")
 	var nofield := {"history": [{"set": "3", "commit": "abc1234", "date": DATE, "days": 32, "bot_rule": "old", "done": true, "ok": false}]}
 	assert_false(SweepMath.final_gate("3", true, "def5678", nofield, DATE, 32, "old").allowed, "a missing field counts as complete")
-	assert_string_contains(_line(SweepMath.final_gate("3", true, "def5678", nofield, DATE, 32, "walk"), "FINAL_EARLIER"), "complete=true")
+	var shown := _line(SweepMath.final_gate("3", true, "def5678", nofield, DATE, 32, "walk"), "FINAL_EARLIER")
+	assert_string_contains(shown, "complete=true")
+	assert_true(shown.ends_with("bot_rule=old"), "the earlier entry prints its canonical rule: " + shown)
+	var legacy := {"history": [{"set": "3", "commit": "abc1234", "date": DATE, "days": 32, "done": true, "ok": false}]}
+	assert_true(_line(SweepMath.final_gate("3", true, "def5678", legacy, DATE, 32, "walk"), "FINAL_EARLIER").ends_with("bot_rule=far"), "a legacy entry without the field reads as far")
 
 func test_far_walks_total_line_sums_per_policy() -> void:
 	var rows: Array = [{"policy": "all_a", "far_walks": 2}, {"policy": "all_a", "far_walks": 3}, {"policy": "threat", "far_walks": 1}, {"policy": "mixed"}]
