@@ -52,7 +52,7 @@ func test_on_tie_on_primary_fails_when_the_tiebreaker_is_against() -> void:
 	assert_false(BranchBench.on_rule(_r(0.0, 100.0, 0, 50.0), [_r(0.0, 100.0, 0, 400.0), _r(0.0, 100.0, 0, 400.0)], o).ok)
 
 func test_on_stone_stands() -> void:
-	var o: Array = BranchBench.ORDER_SIEGE_FENCE
+	var o: Array = BranchBench.ORDER_STONE_ON
 	var refs := [_r(0.0, 30.0), _r(0.0, 40.0)]
 	var v := BranchBench.on_rule(_r(0.0, 70.0), refs, o)
 	assert_true(v.ok)
@@ -60,12 +60,12 @@ func test_on_stone_stands() -> void:
 	assert_false(BranchBench.on_rule(_r(0.0, 45.0), refs, o).ok)
 
 func test_on_stone_inf_against_inf_fails_with_diner_lost_pinned_equal() -> void:
-	var o: Array = BranchBench.ORDER_SIEGE_FENCE
+	var o: Array = BranchBench.ORDER_STONE_ON
 	var inf := INF
 	assert_false(BranchBench.on_rule(_r(100.0, inf), [_r(100.0, inf), _r(100.0, inf)], o).ok)
 
 func test_on_stone_inf_against_finite_passes() -> void:
-	assert_true(BranchBench.on_rule(_r(0.0, INF), [_r(0.0, 30.0), _r(0.0, 40.0)], BranchBench.ORDER_SIEGE_FENCE).ok)
+	assert_true(BranchBench.on_rule(_r(0.0, INF), [_r(0.0, 30.0), _r(0.0, 40.0)], BranchBench.ORDER_STONE_ON).ok)
 
 func test_on_spike_hares_in_zone_with_tiebreaker() -> void:
 	var o: Array = BranchBench.ORDER_SPIKE_ON
@@ -74,6 +74,14 @@ func test_on_spike_hares_in_zone_with_tiebreaker() -> void:
 	assert_false(BranchBench.on_rule(_r(0.0, 0.0, 11), refs, o).ok)
 	# primary ties; diner lost (the first tie-breaker) separates in Spike's favour
 	assert_true(BranchBench.on_rule(_r(10.0, 0.0, 12), [_r(100.0, 0.0, 12), _r(100.0, 0.0, 12)], o).ok)
+
+func test_on_reference_is_chosen_over_the_whole_order() -> void:
+	# the primary measure ties between the two references; Volley is stronger on the tie-breaker
+	assert_false(BranchBench.on_rule(_r(0.0, 100.0, 0, 150.0), [_r(0.0, 100.0, 0, 100.0), _r(0.0, 100.0, 0, 400.0)], BranchBench.ORDER_SIEGE_TOWER).ok)
+
+func test_stone_on_fence_hp_left_is_a_tiebreaker() -> void:
+	var o: Array = BranchBench.ORDER_STONE_ON
+	assert_true(BranchBench.on_rule(_r(5.0, INF, 0, 400.0), [_r(5.0, INF), _r(5.0, INF)], o).ok)
 
 # ---- OFF ----
 func test_off_longbow_hare() -> void:
@@ -107,35 +115,18 @@ func test_neutral() -> void:
 	assert_true(BranchBench.neutral_rule(_r(0.0), u).ok, "far better passes")
 
 # ---- RULES ----
-func test_rules_table_has_the_eleven_rows_of_spec_3_1() -> void:
-	assert_eq(BranchBench.RULES.size(), 11)
-	var count := {&"ON": [], &"OFF": [], &"NEUTRAL": []}
-	for row in BranchBench.RULES:
-		assert_eq(row.size(), 7, "[rule, branch, lane, measure, higher, refs, order]")
-		count[row[0]].append(row[1])
-	assert_eq(count[&"ON"], [&"longbow", &"volley", &"stone", &"spike"])
-	assert_eq(count[&"OFF"], [&"longbow", &"volley", &"spike"], "no Stone wall OFF rule (D-314.4)")
-	assert_eq(count[&"NEUTRAL"].size(), 4)
-	for b in [&"longbow", &"volley", &"stone", &"spike"]:
-		assert_true(count[&"NEUTRAL"].has(b))
-
-func test_rules_rows_match_the_spec_lanes_and_measures() -> void:
-	var by := {}
-	for row in BranchBench.RULES:
-		by["%s/%s" % [row[0], row[1]]] = row
-	assert_eq(by["ON/longbow"][2], &"siege")
-	assert_eq(by["ON/volley"][2], &"hare")
-	assert_eq(by["ON/stone"][3], "fence_stands_s")
-	assert_true(by["ON/stone"][4])
-	assert_eq(by["ON/spike"][3], "hares_in_zone")
-	assert_eq(by["ON/spike"][6], BranchBench.ORDER_SPIKE_ON)
-	assert_eq(by["OFF/longbow"][2], &"hare")
-	assert_eq(by["OFF/volley"][2], &"siege")
-	assert_eq(by["OFF/spike"][3], "fence_stands_s")
-	assert_true(by["OFF/spike"][4])
-	for row in BranchBench.RULES:
-		if row[0] == &"ON":
-			assert_eq(row[5].size(), 2, "ON names unbranched and the other branch")
-			assert_eq(row[6][0][0], row[3], "the primary tie-break measure is the rule's measure")
-		else:
-			assert_eq(row[5], ["-/-"])
+func test_rules_table_is_the_eleven_rows_of_spec_3_1() -> void:
+	var expected: Array = [
+		[&"ON", &"longbow", &"siege", "diner_lost", false, ["-/-", "volley/-"], [["diner_lost", false], ["fence_hp_left", true]]],
+		[&"ON", &"volley", &"hare", "diner_lost", false, ["-/-", "longbow/-"], [["diner_lost", false], ["hares_in_zone", false], ["clear_s", false]]],
+		[&"ON", &"stone", &"siege", "fence_stands_s", true, ["-/-", "-/spike"], [["fence_stands_s", true], ["diner_lost", false], ["fence_hp_left", true]]],
+		[&"ON", &"spike", &"hare", "hares_in_zone", false, ["-/-", "-/stone"], [["hares_in_zone", false], ["diner_lost", false], ["clear_s", false]]],
+		[&"OFF", &"longbow", &"hare", "diner_lost", false, ["-/-"], []],
+		[&"OFF", &"volley", &"siege", "diner_lost", false, ["-/-"], []],
+		[&"OFF", &"spike", &"siege", "fence_stands_s", true, ["-/-"], []],
+		[&"NEUTRAL", &"longbow", &"neutral", "diner_lost", false, ["-/-"], []],
+		[&"NEUTRAL", &"volley", &"neutral", "diner_lost", false, ["-/-"], []],
+		[&"NEUTRAL", &"stone", &"neutral", "diner_lost", false, ["-/-"], []],
+		[&"NEUTRAL", &"spike", &"neutral", "diner_lost", false, ["-/-"], []],
+	]
+	assert_eq(BranchBench.RULES, expected)

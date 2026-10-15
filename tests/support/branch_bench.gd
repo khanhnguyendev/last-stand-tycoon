@@ -94,7 +94,7 @@ static func no_worse(a: Dictionary, b: Dictionary, lane: StringName) -> Dictiona
 	return {"ok": true, "why": "tied on every floor measure"}
 
 ## Does the specialist beat the reference by MARGIN on the first measure of `order` that separates them?
-## {ok, measure, a, b, bound, why}. Lower-is-better: a <= 0.85 b. Higher-is-better: a >= 1.15 b (INF if b is INF; a reference of 0 is beaten by any positive a).
+## {ok, measure, a, b, bound, why}. `margin` (default MARGIN): lower-is-better a <= (1 - margin) b; higher-is-better a >= (1 + margin) b (INF if b is INF; a reference of 0 is beaten by any positive a).
 ## If no measure separates them, ok is false.
 static func beats_by_margin(spec: Dictionary, ref: Dictionary, order: Array, margin := MARGIN) -> Dictionary:
 	for m in order:
@@ -114,11 +114,13 @@ static func beats_by_margin(spec: Dictionary, ref: Dictionary, order: Array, mar
 ## [rule, branch, lane, measure, higher, refs, order]. `refs` are cfg_name()s of the reference configurations: ON names the unbranched
 ## building and the other branch of its kind; OFF and NEUTRAL name unbranched. `order` is the tie-break order, primary measure first
 ## (ON only; OFF and NEUTRAL read the single `measure`). One row per line of spec 3.1: 4 ON, 3 OFF (the Stone wall has none, D-314.4), 4 NEUTRAL.
+## The Stone wall's ON order: how long the fence stands, then diner HP lost, then fence HP left (spec 3.1 tie-breakers, D-314.17).
+const ORDER_STONE_ON := [["fence_stands_s", true], ["diner_lost", false], ["fence_hp_left", true]]
 const ORDER_SPIKE_ON := [["hares_in_zone", false], ["diner_lost", false], ["clear_s", false]]
 const RULES: Array = [
 	[&"ON", &"longbow", &"siege", "diner_lost", false, ["-/-", "volley/-"], ORDER_SIEGE_TOWER],
 	[&"ON", &"volley", &"hare", "diner_lost", false, ["-/-", "longbow/-"], ORDER_HARE],
-	[&"ON", &"stone", &"siege", "fence_stands_s", true, ["-/-", "-/spike"], ORDER_SIEGE_FENCE],
+	[&"ON", &"stone", &"siege", "fence_stands_s", true, ["-/-", "-/spike"], ORDER_STONE_ON],
 	[&"ON", &"spike", &"hare", "hares_in_zone", false, ["-/-", "-/stone"], ORDER_SPIKE_ON],
 	[&"OFF", &"longbow", &"hare", "diner_lost", false, ["-/-"], []],
 	[&"OFF", &"volley", &"siege", "diner_lost", false, ["-/-"], []],
@@ -132,16 +134,21 @@ const RULES: Array = [
 static func _verdict(ok: bool, measure: String, a: float, b: float, bound: float, why: String) -> Dictionary:
 	return {"ok": ok, "measure": measure, "a": a, "b": b, "bound": bound, "why": why}
 
+## Is `x` strictly better than `y`? The first measure of `order` that separates them decides; tied on all -> false.
+static func _better(x: Dictionary, y: Dictionary, order: Array) -> bool:
+	for m in order:
+		var name: String = m[0]
+		if same(float(x[name]), float(y[name])):
+			continue
+		return float(x[name]) > float(y[name]) if m[1] else float(x[name]) < float(y[name])
+	return false
+
 ## ON: ONE beats_by_margin call against the better reference on the primary measure (order[0]), at m_on. A tie on the primary measure
 ## fails unless a tie-breaker of `order` separates the runs in the specialist's favour (D-314.14).
 static func on_rule(spec: Dictionary, refs: Array, order: Array) -> Dictionary:
-	var name: String = order[0][0]
-	var higher: bool = order[0][1]
 	var best: Dictionary = refs[0]
 	for r in refs:
-		var rv := float(r[name])
-		var bv := float(best[name])
-		if (rv > bv) if higher else (rv < bv):
+		if _better(r, best, order):
 			best = r
 	return beats_by_margin(spec, best, order, float(Balance.data.branches.bench_m_on))
 
