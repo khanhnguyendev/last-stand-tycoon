@@ -176,6 +176,10 @@ func test_seed_sets_are_the_pinned_literals_and_the_scan_reproduces_them() -> vo
 	var h2 := {"east": [8, 11], "sw": [21, 23], "west": [18, 25], "north": [16, 19]}
 	var m3 := {"east": [15, 17], "sw": [28, 29], "west": [30, 36], "north": [22, 26]}
 	var m4 := {"east": [20, 24], "sw": [33, 34], "west": [39, 48], "north": [27, 32]}
+	var m5 := {"east": [31, 35], "sw": [42, 44], "west": [59, 66], "north": [38, 43]}
+	var m6 := {"east": [37, 40], "sw": [45, 47], "west": [68, 76], "north": [49, 53]}
+	assert_eq(SweepMath.MEASURE_SET_5, m5, "E8 measurement set #5: scan positions 10 and 11")
+	assert_eq(SweepMath.MEASURE_SET_6, m6, "E8 measurement set #6: scan positions 12 and 13")
 	assert_eq(SweepMath.MEASURE_SET_3, m3, "E7 measurement set #3: scan positions 6 and 7")
 	assert_eq(SweepMath.MEASURE_SET_4, m4, "E7 measurement set #4: scan positions 8 and 9")
 	assert_eq(SweepMath.SCAN_TUNING_SET, scan_tuning)
@@ -189,7 +193,9 @@ func test_seed_sets_are_the_pinned_literals_and_the_scan_reproduces_them() -> vo
 	assert_eq(scan.holdout2, h2)
 	assert_eq(scan.set3, m3, "set #3 is positions 6 and 7 of the same scan")
 	assert_eq(scan.set4, m4, "set #4 is positions 8 and 9 of the same scan")
-	assert_eq(SweepMath.SCAN_PER_LANE, 9, "positions 10 and 11 are not scanned, so not named")
+	assert_eq(scan.set5, m5, "set #5 is positions 10 and 11 of the same scan")
+	assert_eq(scan.set6, m6, "set #6 is positions 12 and 13 of the same scan")
+	assert_eq(SweepMath.SCAN_PER_LANE, 13)
 	assert_eq(SweepMath.with_promotion(scan.tuning, SweepMath.PROMOTED_TO_TUNING), SweepMath.TUNING_SET)
 
 func test_with_promotion_appends_per_lane_once() -> void:
@@ -210,7 +216,7 @@ func test_hold_out_set_1_is_retired_set_2_is_spent_and_set_3_is_open() -> void:
 	assert_string_contains(String(sp.lines[0]), "spent")
 	assert_eq(SweepMath.SPENT_SETS, ["2"])
 	assert_false(SweepMath.set_by_id("2").is_empty(), "the literal stays readable for the history")
-	for ok_id in ["tuning", "3", "4"]:
+	for ok_id in ["tuning", "3", "4", "5", "6"]:
 		assert_false(SweepMath.retired_gate(ok_id).refused, ok_id)
 		assert_true(SweepMath.retired_gate(ok_id).lines.is_empty())
 	assert_false(SweepMath.set_by_id("1").is_empty(), "the literal stays readable for the history")
@@ -242,20 +248,22 @@ func test_the_three_sets_are_disjoint_and_in_scan_order() -> void:
 	# D-304: the scan's tuning set, retired set #1 and set #2 are disjoint and in scan order; the run tuning set differs from the scan's only by the promoted seed 14,
 	# which is also in the retired set #1 literal (the one allowed overlap).
 	var seen := {}
-	for set in [SweepMath.SCAN_TUNING_SET, SweepMath.HOLDOUT_SET_1, SweepMath.HOLDOUT_SET_2, SweepMath.MEASURE_SET_3, SweepMath.MEASURE_SET_4]:
+	for set in [SweepMath.SCAN_TUNING_SET, SweepMath.HOLDOUT_SET_1, SweepMath.HOLDOUT_SET_2, SweepMath.MEASURE_SET_3, SweepMath.MEASURE_SET_4, SweepMath.MEASURE_SET_5, SweepMath.MEASURE_SET_6]:
 		for s in SweepMath.set_seeds(set):
 			assert_false(seen.has(s), "seed %d is in two sets" % s)
 			seen[s] = true
-	assert_eq(seen.size(), 4 + 8 + 8 + 8 + 8)
+	assert_eq(seen.size(), 4 + 8 + 8 + 8 + 8 + 8 + 8)
 	for lane in LANES4:
-		var all: Array = SweepMath.SCAN_TUNING_SET[lane] + SweepMath.HOLDOUT_SET_1[lane] + SweepMath.HOLDOUT_SET_2[lane] + SweepMath.MEASURE_SET_3[lane] + SweepMath.MEASURE_SET_4[lane]
+		var all: Array = SweepMath.SCAN_TUNING_SET[lane] + SweepMath.HOLDOUT_SET_1[lane] + SweepMath.HOLDOUT_SET_2[lane] + SweepMath.MEASURE_SET_3[lane] + SweepMath.MEASURE_SET_4[lane] + SweepMath.MEASURE_SET_5[lane] + SweepMath.MEASURE_SET_6[lane]
 		var sorted_all := all.duplicate()
 		sorted_all.sort()
-		assert_eq(all, sorted_all, "%s: tuning, then #1, #2, #3, #4, each later in the scan" % lane)
+		assert_eq(all, sorted_all, "%s: tuning, then #1, #2, #3, #4, #5, #6, each later in the scan" % lane)
 	var overlap: Array = []
 	for s in SweepMath.set_seeds(SweepMath.TUNING_SET):
 		assert_false(s in SweepMath.set_seeds(SweepMath.MEASURE_SET_3), "tuning seed %d must not be in the measurement set #3" % s)
 		assert_false(s in SweepMath.set_seeds(SweepMath.MEASURE_SET_4), "tuning seed %d must not be in the measurement set #4" % s)
+		assert_false(s in SweepMath.set_seeds(SweepMath.MEASURE_SET_5), "tuning seed %d must not be in the measurement set #5" % s)
+		assert_false(s in SweepMath.set_seeds(SweepMath.MEASURE_SET_6), "tuning seed %d must not be in the measurement set #6" % s)
 		if s in SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1):
 			overlap.append(s)
 	assert_eq(overlap, [14], "the only seed the run tuning set shares with the retired set #1 is the promoted one")
@@ -500,26 +508,35 @@ func test_fence_tax_without_a_cap_day_is_na_and_not_a_pass() -> void:
 	assert_false(res.ok)
 	assert_string_contains(res.lines[0], "FENCE_TAX: N/A")
 
-func test_fixed_spread_within_15_points() -> void:
+## E8 (plan A12): FIXED_SPREAD is information, "spread >= 5" (exactly 5.0 counts); it is no longer a counted target.
+func test_fixed_spread_is_information_and_reads_spread_at_least_5() -> void:
 	var rows := _grid()
 	for r in rows:
 		if r.policy == "all_a":
 			r.mean_frac = 0.55
 		elif r.policy == "volley_stone":
-			r.mean_frac = 0.40
-	assert_true(SweepMath.fixed_spread(rows).ok, "55 minus 40 is 15.0, inside")
+			r.mean_frac = 0.50
+	assert_true(SweepMath.fixed_spread(rows).ok, "55 minus 50 is 5.0, counted as spread >= 5")
+	assert_string_contains(SweepMath.fixed_spread(rows).lines[0], "spread >= 5")
 	for r in rows:
-		if r.policy == "volley_stone":
-			r.mean_frac = 0.399
-	assert_false(SweepMath.fixed_spread(rows).ok, "15.1 is outside")
+		if r.policy == "all_a":
+			r.mean_frac = 0.549
+	assert_false(SweepMath.fixed_spread(rows).ok, "4.9 is below")
+	assert_string_contains(SweepMath.fixed_spread(rows).lines[0], "spread < 5")
 	for r in rows:
-		if r.policy == "volley_stone":
-			r.mean_frac = 0.40  # back to the passing 15.0 state
-		elif r.policy == "threat":
+		if r.policy == "threat":
 			r.mean_frac = 0.99
 		elif r.policy == "unbranched":
 			r.mean_frac = 0.01
-	assert_true(SweepMath.fixed_spread(rows).ok, "threat and unbranched are not fixed pairs: the passing verdict does not move")
+	assert_false(SweepMath.fixed_spread(rows).ok, "threat and unbranched are not fixed pairs")
+	assert_string_contains(SweepMath.fixed_spread(rows).lines[0], "4.9")
+
+func test_fixed_spread_never_fails_the_report() -> void:
+	var res := SweepMath.retune_report(_grid(), _expected(), true)  # every fixed pair equal: spread 0
+	assert_false(SweepMath.fixed_spread(_grid()).ok)
+	assert_false("FIXED_SPREAD" in res.failed, "information only")
+	assert_true(res.ok)
+	assert_ne(_line(res, "FIXED_SPREAD"), "", "the line is still printed")
 
 func test_hare_share_is_flagged_below_0_6_per_seed() -> void:
 	var rows := _grid()
@@ -810,10 +827,10 @@ func _expected() -> Array:
 		out.append([r.seed, r.policy])
 	return out
 
-func test_report_with_every_run_prints_the_eight_verdict_lines_and_exits_0() -> void:
+func test_report_with_every_run_prints_the_nine_verdict_lines_and_exits_0() -> void:
 	var res := SweepMath.retune_report(_grid(), _expected())
 	assert_eq(res.exit, 0)
-	for key in ["THREAT_LEAD:", "THREAT_LEAD_BY_LANE:", "RETRY_NIGHTS:", "FIRST_T3_NIGHT:", "FENCE_TAX:", "FIXED_SPREAD:", "HARE_SHARE:", "LANE_CAP_GUARD:"]:
+	for key in ["THREAT_LEAD:", "THREAT_LEAD_BY_LANE:", "RETRY_NIGHTS:", "FIRST_T3_NIGHT:", "FIRST_NIGHT_BAND:", "FENCE_TAX:", "FIXED_SPREAD:", "HARE_SHARE:", "LANE_CAP_GUARD:"]:
 		assert_ne(_line(res, key), "", key)
 
 ## A missing run (no row), a failed run (hard break) and a run that never reached tier 3 each remove every verdict line and give exit 1.
@@ -831,7 +848,7 @@ func test_report_with_a_missing_or_failed_run_has_no_verdicts_and_exits_1() -> v
 		var res := SweepMath.retune_report(cases[k], _expected())
 		assert_eq(res.exit, 1, k)
 		assert_string_contains(res.lines[0], "FAILED")
-		for key in ["THREAT_LEAD", "RETRY_NIGHTS", "FIRST_T3_NIGHT", "FENCE_TAX", "FIXED_SPREAD", "HARE_SHARE", "LANE_CAP_GUARD"]:
+		for key in ["THREAT_LEAD", "RETRY_NIGHTS", "FIRST_T3_NIGHT", "FIRST_NIGHT_BAND", "FENCE_TAX", "FIXED_SPREAD", "HARE_SHARE", "LANE_CAP_GUARD"]:
 			assert_eq(_line(res, key), "", "%s: no %s line" % [k, key])
 
 func test_ladder_done_for_the_unbranched_policy_needs_no_branches() -> void:
@@ -977,3 +994,119 @@ func test_cap_night_reads_the_nights_own_tier_cap() -> void:
 	assert_false(SweepMath.cap_night(3, int(tb.tier_cap[2]), tb), "tier 3 below its own cap")
 	assert_false(SweepMath.cap_night(1, int(tb.tier_cap[1]), tb), "tier 1 has no cap night")
 	assert_false(SweepMath.cap_night(4, 12, tb), "a tier without a cap entry")
+
+## E8 (spec 3.3, plan A12): FIRST_NIGHT_BAND = one pooled median over the branch policies' first tier-3 nights, in percent, 50 to 80 inclusive.
+func _band_rows(fracs: Array) -> Array:
+	var rows: Array = []
+	var seeds := SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1)
+	var i := 0
+	for p in SweepMath.BRANCH_POLICIES:
+		for sd in seeds:
+			var lane := SweepMath.seed_lane(SweepMath.HOLDOUT_SET_1, sd)
+			rows.append(_row(sd, lane, p, 0.5, {"first_t3_frac": fracs[i % fracs.size()]}))
+			i += 1
+	return rows
+
+func test_first_night_band_inside_below_and_above_the_range() -> void:
+	assert_true(SweepMath.first_night_band(_band_rows([0.65])).ok, "65 is inside")
+	var low := SweepMath.first_night_band(_band_rows([0.45]))
+	assert_false(low.ok, "45 is below")
+	assert_string_contains(low.lines[0], "FAIL")
+	assert_false(SweepMath.first_night_band(_band_rows([0.85])).ok, "85 is above")
+
+func test_first_night_band_is_inclusive_at_exactly_50_and_80() -> void:
+	assert_true(SweepMath.first_night_band(_band_rows([0.50])).ok, "exactly 50 passes")
+	assert_true(SweepMath.first_night_band(_band_rows([0.80])).ok, "exactly 80 passes")
+	assert_false(SweepMath.first_night_band(_band_rows([0.499])).ok, "49.9 fails")
+	assert_false(SweepMath.first_night_band(_band_rows([0.801])).ok, "80.1 fails")
+
+func test_first_night_band_pools_one_median_over_every_branch_policy_run() -> void:
+	# 40 runs. all_a, all_b, mixed: 4 runs at 0.30 and 4 at 0.60 each; volley_stone and threat: all 0.95.
+	# Pooled: 12 at 30, 12 at 60, 16 at 95 -> the 20th and 21st values are 60 -> median 60 -> PASS.
+	# A median of the per-policy medians would be 45, 45, 45, 95, 95 -> 45, which FAILS: the test tells the two apart.
+	var rows := _band_rows([0.95])
+	var seen := {}
+	for r in rows:
+		if r.policy in ["all_a", "all_b", "mixed"]:
+			var k := int(seen.get(r.policy, 0))
+			r.first_t3_frac = 0.30 if k < 4 else 0.60
+			seen[r.policy] = k + 1
+	var res := SweepMath.first_night_band(rows)
+	assert_almost_eq(float(res.median), 60.0, 1e-9)
+	assert_true(res.ok)
+	assert_string_contains(res.lines[0], "over 40 branch-policy runs")
+
+func test_first_night_band_leaves_the_unbranched_reference_out() -> void:
+	var rows := _band_rows([0.65])
+	for r in _grid():
+		if r.policy == "unbranched":
+			r.first_t3_frac = 0.01
+			rows.append(r)
+	var res := SweepMath.first_night_band(rows)
+	assert_true(res.ok, "unbranched runs at 1% do not move the pooled median")
+	assert_string_contains(res.lines[0], "over 40 branch-policy runs")
+
+## A retried first night counts 0 whatever the mercy attempt read (plan Review Focus 4).
+func test_first_night_band_counts_a_retried_first_night_as_zero() -> void:
+	var rows := _band_rows([0.50])  # all 40 at exactly 50: passes
+	assert_true(SweepMath.first_night_band(rows).ok)
+	var one := 0
+	for r in rows:
+		if one < 1:
+			r.first_t3_retries = 1
+			r.first_t3_frac = 0.95  # the mercy attempt
+		one += 1
+	var res := SweepMath.first_night_band(rows)
+	assert_true(res.ok, "one 0 among 40 at 50: the median stays 50")
+	assert_string_contains("\n".join(res.lines), "retried first night")
+	# Enough retried nights drag the median under the band: 21 of 40 retried -> median 0.
+	var many := _band_rows([0.70])
+	var k := 0
+	for r in many:
+		if k < 21:
+			r.first_t3_retries = 2
+			r.first_t3_frac = 0.99
+		k += 1
+	var low := SweepMath.first_night_band(many)
+	assert_almost_eq(float(low.median), 0.0, 1e-9)
+	assert_false(low.ok)
+
+func test_first_night_band_is_a_counted_target_in_the_report() -> void:
+	var res := SweepMath.retune_report(_grid(), _expected(), true)
+	assert_ne(_line(res, "FIRST_NIGHT_BAND: PASS"), "", "the _grid first nights read 50: inside")
+	var rows := _grid()
+	for r in rows:
+		r.first_t3_frac = 0.9
+	var bad := SweepMath.retune_report(rows, _expected(), true)
+	assert_true("FIRST_NIGHT_BAND" in bad.failed)
+	assert_false(bad.ok)
+
+## E8: set #5 needs --final and 32 days; set #6 needs 45 days; each runs once per bot rule.
+func test_final_gate_sets_5_and_6_and_their_days() -> void:
+	assert_false(SweepMath.final_gate("5", false, "abc1234", {"history": []}, DATE, 32, "walk").allowed, "set #5 needs --final")
+	assert_false(SweepMath.final_gate("5", true, "abc1234-dirty", {"history": []}, DATE, 32, "walk").allowed, "set #5 needs a clean tree")
+	for d in [31, 45, 14]:
+		assert_false(SweepMath.final_gate("5", true, "abc1234", {"history": []}, DATE, d, "walk").allowed, "set #5 at %d days" % d)
+	var g5 := SweepMath.final_gate("5", true, "abc1234", {"history": []}, DATE, 32, "walk")
+	assert_true(g5.allowed)
+	assert_eq(g5.record.history[0].set, "5")
+	assert_eq(g5.record.history[0].days, 32)
+	assert_false(SweepMath.final_gate("6", false, "abc1234", {"history": []}, DATE, 45, "walk").allowed, "set #6 needs --final")
+	for d in [32, 44, 46]:
+		var bad := SweepMath.final_gate("6", true, "abc1234", {"history": []}, DATE, d, "walk")
+		assert_false(bad.allowed, "set #6 at %d days" % d)
+		assert_string_contains(bad.lines[0], "45")
+	var g6 := SweepMath.final_gate("6", true, "abc1234", {"history": []}, DATE, 45, "walk")
+	assert_true(g6.allowed)
+	assert_eq(g6.record.history[0].days, 45)
+	for id in ["5", "6"]:
+		var days := 45 if id == "6" else 32
+		var done := SweepMath.final_finish(SweepMath.final_gate(id, true, "abc1234", {"history": []}, DATE, days, "walk").record, true)
+		assert_false(SweepMath.final_gate(id, true, "def5678", done, DATE, days, "walk").allowed, "set #%s, walk rule, second run" % id)
+		assert_true(SweepMath.final_gate(id, true, "def5678", done, DATE, days, "far").allowed, "set #%s with another rule is open" % id)
+		var incomplete := SweepMath.final_finish(SweepMath.final_gate(id, true, "abc1234", {"history": []}, DATE, days, "walk").record, false, "", false)
+		assert_true(SweepMath.final_gate(id, true, "def5678", incomplete, DATE, days, "walk").allowed, "set #%s: an incomplete entry does not block a same-rule re-run" % id)
+	assert_false(SweepMath.set_by_id("5").is_empty())
+	assert_false(SweepMath.set_by_id("6").is_empty())
+	assert_eq(SweepMath.final_days("3"), 32)
+	assert_eq(SweepMath.final_days("6"), 45)
