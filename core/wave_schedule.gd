@@ -61,8 +61,8 @@ static func build(wave: Dictionary, wb: WaveBalance, tb: TierBalance = null, tie
 		return out
 	return _sorted_with_extras(out)
 
-## Ties at the same time break by group rank (boss and main 0, side 1, extra groups 2), then by build order (the boss
-## first, then main, brutes, side, then extra groups in wave.extra order): a total order, so the result never depends
+## Ties at the same time break by group rank (boss and main 0, side 1, side2 and extra groups 2), then by build order (the boss
+## first, then main, brutes, side, side2, then extra groups in wave.extra order): a total order, so the result never depends
 ## on the sort's stability.
 static func _sorted_with_extras(entries: Array) -> Array:
 	var keyed: Array = []

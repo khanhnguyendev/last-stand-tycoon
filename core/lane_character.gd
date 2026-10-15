@@ -223,7 +223,7 @@ static func brute_lane(wave: Dictionary) -> String:
 		return String(wave.side2)
 	return ""
 
-## Night-level share of the plan's hares (main, side and extra groups) that walk the hare lane; 0.0 with no hares or
+## Night-level share of the plan's hares (main, side, side2 and extra groups) that walk the hare lane; 0.0 with no hares or
 ## an empty character.
 static func hare_share(plan: Array, character: Dictionary) -> float:
 	var hare := String(character.get("hare", ""))

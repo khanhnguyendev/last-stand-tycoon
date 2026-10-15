@@ -134,7 +134,7 @@ func from_dict(d: Dictionary) -> void:
 		if tier >= 3:  # mirrors the planner's gate: a tier-1/2 plan keeps its eight keys
 			wave["brute_main"] = int(w.get("brute_main", 0))
 			wave["brute_side"] = int(w.get("brute_side", 0))
-		if tier >= 4 and w.has("side2"):  # E8: the tier-4 third group (SaveCodec validated the five keys)
+		if tier >= 4 and w.has("side2"):  # E8 (B8): read for symmetry; at tier >= 3 the plan is rebuilt below (lane_character), so this is overwritten
 			wave["side2"] = String(w.side2)
 			wave["side2_count"] = int(w.get("side2_count", 0))
 			wave["fast_side2"] = int(w.get("fast_side2", 0))

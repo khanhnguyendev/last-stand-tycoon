@@ -301,7 +301,7 @@ func _side_lane_in_use(w: int, side_lane: String) -> bool:
 		return true
 	return LaneCharacter.active_lanes(wave).has(side_lane)
 
-## E6 Task 12: the third active lane of wave w (an extra group's lane that is neither the main nor the side lane), or "".
+## E6 Task 12 (E8: or the side2 group's lane): the third active lane of wave w (an extra group's lane that is neither the main nor the side lane), or "".
 func _third_lane(w: int, main_lane: String, side_lane: String) -> String:
 	if w < 0 or w >= GameState.lane_plan.size():
 		return ""

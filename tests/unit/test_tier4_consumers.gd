@@ -92,9 +92,24 @@ func test_schedule_side2_entries_follow_side_by_build_order_and_carry_side_true(
 func test_a_wave_without_side2_schedules_entry_for_entry_as_before() -> void:
 	var w := {"main": "west", "side": "east", "main_count": 2, "side_count": 2, "hp_mult": 1.0, "fast_main": 1, "fast_side": 0, "brute_main": 0, "brute_side": 1}
 	var s := WaveSchedule.build(w, Balance.data.wave)
-	assert_eq(s.size(), 5)
-	for e in s:
-		assert_eq(e.keys().size(), 4, "t, lane, side, kind only")
+	var wb := Balance.data.wave
+	var d := wb.side_group_delay
+	var i := wb.spawn_interval
+	# Merged by t; at a tie (t = d never ties with 0 and i here unless d == k*i) the main entry comes first.
+	var want: Array = [
+		{"t": 0.0, "lane": "west", "side": false, "kind": &"boar"},
+		{"t": i, "lane": "west", "side": false, "kind": &"hare"},
+		{"t": d, "lane": "east", "side": true, "kind": &"boar"},
+		{"t": d + i, "lane": "east", "side": true, "kind": &"boar"},
+		{"t": d + 2.0 * i, "lane": "east", "side": true, "kind": &"brute"},
+	]
+	assert_eq(s.size(), want.size())
+	for k in want.size():
+		assert_eq(String(s[k].lane), want[k].lane, "entry %d lane" % k)
+		assert_eq(s[k].side, want[k].side, "entry %d side" % k)
+		assert_eq(s[k].kind, want[k].kind, "entry %d kind" % k)
+		assert_almost_eq(float(s[k].t), float(want[k].t), 0.0001, "entry %d t" % k)
+		assert_eq(s[k].keys().size(), 4, "t, lane, side, kind only")
 
 # --- the planner's readers, the telegraph ---------------------------------------------------------------------
 
@@ -109,6 +124,11 @@ func test_composition_and_threat_count_the_third_group() -> void:
 	var th := LanePlanner.threat_by_lane(_plan_t4(), base, 4)
 	assert_almost_eq(float(th.east), 4.0 * base + 2.0 * bh, 0.001)
 	assert_almost_eq(float(th.north), 4.0 * base + 1.0 * bh, 0.001)
+	var scaled := _plan_t4()
+	scaled[0].hp_mult = 1.5
+	var ths := LanePlanner.threat_by_lane(scaled, base, 4)
+	assert_almost_eq(float(ths.east), 1.5 * (4.0 * base + 2.0 * bh), 0.001, "wave 0's side2 threat scales by its hp_mult")
+	assert_almost_eq(float(ths.north), 1.5 * (3.0 * base + 1.0 * bh) + base, 0.001, "wave 1's north boar keeps hp_mult 1")
 
 func test_the_telegraph_shows_three_lanes_counts() -> void:
 	main = Main.create()
@@ -125,6 +145,7 @@ func test_the_telegraph_shows_three_lanes_counts() -> void:
 	assert_eq(mk["north"].shown(), {&"boar": 3, &"hare": 1, &"brute": 1})
 	assert_eq(mk["east"].shown(), {&"boar": 2, &"hare": 2, &"brute": 2})
 	assert_eq(mk["sw"].shown(), {&"boar": 2})
+	assert_gt(mk["east"].target_scale, 0.0, "the side2-only lane's marker is sized")
 
 # --- the arrows -----------------------------------------------------------------------------------------------
 
@@ -142,6 +163,7 @@ func test_three_edge_arrows_for_a_three_group_wave() -> void:
 	assert_true(hud.arrows.side.visible)
 	assert_true(hud.arrows.extra.visible, "the third arrow is the side2 lane")
 	assert_eq(hud._arrow_lane.extra, "east")
+	assert_true(hud.arrows.extra.heavy, "wave 0's side2 group has brutes")
 	EventBus.wave_incoming.emit(1, &"sw", &"north")
 	await get_tree().process_frame
 	assert_true(hud.arrows.side.visible)
@@ -154,7 +176,7 @@ func test_hare_share_counts_fast_side2() -> void:
 	assert_almost_eq(LaneCharacter.hare_share(_plan_t4(), {"hare": "east"}), 2.0 / 5.0, 0.0001)
 	assert_almost_eq(LaneCharacter.hare_share(_plan_t4(), {"hare": "north"}), 1.0 / 5.0, 0.0001)
 
-func test_from_dict_keeps_side2_at_tier_4_and_to_dict_round_trips() -> void:
+func test_a_tier4_save_rebuilds_its_plan_with_side2() -> void:
 	GameState.new_game(20260930)
 	GameState.debug_set_tier(4, 3)
 	GameState.day = 6
@@ -162,6 +184,7 @@ func test_from_dict_keeps_side2_at_tier_4_and_to_dict_round_trips() -> void:
 	var want: Array = GameState.lane_plan.duplicate(true)
 	assert_true(want[0].has("side2"))
 	var d := GameState.to_dict()
+	d.lane_plan[0].side2_count += 1  # a tampered save: from_dict rebuilds the plan at tier >= 3, so this is overwritten
 	GameState.new_game(5)
 	GameState.from_dict(d)
 	assert_eq(GameState.lane_plan, want)
