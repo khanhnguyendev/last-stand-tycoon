@@ -3557,3 +3557,18 @@ is no longer reachable. The tests already pin this (D-308.3).
    second goes where the layout finds land. Cost: the second tower's lane is a layout outcome, not a design choice.
 6. Phase-2 report runs are 45 days. Cost: about 1.4 times the run time of a 32-day report.
 7. FIXED_SPREAD's target turns around (the builds should now differ): reported as "spread >= 5", not must-hold.
+8. Bench margins are fixed for E8 (`m_on` 0.15, `m_off` 0.10, `m_neu` 0.15, `a_floor` 20 HP); NEUTRAL is one-sided
+   (no branch worse than unbranched by more than the band). Cost: a branch may stay much better than unbranched on
+   neutral lanes, so neutral lanes add little to the payoff.
+9. E6's FLOOR tests are replaced by the ON, OFF and NEUTRAL rules; IDENTITY's "unbranched never best" is restated for
+   the siege and hare lanes; the Spike tests take the new values; every replaced test is tabled in the phase-1 PR.
+   Cost: the old floor guarantee is gone by design.
+10. Multipliers are looked up by kind class: the Wrecker is a brute, the Baron a hare. Cost: a lookup step in the
+    attack path; the Baron meets the Longbow's hare weakness on the tier-2 boss night only if a Longbow exists, which
+    needs tier 3, so tier 2 play is unchanged.
+11. Tier-4 waves rest a neutral lane, drawn from a new stream, so the siege and hare lanes are always in the wave and
+    tiers 1 to 3 keep their draws. Cost: at tier 4 a neutral lane is quiet one wave in four lanes' worth; the player
+    never gets a wave without the two marked lanes.
+12. Tier-3 sims and the tier-3 baseline run the bot capped at tier 3 through phase 2. Cost: the tier-3 baseline stops
+    showing how gold flows once tier 4 is buyable; tier-4 tools cover that.
+13. The spec review's findings (4 critical, 13 important, 11 minor) were applied in the spec's second version.
