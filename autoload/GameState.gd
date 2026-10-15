@@ -266,7 +266,8 @@ func pay_into_spot(spot_id: String, amount: int) -> int:
 		EventBus.building_changed.emit(StringName(spot_id), b.level, b.paid)
 	return pay
 
-## `attacker_kind` (the monster's kind id, &"" = unknown) selects the branch's damage_taken_mult_by_kind.
+## `attacker_kind` (the monster's kind id, &"" = unknown) selects the branch's damage_taken_mult_by_kind by its kind CLASS
+## (MonsterBalance.kind_class: the Baron meets the hare's entry).
 func damage_fence(spot_id: String, amount: float, attacker_kind: StringName = &"") -> void:
 	var b: Dictionary = buildings[spot_id]
 	if int(b.level) < 1 or float(b.hp) <= 0.0:
@@ -363,7 +364,7 @@ func fence_thorn_damage(spot_id: String) -> float:
 	return Balance.data.branches.spike.thorn_damage * _spike_scale()
 
 ## Damage a Spike fence deals once to a monster of `kind` crossing its line; 0.0 unless the fence stands with branch
-## spike and `kind` is in its pass_kinds. Pure query.
+## spike and `kind`'s class (MonsterBalance.kind_class: the Baron is a hare) is in its pass_kinds. Pure query.
 func fence_pass_damage(spot_id: String, kind: StringName) -> float:
 	if not _spike_stands(spot_id):
 		return 0.0

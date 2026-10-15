@@ -19,6 +19,16 @@ class FakeTarget:
 	func take_hit(a: float) -> void:
 		hits += a
 
+## A target with no `kind` property at all.
+class FakeNoKind:
+	extends Node3D
+	var alive := true
+	var spawn_index := 1
+	var generation := 1
+	var hits := 0.0
+	func take_hit(a: float) -> void:
+		hits += a
+
 var main: Main
 var spot: TowerSpot
 var fired: Array = []
@@ -499,3 +509,37 @@ func test_tier_bot_tower_dps_uses_the_baron_class() -> void:
 	assert_almost_eq(TierBot.tower_dps(st, [1000.0], [&"baron"]), 30.0, 1e-6, "120 x 0.5 per 2.0 s")
 	assert_almost_eq(TierBot.tower_dps(st, [1000.0], [&"hare"]), 30.0, 1e-6)
 	assert_almost_eq(TierBot.tower_dps(st, [1000.0], [&"boar"]), 60.0, 1e-6)
+
+## Mutation: BranchMath.pass_damage compares the raw kind (the Baron then takes 0) or skips the class (a boar takes 24).
+func test_pass_damage_looks_the_kind_up_by_class() -> void:
+	var f := FenceBranchStats.new()
+	f.pass_damage = 24.0
+	f.pass_kinds = [&"hare"]
+	assert_almost_eq(BranchMath.pass_damage(f, &"baron", 1.0), 24.0, 1e-6, "the Baron is a hare")
+	assert_almost_eq(BranchMath.pass_damage(f, &"hare", 1.0), 24.0, 1e-6)
+	assert_eq(BranchMath.pass_damage(f, &"boar", 1.0), 0.0)
+
+## Mutation: fence_hold_seconds reads the raw kind (the Baron then holds as long as a boar).
+func test_fence_hold_seconds_looks_the_kind_up_by_class() -> void:
+	var f := FenceBranchStats.new()
+	f.damage_taken_mult_by_kind = {&"hare": 2.0}
+	var m := MonsterStats.new()
+	m.damage = 10.0
+	m.attack_interval = 1.0
+	m.fence_damage_mult = 1.0
+	var plain := BranchMath.fence_hold_seconds(320.0, m, f, &"boar")
+	assert_almost_eq(BranchMath.fence_hold_seconds(320.0, m, f, &"baron"), plain / 2.0, 1e-6, "the Baron takes the hare's x2.0")
+	assert_almost_eq(BranchMath.fence_hold_seconds(320.0, m, f, &"hare"), plain / 2.0, 1e-6)
+
+## Mutation: Attacker._damage_against reads target.kind without the null guard (a target with no kind errors or loses its damage).
+func test_a_target_without_a_kind_takes_full_damage_from_a_branched_tower() -> void:
+	_branch(TOWER, &"longbow")
+	_arm()
+	assert_false(spot.attacker.kind_mults.is_empty(), "precondition: the Longbow carries a table")
+	var t := FakeNoKind.new()
+	add_child_autofree(t)
+	t.global_position = Vector3(spot.global_position.x + 5.0, 0.0, spot.global_position.z)
+	_targets.append(t)
+	_attack_once()
+	await _settle()
+	assert_eq(t.hits, 120.0, "no kind means no multiplier: full damage")

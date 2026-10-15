@@ -120,10 +120,11 @@ func test_live_pressure_range_real_hp_and_identity_hold() -> void:
 
 ## E6 (D-304): tier 3 starts at pressure 10 and ramps to the cap 12, so the live range is [10, 11, 12] (tables above).
 
-## The live Longbow: the balance's Longbow (its 2.0 s interval) with its damage x its own multiplier for a monster of `kind` (an absent kind = 1.0).
+## The live Longbow: the balance's Longbow (its 2.0 s interval) with its damage x its own multiplier for a monster of `kind`, looked up by the
+## kind's class like the attack path does (an absent class = 1.0).
 func _longbow_on(kind: StringName = &"") -> TowerBranchStats:
 	var lb: TowerBranchStats = bb.tower(&"longbow").duplicate()
-	lb.damage = bb.longbow.damage * float(bb.longbow.kind_mults.get(kind, 1.0))
+	lb.damage = bb.longbow.damage * float(bb.longbow.kind_mults.get(MonsterBalance.kind_class(kind), 1.0))
 	return lb
 
 func test_live_pressure_range_real_hp_is_pinned() -> void:

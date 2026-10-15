@@ -14,7 +14,7 @@ var enabled := true
 ## Projectiles per attack, one at each of the first `count` targets of Targeting.select_many (Volley, E5 tier 3).
 var count := 1
 ## E6 (D-283): damage x this by the target's kind class (MonsterBalance.kind_class; an absent class = 1.0). Empty for every shooter but a
-## branched tower whose stats name a class (Longbow, Volley). Resolved at launch: a projectile can only hit the target it was launched at (it is lost if that
+## branched tower whose stats name a class (the table is filled for the Longbow and, from E8 Task 3, the Volley). Resolved at launch: a projectile can only hit the target it was launched at (it is lost if that
 ## target dies), and a monster's kind never changes, so the launch-time multiplier is the hit-time one.
 var kind_mults: Dictionary = {}
 ## Which projectile art this shooter's shots wear (S4 Task 7a, D-191): the hero's is &"knife".
