@@ -404,9 +404,15 @@ func test_tier_3_arrays_are_live_and_the_top_tier_is_3() -> void:
 	assert_eq([tb.fast_share_start[3], tb.fast_share[3], tb.fast_ramp_days[3]], [0.35, 0.35, 1])
 	assert_eq([tb.brute_cap_main[3], tb.brute_cap_side[3], tb.brute_ramp_days[3]], [1, 0, 3], "main-lane brutes only (the ruling)")
 	assert_eq([tb.brute_cap_main[2], tb.brute_cap_side[2]], [0, 0], "tier 2 carries no brutes")
+	for arr in [tb.tier_base, tb.tier_cap, tb.fast_share_start, tb.fast_share, tb.fast_ramp_days, tb.brute_cap_main, tb.brute_cap_side, tb.brute_ramp_days, tb.boss_kind]:
+		assert_eq((arr as Array).size(), 5, "every tier array is pinned at 5 entries (index 0 unused, tiers 1 to 4); tier_costs is extended by phase 2 Task 9")
+	assert_eq([tb.tier_base[4], tb.tier_cap[4]], [12, 15], "spec 4.1: tier 4 starts at 12 and caps at 15")
+	assert_eq([tb.fast_share_start[4], tb.fast_share[4], tb.fast_ramp_days[4]], [0.35, 0.35, 1])
+	assert_eq([tb.brute_cap_main[4], tb.brute_cap_side[4], tb.brute_ramp_days[4]], [1, 0, 1])
+	assert_eq(tb.tier_costs.size(), 3, "the price of tier 4 is Task 9's")
 	assert_eq(tb.boss_kind[1], &"boss")
 	assert_eq(tb.boss_kind[2], &"baron")
-	assert_eq(Array(tb.boss_kind), [&"", &"boss", &"baron", &""])
+	assert_eq(Array(tb.boss_kind), [&"", &"boss", &"baron", &"wrecker", &""])
 	var last := tb.boss_kind.size() - 1
 	for t in range(1, last):
 		assert_ne(tb.boss_kind[t], &"", "boss_kind[%d] must name the boss that leaves tier %d (a new tier must add its boss)" % [t, t])

@@ -47,6 +47,12 @@ static func params(kind: StringName) -> Dictionary:
 			return {"scale": 1.65, "body_scale": Vector3(0.8, 0.8, 1.4), "upper": snout.lerp(red, 0.22), "belly": snout.lerp(maroon, 0.15),
 				"ears": red, "ear_len": 1.5, "tusks": 0, "ridge": 0, "ridge_h": 1.0, "leg_len": 0.32, "leg_xz": Vector2(0.24, 0.42),
 				"head_k": 0.85, "head_dz": 0.22, "tusk_color": Palette.color(&"stone"), "crown": 5}
+		# The Wrecker (E8 phase 2 Task 2): the brute's build scaled up to boss size, a darker maroon coat (palette only, no hero colours),
+		# `stone` tusks, the brute's tall ridge. Task 5 adds the rest of its look.
+		&"wrecker":
+			return {"scale": 2.3, "body_scale": Vector3(1.3, 0.85, 1.1), "upper": maroon.lerp(red, 0.3), "belly": maroon,
+				"ears": snout, "ear_len": 0.0, "tusks": 2, "ridge": 5, "ridge_h": 1.25, "leg_len": 0.22, "leg_xz": Vector2(0.33, 0.3),
+				"head_k": 1.15, "head_dz": 0.04, "tusk_color": Palette.color(&"stone")}
 	return {"scale": 1.0, "body_scale": BODY_SCALE, "upper": maroon.lerp(red, 0.4), "belly": red, "ears": snout,
 		"ear_len": 0.0, "tusks": 2, "ridge": 5, "ridge_h": 1.0, "leg_len": 0.25, "leg_xz": Vector2(0.27, 0.3), "head_k": 1.0, "head_dz": 0.0,
 		"tusk_color": Palette.color(&"apron_white")}
