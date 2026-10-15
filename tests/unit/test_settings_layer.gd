@@ -1,7 +1,8 @@
 extends GutTest
 
-const DIR := "user://test_settings_layer"
-const SAVE_DIR := "user://test_settings_layer_save"
+## Per file and per process: worktrees and parallel runs share user:// (debt sweep).
+var DIR := "user://test_settings_layer_%d" % OS.get_process_id()
+var SAVE_DIR := "user://test_settings_layer_save_%d" % OS.get_process_id()
 
 var main: Main
 var sl: SettingsLayer
@@ -26,6 +27,8 @@ func after_each() -> void:
 	get_tree().paused = false
 	SettingsStore.with_dir(DIR).wipe_for_tests()
 	main.save_store.wipe()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR))  # empty after the wipes
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_DIR))
 	GameState.new_game(0)
 
 func _touch(index: int, pos: Vector2, pressed: bool) -> void:

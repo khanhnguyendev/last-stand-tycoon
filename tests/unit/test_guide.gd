@@ -1,4 +1,7 @@
 extends GutTest
+
+## Per file and per process: worktrees and parallel runs share user:// (debt sweep).
+var GUIDE_DIR := "user://test_guide_settings_%d" % OS.get_process_id()
 ## S5 Task 10 (spec 6, D-213): the Guide node. Built directly with setup(main); Task 11 wires it into Main.
 
 const NOTCH_LANDSCAPE := {"top": 0.0, "bottom": 42.0, "left": 88.0, "right": 88.0}
@@ -239,14 +242,15 @@ func test_fight_pointer_follows_its_boar_between_evaluations() -> void:
 # ---- Task 11: persistence and the Main seam (D-213, Review Focus 1) ----
 
 func _store() -> SettingsStore:
-	var st := SettingsStore.with_dir("user://test_guide_settings")
+	var st := SettingsStore.with_dir(GUIDE_DIR)
 	st.wipe_for_tests()
 	st.load_settings()
 	return st
 
 func after_all() -> void:
 	UrlFlags.set_for_tests("")
-	_store()
+	_store()  # wipes the settings file
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(GUIDE_DIR))
 
 func test_night_two_saves_guide_done_and_frees_the_guide() -> void:
 	await _boot()
@@ -260,7 +264,7 @@ func test_night_two_saves_guide_done_and_frees_the_guide() -> void:
 	assert_true(st.guide_done)
 	assert_signal_emitted(guide, "completed")
 	assert_true(guide.is_queued_for_deletion())
-	var reread := SettingsStore.with_dir("user://test_guide_settings")
+	var reread := SettingsStore.with_dir(GUIDE_DIR)
 	reread.load_settings()
 	assert_true(reread.guide_done, "saved to disk")
 

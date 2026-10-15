@@ -5,14 +5,13 @@ var dir := ""
 
 func before_each() -> void:
 	Balance.reset()
-	dir = "user://test_saves/wu_%d" % Time.get_ticks_usec()
+	dir = "user://test_warmup_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
 
 func after_each() -> void:
 	Balance.reset()
 	GameState.new_game(1)
 	SaveStore.with_dir(dir).wipe()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
-	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_saves"))
 
 func _main() -> void:
 	main = Main.create()

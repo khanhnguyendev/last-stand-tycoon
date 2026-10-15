@@ -5,7 +5,8 @@ extends GutTest
 
 const ASPECTS := [9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0]
 const ASPECT_NAMES := ["9:21", "9:16", "16:9"]
-const HINT_DIR := "user://test_branch_hint"
+## Per file and per process: worktrees and parallel runs share user:// (debt sweep).
+var HINT_DIR := "user://test_branch_hint_%d" % OS.get_process_id()
 ## D-294.8: at least this many base px (720 x 1280; the views are in base px at every aspect, like the size floors) between a pad's items and every other label.
 const MIN_GAP_PX := 8.0
 ## The seven buildings that stand at the tier-3 dawn (tower_sw and fence_sw are bought afterwards).

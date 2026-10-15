@@ -353,7 +353,7 @@ func test_cancel_reveal_clears_the_pending_and_in_flight_lines() -> void:
 ## E6 review 2: the flag is saved when it is set. RED until the wiring note of the Task 11 fix round is applied (a bus signal emitted by
 ## GameState.mark_lane_character_shown, and Autosave writing on it): today nothing writes after the hare line.
 func test_the_shown_flag_is_written_to_the_store_when_it_is_set() -> void:
-	var dir := "user://test_saves/lb_%d" % Time.get_ticks_usec()
+	var dir := "user://test_lane_banner_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
 	await _boot(_v6_decoded())
 	var store := SaveStore.with_dir(dir)
 	main.autosave.store = store

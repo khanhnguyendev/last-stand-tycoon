@@ -7,7 +7,7 @@ var dir := ""
 
 func before_each() -> void:
 	Balance.reset()
-	dir = "user://test_saves/as_%d" % Time.get_ticks_usec()
+	dir = "user://test_autosave_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
 	main = Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
@@ -19,7 +19,6 @@ func after_each() -> void:
 	get_tree().paused = false
 	store.wipe()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
-	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_saves"))
 
 func _saved() -> Dictionary:
 	return SaveStore.with_dir(dir).read().state

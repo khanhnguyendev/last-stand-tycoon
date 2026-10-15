@@ -1,5 +1,8 @@
 extends GutTest
 
+## Per file and per process: worktrees and parallel runs share user:// (debt sweep).
+var STATION_DIR := "user://test_station_guide_%d" % OS.get_process_id()
+
 var main: Main
 var _fx: Array = []
 
@@ -42,7 +45,7 @@ func test_an_upgrade_sparkles_at_the_pad() -> void:
 	assert_true(_fx.has([&"sparkle", at]), "sparkle at the counter pad: %s" % [_fx])
 
 func test_the_guide_snapshot_ignores_stations() -> void:
-	main.settings_store = SettingsStore.with_dir("user://test_station_guide")
+	main.settings_store = SettingsStore.with_dir(STATION_DIR)
 	main.settings_store.wipe_for_tests()
 	main.settings_store.load_settings()
 	var guide := Guide.new()
@@ -57,3 +60,7 @@ func test_the_guide_snapshot_ignores_stations() -> void:
 	assert_eq(GuideRules.evaluate(snap).rule_id, &"close")
 	assert_false(Pulse.should_pulse(GameState.to_dict(), Balance.data), "the sign itself does wait")
 	assert_eq(int(snap.counter_capacity), GameState.counter_capacity())
+
+func after_all() -> void:
+	SettingsStore.with_dir(STATION_DIR).wipe_for_tests()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(STATION_DIR))

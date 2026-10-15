@@ -297,7 +297,7 @@ func test_step_gap_is_longer_than_the_build_done_min_gap() -> void:
 
 # --- E5 tier 3 Task 20: the tier-3 reveal, tap to skip (D-273.2), a reload mid-reveal ---
 
-const DIR_BASE := "user://test_saves/tr_"
+var DIR_BASE := "user://test_tier_reveal_%d_" % OS.get_process_id()
 
 func _tier3_cost() -> void:
 	if Balance.data.tiers.tier_costs.size() < 3:
@@ -805,7 +805,6 @@ func test_a_reload_in_the_middle_of_the_tier3_reveal_resumes_at_the_card_pick_wi
 	assert_eq(pc.dawn_substate, "CARD_PICK", "nothing else happens")
 	SaveStore.with_dir(dir).wipe()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
-	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_saves"))
 
 # --- the skip guard (the first tier_reveal_skip_guard_s) ---
 
