@@ -57,6 +57,15 @@ func test_boss_kind_per_tier_and_the_boss_set() -> void:
 	for k in [&"boar", &"hare", &"brute", &""]:
 		assert_false(TierEffects.is_boss_kind(k, tb), "%s is not a boss" % k)
 
+## E8 phase 2 Task 2: the Wrecker leaves tier 3, but only once tier 3 is not the top (tier_costs is extended by Task 9).
+func test_the_wrecker_is_the_tier_3_boss_only_when_tier_3_is_not_the_top() -> void:
+	var tb: TierBalance = Balance.data.tiers.duplicate()
+	assert_eq(TierEffects.boss_kind_for(3, tb), &"", "tier 3 is still the top today")
+	tb.tier_costs = [0, 500, 1500, 3500]
+	assert_eq(TierEffects.boss_kind_for(3, tb), &"wrecker")
+	assert_eq(TierEffects.boss_kind_for(4, tb), &"", "tier 4 is the top")
+	assert_true(TierEffects.is_boss_kind(&"wrecker", tb))
+
 func test_the_top_tier_of_a_two_tier_build_has_no_boss() -> void:
 	var tb: TierBalance = Balance.data.tiers.duplicate()
 	tb.tier_costs = tb.tier_costs.slice(0, 2)

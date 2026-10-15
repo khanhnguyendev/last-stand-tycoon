@@ -241,7 +241,7 @@ func test_brute_counts_every_day_of_the_ramp() -> void:
 	assert_eq([live.brute_cap_main[3], live.brute_cap_side[3], live.brute_ramp_days[3]], [1, 0, 3], "the ruling")
 	var tb: TierBalance = live.duplicate(true)
 	tb.brute_cap_side.assign([0, 0, 0, 1])
-	assert_eq(Array(live.brute_cap_side), [0, 0, 0, 0], "the override is in memory only")
+	assert_eq(Array(live.brute_cap_side), [0, 0, 0, 0, 0], "the override is in memory only")
 	var main_by_day := {
 		22: [0, 0, 1], 23: [0, 1, 1], 24: [1, 1, 1], 25: [1, 1, 1], 30: [1, 1, 1],
 	}

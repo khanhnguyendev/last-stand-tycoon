@@ -25,10 +25,10 @@ func test_tiers_are_ordered() -> void:
 
 func test_spec_values() -> void:
 	assert_eq(Array(tb.tier_costs), [0, 500, 1500])
-	assert_eq(Array(tb.tier_base), [0, 1, 8, 10])
+	assert_eq(Array(tb.tier_base), [0, 1, 8, 10, 12])
 	assert_eq(tb.tier_base[1], 1, "tier 1 starts at pressure 1: the lane RNG draw order depends on it (D-095)")
 	assert_gt(tb.boss_lead, 0.0, "the boss must spawn strictly before the wave's first monster (WaveSchedule sorts by time)")
-	assert_eq(Array(tb.tier_cap), [0, 7, 10, 12])
+	assert_eq(Array(tb.tier_cap), [0, 7, 10, 12, 15])
 	assert_eq(TierEffects.top_tier(tb), 3)
 	assert_eq(TierEffects.tier_cost(1, tb), 500)
 	assert_eq(TierEffects.tier_cost(2, tb), 1500)
@@ -52,7 +52,7 @@ func test_fast_counts_round_and_never_exceed() -> void:
 # --- E6 (D-304): the start pressure ------------------------------------------------------------------------
 
 func test_tier_base_values_and_shape() -> void:
-	assert_eq(Array(tb.tier_base), [0, 1, 8, 10])
+	assert_eq(Array(tb.tier_base), [0, 1, 8, 10, 12])
 	assert_eq(tb.tier_base.size(), tb.tier_cap.size())
 	var top := TierEffects.top_tier(tb)
 	for t in range(2, top + 1):
