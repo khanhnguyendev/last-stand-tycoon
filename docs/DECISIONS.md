@@ -3532,3 +3532,48 @@ is no longer reachable. The tests already pin this (D-308.3).
 5. **E6-2 re-measured:** branch builds keep a median 97% of the diner on their first tier-3 night (minimum 68.0% on
    set #3, 78.3% on set #4; 33 to 36 of 40 runs at 90% or more). The first tier-3 night is easy. Stays input for the
    next balance work, no tuning now.
+
+**D-313 E8 brainstorm: the author's answers (2026-10-15).**
+1. Tier 4 is three specs: the night side (E8) first, then the seller (E9) and passive equipment (E10).
+2. The lane-reading payoff comes from sharper specialists: each branch gets a real weakness off its lane, applied to
+   the branches everywhere (tier 3 changes too).
+3. No new monster kind at tier 4.
+4. A tier's first nights are tight but fair (a median 50% to 80% for branch builds on the first night).
+5. Tier 4's land adds two towers and no fence; the tier-3 boss is a siege boss.
+6. Two phases, no flag: phase 1 the specialists in tier 3 (own hold-out), phase 2 tier 4 (own hold-out).
+7. Sections 1 to 3 of the design approved; the branch card names the weakness; new visuals go to the author in shot
+   packs. Spec: `docs/superpowers/specs/2026-10-15-e8-tier4-night-design.md`.
+
+**D-314 E8 main-session rulings (the author asked for the rest to run without questions, 2026-10-15).**
+1. Autonomy: decisions are made, logged with their cost, and reported at the end; failed targets are reported with
+   options, not tuned past their pre-authorized ranges.
+2. Checkpoints do not stop the build: a checkpoint PR stays open (not merged) and the next phase is stacked on it.
+   Cost: phase 2 is built on numbers the author has not played; a change at checkpoint A may ripple into phase 2.
+3. New visuals ship only after the author sees them (the standing rule): shot packs at each checkpoint, nothing
+   merged that changes a visual. Cost: nothing reaches the live game until the author returns.
+4. The Stone wall has no off-lane weakness (hares walk past every fence): its off-lane cost is opportunity only.
+   Cost: the payoff rests on three of four branches; if the target fails, a Stone wall weakness is option one.
+5. Back-lot placement: every lane covered by two towers after tier 4; the south-west lane gets one new tower, the
+   second goes where the layout finds land. Cost: the second tower's lane is a layout outcome, not a design choice.
+6. Phase-2 report runs are 45 days. Cost: about 1.4 times the run time of a 32-day report.
+7. FIXED_SPREAD's target turns around (the builds should now differ): reported as "spread >= 5", not must-hold.
+8. Bench margins are fixed for E8 (`m_on` 0.15, `m_off` 0.10, `m_neu` 0.15, `a_floor` 20 HP); NEUTRAL is one-sided
+   (no branch worse than unbranched by more than the band). Cost: a branch may stay much better than unbranched on
+   neutral lanes, so neutral lanes add little to the payoff.
+9. E6's FLOOR tests are replaced by the ON, OFF and NEUTRAL rules; IDENTITY's "unbranched never best" is restated for
+   the siege and hare lanes; the Spike tests take the new values; every replaced test is tabled in the phase-1 PR.
+   Cost: the old floor guarantee is gone by design.
+10. Multipliers are looked up by kind class: the Wrecker is a brute, the Baron a hare. Cost: a lookup step in the
+    attack path; the Baron meets the Longbow's hare weakness on the tier-2 boss night only if a Longbow exists, which
+    needs tier 3, so tier 2 play is unchanged.
+11. Tier-4 waves rest a neutral lane, drawn from a new stream, so the siege and hare lanes are always in the wave and
+    tiers 1 to 3 keep their draws. Cost: each tier-4 wave rests one of the two neutral lanes, so the player never
+    gets a wave without the two marked lanes.
+12. Tier-3 sims and the tier-3 baseline run the bot capped at tier 3 through phase 2. Cost: the tier-3 baseline stops
+    showing how gold flows once tier 4 is buyable; tier-4 tools cover that.
+13. The spec review's findings (4 critical, 13 important, 11 minor) were applied in the spec's second version.
+14. Bench ties and infinities fail ON and OFF as E6's tie rule does; the SPECIALISTS rows stay. Cost: some
+    weakness values may need a larger step to separate the runs.
+15. The spec's third version applies the re-review (7 important, 7 minor).
+16. The plan details phase 1 now; phase 2 is planned when phase 1's hold-out has run, because its planner, layout
+    and boss numbers depend on phase 1's tuned values. Cost: phase 2's plan gets its own review later.
