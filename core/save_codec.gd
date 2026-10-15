@@ -52,6 +52,9 @@ static func _built_in(from_v: int, state: Dictionary) -> Variant:
 			state.lane_character_shown = false
 			state.v = 7
 			return state
+		7:  # E8: tier-4 wave fields. A v7 save has no tier 4 and no building to add; the two spots arrive at the tier-4 dawn.
+			state.v = 8
+			return state
 	return null
 
 static func encode(state: Dictionary, build: String, now_unix: int) -> String:
@@ -206,6 +209,9 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 			if w.has(f) and (not typeof(w[f]) in [TYPE_INT, TYPE_FLOAT] or float(w[f]) < 0.0
 					or float(w[f]) != floorf(float(w[f]))):
 				return "lane " + f
+		var why4 := _validate_side2(w, lanes, known_tier)
+		if why4 != "":
+			return why4
 		for f in ["main_count", "side_count", "hp_mult"]:
 			if not typeof(w[f]) in [TYPE_INT, TYPE_FLOAT]:
 				return "lane fields"
@@ -255,6 +261,25 @@ static func validate(s: Dictionary, bd: BalanceData) -> String:
 				return "maxed offer"
 	return ""
 
+
+## The tier-4 third group of one saved wave (E8 spec 4.4): the four keys on every wave at tier 4 and above, none below;
+## side2 a lane of the tier, different from main and side; the three counts whole and >= 0; fast_side2 <= side2_count.
+static func _validate_side2(w: Dictionary, lanes: Array, known_tier: int) -> String:
+	var keys := ["side2", "side2_count", "fast_side2", "brute_side2"]
+	for k in keys:
+		if w.has(k) != (known_tier >= 4):
+			return "lane " + k
+	if known_tier < 4:
+		return ""
+	if typeof(w.side2) != TYPE_STRING or not String(w.side2) in lanes or String(w.side2) == String(w.main) \
+			or String(w.side2) == String(w.side):
+		return "lane side2"
+	for k in ["side2_count", "fast_side2", "brute_side2"]:
+		if not typeof(w[k]) in [TYPE_INT, TYPE_FLOAT] or float(w[k]) < 0.0 or float(w[k]) != floorf(float(w[k])):
+			return "lane " + k
+	if int(w.fast_side2) > int(w.side2_count):
+		return "lane fast_side2"
+	return ""
 
 ## The extra groups of one saved wave (E6, wave.extra = [{lane, count, fast}]): only at tier 3+, each lane one of the tier's
 ## lanes, whole count >= 0, whole 0 <= fast <= count.

@@ -19,6 +19,13 @@ static func plan(run_seed: int, day: int, wb: WaveBalance, tier := 1, tier_day :
 	var share := TierEffects.fast_share_now(day, tier, tier_day, tb)
 	var rng := Rng.stream(run_seed, day, &"lane_plan")
 	var lanes := lanes_for_tier(tier)
+	# E8 (spec 4.4, D-314.11): tier 4 only. Its own stream, made once per plan, so the stream above and tiers 1 to 3 are untouched.
+	var rng_t4: RandomNumberGenerator = null
+	var neutral: Array = []
+	if tier >= 4:
+		rng_t4 = Rng.stream(run_seed, day, &"lane_plan_t4")
+		var character := LaneCharacter.for_run(run_seed)
+		neutral = LANES_TIER3.filter(func(l): return l != character.siege and l != character.hare)
 	var waves: Array = []
 	for w in wb.base_counts.size():
 		var main := ""
@@ -42,8 +49,35 @@ static func plan(run_seed: int, day: int, wb: WaveBalance, tier := 1, tier_day :
 		if tier >= 3:  # tiers 1 and 2 keep today's exact wave dictionary (readers use .get("brute_main", 0))
 			wave["brute_main"] = int(brutes.main)
 			wave["brute_side"] = int(brutes.side)
+		if tier >= 4:
+			_make_three_lanes(wave, rng_t4, neutral)
 		waves.append(wave)
 	return waves
+
+## E8 (spec 4.4, B6): turns a tier-4 wave into three groups. The order of draws on `rng_t4` is fixed forever:
+##   rest = neutral[rng_t4.randi_range(0, 1)]            # neutral = the two lanes that are neither siege nor hare
+##   only if main == rest: main = others[rng_t4.randi_range(0, 2)]  # others = LANES_TIER3 without rest
+## Side and side2 are the two lanes left after main and rest, in LANES_TIER3 order. The side group (count, hares, brutes)
+## is split between side and side2, the odd unit to side.
+static func _make_three_lanes(wave: Dictionary, rng_t4: RandomNumberGenerator, neutral: Array) -> void:
+	var rest: String = neutral[rng_t4.randi_range(0, 1)]
+	var main := String(wave.main)
+	if main == rest:
+		var others: Array = LANES_TIER3.filter(func(l): return l != rest)
+		main = others[rng_t4.randi_range(0, others.size() - 1)]
+	var left: Array = LANES_TIER3.filter(func(l): return l != main and l != rest)
+	wave["main"] = main
+	wave["side"] = left[0]
+	wave["side2"] = left[1]
+	var sc := int(wave.side_count)
+	var fs := int(wave.fast_side)
+	var bs := int(wave.brute_side)
+	wave["side_count"] = sc - sc / 2
+	wave["side2_count"] = sc / 2
+	wave["fast_side"] = fs - fs / 2
+	wave["fast_side2"] = fs / 2
+	wave["brute_side"] = bs - bs / 2
+	wave["brute_side2"] = bs / 2
 
 ## A deep copy of `plan_waves` whose last wave carries the boss (E5 spec 4.2; the boss night is the capped night + 1).
 static func with_boss(plan_waves: Array) -> Array:

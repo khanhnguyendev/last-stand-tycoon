@@ -350,7 +350,7 @@ func test_composition_by_lane_of_a_hand_written_plan() -> void:
 func test_only_the_planner_draws_from_the_lane_plan_stream() -> void:
 	var planner := FileAccess.get_file_as_string("res://core/lane_planner.gd")
 	var effects := FileAccess.get_file_as_string("res://core/tier_effects.gd")
-	assert_eq(planner.count("Rng.stream("), 1)
+	assert_eq(planner.count("Rng.stream("), 2, "the day's stream, plus the tier-4 stream lane_plan_t4 (E8 Task 3, B6)")
 	assert_eq(effects.count("Rng.stream("), 0)
 
 # --- E6 task 4: extra groups count in composition and threat ------------------------------------------------------------

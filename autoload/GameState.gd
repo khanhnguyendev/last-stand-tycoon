@@ -1,7 +1,7 @@
 extends Node
 ## The only mutable game data (spec 4, D-096). Only these methods change it; they emit EventBus signals.
 
-const SCHEMA_VERSION := 7
+const SCHEMA_VERSION := 8
 
 var resume_phase := "NIGHT"
 var run_seed := 0

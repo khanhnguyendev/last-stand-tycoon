@@ -65,6 +65,10 @@ static func lane_type(character: Dictionary, lane: String) -> StringName:
 ##     shrinks by what it gave.
 ##  c. GUARD. A wave never has more than 3 active lanes: if the extra group would make 4, it is skipped and the wave is
 ##     marked "lane_cap_guard": true (count them with guard_hits). Unreachable after (a); kept as an asserted guard.
+##  Tier 4 (E8 spec 4.4, B7): a wave with a side2 group has three groups and never an extra one. Step a puts all brutes on
+##     whichever group is the siege lane. Step b is a greedy fill: the hare lane's group takes min(T, its count), the
+##     rest fill the other groups in main, side, side2 order, each capped at its count; what still does not fit goes to
+##     the hare lane's group (it always fits).
 ##  d. Extra groups carry NO delay field: the consumer spawns them with the side-group delay.
 ## Idempotent: applying the result again with the same character changes nothing (a wave that already has an extra group
 ## on the hare lane is left alone). The caller still applies it once, to fresh LanePlanner.plan output.
@@ -83,6 +87,9 @@ static func apply(plan: Array, character: Dictionary, tb: TierBalance) -> Array:
 	return out
 
 static func _apply_brutes(wave: Dictionary, siege: String) -> void:
+	if wave.has("side2"):
+		_apply_brutes_3(wave, siege)
+		return
 	var b := int(wave.get("brute_main", 0)) + int(wave.get("brute_side", 0))
 	if b <= 0 or siege == "":
 		return
@@ -97,7 +104,54 @@ static func _apply_brutes(wave: Dictionary, siege: String) -> void:
 	wave["brute_main"] = 0
 	wave["brute_side"] = b
 
+## Three groups: the brutes all go to the group whose lane is the siege lane (the planner guarantees it is one of them).
+static func _apply_brutes_3(wave: Dictionary, siege: String) -> void:
+	var b := int(wave.get("brute_main", 0)) + int(wave.get("brute_side", 0)) + int(wave.get("brute_side2", 0))
+	if b <= 0 or siege == "":
+		return
+	var target := ""
+	for g in [["main", "brute_main"], ["side", "brute_side"], ["side2", "brute_side2"]]:
+		if String(wave[g[0]]) == siege:
+			target = g[1]
+	if target == "":
+		return
+	wave["brute_main"] = 0
+	wave["brute_side"] = 0
+	wave["brute_side2"] = 0
+	wave[target] = b
+
+## Three groups: the greedy fill of the class comment.
+static func _apply_hares_3(wave: Dictionary, hare: String, share: float) -> void:
+	var names := ["main", "side", "side2"]
+	var h := 0
+	for n in names:
+		h += int(wave.get("fast_" + n, 0))
+	var t := mini(roundi(share * h), h)
+	if h <= 0 or t <= 0 or hare == "":
+		return
+	var hare_group := ""
+	for n in names:
+		if String(wave[n]) == hare:
+			hare_group = n
+	if hare_group == "":
+		return  # the planner always puts the hare lane in a tier-4 wave; never an extra group here
+	var taken := {}
+	var rem := h - mini(t, int(wave[hare_group + "_count"]))
+	var placed := 0
+	for n in names:
+		if n == hare_group:
+			continue
+		var take := mini(rem, int(wave[n + "_count"]))
+		taken[n] = take
+		rem -= take
+		placed += take
+	for n in names:
+		wave["fast_" + n] = h - placed if n == hare_group else int(taken[n])
+
 static func _apply_hares(wave: Dictionary, hare: String, share: float) -> void:
+	if wave.has("side2"):
+		_apply_hares_3(wave, hare, share)
+		return
 	var fm := int(wave.get("fast_main", 0))
 	var fs := int(wave.get("fast_side", 0))
 	var h := fm + fs
@@ -149,6 +203,8 @@ static func _lane_set(wave: Dictionary) -> Array:
 			lanes.append(l)
 	add.call(String(wave.main), int(wave.get("main_count", 0)) + int(wave.get("brute_main", 0)))
 	add.call(String(wave.side), int(wave.get("side_count", 0)) + int(wave.get("brute_side", 0)))
+	if wave.has("side2"):
+		add.call(String(wave.side2), int(wave.get("side2_count", 0)) + int(wave.get("brute_side2", 0)))
 	for e in wave.get("extra", []):
 		add.call(String(e.lane), int(e.count))
 	return lanes
@@ -163,6 +219,8 @@ static func brute_lane(wave: Dictionary) -> String:
 		return String(wave.main)
 	if int(wave.get("brute_side", 0)) > 0:
 		return String(wave.side)
+	if wave.has("side2") and int(wave.get("brute_side2", 0)) > 0:
+		return String(wave.side2)
 	return ""
 
 ## Night-level share of the plan's hares (main, side and extra groups) that walk the hare lane; 0.0 with no hares or
