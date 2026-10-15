@@ -60,14 +60,14 @@ func test_capped_night_kills() -> void:
 		k2 += WaveMath.total_count(10, w, wb)
 	assert_eq([k1, k2], [56, 72])
 
-# --- E6 (D-304): tier 3 starts at pressure 10 -------------------------------------------------------------
+# --- E6 (D-304): tier 3 starts at pressure 11 (E8 tuning round 2; it was 10) -------------------------------------------------------------
 
-func test_tier_3_pressure_ramps_10_11_12() -> void:
+func test_tier_3_pressure_ramps_11_12() -> void:
 	var tb := Balance.data.tiers
 	var got: Array[int] = []
 	for d in [20, 21, 22, 23, 40]:
 		got.append(WaveMath.pressure(d, 3, 20, tb))
-	assert_eq(got, [10, 11, 12, 12, 12])
+	assert_eq(got, [11, 12, 12, 12, 12])
 
 func test_tiers_1_and_2_pressure_literals() -> void:
 	var tb := Balance.data.tiers

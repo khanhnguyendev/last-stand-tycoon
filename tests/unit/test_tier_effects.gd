@@ -19,13 +19,13 @@ func test_tiers_are_ordered() -> void:
 			assert_lt(tb.tier_cap[t], tb.tier_base[t + 1], "tier 1 cap < tier 2 base")
 		else:
 			# D-305: tier 3 starts at tier 2's cap (cap 10 == base 10), the one place equality is allowed.
-			assert_lte(tb.tier_cap[t], tb.tier_base[t + 1], "tier %d cap <= next base (tier 3 starts at tier 2's cap, D-305)" % t)
+			assert_lte(tb.tier_cap[t], tb.tier_base[t + 1], "tier %d cap <= next base (tier 3 starts one above tier 2's cap since E8 tuning round 2, was equal in D-305)" % t)
 	var top := tb.tier_costs.size()
 	assert_lte(tb.tier_base[top], tb.tier_cap[top])
 
 func test_spec_values() -> void:
 	assert_eq(Array(tb.tier_costs), [0, 500, 1500])
-	assert_eq(Array(tb.tier_base), [0, 1, 8, 10])
+	assert_eq(Array(tb.tier_base), [0, 1, 8, 11])
 	assert_eq(tb.tier_base[1], 1, "tier 1 starts at pressure 1: the lane RNG draw order depends on it (D-095)")
 	assert_gt(tb.boss_lead, 0.0, "the boss must spawn strictly before the wave's first monster (WaveSchedule sorts by time)")
 	assert_eq(Array(tb.tier_cap), [0, 7, 10, 12])
@@ -52,11 +52,11 @@ func test_fast_counts_round_and_never_exceed() -> void:
 # --- E6 (D-304): the start pressure ------------------------------------------------------------------------
 
 func test_tier_base_values_and_shape() -> void:
-	assert_eq(Array(tb.tier_base), [0, 1, 8, 10])
+	assert_eq(Array(tb.tier_base), [0, 1, 8, 11])
 	assert_eq(tb.tier_base.size(), tb.tier_cap.size())
 	var top := TierEffects.top_tier(tb)
 	for t in range(2, top + 1):
 		assert_gte(tb.tier_base[t], tb.tier_cap[t - 1], "tier %d never starts below the last tier's cap" % t)
 	assert_eq(tb.tier_base[1], 1, "tier 1 starts at pressure 1")
 	assert_eq(tb.tier_base[2], 8, "tier 2 starts at 8")
-	assert_eq(tb.tier_base[3], 10, "tier 3 starts at 10, tier 2's cap")
+	assert_eq(tb.tier_base[3], 11, "tier 3 starts at 11, one above tier 2's cap (E8 tuning round 2)")

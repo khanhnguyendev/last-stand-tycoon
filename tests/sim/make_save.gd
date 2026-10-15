@@ -10,7 +10,7 @@ extends SceneTree
 ## tier3_baron_full, tier3_baron_no_yard, tier3_baron_alone, tier3_night1 and tier3_cap_<all_a|all_b|mixed|threat>. `tier3_branch_day` (checkpoint video; E6 phase A: the committed DAY HOME perf fixture, `PERF_PHASE=DAY export/perf_night3.sh`, deterministic: two runs give identical md5) reads the committed tier3_night1 through the real codec, gives tower_sw and fence_sw the
 ## state of tower_w and fence_w (level 3) and 1500 gold, so a tier-3 DAY has several max-level buildings and the gold to buy branches, and writes
 ## export/fixtures/tier3_branch_day.save.json (committed). `retune` (E6 Task 19, spec 8.3) plays ONE real TierBot run (threat policy,
-## seed 3 by default: a tuning seed, never a hold-out seed) and writes retune_first_t3_night (the first tier-3 day's start, resume DAY), retune_respawn (a CONSTRUCTED state: the same buildings, resume NIGHT, tier_day = day - 2 so the night is at the cap pressure 12; on the real first night at pressure 10 the south-west zone never held CROWD (6) enemies while the tank was posted)
+## seed 3 by default: a tuning seed, never a hold-out seed) and writes retune_first_t3_night (the first tier-3 day's start, resume DAY), retune_respawn (a CONSTRUCTED state: the same buildings, resume NIGHT, tier_day = day - brute_ramp_days[3] + 1, the third tier-3 night, brute ramp complete, at the cap pressure 12; on the real first night at pressure 10 the south-west zone never held CROWD (6) enemies while the tank was posted)
 ## and retune_siege_night (the close-up of the first tier-3 night on which a wave's brutes have a siege lane that is neither the drawn main nor side lane and a wave has an extra hare group; resume NIGHT).
 ## `tier3` also records tier3_night1 from the same real run (the first tier-3 day's start, recorded from the shipped game), and builds tier3_baron_alone from the real Baron-night capture. `day3_counter5` writes only that fixture. `night3` rewrites the two night3 fixtures at the current schema and must
 ## not be used while they serve as schema-3 migration tests. No argument (or an unknown one) is a usage error.
@@ -511,10 +511,10 @@ func _run_retune() -> bool:
 	_common(first)
 	first.night_fails = 0
 	# D-304: the first tier-3 night is softer (pressure tier_base[3]), and the south-west zone no longer holds CROWD (6) enemies while the tank is posted, so test c's forced knock-out never happens on it. The respawn state is CONSTRUCTED: the same captured state taken at the cap
-	# pressure: tier_day moved back by tier_cap[3] - tier_base[3] days, the stored plan recomputed by the real planner (LanePlanner.plan, then the lane character).
+	# pressure: tier_day moved back to the third tier-3 night (brute_ramp_days[3] - 1 days; E8 tuning round 2: the base is 11, so the cap is reached on the second night but the brute ramp is complete on the third), the stored plan recomputed by the real planner (LanePlanner.plan, then the lane character).
 	var respawn := first.duplicate(true)
 	respawn.resume_phase = "NIGHT"
-	respawn.tier_day = int(respawn.day) - (int(bd.tiers.tier_cap[3]) - int(bd.tiers.tier_base[3]))
+	respawn.tier_day = int(respawn.day) - int(bd.tiers.brute_ramp_days[3]) + 1
 	respawn.lane_plan = load("res://core/lane_character.gd").apply(_plan(respawn), load("res://core/lane_character.gd").for_run(int(respawn.run_seed)), bd.tiers)
 	if load("res://core/wave_math.gd").pressure(int(respawn.day), 3, int(respawn.tier_day), bd.tiers) != int(bd.tiers.tier_cap[3]):
 		push_error("retune_respawn is not at the tier-3 cap pressure")
