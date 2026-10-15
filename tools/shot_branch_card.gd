@@ -57,6 +57,7 @@ func _run() -> void:
 	await _card(main, camera_math, layout, "card_volley", "tower_w", 1, &"volley")
 	await _card(main, camera_math, layout, "card_stone", "fence_e", 0, &"stone")
 	await _card(main, camera_math, layout, "card_spike", "fence_n", 1, &"spike")
+	await _card(main, camera_math, layout, "card_sw", "fence_sw", 0, &"stone")
 	gs.gold = 200
 	gs.pay_into_branch("tower_ne", &"volley", 200)
 	gs.gold = 0

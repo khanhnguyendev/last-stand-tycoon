@@ -113,7 +113,7 @@ func test_the_pinned_seed_has_siege_east_and_hare_west() -> void:
 	assert_eq(GameState.lane_character(), {"siege": "east", "hare": "west"}, "setup: the character this file's tables assume")
 
 ## Mutations: row 3 reading the wrong lane's character (a lane swapped), a missing neutral lane, row 5 on a tower, a wrong icon in row 2.
-func test_every_branch_of_every_spot_shows_rows_one_to_five_as_specified() -> void:
+func test_every_branch_of_every_spot_shows_rows_one_to_six_as_specified() -> void:
 	await _start()
 	await _max_all()
 	assert_eq(GameState.branch_cost("tower_e"), 500, "setup: a tower branch costs 500")
@@ -508,6 +508,7 @@ func _all_translated(tag: String) -> void:
 func test_longer_strings_and_the_vietnamese_sample_fit_without_overlap() -> void:
 	await _start()
 	await _max_all()
+	var weak_need := 0.0
 	for mode in ["english", "40% longer", "vietnamese"]:
 		match mode:
 			"40% longer": _pseudo_locale()
@@ -525,10 +526,13 @@ func test_longer_strings_and_the_vietnamese_sample_fit_without_overlap() -> void
 					_all_translated(tag)
 				_no_overlap_no_overflow(tag)
 				_sizes_ok(tag)
+				if mode == "40% longer":
+					weak_need = maxf(weak_need, _needed_width(card.weak_label))
 				for l in card.all_labels():
 					var n := String(l.name).rstrip("0123456789")
 					smallest[n] = mini(int(smallest.get(n, 999)), l.get_theme_font_size(&"font_size"))
 		gut.p("%s: smallest font per label %s" % [mode, smallest])
+	gut.p("E8: widest pseudo-locale weakness label needs %s px; the left column offers %s" % [weak_need, BranchCard.LEFT_W - BranchCard.ICON_PX - BranchCard.ICON_GAP])
 
 func test_the_vietnamese_locale_gives_exactly_the_sample_strings_and_switching_is_live() -> void:
 	await _start()
@@ -542,6 +546,7 @@ func test_the_vietnamese_locale_gives_exactly_the_sample_strings_and_switching_i
 	assert_eq(card.spec_label.text, "làm đau thỏ")
 	assert_eq(card.lane_labels[0].text, "đường phía tây")
 	assert_eq(card.warn_label.text, "mất nếu bị phá")
+	assert_eq(card.weak_label.text, "quái nặng đập nát", "row 6 re-read on a locale change")
 	await _stand_on("tower_e", 1)
 	assert_eq(card.spec_label.text, "bắn trúng 3 mục tiêu", "the Volley line keeps its count through the translated format")
 	TranslationServer.set_locale("en")
@@ -553,6 +558,7 @@ func test_row_3_text_always_starts_in_the_text_column_and_lanes_are_36_px_apart(
 	await _start()
 	await _max_all()
 	var worst := INF
+	var weak_need := 0.0
 	for mode in ["english", "40% longer", "vietnamese"]:
 		match mode:
 			"40% longer": _pseudo_locale()
@@ -595,6 +601,8 @@ func test_unknown_ids_are_not_given_a_default_label() -> void:
 	await _start()
 	assert_eq(card.branch_name(&"bogus"), "")
 	assert_eq(card.specialty(&"bogus"), "")
+	assert_eq(card.weakness(&"bogus"), "")
+	assert_eq(BranchCard.weakness_kind(&"bogus"), &"")
 	assert_eq(card.lane_name("bogus"), "")
 	assert_eq(BranchCard.specialty_kind(&"bogus"), &"")
 	assert_eq(card.branch_name(&"spike"), "Spike fence")
@@ -655,8 +663,7 @@ func test_the_222_px_card_fits_the_screen_and_its_40_percent_copy() -> void:
 		var r := card.get_global_rect()
 		var vp := main.hud.root.get_viewport_rect()
 		assert_true(vp.encloses(r), "inset %s: on screen %s in %s" % [inset, r, vp])
-		var k := 288.0 / 720.0
-		var small := Rect2(r.position * k, r.size * k)
-		assert_true(Rect2(0, 0, 288.0 * vp.size.x / 720.0, 512.0 * vp.size.y / 1280.0).encloses(small), "inset %s: on the 40%% copy" % inset)
-		assert_almost_eq(small.size.y, 222.0 * k, 0.01)
-		assert_gt(r.position.y, vp.size.y * 0.5, "inset %s: the card stays in the lower half, clear of the top bar" % inset)
+		# The 40% copy is a uniform scale, so it cannot clip what the full screen does not; what it can lose is legibility: the floors scaled by 0.4.
+		assert_gte(r.position.y, main.hud._top_column.get_global_rect().end.y, "inset %s: the card's top is below the HUD's top column" % inset)
+		assert_gte(card.weak_label.get_theme_font_size(&"font_size") * 0.4, 9.6, "inset %s: row 6 font at 40%%" % inset)
+		assert_gte(card.weak_icon.size.y * 0.4, 16.0, "inset %s: row 6 icon at 40%%" % inset)

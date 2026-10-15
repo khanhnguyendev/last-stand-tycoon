@@ -7,7 +7,8 @@ extends Control
 ##   row 4  payment bar (paid / cost) and the REMAINING cost as the number   (right, top line)
 ##   row 2  the specialty (at most 3 words) with its lane-character icon     (left, middle line)
 ##   row 5  fences only: broken-fence icon and "lost if broken"              (right, middle line)
-##   row 6  E8 (spec 3.4): the weakness (at most 3 words) with the icon of the kind it is weak to  (left, third line)
+##   row 6  E8 (spec 3.4): the weakness (at most 3 words) with the icon of the kind it is weak to  (third line; it starts in the left
+##          column and uses the full inner width, the right half of this line is empty)
 ##   row 3  the guarded lane(s), each with its lane-character icon (none if neutral)  (full width, bottom line)
 ## The rows are numbered as in the spec; they are laid out in four lines (222 px) because six stacked 40 px icons do not fit.
 ## It is a listener: it reads BranchPad's static focus helpers and GameState, writes nothing, and every Control in it ignores the
