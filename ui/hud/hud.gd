@@ -297,7 +297,7 @@ func _side_lane_in_use(w: int, side_lane: String) -> bool:
 		return true
 	var wave: Dictionary = GameState.lane_plan[w]
 	var emptied := int(wave.get("side_count", 1)) == 0 and int(wave.get("brute_side", 0)) == 0
-	if wave.get("extra", []).is_empty() and not emptied:
+	if wave.get("extra", []).is_empty() and not emptied and not wave.has("side2"):
 		return true
 	return LaneCharacter.active_lanes(wave).has(side_lane)
 
@@ -305,7 +305,12 @@ func _side_lane_in_use(w: int, side_lane: String) -> bool:
 func _third_lane(w: int, main_lane: String, side_lane: String) -> String:
 	if w < 0 or w >= GameState.lane_plan.size():
 		return ""
-	for e in GameState.lane_plan[w].get("extra", []):
+	var wave: Dictionary = GameState.lane_plan[w]
+	if wave.has("side2"):  # E8: the tier-4 third group has the third arrow, when it has an enemy
+		var l2 := String(wave.side2)
+		if l2 != "" and l2 != main_lane and l2 != side_lane and LaneCharacter.active_lanes(wave).has(l2):
+			return l2
+	for e in wave.get("extra", []):
 		var lane := String(e.lane)
 		if int(e.count) > 0 and lane != "" and lane != main_lane and lane != side_lane:
 			return lane

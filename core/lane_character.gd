@@ -231,6 +231,8 @@ static func hare_share(plan: Array, character: Dictionary) -> float:
 	var on := 0
 	for wave in plan:
 		var groups: Array = [[String(wave.main), int(wave.get("fast_main", 0))], [String(wave.side), int(wave.get("fast_side", 0))]]
+		if wave.has("side2"):
+			groups.append([String(wave.side2), int(wave.get("fast_side2", 0))])
 		for e in wave.get("extra", []):
 			groups.append([String(e.lane), int(e.fast)])
 		for g in groups:

@@ -101,6 +101,8 @@ static func threat_by_lane(plan_waves: Array, base_hp: float, tier := 1) -> Dict
 		t[wave.main] = float(t.get(wave.main, 0.0)) + int(wave.main_count) * hp + int(wave.get("brute_main", 0)) * brute_hp * m
 		if String(wave.side) != "":
 			t[wave.side] = float(t.get(wave.side, 0.0)) + int(wave.side_count) * hp + int(wave.get("brute_side", 0)) * brute_hp * m
+		if wave.has("side2"):  # E8: the tier-4 third group
+			t[wave.side2] = float(t.get(wave.side2, 0.0)) + int(wave.get("side2_count", 0)) * hp + int(wave.get("brute_side2", 0)) * brute_hp * m
 		for e in wave.get("extra", []):  # E6: extra groups (boars and hares alike) add count x hp x hp_mult to their lane
 			t[e.lane] = float(t.get(e.lane, 0.0)) + int(e.count) * hp
 		if bool(wave.get("boss", false)) and boss_kind != &"":
@@ -117,6 +119,8 @@ static func composition_by_lane(plan_waves: Array, tier := 1) -> Dictionary:
 		_add_group(out, String(wave.main), int(wave.main_count), int(wave.get("fast_main", 0)), int(wave.get("brute_main", 0)))
 		if String(wave.side) != "":
 			_add_group(out, String(wave.side), int(wave.side_count), int(wave.get("fast_side", 0)), int(wave.get("brute_side", 0)))
+		if wave.has("side2"):  # E8: the tier-4 third group
+			_add_group(out, String(wave.side2), int(wave.get("side2_count", 0)), int(wave.get("fast_side2", 0)), int(wave.get("brute_side2", 0)))
 		for e in wave.get("extra", []):  # E6: extra groups
 			_add_group(out, String(e.lane), int(e.count), int(e.fast), 0)
 		if bool(wave.get("boss", false)):

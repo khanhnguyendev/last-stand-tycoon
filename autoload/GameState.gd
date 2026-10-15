@@ -134,6 +134,11 @@ func from_dict(d: Dictionary) -> void:
 		if tier >= 3:  # mirrors the planner's gate: a tier-1/2 plan keeps its eight keys
 			wave["brute_main"] = int(w.get("brute_main", 0))
 			wave["brute_side"] = int(w.get("brute_side", 0))
+		if tier >= 4 and w.has("side2"):  # E8: the tier-4 third group (SaveCodec validated the five keys)
+			wave["side2"] = String(w.side2)
+			wave["side2_count"] = int(w.get("side2_count", 0))
+			wave["fast_side2"] = int(w.get("fast_side2", 0))
+			wave["brute_side2"] = int(w.get("brute_side2", 0))
 		lane_plan.append(wave)
 	# A pending boss always rides tonight's plan (a hand-edited save cannot skip it), when the tier has a boss to send.
 	if boss_pending and not lane_plan.is_empty() and TierEffects.boss_kind_for(tier, Balance.data.tiers) != &"":
