@@ -14,6 +14,15 @@ const FENCE_BRANCHES: Array[StringName] = [&"stone", &"spike"]
 @export var volley: TowerBranchStats = BranchBalance._volley()
 @export var stone: FenceBranchStats = BranchBalance._stone()
 @export var spike: FenceBranchStats = BranchBalance._spike()
+## E8 bench margins (spec 3.1). Fixed for E8 (D-314.8): they are balance values only so the bench reads them; changing one is an escalation.
+## ON: a specialist beats its references by this fraction on its own lane.
+@export var bench_m_on := 0.15
+## OFF: a branch is worse than unbranched by at least this fraction on the lane it gives up.
+@export var bench_m_off := 0.10
+## NEUTRAL: a branch loses at most this fraction more than unbranched on the neutral lane.
+@export var bench_m_neu := 0.15
+## The absolute HP term of the OFF and NEUTRAL bounds (covers an unbranched reference of 0).
+@export var bench_a_floor := 20.0
 
 static func _tower(range_m: float, damage: float, interval: float, count: int) -> TowerBranchStats:
 	var s := TowerBranchStats.new()
