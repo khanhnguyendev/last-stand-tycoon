@@ -3495,3 +3495,40 @@ recommendations and answered three questions put to them one by one.
    70.7% to 22.3%. The rule was chosen on seed 14 alone; set #3 shows it does not generalise. The round's
    targets were not tuned against set #3. The bot rule is NOT merged until the author decides (escalation 16).
    Outputs: `docs/review/media/e6/tuning/e7_set3_old_bot.txt`, `e7_set3_new_bot.txt`.
+**D-311 Spec 6.4 follows the shipped game (review queue E6-5; author's choice, 2026-10-15).** The E5 tier-3 spec's
+branch identity measures are restated, not the values changed: measure 3 (DPS against three targets) is a tie
+between Volley and the Longbow at 60 per second since the Longbow fires every 2.0 s (D-302); measures are computed
+at the live tier-3 pressures 10 to 12 (D-305), where measure 4 (Longbow fewest hares per second) holds; pressure 15
+is no longer reachable. The tests already pin this (D-308.3).
+
+**D-312 The walk-time rule replaces never-cross; the re-measure (escalation 16, author's choice, 2026-10-15).**
+1. **Rule (shipped default `walk`):** at tier 3 a near move (zone distance 9 m or less) goes as before; a far move
+   with monsters left on the hero's lane goes only if the far lane's clear time (its live monsters' HP over the
+   damage per second of the towers covering it, each hit capped by the HP it can remove, Volley up to its targets)
+   is longer than the walk time (the bot's route length over hero speed). `--bot-rule=old|far|walk` keeps the bot
+   before D-310 and the never-cross rule for comparison. Review found and fixed the overkill error before any
+   measured run; the tower-coverage test pins which towers count. Known simplifications: a Volley's arrows are
+   counted against the picked lane only, and a two-lane tower counts its full rate for each of its lanes.
+2. **Seeds:** tuning set plus set #3 (both known data) for the rule; set #4 (scan positions 8 and 9: east 20, 24;
+   south-west 33, 34; west 39, 48; north 27, 32), once per rule, as the confirmation. Scan positions 10 and 11 are
+   the next unseen sets (D-307.7).
+3. **Results (`--final`, complete):**
+
+   | | set #3 old | set #3 walk | set #4 old | set #4 walk |
+   |---|---|---|---|---|
+   | far walks, 48 runs | 1995 | 1435 | 2148 | 1646 |
+   | lead over Longbow + Stone | +2.6 (6 of 8) | +2.7 (6 of 8) | +2.0 (5 of 8) | +2.3 (5 of 8) |
+   | lowest lane lead | north +2.2 | sw +2.5 | sw +1.1 | north +1.4 |
+   | retry nights, branch builds | 0 | 0 | 0 | 0 |
+   | lowest first tier-3 night | 40.7% | 40.7% | 48.7% | 48.7% |
+   | unbranched retry nights | 3 | 4 | 7 | 6 |
+   | fixed spread | 4.5 | 4.5 | 4.9 | 4.2 |
+
+   The walk-time rule cuts far walks by about a quarter and changes the survival and balance readings by less than
+   the noise (2 points). The never-cross rule (D-310) lost nights; this one does not. Outputs:
+   `docs/review/media/e6/tuning/e7_*.txt`.
+4. **E6-1 re-measured:** with the better bot the lead is still +2.3 to +2.7 against 5: reading lane character does
+   not pay, and it was not a bot artefact. Stays tier-4 input.
+5. **E6-2 re-measured:** branch builds keep a median 97% of the diner on their first tier-3 night (minimum 68.0% on
+   set #3, 78.3% on set #4; 33 to 36 of 40 runs at 90% or more). The first tier-3 night is easy. Stays input for the
+   next balance work, no tuning now.
