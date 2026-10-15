@@ -3532,3 +3532,28 @@ is no longer reachable. The tests already pin this (D-308.3).
 5. **E6-2 re-measured:** branch builds keep a median 97% of the diner on their first tier-3 night (minimum 68.0% on
    set #3, 78.3% on set #4; 33 to 36 of 40 runs at 90% or more). The first tier-3 night is easy. Stays input for the
    next balance work, no tuning now.
+
+**D-313 E8 brainstorm: the author's answers (2026-10-15).**
+1. Tier 4 is three specs: the night side (E8) first, then the seller (E9) and passive equipment (E10).
+2. The lane-reading payoff comes from sharper specialists: each branch gets a real weakness off its lane, applied to
+   the branches everywhere (tier 3 changes too).
+3. No new monster kind at tier 4.
+4. A tier's first nights are tight but fair (a median 50% to 80% for branch builds on the first night).
+5. Tier 4's land adds two towers and no fence; the tier-3 boss is a siege boss.
+6. Two phases, no flag: phase 1 the specialists in tier 3 (own hold-out), phase 2 tier 4 (own hold-out).
+7. Sections 1 to 3 of the design approved; the branch card names the weakness; new visuals go to the author in shot
+   packs. Spec: `docs/superpowers/specs/2026-10-15-e8-tier4-night-design.md`.
+
+**D-314 E8 main-session rulings (the author asked for the rest to run without questions, 2026-10-15).**
+1. Autonomy: decisions are made, logged with their cost, and reported at the end; failed targets are reported with
+   options, not tuned past their pre-authorized ranges.
+2. Checkpoints do not stop the build: a checkpoint PR stays open (not merged) and the next phase is stacked on it.
+   Cost: phase 2 is built on numbers the author has not played; a change at checkpoint A may ripple into phase 2.
+3. New visuals ship only after the author sees them (the standing rule): shot packs at each checkpoint, nothing
+   merged that changes a visual. Cost: nothing reaches the live game until the author returns.
+4. The Stone wall has no off-lane weakness (hares walk past every fence): its off-lane cost is opportunity only.
+   Cost: the payoff rests on three of four branches; if the target fails, a Stone wall weakness is option one.
+5. Back-lot placement: every lane covered by two towers after tier 4; the south-west lane gets one new tower, the
+   second goes where the layout finds land. Cost: the second tower's lane is a layout outcome, not a design choice.
+6. Phase-2 report runs are 45 days. Cost: about 1.4 times the run time of a 32-day report.
+7. FIXED_SPREAD's target turns around (the builds should now differ): reported as "spread >= 5", not must-hold.
