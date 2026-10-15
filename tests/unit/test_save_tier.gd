@@ -131,7 +131,7 @@ func test_schema_3_fixtures_still_load() -> void:
 		var text := FileAccess.get_file_as_string("res://export/fixtures/%s.save.json" % stem)
 		var r := SaveCodec.decode(text, GameState.SCHEMA_VERSION, Balance.data)
 		assert_true(r.ok, "%s: %s" % [stem, r.reason])
-		assert_eq([r.state.v, r.state.tier], [7, 1])
+		assert_eq([r.state.v, r.state.tier], [GameState.SCHEMA_VERSION, 1])
 
 func test_schema_4_with_a_bad_lane_plan_is_content() -> void:
 	var variants := {"erased": null, "null": null, "number": 7, "bad wave": 1}

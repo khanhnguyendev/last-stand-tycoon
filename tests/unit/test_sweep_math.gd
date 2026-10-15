@@ -1,5 +1,8 @@
 extends GutTest
 
+func before_each() -> void:
+	Balance.reset()  # tests here read Balance.data.tiers and .wave; none may see another file's mutation
+
 func test_enemy_count_sums_waves_and_boss() -> void:
 	var plan := [{"main_count": 10, "side_count": 4, "boss": false}, {"main_count": 6, "side_count": 0, "boss": false}]
 	assert_eq(SweepMath.enemy_count(plan), 20)
