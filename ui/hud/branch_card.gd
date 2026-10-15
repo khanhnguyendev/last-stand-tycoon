@@ -1,14 +1,15 @@
 class_name BranchCard
 extends Control
 ## E6 Task 13 (spec 5.2, D-284, D-289): the branch card. While the hero stands on an ARMED branch pad (the pad is shown, the
-## zone is armed: he walked in) and the run has a lane character (tier 3), a 640 x 170 card sits at the
+## zone is armed: he walked in) and the run has a lane character (tier 3), a 640 x 222 card sits at the
 ## bottom of the HUD, 24 px above the safe inset, and tells the player what the pad sells:
 ##   row 1  branch icon and name                      (left, top line)
 ##   row 4  payment bar (paid / cost) and the REMAINING cost as the number   (right, top line)
 ##   row 2  the specialty (at most 3 words) with its lane-character icon     (left, middle line)
 ##   row 5  fences only: broken-fence icon and "lost if broken"              (right, middle line)
+##   row 6  E8 (spec 3.4): the weakness (at most 3 words) with the icon of the kind it is weak to  (left, third line)
 ##   row 3  the guarded lane(s), each with its lane-character icon (none if neutral)  (full width, bottom line)
-## The rows are numbered as in the spec; they are laid out in three lines because five stacked 40 px icons do not fit 170 px.
+## The rows are numbered as in the spec; they are laid out in four lines (222 px) because six stacked 40 px icons do not fit.
 ## It is a listener: it reads BranchPad's static focus helpers and GameState, writes nothing, and every Control in it ignores the
 ## mouse, so a joystick touch may start on it. With no lane character (below tier 3) it stays hidden: while no
 ## armed pad is under the hero _process does one lookup and returns, and on a pad it asks GameState for the (empty) character
@@ -21,7 +22,7 @@ extends Control
 ## not fit even at the floor the label trims with an ellipsis (`overflowing()` reports it; the tests assert it never happens
 ## for the pseudo-locale and the Vietnamese sample). Row 3 shrinks its entries together so both lanes use one size.
 
-const CARD_SIZE := Vector2(640, 170)
+const CARD_SIZE := Vector2(640, 222)
 const BOTTOM_GAP := 24.0
 const MARGIN_X := 8.0
 const MARGIN_Y := 11.0
@@ -59,6 +60,8 @@ var bar_fill: ColorRect
 var cost_label: Label
 var warn_icon: TextureRect
 var warn_label: Label
+var weak_icon: TextureRect
+var weak_label: Label
 
 var _key := ""
 var _shown_remaining := -1
@@ -144,6 +147,22 @@ static func specialty_kind(id: StringName) -> StringName:
 		&"volley", &"spike": return LaneCharacterIcons.HARE
 		_: return &""
 
+## E8 (spec 3.4): what the branch is weak to, at most three words.
+func weakness(id: StringName) -> String:
+	match id:
+		&"longbow": return tr("weak to hares")
+		&"volley": return tr("weak to brutes")
+		&"spike": return tr("brutes smash it")
+		&"stone": return tr("useless on hares")
+		_: return ""
+
+## The kind the weakness names, as the card draws kinds everywhere (a brute is the siege ram, a hare the hare head).
+static func weakness_kind(id: StringName) -> StringName:
+	match id:
+		&"longbow", &"stone": return LaneCharacterIcons.HARE
+		&"volley", &"spike": return LaneCharacterIcons.SIEGE
+		_: return &""
+
 func lane_name(lane: String) -> String:
 	match lane:
 		"west": return tr("west road")
@@ -178,6 +197,8 @@ func _clear() -> void:
 	cost_label = null
 	warn_icon = null
 	warn_label = null
+	weak_icon = null
+	weak_label = null
 
 func _build(p_spot: String, p_branch: StringName, character: Dictionary) -> void:
 	_clear()
@@ -199,7 +220,8 @@ func _build(p_spot: String, p_branch: StringName, character: Dictionary) -> void
 	size = CARD_SIZE
 	var y1 := MARGIN_Y
 	var y2 := MARGIN_Y + ROW_H + ROW_GAP
-	var y3 := MARGIN_Y + 2.0 * (ROW_H + ROW_GAP)
+	var y3 := MARGIN_Y + 2.0 * (ROW_H + ROW_GAP)  # row 6, the weakness
+	var y4 := MARGIN_Y + 3.0 * (ROW_H + ROW_GAP)  # row 3, the guarded lanes
 	var xr := MARGIN_X + LEFT_W + COL_GAP
 	var right_w := CARD_SIZE.x - MARGIN_X - xr
 	# row 1: branch icon and name
@@ -239,8 +261,13 @@ func _build(p_spot: String, p_branch: StringName, character: Dictionary) -> void
 		warn_icon = _icon("WarnIcon", branch_texture(&"broken"), Vector2(xr, y2))
 		warn_label = _fit_label("Warn", tr("lost if broken"), Vector2(xr + ICON_PX + ICON_GAP, y2),
 			right_w - ICON_PX - ICON_GAP, TEXT_MAX, TEXT_MIN)
+	# row 6: the weakness, with the icon of the kind it is weak to
+	weak_icon = _icon("WeakIcon", LaneCharacterIcons.texture(weakness_kind(p_branch)), Vector2(MARGIN_X, y3))
+	# (it starts in the left column; the right column of this line is empty, so a longer translation may run on into it)
+	weak_label = _fit_label("Weak", weakness(p_branch), Vector2(MARGIN_X + ICON_PX + ICON_GAP, y3),
+		CARD_SIZE.x - 2.0 * MARGIN_X - ICON_PX - ICON_GAP, TEXT_MAX, TEXT_MIN)
 	# row 3: the guarded lanes
-	_build_lanes(guarded_lanes(p_spot), character, y3)
+	_build_lanes(guarded_lanes(p_spot), character, y4)
 
 func _build_lanes(lanes: Array, character: Dictionary, y: float) -> void:
 	var avail := CARD_SIZE.x - 2.0 * MARGIN_X

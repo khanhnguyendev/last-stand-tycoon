@@ -1,5 +1,5 @@
 extends GutTest
-## E6 Task 13 (spec 5.2, D-284, D-289): the branch card in the HUD. Every test names the wrong implementation it catches.
+## E6 Task 13 (spec 5.2, D-284, D-289) and E8 Task 4 (spec 3.4, row 6, the weakness): the branch card in the HUD. Every test names the wrong implementation it catches.
 ## Seed 1 pins the lane character: SIEGE east, HARE west; north and the south-west lane are neutral.
 
 const ASPECTS := [9.0 / 21.0, 720.0 / 1280.0, 16.0 / 9.0]
@@ -19,18 +19,20 @@ const LANES := {
 	"fence_e": [["east road", SIEGE]],
 	"fence_sw": [["south road", NONE]],
 }
-## branch -> [name, specialty, specialty icon]
+## branch -> [name, specialty, specialty icon, weakness (E8 row 6), weakness icon (the kind it is weak to)]
 const BRANCHES := {
-	&"longbow": ["Longbow", "breaks brutes", SIEGE],
-	&"volley": ["Volley", "hits 3 targets", HARE],
-	&"stone": ["Stone wall", "holds brutes", SIEGE],
-	&"spike": ["Spike fence", "hurts hares", HARE],
+	&"longbow": ["Longbow", "breaks brutes", SIEGE, "weak to hares", HARE],
+	&"volley": ["Volley", "hits 3 targets", HARE, "weak to brutes", SIEGE],
+	&"stone": ["Stone wall", "holds brutes", SIEGE, "useless on hares", HARE],
+	&"spike": ["Spike fence", "hurts hares", HARE, "brutes smash it", SIEGE],
 }
 const VI := {
 	"Longbow": "Cung tầm xa", "Volley": "Loạt tên", "Stone wall": "Tường đá", "Spike fence": "Hàng rào chông",
 	"breaks brutes": "phá quái nặng", "holds brutes": "chặn quái nặng", "hits %d targets": "bắn trúng %d mục tiêu",
 	"hurts hares": "làm đau thỏ", "west road": "đường phía tây", "north path": "đường phía bắc",
 	"east road": "đường phía đông", "south road": "đường phía nam", "lost if broken": "mất nếu bị phá",
+	"weak to hares": "yếu trước thỏ", "weak to brutes": "yếu trước quái nặng",
+	"brutes smash it": "quái nặng đập nát", "useless on hares": "vô dụng với thỏ",
 }
 
 var main: Main
@@ -136,6 +138,14 @@ func test_every_branch_of_every_spot_shows_rows_one_to_five_as_specified() -> vo
 			assert_eq(card.spec_label.text, want[1], "%s: specialty" % tag)
 			assert_true(_same_image(card.spec_icon.texture, LaneCharacterIcons.texture(want[2])), "%s: the specialty's own character icon" % tag)
 			assert_false(_same_image(card.spec_icon.texture, LaneCharacterIcons.texture(HARE if want[2] == SIEGE else SIEGE)), tag)
+			# row 6 (E8): the weakness, with the icon of the kind it is weak to
+			assert_eq(card.weak_label.text, want[3], "%s: weakness" % tag)
+			assert_lte((want[3] as String).split(" ").size(), 3, "%s: at most 3 words" % tag)
+			assert_true(_same_image(card.weak_icon.texture, LaneCharacterIcons.texture(want[4])), "%s: the weak-to kind's icon" % tag)
+			assert_false(_same_image(card.weak_icon.texture, LaneCharacterIcons.texture(HARE if want[4] == SIEGE else SIEGE)), tag)
+			assert_lt(card.spec_label.position.y, card.weak_label.position.y, "%s: row 6 under the specialty" % tag)
+			assert_lt(card.weak_label.position.y, card.lane_labels[0].position.y, "%s: row 6 above the lanes" % tag)
+			assert_almost_eq(card.weak_label.position.x, card.spec_label.position.x, 0.01, "%s: left column" % tag)
 			# row 3
 			var lanes: Array = LANES[id]
 			assert_eq(card.lane_labels.size(), lanes.size(), "%s: one entry per guarded lane" % tag)
@@ -160,7 +170,7 @@ func test_every_branch_of_every_spot_shows_rows_one_to_five_as_specified() -> vo
 				assert_eq(card.warn_label.text, "lost if broken", tag)
 				assert_true(_same_image(card.warn_icon.texture, BranchCard.branch_texture(&"broken")), "%s: the broken-fence icon" % tag)
 			# every string is the tr() source
-			var expect: Array = [want[0], want[1], str(GameState.branch_cost(id))]
+			var expect: Array = [want[0], want[1], want[3], str(GameState.branch_cost(id))]
 			for l in lanes:
 				expect.append(l[0])
 			if fence:
@@ -379,7 +389,7 @@ func test_the_live_card_sits_where_the_projection_tests_put_it() -> void:
 		assert_almost_eq(got.end.y, main.hud.root.get_viewport_rect().size.y - inset - 24.0, 0.5, "inset %s: bottom (24 px above the inset)" % inset)
 		assert_almost_eq(got.position.y, want.position.y, 0.5, "inset %s: y (24 px above the inset)" % inset)
 		assert_almost_eq(got.size.x, 640.0, 0.5)
-		assert_almost_eq(got.size.y, 170.0, 0.5)
+		assert_almost_eq(got.size.y, 222.0, 0.5, "E8: 170 plus the weakness row (ROW_H + ROW_GAP)")
 
 ## Mutation: a card that grows tall or sits low enough to cover a hero standing on a pad; or one off the screen or in the home indicator.
 func test_the_card_never_covers_the_hero_on_any_of_the_18_pads_and_stays_in_the_safe_area() -> void:
@@ -605,7 +615,8 @@ func test_the_warmup_rasterizes_the_icons_so_the_first_show_does_not() -> void:
 	for spec in [["fence_e", 0], ["fence_w", 1], ["tower_nw", 0], ["tower_e", 1]]:
 		await _stand_on(spec[0], spec[1])
 		assert_true(card.visible)
-	assert_eq(BranchCard.rasterized, 5, "the first shows rasterized nothing")
+	# E8: row 6 draws the hare and the siege ram from LaneCharacterIcons (already warmed), so it adds no rasterization
+	assert_eq(BranchCard.rasterized, 5, "the first shows rasterized nothing (the weakness icons are the warmed lane-character ones)")
 	assert_eq(LaneCharacterIcons._tex.size(), lane_tex)
 
 func test_the_font_has_a_glyph_for_every_character_of_the_vietnamese_sample() -> void:
@@ -618,7 +629,7 @@ func test_the_font_has_a_glyph_for_every_character_of_the_vietnamese_sample() ->
 	for k in VI:
 		for ch in (VI[k] as String):
 			seen[ch] = true
-	for ch in "Tường đá chặn quái nặng đường phía tây mất nếu bị phá":
+	for ch in "Tường đá chặn quái nặng đường phía tây mất nếu bị phá yếu trước thỏ quái nặng đập nát vô dụng với":
 		seen[ch] = true
 	for ch in seen:
 		assert_true(font.has_char(ch.unicode_at(0)), "the font has '%s' (U+%04X)" % [ch, ch.unicode_at(0)])
@@ -630,3 +641,22 @@ func test_the_size_floors_hold_in_plain_english_too() -> void:
 		await _stand_on(spec[0], spec[1])
 		_sizes_ok("%s %d" % spec)
 		_no_overlap_no_overflow("%s %d" % spec)
+
+## E8 (spec 3.4, Review Focus 3): the taller card still lies fully on the 720 x 1280 screen and on its 40% shot copy (288 x 512),
+## 24 px above the inset, and its top stays below the top bar's row. Mutation: a height the screen cannot hold.
+func test_the_222_px_card_fits_the_screen_and_its_40_percent_copy() -> void:
+	await _start()
+	await _max_all()
+	await _stand_on("fence_w", 1)
+	for inset in [0.0, 34.0]:
+		SafeArea.override_for_tests = {"top": 0.0, "bottom": inset, "left": 0.0, "right": 0.0}
+		main.hud._apply_safe_area()
+		await get_tree().process_frame
+		var r := card.get_global_rect()
+		var vp := main.hud.root.get_viewport_rect()
+		assert_true(vp.encloses(r), "inset %s: on screen %s in %s" % [inset, r, vp])
+		var k := 288.0 / 720.0
+		var small := Rect2(r.position * k, r.size * k)
+		assert_true(Rect2(0, 0, 288.0 * vp.size.x / 720.0, 512.0 * vp.size.y / 1280.0).encloses(small), "inset %s: on the 40%% copy" % inset)
+		assert_almost_eq(small.size.y, 222.0 * k, 0.01)
+		assert_gt(r.position.y, vp.size.y * 0.5, "inset %s: the card stays in the lower half, clear of the top bar" % inset)
