@@ -3567,8 +3567,11 @@ is no longer reachable. The tests already pin this (D-308.3).
     attack path; the Baron meets the Longbow's hare weakness on the tier-2 boss night only if a Longbow exists, which
     needs tier 3, so tier 2 play is unchanged.
 11. Tier-4 waves rest a neutral lane, drawn from a new stream, so the siege and hare lanes are always in the wave and
-    tiers 1 to 3 keep their draws. Cost: at tier 4 a neutral lane is quiet one wave in four lanes' worth; the player
-    never gets a wave without the two marked lanes.
+    tiers 1 to 3 keep their draws. Cost: each tier-4 wave rests one of the two neutral lanes, so the player never
+    gets a wave without the two marked lanes.
 12. Tier-3 sims and the tier-3 baseline run the bot capped at tier 3 through phase 2. Cost: the tier-3 baseline stops
     showing how gold flows once tier 4 is buyable; tier-4 tools cover that.
 13. The spec review's findings (4 critical, 13 important, 11 minor) were applied in the spec's second version.
+14. Bench ties and infinities fail ON and OFF as E6's tie rule does; the SPECIALISTS rows stay. Cost: some
+    weakness values may need a larger step to separate the runs.
+15. The spec's third version applies the re-review (7 important, 7 minor).

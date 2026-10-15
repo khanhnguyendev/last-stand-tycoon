@@ -49,6 +49,10 @@ higher is better is written H (seconds the fence stands).
 | OFF | Spike fence | siege | H fence stands | H <= (1 - m_off) x unbranched |
 | NEUTRAL | all four | neutral | L diner lost | L <= (1 + m_neu) x unbranched + a_floor |
 
+- Ties and infinities (D-314.14): ON and OFF keep E6's strictness. A tie on the primary measure fails ON unless E6's
+  tie-breakers (`BranchBench.beats_by_margin`: fence HP left, hares in zone, clear time) separate the runs in the
+  branch's favour. OFF fails when both runs give INF (`fence_stands_s` never falling) or both give 0. E6's
+  SPECIALISTS rows stay, as written, beside ON.
 - Margins are fixed for E8: `m_on` 0.15, `m_off` 0.10, `m_neu` 0.15, `a_floor` 20 HP (the absolute term covers a
   reference of 0). They are balance values only so the bench reads them. Changing one is an escalation (D-314.8).
 - The Stone wall has no OFF rule (D-314.4): hares walk past every fence, so its off-lane cost is the gold not spent
@@ -77,7 +81,9 @@ higher is better is written H (seconds the fence stands).
   a pressure-12 last-wave hare (51.675) needs two arrows; below 0.29, every tier-3 hare does. 0.3 makes most hares
   take two arrows.
 - Kind classes (D-314.10): the multipliers are looked up by kind class. `wrecker` is class `brute` and `baron` is
-  class `hare`, so the new boss and the tier-2 boss meet the same strengths and weaknesses as their kin.
+  class `hare`, so the new boss and the tier-2 boss meet the same strengths and weaknesses as their kin. Every reader
+  uses the class: the attack path, Spike's `pass_kinds`, and the tier bot's clear-time estimate
+  (`actors/bots/tier_bot.gd`).
 - Pre-authorized tuning: inside the ranges, and the strengths within +-25% of today's values (as D-292 did for E6).
   Anything outside, or a new mechanic, is an escalation in the final report.
 
@@ -91,7 +97,8 @@ higher is better is written H (seconds the fence stands).
 
 ### 3.4 Interface (D-313.7)
 
-The branch card gets a third row for the weakness, at most 3 words, through `tr()`:
+The branch card gets a sixth row, on a fourth line between the middle line and the guarded-lanes line, for the
+weakness, at most 3 words, through `tr()`:
 - Longbow: "weak to hares";
 - Volley: "weak to brutes";
 - Spike fence: "brutes smash it";
@@ -134,10 +141,13 @@ and clipping tests are updated to the new height. A shot pack shows all four car
   - `brute_cap_main[4]` 1, `brute_cap_side[4]` 0 (start equal to tier 3; tuning may raise them).
   - `brute_ramp_days[4]` 1, so tier 4's first night is not below tier 3's cap night.
   - `boss_kind` becomes `[&"", &"boss", &"baron", &"wrecker", &""]`. Tier 4 is the top, so it has no boss.
-- The tier-4 sign stands on the back lot (`TIER_SIGNS[3]`, the land it sells, D-240). Paying it starts the tier-3
+- The tier-4 sign stands on the back lot (`TIER_SIGNS[4]`: the sign of tier N sells tier N, D-240). Paying it starts the tier-3
   boss night.
-- The boss rides wave 3 as every boss does (D-238). On a run with a lane character, wave 3's main lane is the siege
-  lane for the boss night: `with_boss` swaps it in, and `validate` accepts the result.
+- The boss rides wave 3 as every boss does (D-238). On a run with a lane character the Wrecker walks the siege lane:
+  `LanePlanner.with_boss(plan, character)` takes the character and, when wave 3's siege lane is its side (or side2)
+  group, swaps that group and the main group whole (lane, count, fast, brute); there is no draw. A unit test pins
+  `brute_lane(wave 3) == siege` on the boss night. Its banner reads `tr("The Wrecker comes")`
+  (`world/phase_controller.gd` today shows the Boar King's line for every boss but the Baron).
 - The win: the next dawn plays the tier-4 reveal (land and yards, the two towers; no diner storey, no lane-character
   step), and the sign is removed (no tier above). A loss is the existing retry with the payment kept, mercy as always.
 
@@ -162,9 +172,13 @@ and clipping tests are updated to the new height. A shot pack shows all four car
 - Two tower spots (`TIER_SPOTS[4]`), single-lane towers like the tier-2 yard towers, branching at level 3.
 - Placement rule (D-314.5): after tier 4, every lane is covered by at least two towers. The south-west lane (one
   tower today) gets one; the second goes to a lane where land is found.
-- New entries: `ALL_SPOT_IDS`, `TOWER_LANES`, `TOWER_SPOTS`, `BRANCH_PADS` (two pads per tower), `YARDS_T4` (one
-  yard or two), `TIER_SIGNS[3]`. The waypoint graph gains a node per spot and pad. The pad-layout and clearance
-  tests grow with them.
+- New entries, following D-271 (the shared tables are tier-1 and 2 data and never change): `TIER_SPOTS[4]`,
+  `TOWER_SPOTS_T4`, `TOWER_LANES_T4`, `YARDS_T4` with `YARD_TIER_T4`, `BRANCH_PADS` (two pads per tower),
+  `ALL_SPOT_IDS`, `TIER_SIGNS[4]`. The accessors (`tower_spot`, `tower_lanes`, `yard_rect`, `yard_tier`, `all_yards`,
+  `yards_for_tier`) read the new tables. Pinned layout tests that change (`tests/unit/test_tier3_layout.gd`: the sign
+  keys and the spot lists) are extended for tier 4, not loosened; the plan lists each one.
+- Graph (D-314.12): the bot's graph gains the tier-4 sign node only when the bot may buy tier 4, and the new spots
+  and pads only at tier 4, so a bot capped at tier 3 walks the same graph as today.
 - Coordinates are pinned by tests, not here (D-240):
   - clear of lanes by `lateral_spread` + 1 m, and of pads, zones, slots, posts, the queue and the traveler path;
   - on screen at 9:16;
@@ -178,17 +192,22 @@ and clipping tests are updated to the new height. A shot pack shows all four car
 
 - Wave fields: tier-4 waves add `side2`, `side2_count`, `fast_side2` and `brute_side2`.
   - Below tier 4 these keys are absent, so tier 1 to 3 plans are unchanged.
-  - `SaveCodec.validate` accepts them only at tier 4 and above.
+  - `SaveCodec.validate` requires all four on every tier-4 wave and accepts them only at tier 4 and above: `side2` a
+    lane of the tier, different from main and side; whole numbers; `fast_side2 <= side2_count`.
   - Readers: `threat_by_lane`, `composition_by_lane`, the wave director's spawning and side delays, `WaveSchedule`,
     the telegraph, the edge arrows, `from_dict` and `validate`.
 - The draw (D-314.11): at tier 4 the planner draws, per wave, the resting lane among the neutral lanes (those that
   are neither siege nor hare). It uses its own stream `Rng.stream(run_seed, day, &"lane_plan_t4")`, so the existing
   stream and tiers 1 to 3 are untouched. Main, side and side2 are the other three lanes. The main lane comes from
   today's draw when it is not the resting lane, otherwise it is redrawn from the three.
-  - Effect: every tier-4 wave contains the siege and the hare lane, so lane-character step b never adds an extra
-    hare group at tier 4, and the 3-lane guard holds.
-  - The side group's count is split between side and side2 (the odd one to side).
-  - Lane-character step a moves brutes to the siege lane whichever of the three it is.
+  - Lane order: of the two lanes left after main, side and side2 follow `LANES_TIER3` order. The redraw of main uses
+    the `lane_plan_t4` stream too; today's stream is consumed exactly as at tier 3.
+  - Splits: the side count, `fast_side` and `brute_side` are split between side and side2, the odd unit to side.
+  - Lane character: step a moves brutes to the siege lane whichever of the three groups it is. Step b gains a
+    three-group rule: the hare lane's group takes min(T, its count) hares as today, the rest come from the other two
+    groups in main, side, side2 order, and never as an extra group at tier 4. `_lane_set` and `active_lanes` count
+    `side2`, so the 3-lane guard and LANE_CAP_GUARD count right.
+  - Effect: every tier-4 wave contains the siege and the hare lane and three lanes in all.
 - Pressure: `tier_base[4]` 12 up to `tier_cap[4]` 15, one per night (the first tier-4 night is at 12). The waves grow
   through the existing formulas.
 - Lane character is unchanged: one siege lane and one hare lane per run.
@@ -199,13 +218,16 @@ and clipping tests are updated to the new height. A shot pack shows all four car
   dawn, as tier 3's did (`GameState.complete_tier_up`). There is a migration test from a committed v7 save.
 - `TierBot` buys tier 4 after the tier-3 ladder is complete; once tier 4 is open it builds and branches the two new
   towers. Every branch policy covers them. The walk rule (D-312) is unchanged.
-- Bench: `BranchBench.mix` takes the tier, and at tier 4 a lane's mix follows the split side groups. CI runs the
+- Bench: `BranchBench.mix` takes the tier. At tier 4 a lane's mix is that lane's group from the planner's split
+  (4.4): the siege lane's group with its brutes, the hare lane's group with its hares after step b, a neutral lane's
+  group of boars; the bench builds these from `WaveMath.split` and the same split and step-b rules, in one helper
+  shared with the planner's tests. CI runs the
   tier-4 cap only (about 40 s more); the tier-4 base runs in the bench report.
 - Report and sweep: tier-4 nights are counted apart from tier-3 nights (section 4.6); `--days=45`; set #6.
 - Tier-3 identity through phase 2 (D-314.12):
   - Once tier 4 has a price, the bot pays into it, which would change tier-3 gold flow.
-  - The tier-3 sims and `tools/baseline_t3.sh` therefore run the bot with `--bot-max-tier=3`, so they stay what
-    phase 1 recorded.
+  - The tier-3 sims and `tools/baseline_t3.sh` therefore cap the bot at tier 3 (`TierBot.max_tier = 3`; the sweep's
+    `--bot-max-tier=3` sets it), so they stay what phase 1 recorded.
   - `tools/baseline_t4.sh` pins the tier-4 game.
 - Tier-4 sims start from fixtures (`make_save --fixture=tier4`, captured from bot play) and go in `sim-tiers-b`,
   within its 150 s and tick budgets; a split into a new job would need the author's permission for the required
@@ -228,7 +250,9 @@ and clipping tests are updated to the new height. A shot pack shows all four car
   - FENCE_TAX <= 30%;
   - LANE_CAP_GUARD 0;
   - BOSS_NIGHT.
-- Tier-3 nights in the same runs must stay within 2 points of phase 1's set-#5 reading per target (noise).
+- Tier-3 check: set #5's seeds re-run on the phase-2 build with the bot capped at tier 3, 32 days, must give output
+  identical to phase 1's set-#5 reading (D-314.12). It is a plain report run, not a new `--final` (the set is
+  spent; the run reads nothing new).
 - Perf once, at the end (D-260): the tier-4 cap night on the iOS Simulator, with the night-3 reference the same day.
 
 ## 5. Delivery (D-313.6, D-314.2)
