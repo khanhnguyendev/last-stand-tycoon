@@ -8,8 +8,7 @@ extends Resource
 @export var tier_costs: Array[int] = [0, 500, 1500]
 ## Pressure (the "day" every wave formula sees) at the tier's first night, and where it stops growing. E6 (D-304): tier 3 starts at 10
 ## (tier 2's cap) and reaches its cap 12 on its third night, so the first night, when one branch is owned, is softer.
-## E8 tuning round 2 (spec 3.3): tier 3 starts at 11; FIRST_NIGHT_BAND was 95.7% at 10, so the first night is a little harder.
-@export var tier_base: Array[int] = [0, 1, 8, 11]
+@export var tier_base: Array[int] = [0, 1, 8, 10]
 ## Tier 3's cap is 12: its escalation is the brute ramp and the fourth lane, then the last two steps of pressure
 ## (real-play tuning: 15 needed retries on about half of all cap nights; 12 with no side-lane brutes had 0 in 40).
 @export var tier_cap: Array[int] = [0, 7, 10, 12]

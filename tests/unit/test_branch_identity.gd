@@ -5,18 +5,19 @@ extends GutTest
 ## M1 (single-target DPS) and M3 (DPS against three targets) are RAW by definition: damage x projectiles on distinct
 ## targets / interval. Kill rates (M4, the brute check) use whole hits, so overkill counts against a tower.
 
-## Every case here runs on the LIVE pressures [11, 12] (E8 tuning round 2: tier 3 starts at 11, one above tier 2's cap, and ends at its own cap 12). The old cases at
+## Every case here runs on the LIVE pressures [10, 11, 12] (D-304: tier 3 starts at tier 2's cap 10 and ends at its own cap 12). The old cases at
 ## 13 to 15 (unreachable since D-280) were converted to this range in the debt sweep. PRESSURES is the explicit list; test_live_pressure_range_*
 ## derive the range from tier_base[3]..tier_cap[3] and fail if the two ever differ.
-const PRESSURES: Array[int] = [11, 12]
+const PRESSURES: Array[int] = [10, 11, 12]
 const WAVES := 3
 
 # Real hare HP per [pressure][wave], verified by hand: 15 x (1 + 0.15 x (p - 1)) x max(1, raw / 30); boar 30 and brute 240 scale the same way.
+# p10: hp_growth part 2.35; raw 33 on the last wave -> x 1.1: hare 35.25, 35.25, 38.775 (35.25 x 1.1); boar 70.5, 70.5, 77.55; brute 564, 564, 620.4.
 # p11: 2.5; raw 36 on the last wave -> x 1.2: hare 37.5, 37.5, 45.0; boar 75, 75, 90; brute 600, 600, 720.
 # p12: raw 19, 29, 39 -> 15 x 2.65 = 39.75, 39.75, then 39/30 x 2.65 x 15 = 51.675.
-const HARE_HP := {11: [37.5, 37.5, 45.0], 12: [39.75, 39.75, 51.675]}
-const BOAR_HP := {11: [75.0, 75.0, 90.0], 12: [79.5, 79.5, 103.35]}
-const BRUTE_HP := {11: [600.0, 600.0, 720.0], 12: [636.0, 636.0, 826.8]}
+const HARE_HP := {10: [35.25, 35.25, 38.775], 11: [37.5, 37.5, 45.0], 12: [39.75, 39.75, 51.675]}
+const BOAR_HP := {10: [70.5, 70.5, 77.55], 11: [75.0, 75.0, 90.0], 12: [79.5, 79.5, 103.35]}
+const BRUTE_HP := {10: [564.0, 564.0, 620.4], 11: [600.0, 600.0, 720.0], 12: [636.0, 636.0, 826.8]}
 
 var bd: BalanceData
 var bb: BranchBalance
@@ -79,7 +80,7 @@ func test_real_hp_values_are_pinned() -> void:
 			assert_almost_eq(boar, BOAR_HP[p][w], 1e-3, "boar p%d w%d" % [p, w])
 			assert_almost_eq(brute, BRUTE_HP[p][w], 1e-3, "brute p%d w%d" % [p, w])
 	assert_almost_eq(_hp(15.0, 12, 0), 39.75, 1e-6, "spec 3.5: about 40 at pressure 12")
-	assert_almost_eq(_hp(15.0, 11, 0), 37.5, 1e-6, "37.5 at pressure 11, tier 3's first night (15 x 2.5)")
+	assert_almost_eq(_hp(15.0, 10, 0), 35.25, 1e-6, "35 at pressure 10, tier 3's first night")
 
 # --- the live pressure range (D-280) --------------------------------------------------------------------
 
@@ -91,7 +92,7 @@ func _live_pressures() -> Array[int]:
 
 func test_live_pressure_range_is_inside_the_covered_cases_and_nothing_above_the_cap_is_reached() -> void:
 	var live := _live_pressures()
-	assert_eq(live, [11, 12] as Array[int], "tier 3 starts at 11 and ends at its own cap 12 (E8 tuning round 2)")
+	assert_eq(live, [10, 11, 12] as Array[int], "tier 3 starts at tier 2's cap 10 and ends at its own cap 12 (D-304)")
 	assert_eq(live, PRESSURES, "the explicit list and the balance's range are the same")
 	for p in live:
 		assert_true(p in PRESSURES and HARE_HP.has(p), "live pressure %d is covered by the identity cases" % p)
@@ -117,7 +118,7 @@ func test_live_pressure_range_real_hp_and_identity_hold() -> void:
 			var bh := _hp(bd.monsters.stats(&"brute").hp, p, w)
 			assert_gte(BranchMath.kills_per_second(bh, t[&"longbow"], 1), BranchMath.kills_per_second(bh, t[&""], 1) - 1e-9, "live longbow vs brute p%d w%d" % [p, w])
 
-## E6 (D-304) / E8 tuning round 2: tier 3 starts at pressure 11 and ramps to the cap 12, so the live range is [11, 12] (tables above).
+## E6 (D-304): tier 3 starts at pressure 10 and ramps to the cap 12, so the live range is [10, 11, 12] (tables above).
 
 ## The live Longbow: the balance's Longbow (its 2.0 s interval) with its damage x its own multiplier for a monster of `kind`, looked up by the
 ## kind's class like the attack path does (an absent class = 1.0).
@@ -212,14 +213,10 @@ func test_m4_kill_rate_literals() -> void:
 	assert_almost_eq(BranchMath.kills_per_second(hare, t[&""], 5), 1.0 / 1.5, 1e-9)
 	assert_almost_eq(BranchMath.kills_per_second(hare, t[&"longbow"], 5), 1.0 / 2.0, 1e-9)
 	assert_almost_eq(BranchMath.kills_per_second(hare, t[&"volley"], 5), 3.0 / 2.5, 1e-9)
-	var first := _hp(15.0, 11, 0)  # 37.5 (tier 3's first night): 3 hits (18 each), 1 shot (tower damage 120, the table's hare 0.3 is not in this raw call), 4 hits
-	assert_almost_eq(BranchMath.kills_per_second(first, t[&""], 5), 1.0 / 1.5, 1e-9)
+	var first := _hp(15.0, 10, 0)  # 35.25 (tier 3's first night): 2 hits, 1 shot, 4 hits
+	assert_almost_eq(BranchMath.kills_per_second(first, t[&""], 5), 1.0, 1e-9)
 	assert_almost_eq(BranchMath.kills_per_second(first, t[&"longbow"], 5), 0.5, 1e-9)
 	assert_almost_eq(BranchMath.kills_per_second(first, t[&"volley"], 5), 1.5, 1e-9)
-	var pre := _hp(15.0, 10, 0)  # 35.25 (the pre-round-2 first night, no longer live): 2 hits, 1 shot, 4 hits
-	assert_almost_eq(BranchMath.kills_per_second(pre, t[&""], 5), 1.0, 1e-9)
-	assert_almost_eq(BranchMath.kills_per_second(pre, t[&"longbow"], 5), 0.5, 1e-9)
-	assert_almost_eq(BranchMath.kills_per_second(pre, t[&"volley"], 5), 1.5, 1e-9)
 	var easy := _hp(15.0, 12, 0)  # 39.75: 3 hits, 1 shot, 4 hits
 	assert_almost_eq(BranchMath.kills_per_second(easy, t[&""], 5), 2.0 / 3.0, 1e-9)
 	assert_almost_eq(BranchMath.kills_per_second(easy, t[&"volley"], 5), 1.5, 1e-9)
@@ -334,12 +331,12 @@ func test_branch_math_whole_hits() -> void:
 func test_spike_scale_is_now_over_base() -> void:
 	assert_almost_eq(BranchMath.spike_scale(4.0, 2.0), 2.0, 1e-9)
 	var base := BranchMath.spike_base_mult(bd.wave, bd.branches)
-	assert_almost_eq(base, 2.65, 1e-9, "first wave at pressure 12 (the tier's cap, not its first night's 11)")
+	assert_almost_eq(base, 2.65, 1e-9, "first wave at pressure 12 (the tier's cap, not its first night's 10)")
 	assert_almost_eq(BranchMath.spike_scale(base, base), 1.0, 1e-9)
 	var s := BranchMath.spike_scale(WaveMath.hp_mult(12, 2, bd.wave), base)
 	assert_almost_eq(s, 1.3, 1e-9, "last wave at pressure 12: raw 39 / 30 = 1.3 times the first wave's multiplier")
 	assert_almost_eq(BranchMath.pass_damage(bb.fence(&"spike"), &"hare", s), 24.0 * s, 1e-9)
-	assert_almost_eq(BranchMath.spike_scale(WaveMath.hp_mult(11, 0, bd.wave), base), 2.5 / 2.65, 1e-9, "tier 3's first night is below the quote pressure")
+	assert_almost_eq(BranchMath.spike_scale(WaveMath.hp_mult(10, 0, bd.wave), base), 2.35 / 2.65, 1e-9, "tier 3's first night is below the quote pressure")
 
 # --- data shape ---------------------------------------------------------------------------------------------
 
@@ -403,7 +400,7 @@ func test_tier_3_arrays_are_live_and_the_top_tier_is_3() -> void:
 	var n := tb.tier_costs.size() + 1
 	for arr in [tb.tier_base, tb.tier_cap, tb.fast_share_start, tb.fast_share, tb.fast_ramp_days, tb.brute_cap_main, tb.brute_cap_side, tb.brute_ramp_days, tb.boss_kind]:
 		assert_gte((arr as Array).size(), n)
-	assert_eq([tb.tier_base[3], tb.tier_cap[3]], [11, 12], "tier 3 starts at 11 and reaches its cap on its second night (E8 tuning round 2)")
+	assert_eq([tb.tier_base[3], tb.tier_cap[3]], [10, 12], "tier 3 starts at tier 2's cap and reaches its own on its third night (D-304)")
 	assert_eq([tb.fast_share_start[3], tb.fast_share[3], tb.fast_ramp_days[3]], [0.35, 0.35, 1])
 	assert_eq([tb.brute_cap_main[3], tb.brute_cap_side[3], tb.brute_ramp_days[3]], [1, 0, 3], "main-lane brutes only (the ruling)")
 	assert_eq([tb.brute_cap_main[2], tb.brute_cap_side[2]], [0, 0], "tier 2 carries no brutes")

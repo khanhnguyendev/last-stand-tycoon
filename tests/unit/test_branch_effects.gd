@@ -298,21 +298,21 @@ func test_spike_scale_reads_the_first_wave_of_a_real_plan() -> void:
 	GameState.debug_set_tier(3, 17)
 	_branch(FENCE, &"spike")
 	assert_eq(GameState.lane_plan.size(), 3)
-	# Day 20 of a tier entered on day 17 is the tier's fourth night: pressure 11 + 3 = 14, capped at 12, so the plan's first wave is the base plan's: thorns 6.0.
+	# Day 20 of a tier entered on day 17 is the tier's fourth night: pressure 10 + 3 = 13, capped at 12, so the plan's first wave is the base plan's: thorns 6.0.
 	assert_eq(GameState.pressure(), 12)
 	assert_almost_eq(float(GameState.lane_plan[2].hp_mult), 3.445, 0.001)
 	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 2.65, 0.001)
 	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0, 0.001, "first wave, not the last (would be 6 x 3.445 / 2.65 = 7.80)")
 	# At the cap the scale is 1.0, which cannot tell "first wave" from "last wave" or "plan ignored". Re-run it with the cap raised in memory to 15
-	# (Spike's quoted base stays at pressure 12, hp_mult(12) = 2.65, whatever the cap): the night is at pressure 11 + 3 = 14, the plan's waves differ again and the scale reads the first one.
+	# (Spike's quoted base stays at pressure 12, hp_mult(12) = 2.65, whatever the cap): the night is at pressure 10 + 3 = 13, the plan's waves differ again and the scale reads the first one.
 	Balance.data.tiers.tier_cap[3] = 15
 	GameState.debug_set_tier(3, 17)
-	assert_eq(GameState.pressure(), 14, "cap 15, tier base 11, the fourth night")
+	assert_eq(GameState.pressure(), 13, "cap 15, tier base 10, the fourth night")
 	var first := float(GameState.lane_plan[0].hp_mult)
 	var last := float(GameState.lane_plan[2].hp_mult)
-	assert_almost_eq(first, 1.0 + 0.15 * 13.0, 0.001, "cap 15: the first wave at pressure 14 (1 + 0.15 x 13 = 2.95)")
+	assert_almost_eq(first, 1.0 + 0.15 * 12.0, 0.001, "cap 15: the first wave at pressure 13 (1 + 0.15 x 12 = 2.8)")
 	assert_gt(last, first, "cap 15: the last wave is bigger")
-	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0 * 2.95 / 2.65, 0.001, "cap 15: first wave, 6 x 2.95 / 2.65 = 6.679")
+	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0 * 2.8 / 2.65, 0.001, "cap 15: first wave, 6 x 2.8 / 2.65 = 6.340")
 	assert_false(is_equal_approx(GameState.fence_thorn_damage(FENCE), 6.0 * last / 2.65), "not the last wave's multiplier")
 
 func test_spike_base_mult_ignores_a_tier_cap_override() -> void:
@@ -421,24 +421,24 @@ func test_spike_pass_damage_is_24_times_the_scale() -> void:
 	_first_wave_mult(WaveMath.hp_mult(15, 0, Balance.data.wave))
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 28.0755, 0.001)
 
-## D-304 / E8 tuning round 2: the FIRST tier-3 night (day == tier_day) is at pressure 11, below Spike's base (pressure 12, the tier's cap, spike_base_mult), so Spike
-## scales by hp_mult(11) / hp_mult(12) = 2.5 / 2.65 = 0.943396: pass 24 x 0.943396 = 22.6415, thorns 6 x 0.943396 = 5.6604.
-## Mutation: spike_base_mult follows tier_base (2.5, scale 1.0 on the first night) or the scale is ignored.
-func test_first_tier_3_night_scales_spike_by_pressure_11_over_12() -> void:
+## D-304: the FIRST tier-3 night (day == tier_day) is at pressure 10, below Spike's base (pressure 12, the tier's cap, spike_base_mult), so Spike
+## scales by hp_mult(10) / hp_mult(12) = 2.35 / 2.65 = 0.886792: pass 24 x 0.886792 = 21.2830, thorns 6 x 0.886792 = 5.3208.
+## Mutation: spike_base_mult follows tier_base (2.35, scale 1.0 on the first night) or the scale is ignored.
+func test_first_tier_3_night_scales_spike_by_pressure_10_over_12() -> void:
 	var saved_day := GameState.day
 	GameState.day = 9
 	GameState.debug_set_tier(3, 9)
 	_branch(FENCE, &"spike")
-	assert_eq(GameState.pressure(), 11, "first tier-3 night")
-	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 2.5, 1e-6, "the plan's first wave is the pressure-11 multiplier")
+	assert_eq(GameState.pressure(), 10, "first tier-3 night")
+	assert_almost_eq(float(GameState.lane_plan[0].hp_mult), 2.35, 1e-6, "the plan's first wave is the pressure-10 multiplier")
 	var base := BranchMath.spike_base_mult(Balance.data.wave, Balance.data.branches)
 	assert_almost_eq(base, 2.65, 1e-9, "spike_base_mult is the pressure-12 multiplier (the cap), not the first night's")
-	var scale := 2.5 / 2.65
+	var scale := 2.35 / 2.65
 	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 24.0 * scale, 1e-6)
-	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 22.6415, 0.001)
-	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"baron"), 22.6415, 0.001)
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"hare"), 21.283, 0.001)
+	assert_almost_eq(GameState.fence_pass_damage(FENCE, &"baron"), 21.283, 0.001)
 	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 6.0 * scale, 1e-6)
-	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 5.6604, 0.0001)
+	assert_almost_eq(GameState.fence_thorn_damage(FENCE), 5.3208, 0.0001)
 	GameState.day = saved_day
 
 ## Mutation: the Longbow table has an entry for any other kind or lacks the brute / hare entry; the Volley table has anything but its brute entry; the unbranched tower carries a table.
