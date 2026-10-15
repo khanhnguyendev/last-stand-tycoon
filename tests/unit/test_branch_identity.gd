@@ -334,6 +334,7 @@ func test_spike_scale_is_now_over_base() -> void:
 	var s := BranchMath.spike_scale(WaveMath.hp_mult(12, 2, bd.wave), base)
 	assert_almost_eq(s, 1.3, 1e-9, "last wave at pressure 12: raw 39 / 30 = 1.3 times the first wave's multiplier")
 	assert_almost_eq(BranchMath.pass_damage(bb.fence(&"spike"), &"hare", s), 24.0 * s, 1e-9)
+	assert_almost_eq(BranchMath.spike_scale(WaveMath.hp_mult(10, 0, bd.wave), base), 2.35 / 2.65, 1e-9, "tier 3's first night is below the quote pressure")
 
 # --- data shape ---------------------------------------------------------------------------------------------
 

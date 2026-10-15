@@ -10,7 +10,7 @@ extends Node
 ## Tuning overrides (in memory only, after Balance.reset(); printed on the first output line; they apply to EVERY bot, not only the tier bot (not rejected for the
 ## planner and upgrader bots: a study may run those on a changed balance on purpose)): `--tier3-cap=<n>` (tier_cap[3]),
 ## `--brute-caps=<main>,<side>` (brute_cap_main[3], brute_cap_side[3]; both numbers are required), `--brute-hp=<n>`, `--fence-mult=<x>` (the brute's fence_damage_mult).
-## `--out=<file name>` writes tests/sim/out/<file name> (a relative path such as policies/x.csv is allowed, no `..`) instead of the default (parallel runs). `--cols=extra` appends fences_lost (fences at 0 HP when the
+## `--out=<file name>` writes tests/sim/out/<file name> (a relative path such as policies/x.csv is allowed; no `..`, not absolute, not a directory: checked before the sweep runs) instead of the default (parallel runs). `--cols=extra` appends fences_lost (fences at 0 HP when the
 ## night ended, final attempt) and lane_load (enemies per lane in the night's plan, brutes included) to the tier rows; without it the CSV is byte-identical to before.
 ## The TIER3 line (tier bot): nights, retry_nights, retries, cap_nights (pressure at tier_cap[3] when the night began), cap_retry_nights, and the min and median
 ## diner fraction over the tier-3 nights that were held (the final attempt's lowest diner HP; SweepMath.tier3_held_stats). T3RUN's min and median (SweepMath.tier3_stats) read every tier-3 night, a failed one included, so the two pairs differ whenever a night failed. NOTE: `kills` and `brute_kills` in the rows include the kills of failed attempts.
@@ -220,10 +220,6 @@ func _run() -> void:
 	var out_name := "sweep_tier.csv" if tier_mode else ("sweep_upgrader.csv" if upgrader else "sweep.csv")
 	if String(args.out) != "":
 		out_name = String(args.out)
-		if out_name.begins_with("/") or ".." in out_name:
-			push_error("bad --out=%s (a file name or a relative path under tests/sim/out/, no '..')" % out_name)
-			get_tree().quit(2)
-			return
 		DirAccess.make_dir_recursive_absolute(out_dir.path_join(out_name).get_base_dir())
 	var f := FileAccess.open(out_dir.path_join(out_name), FileAccess.WRITE)
 	f.store_string("\n".join(rows) + "\n")

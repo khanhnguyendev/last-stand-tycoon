@@ -772,6 +772,7 @@ func test_a_reload_in_the_middle_of_the_tier3_reveal_resumes_at_the_card_pick_wi
 	var saved: Dictionary = SaveStore.with_dir(dir).read().state
 	assert_eq(String(saved.resume_phase), "CARD_PICK", "the autosave wrote the card pick at the tier-up")
 	assert_eq(int(saved.tier), 3)
+	# This frees TierReveal._diner_kept: a production leak when Main is freed mid-reveal (logged in docs/E5_FOLLOWUPS.md).
 	# the reveal holds the new storey's art detached until step 5; freeing Main does not reach it, so free it here (it was an orphan at the end of the run)
 	var kept: Node3D = _reveal()._diner_kept
 	remove_child(main)

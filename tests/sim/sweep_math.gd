@@ -57,14 +57,14 @@ static func tier3_stats(nights: Array) -> Dictionary:
 
 ## The two tier-3 statistics of a run differ on purpose (debt sweep; both are printed, neither is derived from the other):
 ## - tier3_stats (the T3RUN line, the policy report): every night that STARTED at tier >= 3, a failed night included as played (its frac is the final attempt's lowest diner HP).
-## - tier3_held_stats (the TIER3 line of the sweep): the same nights, but min_held and median_held read only the nights that were HELD (not failed). nights, retry_nights,
+## - tier3_held_stats (the TIER3 line of the sweep): the same nights (tier >= 3, as tier3_stats), but min_held and median_held read only the nights that were HELD (not failed). nights, retry_nights,
 ##   retries, cap_nights and cap_retry_nights count the failed nights too. -1.0 when no night was held.
 ## `nights`: {tier, retries, frac, failed, at_cap3}.
 static func tier3_held_stats(nights: Array) -> Dictionary:
 	var out := {"nights": 0, "retry_nights": 0, "retries": 0, "cap_nights": 0, "cap_retry_nights": 0, "min_held": -1.0, "median_held": -1.0}
 	var held: Array = []
 	for nt in nights:
-		if int(nt.tier) != 3:
+		if int(nt.tier) < 3:
 			continue
 		out.nights += 1
 		out.retries += int(nt.retries)
