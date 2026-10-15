@@ -226,7 +226,8 @@ static func two_by_two(runs: Array) -> Dictionary:
 
 const SIEGE_LANES := ["east", "sw", "west", "north"]
 ## The seed sets, pinned as literals (D-285). The rule: scan seeds upward from 1; a seed belongs to the lane `LaneCharacter.for_run(seed).siege`; per lane the first seed is
-## the scan's tuning seed, the next two are hold-out set #1, the two after those hold-out set #2, the two after those measurement set #3 (E7). report_retune.gd asserts the scan still gives exactly SCAN_TUNING_SET, HOLDOUT_SET_1, HOLDOUT_SET_2 and MEASURE_SET_3.
+## the scan's tuning seed, the next two are hold-out set #1, the two after those hold-out set #2, the two after those measurement set #3 (E7), the two after those measurement set #4 (E7, escalation 16).
+## report_retune.gd asserts the scan still gives exactly SCAN_TUNING_SET, HOLDOUT_SET_1, HOLDOUT_SET_2, MEASURE_SET_3 and MEASURE_SET_4.
 const SCAN_TUNING_SET := {"east": [1], "sw": [3], "west": [4], "north": [7]}
 ## D-304: seed 14 failed hold-out set #1, was diagnosed, and is therefore tuning data now. The tuning set that is RUN is the scan's tuning seeds plus this promotion.
 const PROMOTED_TO_TUNING := {"north": [14]}
@@ -238,12 +239,14 @@ const HOLDOUT_SET_2 := {"east": [8, 11], "sw": [21, 23], "west": [18, 25], "nort
 ## MEASUREMENT set #3 (E7, D-310, author rule D-307.7: each slice draws fresh sets from the scan, a spent set is never reused): scan positions 6 and 7 per lane. A measurement
 ## set for the bot change, no tuning on it. Scan positions 8 and 9 are reserved and unseen: they are NOT named anywhere in code.
 const MEASURE_SET_3 := {"east": [15, 17], "sw": [28, 29], "west": [30, 36], "north": [22, 26]}
+## MEASUREMENT set #4 (E7, escalation 16, the walk-time rule): scan positions 8 and 9 per lane, the same rules as set #3. Scan positions 10 and 11 stay unnamed.
+const MEASURE_SET_4 := {"east": [20, 24], "sw": [33, 34], "west": [39, 48], "north": [27, 32]}
 ## The hold-out sets that may no longer be run (D-304).
 const RETIRED_SETS := ["1"]
 ## The hold-out sets that are spent (D-307): refused always, like the retired set.
 const SPENT_SETS := ["2"]
-## The scan positions the sets use (1-based, per lane): 7 seeds per lane are scanned (tuning 1, set #1 2-3, set #2 4-5, set #3 6-7); 8 and 9 stay unnamed.
-const SCAN_PER_LANE := 7
+## The scan positions the sets use (1-based, per lane): 9 seeds per lane are scanned (tuning 1, set #1 2-3, set #2 4-5, set #3 6-7, set #4 8-9); 10 and 11 stay unnamed.
+const SCAN_PER_LANE := 9
 ## The bot rules a report run may use (E7, D-310, escalation 16): `walk` = the shipped TierBot (walk-time rule), `far` = the D-310 never-cross rule, `old` = no rule (the bot before D-310).
 ## A history entry recorded as `new` (before escalation 16) was a `far` run: see canon_bot_rule.
 const BOT_RULES := ["walk", "far", "old"]
@@ -263,7 +266,7 @@ const AHEAD_MARGIN := 1.0
 ## The only length a final run may have (the 32-day runs the targets are stated for).
 const FINAL_DAYS := 32
 
-## The scan. `siege_of`: Callable(seed) -> siege lane name. Returns {tuning, holdout1, holdout2, set3}, each {lane: [seeds]} in scan order.
+## The scan. `siege_of`: Callable(seed) -> siege lane name. Returns {tuning, holdout1, holdout2, set3, set4}, each {lane: [seeds]} in scan order.
 static func seed_scan(siege_of: Callable, lanes: Array, per_lane := SCAN_PER_LANE, start := 1) -> Dictionary:
 	var found := {}
 	for l in lanes:
@@ -281,12 +284,13 @@ static func seed_scan(siege_of: Callable, lanes: Array, per_lane := SCAN_PER_LAN
 			break
 		s += 1
 		guard += 1
-	var out := {"tuning": {}, "holdout1": {}, "holdout2": {}, "set3": {}}
+	var out := {"tuning": {}, "holdout1": {}, "holdout2": {}, "set3": {}, "set4": {}}
 	for l in lanes:
 		out.tuning[l] = found[l].slice(0, 1)
 		out.holdout1[l] = found[l].slice(1, 3)
 		out.holdout2[l] = found[l].slice(3, 5)
 		out.set3[l] = found[l].slice(5, 7)
+		out.set4[l] = found[l].slice(7, 9)
 	return out
 
 ## The seeds of a set, lane order of SIEGE_LANES, scan order inside a lane.
@@ -323,7 +327,7 @@ static func retired_gate(set_id: String) -> Dictionary:
 
 ## The set the report runs: "tuning", "1", "2" or "3" -> its dictionary ({} for anything else).
 static func set_by_id(set_id: String) -> Dictionary:
-	return {"tuning": TUNING_SET, "1": HOLDOUT_SET_1, "2": HOLDOUT_SET_2, "3": MEASURE_SET_3}.get(set_id, {})
+	return {"tuning": TUNING_SET, "1": HOLDOUT_SET_1, "2": HOLDOUT_SET_2, "3": MEASURE_SET_3, "4": MEASURE_SET_4}.get(set_id, {})
 
 ## D-290: hold-out sets run only with --final, never on a dirty tree or an unknown commit (the recorded commit must identify the values), and `--final` with the tuning set
 ## is refused (it would run without a FINAL line or a record). The record is {"history": [{set, commit, date, done, ok}]} (tests/sim/retune_final.json, committed with the
@@ -342,8 +346,8 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 		return {"allowed": true, "lines": [], "record": record}
 	if set_id in RETIRED_SETS or set_id in SPENT_SETS:  # D-304, D-307: refused here too, with or without --final (the report also checks retired_gate first)
 		return {"allowed": false, "lines": retired_gate(set_id).lines, "record": record}
-	if not set_id in ["3"]:
-		return refuse.call("unknown set '%s' (tuning|3)" % set_id)
+	if not set_id in ["3", "4"]:
+		return refuse.call("unknown set '%s' (tuning|3|4)" % set_id)
 	if not bot_rule in BOT_RULES:
 		return refuse.call("unknown bot rule '%s' (walk|far|old)" % bot_rule)
 	if not final_flag:

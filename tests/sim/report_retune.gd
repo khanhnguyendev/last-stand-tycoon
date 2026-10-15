@@ -1,7 +1,7 @@
 extends SceneTree
 ## E6 tier-3 retune report (Task 16, spec 8.1, D-285, D-290, D-292 to D-294). NOT a CI test (the name does not start with test_); asserts nothing, changes no balance value.
-## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|3 --final --days=32 --parallel=3 --dry=1 --bot-rule=walk|far|old --deadline-min=20]
-## Sets: `tuning` (default; 5 seeds: one per siege lane from the scan, plus the promoted north 14, D-304), `3` (E7 measurement set #3, 8 seeds, two per siege lane: scan positions 6 and 7; scan positions 8 and 9 are reserved, unseen, not named in code).
+## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|3|4 --final --days=32 --parallel=3 --dry=1 --bot-rule=walk|far|old --deadline-min=20]
+## Sets: `tuning` (default; 5 seeds: one per siege lane from the scan, plus the promoted north 14, D-304), `3` (E7 measurement set #3, 8 seeds, two per siege lane: scan positions 6 and 7), `4` (E7 measurement set #4, scan positions 8 and 9; scan positions 10 and 11 are reserved, unseen, not named in code).
 ## Hold-out set #2 is SPENT (D-307) and refused always like set #1 (message names D-307; results stay in the history). `--bot-rule=walk|far|old` (default walk) is passed to every child sweep, printed in the header and stored in the history entry
 ## (`bot_rule`); sets #3 and #4 may be run once per bot rule (walk, far, old; a history entry `new` is `far`) (a repeat with a rule already used by a COMPLETE entry is refused; an entry whose run printed no verdict has `complete: false` and does not block). Hold-out set #1 is
 ## RETIRED (D-304: seed 14 failed it, was diagnosed and moved to the tuning set): `--set=1` is refused always, with or without `--final`, exit 2, nothing started; its literal and its
@@ -56,12 +56,12 @@ func _initialize() -> void:
 	var tag := set_id + ("" if bot_rule == "walk" else "_" + bot_rule)  # file names: a run with another bot rule never overwrites the walk-rule run's logs
 	var seed_set: Dictionary = SweepMath.set_by_id(set_id)
 	if seed_set.is_empty():
-		push_error("bad --set=%s (tuning|3; 1 is retired, 2 is spent)" % set_id)
+		push_error("bad --set=%s (tuning|3|4; 1 is retired, 2 is spent)" % set_id)
 		quit(2)
 		return
 	var lc = load("res://core/lane_character.gd")
 	var scan: Dictionary = SweepMath.seed_scan(func(s): return String(lc.for_run(s).siege), SweepMath.SIEGE_LANES)
-	if scan.tuning != SweepMath.SCAN_TUNING_SET or scan.holdout1 != SweepMath.HOLDOUT_SET_1 or scan.holdout2 != SweepMath.HOLDOUT_SET_2 or scan.set3 != SweepMath.MEASURE_SET_3 \
+	if scan.tuning != SweepMath.SCAN_TUNING_SET or scan.holdout1 != SweepMath.HOLDOUT_SET_1 or scan.holdout2 != SweepMath.HOLDOUT_SET_2 or scan.set3 != SweepMath.MEASURE_SET_3 or scan.set4 != SweepMath.MEASURE_SET_4 \
 			or SweepMath.with_promotion(scan.tuning, SweepMath.PROMOTED_TO_TUNING) != SweepMath.TUNING_SET:
 		push_error("the seed scan no longer gives the pinned sets (LaneCharacter.for_run changed?): %s" % str(scan))
 		quit(2)
@@ -100,7 +100,7 @@ func _initialize() -> void:
 	lines.append_array(gate.lines)
 	lines.append("SEED_PROMOTED north 14 (D-304): failed hold-out #1, diagnosed, now tuning data")
 	lines.append("HOLDOUT_1 retired (D-304), HOLDOUT_2 spent (D-307): results stay in the history")
-	lines.append("SEED_RULE scan seeds upward from 1; a seed's siege lane is LaneCharacter.for_run(seed).siege; per lane the 1st seed is the scan's tuning seed, the next 2 hold-out set #1 (RETIRED), the next 2 hold-out set #2 (SPENT), the next 2 measurement set #3 (positions 8 and 9 reserved, unseen); the tuning set run = the scan's tuning seeds + the promoted north 14 (D-304)")
+	lines.append("SEED_RULE scan seeds upward from 1; a seed's siege lane is LaneCharacter.for_run(seed).siege; per lane the 1st seed is the scan's tuning seed, the next 2 hold-out set #1 (RETIRED), the next 2 hold-out set #2 (SPENT), the next 2 measurement set #3, the next 2 measurement set #4 (positions 10 and 11 reserved, unseen); the tuning set run = the scan's tuning seeds + the promoted north 14 (D-304)")
 	for l in SweepMath.SIEGE_LANES:
 		lines.append("SEEDS %s %s: %s" % ["tuning" if set_id == "tuning" else "set #" + set_id, l, str(seed_set[l])])
 	lines.append("NOTE a retried night counts its final (mercy) attempt, EXCEPT the first tier-3 night (FIRST_T3_NIGHT): a retried first night counts as lost, 0%; the night statistics count tier-3 nights only; hare share and the lane-cap guard are read from each run's own plan; with the retune flag on the first two tier-3 nights are below the cap (pressure 10, 11, then 12, D-304/D-305), so the at-cap columns (cap_nights, fence_rebuild_gold_median_at_cap, income_at_cap, hence FENCE_TAX) count from the third tier-3 night and are not like for like with runs before D-305")

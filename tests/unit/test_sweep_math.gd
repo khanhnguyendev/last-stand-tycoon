@@ -168,7 +168,9 @@ func test_seed_sets_are_the_pinned_literals_and_the_scan_reproduces_them() -> vo
 	var h1 := {"east": [2, 5], "sw": [10, 12], "west": [6, 13], "north": [9, 14]}
 	var h2 := {"east": [8, 11], "sw": [21, 23], "west": [18, 25], "north": [16, 19]}
 	var m3 := {"east": [15, 17], "sw": [28, 29], "west": [30, 36], "north": [22, 26]}
+	var m4 := {"east": [20, 24], "sw": [33, 34], "west": [39, 48], "north": [27, 32]}
 	assert_eq(SweepMath.MEASURE_SET_3, m3, "E7 measurement set #3: scan positions 6 and 7")
+	assert_eq(SweepMath.MEASURE_SET_4, m4, "E7 measurement set #4: scan positions 8 and 9")
 	assert_eq(SweepMath.SCAN_TUNING_SET, scan_tuning)
 	assert_eq(SweepMath.PROMOTED_TO_TUNING, {"north": [14]}, "D-304: seed 14 is promoted")
 	assert_eq(SweepMath.TUNING_SET, tuning, "D-304: the tuning set is the scan's tuning seeds plus north 14")
@@ -179,6 +181,8 @@ func test_seed_sets_are_the_pinned_literals_and_the_scan_reproduces_them() -> vo
 	assert_eq(scan.holdout1, h1)
 	assert_eq(scan.holdout2, h2)
 	assert_eq(scan.set3, m3, "set #3 is positions 6 and 7 of the same scan")
+	assert_eq(scan.set4, m4, "set #4 is positions 8 and 9 of the same scan")
+	assert_eq(SweepMath.SCAN_PER_LANE, 9, "positions 10 and 11 are not scanned, so not named")
 	assert_eq(SweepMath.with_promotion(scan.tuning, SweepMath.PROMOTED_TO_TUNING), SweepMath.TUNING_SET)
 
 func test_with_promotion_appends_per_lane_once() -> void:
@@ -199,7 +203,7 @@ func test_hold_out_set_1_is_retired_set_2_is_spent_and_set_3_is_open() -> void:
 	assert_string_contains(String(sp.lines[0]), "spent")
 	assert_eq(SweepMath.SPENT_SETS, ["2"])
 	assert_false(SweepMath.set_by_id("2").is_empty(), "the literal stays readable for the history")
-	for ok_id in ["tuning", "3"]:
+	for ok_id in ["tuning", "3", "4"]:
 		assert_false(SweepMath.retired_gate(ok_id).refused, ok_id)
 		assert_true(SweepMath.retired_gate(ok_id).lines.is_empty())
 	assert_false(SweepMath.set_by_id("1").is_empty(), "the literal stays readable for the history")
@@ -231,19 +235,20 @@ func test_the_three_sets_are_disjoint_and_in_scan_order() -> void:
 	# D-304: the scan's tuning set, retired set #1 and set #2 are disjoint and in scan order; the run tuning set differs from the scan's only by the promoted seed 14,
 	# which is also in the retired set #1 literal (the one allowed overlap).
 	var seen := {}
-	for set in [SweepMath.SCAN_TUNING_SET, SweepMath.HOLDOUT_SET_1, SweepMath.HOLDOUT_SET_2, SweepMath.MEASURE_SET_3]:
+	for set in [SweepMath.SCAN_TUNING_SET, SweepMath.HOLDOUT_SET_1, SweepMath.HOLDOUT_SET_2, SweepMath.MEASURE_SET_3, SweepMath.MEASURE_SET_4]:
 		for s in SweepMath.set_seeds(set):
 			assert_false(seen.has(s), "seed %d is in two sets" % s)
 			seen[s] = true
-	assert_eq(seen.size(), 4 + 8 + 8 + 8)
+	assert_eq(seen.size(), 4 + 8 + 8 + 8 + 8)
 	for lane in LANES4:
-		var all: Array = SweepMath.SCAN_TUNING_SET[lane] + SweepMath.HOLDOUT_SET_1[lane] + SweepMath.HOLDOUT_SET_2[lane] + SweepMath.MEASURE_SET_3[lane]
+		var all: Array = SweepMath.SCAN_TUNING_SET[lane] + SweepMath.HOLDOUT_SET_1[lane] + SweepMath.HOLDOUT_SET_2[lane] + SweepMath.MEASURE_SET_3[lane] + SweepMath.MEASURE_SET_4[lane]
 		var sorted_all := all.duplicate()
 		sorted_all.sort()
-		assert_eq(all, sorted_all, "%s: tuning, then #1, #2, #3, each later in the scan" % lane)
+		assert_eq(all, sorted_all, "%s: tuning, then #1, #2, #3, #4, each later in the scan" % lane)
 	var overlap: Array = []
 	for s in SweepMath.set_seeds(SweepMath.TUNING_SET):
 		assert_false(s in SweepMath.set_seeds(SweepMath.MEASURE_SET_3), "tuning seed %d must not be in the measurement set #3" % s)
+		assert_false(s in SweepMath.set_seeds(SweepMath.MEASURE_SET_4), "tuning seed %d must not be in the measurement set #4" % s)
 		if s in SweepMath.set_seeds(SweepMath.HOLDOUT_SET_1):
 			overlap.append(s)
 	assert_eq(overlap, [14], "the only seed the run tuning set shares with the retired set #1 is the promoted one")
@@ -551,7 +556,7 @@ func test_retune_run_stats_first_night_hare_share_and_guard() -> void:
 const DATE := "2026-10-13T10:00:00+02:00"
 
 func test_final_gate_refuses_hold_out_sets_without_final() -> void:
-	for set_id in ["3"]:
+	for set_id in ["3", "4"]:
 		var g := SweepMath.final_gate(set_id, false, "abc1234", {"history": []}, DATE)
 		assert_false(g.allowed, "set %s without --final" % set_id)
 		assert_string_contains(g.lines[0], "REFUSED")
@@ -615,6 +620,16 @@ func test_final_gate_three_bot_rules_set_4_and_the_legacy_new_entry() -> void:
 	assert_true(SweepMath.final_gate("3", true, "abc1234", legacy, DATE, 32, "walk").allowed, "set #3 with the walk-time rule is still open")
 	assert_true(SweepMath.final_gate("3", true, "abc1234", legacy, DATE, 32, "old").allowed)
 	assert_false(SweepMath.final_gate("3", true, "abc1234", legacy, DATE, 32, "new").allowed, "`new` is no longer a rule to run")
+	var h: Dictionary = {"history": []}
+	for rule in ["walk", "far", "old"]:
+		var g := SweepMath.final_gate("4", true, "abc1234", h, DATE, 32, rule)
+		assert_true(g.allowed, "set #4, rule %s, first run" % rule)
+		assert_string_contains(_line(g, "FINAL set=#4"), "bot_rule=%s" % rule)
+		h = SweepMath.final_finish(g.record, false, "", true)
+	for rule in ["walk", "far", "old"]:
+		assert_false(SweepMath.final_gate("4", true, "def5678", h, DATE, 32, rule).allowed, "set #4, rule %s, second run" % rule)
+	assert_false(SweepMath.final_gate("4", false, "abc1234", {"history": []}, DATE, 32, "walk").allowed, "set #4 needs --final")
+	assert_true(SweepMath.final_gate("3", true, "abc1234", h, DATE, 32, "walk").allowed, "set #4 entries never block set #3")
 	assert_eq(SweepMath.canon_bot_rule("new"), "far")
 	assert_eq(SweepMath.canon_bot_rule("walk"), "walk")
 
