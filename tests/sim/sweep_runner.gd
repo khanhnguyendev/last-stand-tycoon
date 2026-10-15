@@ -13,7 +13,7 @@ extends Node
 ## `--out=<file name>` writes tests/sim/out/<file name> (a relative path such as policies/x.csv is allowed, no `..`) instead of the default (parallel runs). `--cols=extra` appends fences_lost (fences at 0 HP when the
 ## night ended, final attempt) and lane_load (enemies per lane in the night's plan, brutes included) to the tier rows; without it the CSV is byte-identical to before.
 ## The TIER3 line (tier bot): nights, retry_nights, retries, cap_nights (pressure at tier_cap[3] when the night began), cap_retry_nights, and the min and median
-## diner fraction over the tier-3 nights that were held (the final attempt's lowest diner HP; SweepMath.tier3_held_stats). T3RUN's min and median (SweepMath.tier3_stats) read every tier-3 night, a failed one included, so the two pairs differ whenever a night failed. NOTE: `kills` and `brute_kills` in the rows include the kills of failed attempts. `kills` and `brute_kills` in the rows include the kills of failed attempts.
+## diner fraction over the tier-3 nights that were held (the final attempt's lowest diner HP; SweepMath.tier3_held_stats). T3RUN's min and median (SweepMath.tier3_stats) read every tier-3 night, a failed one included, so the two pairs differ whenever a night failed. NOTE: `kills` and `brute_kills` in the rows include the kills of failed attempts.
 ## Tier mode also prints, after TIER3_GATE (stdout only; the CSV is not touched):
 ##   T3RUN seed policy nights retry_nights min median mean fences_lost_mean branches branch_gold unspent_last_day hard_break_day: the tier-3 facts of this run
 ##   (SweepMath.tier3_stats; the night statistics count nights that STARTED at tier >= 3; branches and branch_gold count every row that CLOSED at tier >= 3, the
@@ -136,8 +136,9 @@ func _run() -> void:
 		var enemy_count := SweepMath.enemy_count(GameState.lane_plan)  # the night's own plan (capped past day 7)
 		var boss_night := GameState.is_boss_night()
 		var start_tier := GameState.tier
-		var at_cap := start_tier == 2 and GameState.pressure() == int(Balance.data.tiers.tier_cap[2])
-		var at_cap3 := start_tier == 3 and GameState.pressure() == int(Balance.data.tiers.tier_cap[3])
+		var at_tier_cap := SweepMath.cap_night(start_tier, GameState.pressure(), Balance.data.tiers)  # the night's own tier cap, any tier
+		var at_cap := at_tier_cap and start_tier == 2  # the tier-2 cap nights (SweepMath.tier_summary)
+		var at_cap3 := at_tier_cap and start_tier == 3  # the tier-3 cap nights (LADDER, TIER3)
 		var lane_load := _lane_load()
 		var night_character := GameState.lane_character()  # {} below tier 3: nothing is recorded then
 		var hare_share_now := _night_hare_share(night_character)

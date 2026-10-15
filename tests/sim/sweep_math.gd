@@ -78,6 +78,10 @@ static func tier3_held_stats(nights: Array) -> Dictionary:
 		out.median_held = ReportMath.median(held)
 	return out
 
+## True when a night that starts at `start_tier` (tier 2 or above) is played at that tier's own pressure cap. `tiers`: BalanceData.tiers.
+static func cap_night(start_tier: int, pressure: int, tiers) -> bool:
+	return start_tier >= 2 and start_tier < tiers.tier_cap.size() and pressure == int(tiers.tier_cap[start_tier])
+
 ## True when nothing purchasable remains at tier 3: every spot at `max_level`, every tower and fence branched, every station at
 ## `station_max`. `spots`: {kind, level, branch} per spot of the tier; `station_levels`: the stations' levels. No spots = not done.
 ## `need_branches` false (the `unbranched` policy, E6): branches are not part of what it can buy, so levels and stations are everything.

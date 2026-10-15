@@ -962,3 +962,11 @@ func test_the_held_statistic_without_a_held_night_is_minus_one() -> void:
 	var h := SweepMath.tier3_held_stats([_t3n(3, 4, 0.0, true)])
 	assert_eq([h.nights, h.min_held, h.median_held], [1, -1.0, -1.0])
 	assert_eq(SweepMath.tier3_held_stats([_t3n(1, 0, 1.0, false)]).nights, 0)
+
+func test_cap_night_reads_the_nights_own_tier_cap() -> void:
+	var tb := Balance.data.tiers
+	assert_true(SweepMath.cap_night(2, int(tb.tier_cap[2]), tb))
+	assert_true(SweepMath.cap_night(3, int(tb.tier_cap[3]), tb))
+	assert_false(SweepMath.cap_night(3, int(tb.tier_cap[2]), tb), "tier 3 below its own cap")
+	assert_false(SweepMath.cap_night(1, int(tb.tier_cap[1]), tb), "tier 1 has no cap night")
+	assert_false(SweepMath.cap_night(4, 12, tb), "a tier without a cap entry")
