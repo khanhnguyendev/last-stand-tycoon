@@ -13,7 +13,7 @@ extends Node
 ## `--out=<file name>` writes tests/sim/out/<file name> (a relative path such as policies/x.csv is allowed, no `..`) instead of the default (parallel runs). `--cols=extra` appends fences_lost (fences at 0 HP when the
 ## night ended, final attempt) and lane_load (enemies per lane in the night's plan, brutes included) to the tier rows; without it the CSV is byte-identical to before.
 ## The TIER3 line (tier bot): nights, retry_nights, retries, cap_nights (pressure at tier_cap[3] when the night began), cap_retry_nights, and the min and median
-## diner fraction over the tier-3 nights that were held (the final attempt's lowest diner HP). NOTE: `kills` and `brute_kills` in the rows include the kills of failed attempts.
+## diner fraction over the tier-3 nights that were held (the final attempt's lowest diner HP; SweepMath.tier3_held_stats). T3RUN's min and median (SweepMath.tier3_stats) read every tier-3 night, a failed one included, so the two pairs differ whenever a night failed. NOTE: `kills` and `brute_kills` in the rows include the kills of failed attempts. `kills` and `brute_kills` in the rows include the kills of failed attempts.
 ## Tier mode also prints, after TIER3_GATE (stdout only; the CSV is not touched):
 ##   T3RUN seed policy nights retry_nights min median mean fences_lost_mean branches branch_gold unspent_last_day hard_break_day: the tier-3 facts of this run
 ##   (SweepMath.tier3_stats; the night statistics count nights that STARTED at tier >= 3; branches and branch_gold count every row that CLOSED at tier >= 3, the
@@ -241,24 +241,10 @@ func _run() -> void:
 				sig.disconnect(pair[1])
 		var ts := SweepMath.tier_summary(nights)
 		print("TIER first_tier2_day=%d boss_retries=%d cap_nights=%d cap_retries=%d" % [ts.first_tier2_day, ts.boss_retries, ts.cap_nights, ts.cap_retries])
-		var t3n := 0
-		var t3_retry_nights := 0
-		var t3_retries := 0
-		var t3_cap := 0
-		var t3_cap_retry := 0
-		var held_fracs: Array = []
-		for nt in nights:
-			if int(nt.tier) != 3:
-				continue
-			t3n += 1
-			t3_retries += int(nt.retries)
-			t3_retry_nights += 1 if int(nt.retries) > 0 else 0
-			t3_cap += 1 if nt.at_cap3 else 0
-			t3_cap_retry += 1 if (nt.at_cap3 and int(nt.retries) > 0) else 0
-			if not nt.failed:
-				held_fracs.append(float(nt.frac))
-		print("TIER3 nights=%d retry_nights=%d retries=%d cap_nights=%d cap_retry_nights=%d min_frac_held=%.3f median_frac_held=%.3f" % [t3n, t3_retry_nights, t3_retries,
-			t3_cap, t3_cap_retry, ReportMath.percentile(held_fracs, 0.0) if not held_fracs.is_empty() else -1.0, ReportMath.median(held_fracs) if not held_fracs.is_empty() else -1.0])
+		var h3 := SweepMath.tier3_held_stats(nights)  # held-only min and median; T3RUN below (tier3_stats) counts failed nights too
+		var t3n := int(h3.nights)
+		print("TIER3 nights=%d retry_nights=%d retries=%d cap_nights=%d cap_retry_nights=%d min_frac_held=%.3f median_frac_held=%.3f" % [t3n, h3.retry_nights, h3.retries,
+			h3.cap_nights, h3.cap_retry_nights, h3.min_held, h3.median_held])
 		print("TIER3_GATE tier3=%s policy=%s events=%d" % [args.tier3, args.policy, tier3_events])
 		var rs := SweepMath.tier3_stats(nights)
 		print("T3RUN seed=%s policy=%s nights=%d retry_nights=%d min=%.3f median=%.3f mean=%.4f fences_lost_mean=%.2f branches=%d branch_gold=%d unspent_last_day=%d hard_break_day=%d" % [

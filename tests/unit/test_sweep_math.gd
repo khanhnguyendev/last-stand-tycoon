@@ -939,3 +939,26 @@ func test_threat_lead_counts_ahead_only_from_one_point_and_prints_level_seeds() 
 	# the final rule counts the margin: 5 of 8 ahead fails even though 6 have a positive lead
 	assert_false(res.ok)
 
+
+# ---- debt sweep: the two tier-3 statistics of a run, and the cap-night helper ---------------------------------------------------
+
+func _t3n(tier: int, retries: int, frac: float, failed: bool, at_cap3 := false) -> Dictionary:
+	return {"tier": tier, "tier_close": tier, "retries": retries, "frac": frac, "failed": failed, "at_cap3": at_cap3, "fences_lost": 0, "branches": 0, "branch_gold": 0}
+
+## tier3_stats (T3RUN) reads every tier-3 night, a failed one included; tier3_held_stats (the sweep's TIER3 line) reads only the held nights for min and median.
+func test_the_two_tier3_statistics_differ_by_the_failed_night() -> void:
+	var nights := [_t3n(2, 0, 0.1, false), _t3n(3, 0, 0.9, false), _t3n(3, 2, 0.2, true, true), _t3n(3, 1, 0.6, false, true)]
+	var all := SweepMath.tier3_stats(nights)
+	var held := SweepMath.tier3_held_stats(nights)
+	assert_eq([all.nights, held.nights], [3, 3], "both count every tier-3 night")
+	assert_almost_eq(all.min, 0.2, 1e-9, "T3RUN: the failed night's 0.2 is the minimum")
+	assert_almost_eq(held.min_held, 0.6, 1e-9, "TIER3: held nights only (0.9, 0.6)")
+	assert_almost_eq(all.median, 0.6, 1e-9)
+	assert_almost_eq(held.median_held, 0.75, 1e-9)
+	assert_eq([held.retry_nights, held.retries, held.cap_nights, held.cap_retry_nights], [2, 3, 2, 2])
+	assert_eq(all.retry_nights, held.retry_nights)
+
+func test_the_held_statistic_without_a_held_night_is_minus_one() -> void:
+	var h := SweepMath.tier3_held_stats([_t3n(3, 4, 0.0, true)])
+	assert_eq([h.nights, h.min_held, h.median_held], [1, -1.0, -1.0])
+	assert_eq(SweepMath.tier3_held_stats([_t3n(1, 0, 1.0, false)]).nights, 0)
