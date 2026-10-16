@@ -225,6 +225,7 @@ func test_7_identity_at_the_cap() -> void:
 func test_8_rules_on_off_neutral_at_the_tier_4_cap_summed_over_four_seeds() -> void:
 	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
 	var pressure := int(Balance.data.tiers.tier_cap[4])
+	var stand_cfgs := BranchBench.stand_time_configs()
 	var res := {}
 	for lane in LANES:
 		res[lane] = {}
@@ -238,6 +239,8 @@ func test_8_rules_on_off_neutral_at_the_tier_4_cap_summed_over_four_seeds() -> v
 				gut.p("  T4 seed %d %-8s %-12s %s" % [sd, lane, _cfg_name(cfg), _fmt(_cache[key])])
 				runs.append(_cache[key])
 			res[lane][_cfg_name(cfg)] = BranchBench.sum_runs(runs)
+			if _cfg_name(cfg) in stand_cfgs.get(lane, []):  # INF is expected where no rule reads the stand time (D-314.28)
+				assert_eq(res[lane][_cfg_name(cfg)].stands_inf, 0, "%s %s: a fence never fell in %d of the seed runs, and a rule reads this stand time (D-314.28)" % [lane, _cfg_name(cfg), res[lane][_cfg_name(cfg)].stands_inf])
 	for row in BranchBench.RULES:
 		var v := BranchBench.rule_verdict(row, res[row[2]])
 		var name := BranchBench.rule_name(row)
