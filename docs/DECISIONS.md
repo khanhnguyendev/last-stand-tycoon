@@ -3636,3 +3636,7 @@ is no longer reachable. The tests already pin this (D-308.3).
     - FIRST_NIGHT_BAND_T4 100% (the first tier-4 night at pressure 12 is trivial for a full tier-3 build).
     Hold-out set #6 is still run once, for the unseen reading. Cost: phase 2 ends with failed targets; the checkpoint
     asks the author to choose.
+32. Perf is not measured this session (D-260 owes one run): the machine was not idle (the author's own apps were
+    running; idle 71% against the 75% gate). The author's apps were left alone. The commands and the tier-4 day
+    fixture recipe are in `docs/review/media/e8/perf/README.md`. Cost: the tier-4 cap night's frame time on a phone
+    is unknown; bigger waves with two side lanes are the risk spec 6 named.
