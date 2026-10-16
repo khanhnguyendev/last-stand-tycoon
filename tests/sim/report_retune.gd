@@ -57,8 +57,8 @@ func _initialize() -> void:
 	var max_tier_arg := ""  # E8 (D-314.12): passed to every child sweep when given
 	var bot_max_tier := 0  # 0 = uncapped
 	if String(args["bot-max-tier"]) != "":
-		if not String(args["bot-max-tier"]).is_valid_int() or int(args["bot-max-tier"]) < 1 or int(args["bot-max-tier"]) > Balance.data.tiers.max_tier:
-			push_error("bad --bot-max-tier=%s (integer 1 to %d)" % [args["bot-max-tier"], Balance.data.tiers.max_tier])
+		if not String(args["bot-max-tier"]).is_valid_int() or int(args["bot-max-tier"]) < 1 or int(args["bot-max-tier"]) > int(root.get_node("Balance").data.tiers.max_tier):  # D-150: the autoload is read at run time, a -s script compiles before it exists
+			push_error("bad --bot-max-tier=%s (integer 1 to %d)" % [args["bot-max-tier"], int(root.get_node("Balance").data.tiers.max_tier)])
 			quit(2)
 			return
 		bot_max_tier = int(args["bot-max-tier"])
