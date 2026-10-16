@@ -192,6 +192,7 @@ func _run() -> void:
 	_h = SimHarness.new(holder)
 	var forced := String(_args.force) != "none" or String(_args.variant) != "" or String(_args.pin) != "" or String(_args.hold) == "1" or String(_args.commit) == "1" or String(_args.far) == "1"
 	_h.start(int(_args.seed), ForcedBot if forced else TierBot)
+	_h.bot.max_tier = 3  # a tier-3 study (E8): the bot never pays for tier 4, so its readings are the tier-3 ones
 	_h.bot.policy = String(_args.policy)
 	_h.bot.rule = "old" if String(_args.oldbot) == "1" else "walk"
 	if forced:

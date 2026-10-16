@@ -59,6 +59,8 @@ func _watch_pools() -> void:
 
 func _start(stem: String, bot_script: GDScript, p_seed := 0, phase := "") -> void:
 	h.start_from(stem, bot_script, p_seed, phase)
+	if h.bot is TierBot:
+		(h.bot as TierBot).max_tier = 3  # E8 (D-314.12): these are the tier-3 sims; the bot never pays for tier 4
 	_watch_pools()
 	if not EventBus.enemy_killed.is_connected(_count_kill):
 		EventBus.enemy_killed.connect(_count_kill)

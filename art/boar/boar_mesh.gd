@@ -47,6 +47,14 @@ static func params(kind: StringName) -> Dictionary:
 			return {"scale": 1.65, "body_scale": Vector3(0.8, 0.8, 1.4), "upper": snout.lerp(red, 0.22), "belly": snout.lerp(maroon, 0.15),
 				"ears": red, "ear_len": 1.5, "tusks": 0, "ridge": 0, "ridge_h": 1.0, "leg_len": 0.32, "leg_xz": Vector2(0.24, 0.42),
 				"head_k": 0.85, "head_dz": 0.22, "tusk_color": Palette.color(&"stone"), "crown": 5}
+		# The Wrecker (E8 phase 2 Tasks 2 and 5): the brute's build scaled up to boss size so it does not read as the Boar King
+		# (which is a boar with four tusks and a red-brown coat): a dark red coat (enemy_maroon lerped 0.15 toward enemy_red: the darkest coat of the kinds, still red at night, R6; no ink blend, it read as a black blob; no hero colours), no ink
+		# spikes but five upright `stone` armour plates along the back and a `stone` ram slab across the brow, `stone` tusks.
+		&"wrecker":
+			return {"scale": 2.3, "body_scale": Vector3(1.3, 0.85, 1.1), "upper": maroon.lerp(red, 0.15),
+				"belly": maroon,
+				"ears": snout, "ear_len": 0.0, "tusks": 2, "ridge": 0, "ridge_h": 1.25, "leg_len": 0.22, "leg_xz": Vector2(0.33, 0.3),
+				"head_k": 1.15, "head_dz": 0.04, "tusk_color": Palette.color(&"stone"), "plates": 5, "brow": true}
 	return {"scale": 1.0, "body_scale": BODY_SCALE, "upper": maroon.lerp(red, 0.4), "belly": red, "ears": snout,
 		"ear_len": 0.0, "tusks": 2, "ridge": 5, "ridge_h": 1.0, "leg_len": 0.25, "leg_xz": Vector2(0.27, 0.3), "head_k": 1.0, "head_dz": 0.0,
 		"tusk_color": Palette.color(&"apron_white")}
@@ -194,6 +202,17 @@ static func _build(p: Dictionary) -> ArrayMesh:
 		var a := (float(k) / float(points - 1) - 0.5) * 2.0 if points > 1 else 0.0  # -1 .. 1 across the head
 		var h := 0.34 - 0.1 * absf(a)
 		_add(acc, _cone(0.07, 0.0, h, 4, [false, false]), head * _xf(Vector3(a * 0.17, 0.27 + h * 0.5, -0.02 - 0.03 * absf(a)), Vector3(-10.0, 0, 0)), white)
+
+	# armour plates (the Wrecker): upright stone slabs along the back, in the ridge's places, leaning back, widest at the shoulders
+	var plates: int = int(p.get("plates", 0))
+	for k in plates:
+		var z: float = rz[k]
+		var top: float = body_y + BODY_R * body_scale.y * sqrt(maxf(0.0, 1.0 - pow(z / half_z, 2.0)))
+		var w := 0.46 - 0.05 * absf(float(k) - 1.0)
+		_add(acc, BoxMesh.new(), _xf(Vector3(0, top + 0.06, z), Vector3(-14.0, 0, 0), Vector3(w, 0.2, 0.1)), white)
+	# ram slab (the Wrecker): a stone brow across the forehead
+	if bool(p.get("brow", false)):
+		_add(acc, BoxMesh.new(), head * _xf(Vector3(0.0, 0.2, 0.17), Vector3(-12.0, 0, 0), Vector3(0.42, 0.09, 0.2)), white)
 
 	if float(p.scale) != 1.0:
 		var verts: PackedVector3Array = acc.verts

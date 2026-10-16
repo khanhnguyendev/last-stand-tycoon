@@ -1,6 +1,6 @@
 extends SceneTree
 ## E6 tier-3 retune report (Task 16, spec 8.1, D-285, D-290, D-292 to D-294). NOT a CI test (the name does not start with test_); asserts nothing, changes no balance value.
-## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|3|4|5|6 --final --days=32 --parallel=3 --dry=1 --bot-rule=walk|far|old --deadline-min=20]
+## "$GODOT" --headless --path . --fixed-fps 60 -s res://tests/sim/report_retune.gd [-- --set=tuning|3|4|5|6 --final --days=32 --parallel=3 --dry=1 --bot-rule=walk|far|old --bot-max-tier=<1-5> --deadline-min=20]
 ## Sets: `tuning` (default; 5 seeds: one per siege lane from the scan, plus the promoted north 14, D-304), `3` (E7 measurement set #3, 8 seeds, two per siege lane: scan positions 6 and 7), `4` (E7 measurement set #4, scan positions 8 and 9), `5` (E8 measurement set #5, scan positions 10 and 11; --final, walk bot, 32 days) and `6` (E8 measurement set #6, scan positions 12 and 13; --final, --days=45 is the only length it accepts, E8 spec 3.5).
 ## Hold-out set #2 is SPENT (D-307) and refused always like set #1 (message names D-307; results stay in the history). `--bot-rule=walk|far|old` (default walk) is passed to every child sweep, printed in the header and stored in the history entry
 ## (`bot_rule`); sets #3 to #6 may be run once per bot rule (walk, far, old; a history entry `new` is `far`) (a repeat with a rule already used by a COMPLETE entry is refused; an entry whose run printed no verdict has `complete: false` and does not block). Hold-out set #1 is
@@ -18,18 +18,24 @@ extends SceneTree
 ## HARE_SHARE, LANE_CAP_GUARD, plus FIRST_NIGHT_BAND (E8: the pooled median of the branch policies' first tier-3 night is 50 to 80 percent; counted). FIXED_SPREAD is information since E8 (spread >= 5 expected, not a must-hold). Targets that fail still exit 0 (the output is the verdict); the last line says how many passed.
 ## `--final` is refused with the tuning set, on a dirty tree and on an unknown commit (the recorded commit must identify the values); a record file that does not parse exits 2 and is
 ## never overwritten. Each entry: set, commit, the commit's date (from git), and at the end of the run `done` and `ok`. Unknown arguments exit 2.
+## E8 phase 2 (spec 4.6): when the bot is NOT capped below tier 4 (no --bot-max-tier, or 4 and up) the report also reads each run's T4RUN line and prints a tier-4 block after the tier-3 one, on the tier-4 nights only:
+## THREAT_LEAD_T4, THREAT_LEAD_BY_LANE_T4, RETRY_NIGHTS_T4, FIRST_T4_NIGHT, FIRST_NIGHT_BAND_T4, FENCE_TAX_T4 and BOSS_NIGHT (every branch policy wins the tier-3 boss night within boss_night_max_retries), plus RUN_T4 lines and a TARGETS_T4
+## line; LANE_CAP_GUARD (all nights) is the tier-3 block's. A run that never reached tier 4 gives no tier-4 verdict lines and exit 1. With a bot that can reach tier 4, a hard break at tier 4 or on the tier-3 boss night is data (boss_failed, a retry night of its tier), not a failed run; a tier-3 non-boss hard break still aborts. An uncapped tuning run defaults to --days=45. Use `--days=45` (set #6 is 45 days only and defaults to it; the tuning set reaches tier 4 at 45 days).
+## `--bot-max-tier=<n>` is printed in the header (BOT_MAX_TIER) and tags the log and output file names (`_mt<n>`), so a capped run never overwrites an uncapped one. With --bot-max-tier=3 the report prints no tier-4 block, and set #5
+## (spent) may be re-run WITHOUT --final at 32 days: the D-314.12 tier-3 check (phase 1's set-#5 reading must come out identical). The header says so (TIER3_CHECK) and the history is never written.
 ## Child runs: each has a wall-time deadline (RUN_DEADLINE_MSEC, killed and counted as failed when exceeded), must exit 0 and must leave no `SCRIPT ERROR` line in its log (a plain
 ## `ERROR:` line is ignored: a benign one ends the log). STARTED lines carry the child's pid. A SceneTree script cannot trap signals: if you interrupt the report, stop its children
-## with `pkill -f "sweep.gd.*--bot=tier --days=32"`.
+## with `pkill -f "sweep.gd.*--bot=tier"`.
 ## D-150: a `-s` script compiles before the autoloads exist; this one names only the pure helpers (SweepMath, ReportMath) and loads LaneCharacter at run time.
 
 const RECORD_PATH := "res://tests/sim/retune_final.json"
 const DEFAULT_DEADLINE_MIN := 20  # per child run (a run takes about 220 s idle); --deadline-min=<5..240>
-const KNOWN_ARGS := ["set", "days", "parallel", "dry", "final", "bot-rule", "deadline-min"]
+const KNOWN_ARGS := ["set", "days", "parallel", "dry", "final", "bot-rule", "bot-max-tier", "deadline-min"]
+const T4_RUN_FIELDS := ["nights", "retry_nights", "mean", "first_t4_frac", "first_t4_retries", "boss_seen", "boss_retries", "boss_failed", "fence_rebuild_gold_median_at_cap", "income_at_cap"]
 const RUN_FIELDS := ["nights", "retry_nights", "min", "median", "mean", "fences_lost_mean", "branches", "branch_gold", "unspent_last_day", "hard_break_day"]
 
 func _initialize() -> void:
-	var args := {"set": "tuning", "days": "32", "parallel": "3", "dry": "0", "final": "0", "bot-rule": "walk", "deadline-min": str(DEFAULT_DEADLINE_MIN)}
+	var args := {"set": "tuning", "days": "32", "parallel": "3", "dry": "0", "final": "0", "bot-rule": "walk", "bot-max-tier": "", "deadline-min": str(DEFAULT_DEADLINE_MIN)}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if not kv[0] in KNOWN_ARGS:
@@ -48,12 +54,29 @@ func _initialize() -> void:
 	var deadline_min := int(args["deadline-min"])
 	var run_deadline_msec := deadline_min * 60 * 1000
 	var bot_rule := String(args["bot-rule"])
+	var max_tier_arg := ""  # E8 (D-314.12): passed to every child sweep when given
+	var bot_max_tier := 0  # 0 = uncapped
+	if String(args["bot-max-tier"]) != "":
+		if not String(args["bot-max-tier"]).is_valid_int() or int(args["bot-max-tier"]) < 1 or int(args["bot-max-tier"]) > int(root.get_node("Balance").data.tiers.max_tier):  # D-150: the autoload is read at run time, a -s script compiles before it exists
+			push_error("bad --bot-max-tier=%s (integer 1 to %d)" % [args["bot-max-tier"], int(root.get_node("Balance").data.tiers.max_tier)])
+			quit(2)
+			return
+		bot_max_tier = int(args["bot-max-tier"])
+		max_tier_arg = " --bot-max-tier=%d" % bot_max_tier
 	if not bot_rule in SweepMath.BOT_RULES:
 		push_error("bad --bot-rule=%s (walk|far|old)" % bot_rule)
 		quit(2)
 		return
 	var set_id := String(args.set)
-	var tag := set_id + "_" + bot_rule  # file names: a run with another bot rule never overwrites another rule's logs
+	var tag := SweepMath.run_tag(set_id, bot_rule, bot_max_tier)  # file names: a run with another bot rule or tier cap never overwrites another's logs
+	var reads_t4 := bot_max_tier == 0 or bot_max_tier >= 4  # E8: the tier-4 block needs a bot that can reach tier 4
+	var days_given := false
+	for a in OS.get_cmdline_user_args():
+		days_given = days_given or a.begins_with("--days=")
+	if set_id == "6" and not days_given:
+		args.days = str(SweepMath.final_days("6"))  # set #6 is 45 days only
+	elif set_id == "tuning" and reads_t4 and not days_given:
+		args.days = str(SweepMath.TUNING_DAYS_T4)  # an uncapped tuning run reaches tier 4 at 45 days (32 days never does)
 	var seed_set: Dictionary = SweepMath.set_by_id(set_id)
 	if seed_set.is_empty():
 		push_error("bad --set=%s (tuning|3|4|5|6; 1 is retired, 2 is spent)" % set_id)
@@ -88,7 +111,7 @@ func _initialize() -> void:
 		push_error("%s exists but does not parse as a record ({\"history\": [...]}); fix or restore it by hand: the report never overwrites it" % record_path)
 		quit(2)
 		return
-	var gate: Dictionary = SweepMath.final_gate(set_id, String(args.final) == "1", commit, parsed.record, _commit_date(proj), days, bot_rule)
+	var gate: Dictionary = SweepMath.final_gate(set_id, String(args.final) == "1", commit, parsed.record, _commit_date(proj), days, bot_rule, bot_max_tier)
 	var seeds: Array = SweepMath.set_seeds(seed_set)
 	var lines: Array = []
 	if not gate.allowed:
@@ -98,6 +121,7 @@ func _initialize() -> void:
 	lines.append("RETUNE_REPORT set=%s commit=%s days=%d" % ["tuning" if set_id == "tuning" else "#" + set_id, commit, days])
 	lines.append("DEADLINE %d min per child run (--deadline-min)" % deadline_min)
 	lines.append("BOT_RULE %s (passed to every child sweep as --bot-rule=%s)" % [bot_rule, bot_rule])
+	lines.append("BOT_MAX_TIER %s" % ("none (the bot can pay every tier; the tier-4 block is read)" if reads_t4 else "%d (passed to every child sweep as --bot-max-tier=%d; no tier-4 block)" % [bot_max_tier, bot_max_tier]))
 	lines.append_array(gate.lines)
 	lines.append("SEED_PROMOTED north 14 (D-304): failed hold-out #1, diagnosed, now tuning data")
 	lines.append("HOLDOUT_1 retired (D-304), HOLDOUT_2 spent (D-307): results stay in the history")
@@ -146,15 +170,15 @@ func _initialize() -> void:
 				if SweepMath.child_failed(code, text):
 					bad["%d:%s" % [r.seed, r.policy]] = "exit code %d or a SCRIPT ERROR line in the log" % code
 					failed = true
-				elif kv.is_empty() or int(kv.get("hard_break_day", "-1")) >= 0 or _read_line(rlog, "RETUNE ").is_empty():
+				elif kv.is_empty() or SweepMath.hard_break_fails_run(kv, reads_t4) or _read_line(rlog, "RETUNE ").is_empty():
 					failed = true
 		running = still
 		while not failed and running.size() < parallel and not jobs.is_empty():
 			var j: Array = jobs.pop_front()
 			var log := _log_path(out_dir, tag, j[0], j[1])
 			var first := "REPORT_RUN commit=%s set=%s seed=%d policy=%s days=%d bot_rule=%s" % [commit, tag, j[0], j[1], days, bot_rule]
-			var cmd := "echo %s > %s && exec %s --headless --path %s --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=%d --seed=%d --policy=%s --bot-rule=%s --out=retune/retune_%s_%d_%s.csv >> %s 2>&1" % [
-				_q(first), _q(log), _q(OS.get_executable_path()), _q(proj), days, j[0], j[1], bot_rule, tag, j[0], j[1], _q(log)]
+			var cmd := "echo %s > %s && exec %s --headless --path %s --fixed-fps 60 -s res://tests/sim/sweep.gd -- --bot=tier --days=%d --seed=%d --policy=%s --bot-rule=%s%s --out=retune/retune_%s_%d_%s.csv >> %s 2>&1" % [
+				_q(first), _q(log), _q(OS.get_executable_path()), _q(proj), days, j[0], j[1], bot_rule, max_tier_arg, tag, j[0], j[1], _q(log)]
 			var pid := OS.create_process("/bin/sh", ["-c", cmd])
 			if pid < 0:
 				push_error("could not start the run seed=%d policy=%s" % [j[0], j[1]])
@@ -169,6 +193,9 @@ func _initialize() -> void:
 	var rows: Array = []
 	var expected: Array = []
 	lines.append("RUN seed policy | " + " ".join(RUN_FIELDS) + " | siege first_t3_frac hare_share_mean guard_hits max_retries first_t3_retries")
+	var t4_lines: Array = []
+	if reads_t4:
+		t4_lines.append("RUN_T4 seed policy | " + " ".join(T4_RUN_FIELDS))
 	for s in seeds:
 		for p in SweepMath.RETUNE_POLICIES:
 			expected.append([s, p])
@@ -187,26 +214,39 @@ func _initialize() -> void:
 			for f in RUN_FIELDS:
 				cells.append(String(kv.get(f, "?")))
 			lines.append("RUN %d %s | %s | %s %s %s %s %s %s" % [s, p, " ".join(cells), rt.get("siege", "?"), rt.get("first_t3_frac", "?"), rt.get("hare_share_mean", "?"), rt.get("guard_hits", "?"), rt.get("max_retries", "?"), rt.get("first_t3_retries", "?")])
-			var row: Dictionary = SweepMath.run_row(s, SweepMath.seed_lane(seed_set, s), p, kv, ld, rt)
+			var t4kv: Dictionary = _read_line(log, "T4RUN ") if reads_t4 else {}
+			if reads_t4:
+				t4_lines.append("RUN_T4 %d %s | %s" % [s, p, " ".join(T4_RUN_FIELDS.map(func(f): return String(t4kv.get(f, "-"))))] if not t4kv.is_empty() else "RUN_T4 %d %s | no tier-4 night, no tier-3 boss night" % [s, p])
+			var row: Dictionary = SweepMath.run_row(s, SweepMath.seed_lane(seed_set, s), p, kv, ld, rt, t4kv, reads_t4)
 			if row.failed:
 				lines.append("RUN %d %s | FAILED (%s)" % [s, p, row.failed_reason])
 			rows.append(row)
 	var res: Dictionary = SweepMath.retune_report(rows, expected, set_id != "tuning")
 	lines.append_array(res.lines)
+	var res4: Dictionary = {"exit": 0, "ok": true, "failed": [], "lines": []}
+	if reads_t4:
+		res4 = SweepMath.retune_report_t4(rows, expected, set_id != "tuning")
+		lines.append_array(t4_lines)
+		lines.append_array(res4.lines)
 	if int(res.exit) == 0:
 		lines.append("TARGETS %s%s (counted: THREAT_LEAD, THREAT_LEAD_BY_LANE, RETRY_NIGHTS, FIRST_T3_NIGHT, FIRST_NIGHT_BAND, FENCE_TAX, LANE_CAP_GUARD; FIXED_SPREAD (spread >= 5), HARE_SHARE flags, UNBRANCHED_* and UNSPENT_* are information; read every line, the per-seed and per-lane lines most of all)" % [
 			"ALL PASS" if res.ok else "NOT ALL PASS", "" if res.ok else " (failing: " + ", ".join(res.failed) + ")"])
+	if reads_t4 and int(res4.exit) == 0:
+		lines.append("TARGETS_T4 %s%s (counted: THREAT_LEAD_T4, THREAT_LEAD_BY_LANE_T4, RETRY_NIGHTS_T4, FIRST_T4_NIGHT, FIRST_NIGHT_BAND_T4, FENCE_TAX_T4, BOSS_NIGHT; LANE_CAP_GUARD (all nights) is in TARGETS above; read every line, the per-seed and per-lane lines most of all)" % [
+			"ALL PASS" if res4.ok else "NOT ALL PASS", "" if res4.ok else " (failing: " + ", ".join(res4.failed) + ")"])
+	var exit_code := maxi(int(res.exit), int(res4.exit))
+	var all_ok: bool = int(res.exit) == 0 and bool(res.ok) and int(res4.exit) == 0 and bool(res4.ok)
 	if is_final and _commit(proj) != commit:
 		lines.append("FINAL_COMMIT_CHANGED: the commit was %s at the start and is %s now: HEAD or the tree changed during the run; the record says ok=false" % [commit, _commit(proj)])
 	if is_final:
-		_write_record(record_path, SweepMath.final_finish(gate.record, int(res.exit) == 0 and bool(res.ok), _commit(proj), int(res.exit) == 0))
+		_write_record(record_path, SweepMath.final_finish(gate.record, all_ok, _commit(proj), int(res.exit) == 0))  # complete = the tier-3 verdict block was printed: a printed final cannot be re-run because only the tier-4 block failed
 	lines.append("WALL %.0f s (parallel=%d, %d runs)" % [(Time.get_ticks_msec() - t0) / 1000.0, parallel, total])
 	var text := "\n".join(lines)
 	print(text)
 	var f := FileAccess.open(out_dir.path_join("retune_%s_%s.txt" % [tag, commit]), FileAccess.WRITE)
 	f.store_string(text + "\n")
 	f.close()
-	quit(int(res.exit))
+	quit(exit_code)
 
 ## Single-quoted for /bin/sh.
 func _q(s: String) -> String:

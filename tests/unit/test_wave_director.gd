@@ -217,16 +217,18 @@ func test_enemy_killed_carries_the_kind_and_the_boss_drops_its_pile() -> void:
 		var d := Vector2((s as Node3D).position.x - boss.position.x, (s as Node3D).position.z - boss.position.z).length()
 		assert_lte(d, Balance.data.monsters.stats(&"boss").drop_scatter + 1e-4)
 
-func test_steak_pool_holds_a_tier3_night_plus_its_brutes_and_the_biggest_boss() -> void:
+func test_steak_pool_holds_a_tier4_night_plus_its_brutes_and_the_biggest_boss() -> void:
 	var sizes := World.pool_sizes(Balance.data)
 	var tb := Balance.data.tiers
 	var kills := 0
 	for w in 3:
 		kills += WaveMath.total_count(tb.tier_cap[TierEffects.top_tier(tb)], w, Balance.data.wave)
-	assert_eq(TierEffects.top_tier(tb), 3)
-	var brutes: int = 3 * (tb.brute_cap_main[3] + tb.brute_cap_side[3]) * Balance.data.monsters.stats(&"brute").steaks_per_kill
-	var biggest_boss: int = maxi(Balance.data.monsters.stats(&"boss").steaks_per_kill, Balance.data.monsters.stats(&"baron").steaks_per_kill)
+	assert_eq(TierEffects.top_tier(tb), 4)
+	var brutes: int = 3 * (tb.brute_cap_main[4] + tb.brute_cap_side[4]) * Balance.data.monsters.stats(&"brute").steaks_per_kill
+	var biggest_boss: int = 0
+	for boss_kind in [&"boss", &"baron", &"wrecker"]:
+		biggest_boss = maxi(biggest_boss, Balance.data.monsters.stats(boss_kind).steaks_per_kill)
 	var need := int(ceil((kills * Balance.data.economy.steaks_per_kill + brutes + biggest_boss) * 1.2))
 	assert_eq(sizes.steak, need)
-	assert_eq(sizes.steak, 396, "the literal: 78 kills x 2 + 24 + 150 = 330, x 1.2")
+	assert_eq(sizes.steak, 406, "the literal: 82 kills x 2 + 24 + 150 = 338, x 1.2 (cap 14; 411 at cap 15)")
 	assert_gte(sizes.enemy, Balance.data.wave.max_wave_size + 1 + 10, "the boss is one more spawn")

@@ -241,7 +241,7 @@ func test_brute_counts_every_day_of_the_ramp() -> void:
 	assert_eq([live.brute_cap_main[3], live.brute_cap_side[3], live.brute_ramp_days[3]], [1, 0, 3], "the ruling")
 	var tb: TierBalance = live.duplicate(true)
 	tb.brute_cap_side.assign([0, 0, 0, 1])
-	assert_eq(Array(live.brute_cap_side), [0, 0, 0, 0], "the override is in memory only")
+	assert_eq(Array(live.brute_cap_side), [0, 0, 0, 0, 0], "the override is in memory only")
 	var main_by_day := {
 		22: [0, 0, 1], 23: [0, 1, 1], 24: [1, 1, 1], 25: [1, 1, 1], 30: [1, 1, 1],
 	}
@@ -350,7 +350,7 @@ func test_composition_by_lane_of_a_hand_written_plan() -> void:
 func test_only_the_planner_draws_from_the_lane_plan_stream() -> void:
 	var planner := FileAccess.get_file_as_string("res://core/lane_planner.gd")
 	var effects := FileAccess.get_file_as_string("res://core/tier_effects.gd")
-	assert_eq(planner.count("Rng.stream("), 1)
+	assert_eq(planner.count("Rng.stream("), 2, "the day's stream, plus the tier-4 stream lane_plan_t4 (E8 Task 3, B6)")
 	assert_eq(effects.count("Rng.stream("), 0)
 
 # --- E6 task 4: extra groups count in composition and threat ------------------------------------------------------------
@@ -404,7 +404,7 @@ func test_threat_counts_the_extra_group() -> void:
 		sum_b += float(before[lane])
 	assert_almost_eq(sum_a, sum_b, 0.001, "moving hares between lanes keeps the plan's total threat")
 
-## apply and with_boss commute (the main lane never changes), so the boss wave stays last on its main lane.
+## With an empty character, apply and with_boss commute; with a character, with_boss must run after apply (GameState._plan_today).
 func test_with_boss_and_apply_commute() -> void:
 	var c := {"siege": "north", "hare": "sw"}
 	var tb := Balance.data.tiers

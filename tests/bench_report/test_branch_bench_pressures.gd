@@ -88,6 +88,37 @@ func _identity(pressure: int) -> void:
 		_row(pressure, "IDENTITY %s: unbranched tower never best" % lane, "best branch %.1f vs base %.1f" % [towers, base.diner_lost], towers < base.diner_lost - SAME)
 		_row(pressure, "IDENTITY %s: unbranched fence never best" % lane, "best branch %.1f vs base %.1f" % [fences, base.diner_lost], fences < base.diner_lost - SAME)
 
+## E8 phase 2 Task 8 (spec 4.5): the tier-4 base (tier_base[4]) and the tier-4 cap (tier_cap[4], the control: it must reproduce the CI bench), the RULES on the tier-4 mixes.
+## As the CI bench's test_8 does (D-314.26), each configuration is run over every seed of BranchBench.T4_SEEDS, each seed's row is printed, and every rule is judged
+## on BranchBench.sum_runs() of those runs; a fence that never fell in some seed (stands_inf, D-314.28) fails the check where a rule reads the stand time.
+func test_rules_at_the_tier_4_base_and_cap() -> void:
+	await wait_physics_frames(10)
+	for p in [int(Balance.data.tiers.tier_base[4]), int(Balance.data.tiers.tier_cap[4])]:
+		gut.p("TIER 4 PRESSURE %d (shipped balance)" % p)
+		var res := {}
+		var stand_cfgs := BranchBench.stand_time_configs()
+		for lane in BranchBench.LANES:
+			res[lane] = {}
+			for cfg in BranchBench.FAST_CONFIGS:
+				var runs: Array = []
+				for sd in BranchBench.T4_SEEDS:
+					var run: Dictionary = await BranchBench.run(lane, cfg[0], cfg[1], p, {"tier": 4, "t4_seed": sd})
+					runs.append(run)
+					gut.p("  t4 p%d seed %d %-8s %-14s %s" % [p, sd, lane, BranchBench.cfg_name(cfg), _fmt(run)])
+					if run.timed_out:
+						gut.p("  t4 p%d TIMEOUT seed %d %s %s did not clear in time  FAIL" % [p, sd, lane, BranchBench.cfg_name(cfg)])
+				var summed := BranchBench.sum_runs(runs)
+				res[lane][BranchBench.cfg_name(cfg)] = summed
+				if BranchBench.cfg_name(cfg) in stand_cfgs.get(lane, []):  # INF is expected where no rule reads the stand time (D-314.28)
+					assert_eq(summed.stands_inf, 0, "t4 p%d %s %s: a fence never fell in %d of the seed runs, and a rule reads this stand time (D-314.28)" % [p, lane, BranchBench.cfg_name(cfg), summed.stands_inf])
+		var fails := 0
+		for row in BranchBench.RULES:
+			var v := BranchBench.rule_verdict(row, res[row[2]])
+			fails += 0 if v.ok else 1
+			gut.p("  t4 p%d SUMMED %-56s %s  %s" % [p, "%s %s" % [BranchBench.rule_name(row), row[2]], "%s %.2f vs %.2f, bound %s %.2f" % [v.measure, v.a, v.b, BranchBench.rule_op(row), v.bound], "PASS" if v.ok else "FAIL"])
+		gut.p("SUMMARY t4 p%d: %d rule(s) FAIL, %d PASS, %d rules" % [p, fails, BranchBench.RULES.size() - fails, BranchBench.RULES.size()])
+	assert_true(true)
+
 func test_rules_at_every_tier_3_pressure() -> void:
 	await wait_physics_frames(10)
 	var pressures := _pressures()

@@ -6,6 +6,7 @@
   "res://tests/bench/test_branch_bench_full.gd::test_5_rules_on_off_neutral_at_the_tier_cap": 11,
   "res://tests/bench/test_branch_bench_full.gd::test_6_specialists_at_the_cap": 11,
   "res://tests/bench/test_branch_bench_full.gd::test_7_identity_at_the_cap": 11,
+  "res://tests/bench/test_branch_bench_full.gd::test_8_rules_on_off_neutral_at_the_tier_4_cap_summed_over_four_seeds": 544849,
   "res://tests/sim/test_day_sims.gd::test_night2_naive_unaided_is_hard_and_deterministic": 20686,
   "res://tests/sim/test_day_sims.gd::test_night2_planner_is_comfortable": 15604,
   "res://tests/sim/test_guide_sim.gd::test_guide_bot_canonical_seed": 10412,
@@ -34,5 +35,9 @@
   "res://tests/sim_tier_b/test_tier3_sims.gd::test_6_every_branch_policy_holds_the_tier3_cap_with_0_retries": 27205,
   "res://tests/sim_tier_b/test_tier3_sims.gd::test_7_a_guard_respawning_into_an_occupied_sw_zone_is_not_knocked_out_again_within_5_s": 5617,
   "res://tests/sim_tier_b/test_tier3_sims.gd::test_8a_tier1_and_tier2_plans_and_the_sweep_row_inputs_are_unchanged": 10,
-  "res://tests/sim_tier_b/test_tier3_sims.gd::test_8b_the_tier2_fixture_night_ends_as_recorded": 5889
+  "res://tests/sim_tier_b/test_tier3_sims.gd::test_8b_the_tier2_fixture_night_ends_as_recorded": 5889,
+  "res://tests/sim_tier_b/test_tier4_sims.gd::test_1a_the_wrecker_alone_needs_at_least_boss_min_hold_s_to_fell_the_diner": 4022,
+  "res://tests/sim_tier_b/test_tier4_sims.gd::test_1b_a_branch_build_wins_the_wrecker_night_within_the_allowed_retries": 6909,
+  "res://tests/sim_tier_b/test_tier4_sims.gd::test_2_the_first_tier_4_night_is_held_with_0_retries": 5072,
+  "res://tests/sim_tier_b/test_tier4_sims.gd::test_3_a_full_tier_4_branch_build_holds_the_cap_with_0_retries_on_seeds_1_4_and_7": 17484
 }

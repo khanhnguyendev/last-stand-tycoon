@@ -82,10 +82,10 @@ func after_each() -> void:
 # ---- helpers -------------------------------------------------------------------------------------------------------------------
 
 ## One bench run, cached per (lane type, branches, pressure).
-func _run(lane: StringName, tb: StringName, fb: StringName, pressure: int) -> Dictionary:
-	var key := "%s|%s|%s|%d" % [lane, tb, fb, pressure]
+func _run(lane: StringName, tb: StringName, fb: StringName, pressure: int, tier := 3) -> Dictionary:
+	var key := "%s|%s|%s|%d" % [lane, tb, fb, pressure] if tier == 3 else "%s|%s|%s|%d|t%d" % [lane, tb, fb, pressure, tier]
 	if not _cache.has(key):
-		_cache[key] = await BranchBench.run(lane, tb, fb, pressure)
+		_cache[key] = await BranchBench.run(lane, tb, fb, pressure, {"tier": tier} if tier != 3 else {})
 	assert_false(_cache[key].timed_out, "%s did not clear in time" % key)
 	return _cache[key]
 
@@ -106,18 +106,18 @@ func _print_matrix(title: String, pressure: int, configs: Array) -> void:
 			gut.p("  %-8s %-18s %s" % [lane, _cfg_name(cfg), _fmt(r)])
 
 ## E8 (spec 3.1): ON, OFF and NEUTRAL (BranchBench.RULES) at one pressure; every rule's numbers are printed.
-func _check_rules(pressure: int) -> void:
+func _check_rules(pressure: int, tier := 3) -> void:
 	var res := {}
 	for lane in LANES:
 		res[lane] = {}
 		for cfg in BranchBench.FAST_CONFIGS:
-			res[lane][_cfg_name(cfg)] = await _run(lane, cfg[0], cfg[1], pressure)
+			res[lane][_cfg_name(cfg)] = await _run(lane, cfg[0], cfg[1], pressure, tier)
 	for row in BranchBench.RULES:
 		var v := BranchBench.rule_verdict(row, res[row[2]])
 		var name := BranchBench.rule_name(row)
-		gut.p("RULE p%d %-16s %-8s %s: %s -> %s" % [pressure, name, row[2], v.measure, v.why, "PASS" if v.ok else "FAIL"])
-		_row("%s p%d %s" % [name, pressure, row[2]], "%s %.2f" % [v.measure, v.a], "%.2f" % v.b, "%s %.2f" % [BranchBench.rule_op(row), v.bound], v.ok)
-		assert_true(v.ok, "%s p%d %s lane: %s | unbranched %s | branch %s | fails when: %s" % [name, pressure, row[2], v.why, _fmt(res[row[2]]["-/-"]), _fmt(res[row[2]][BranchBench.branch_cfg(row[1])]), BranchBench.RULE_FAILS_WHEN[name]])
+		gut.p("RULE t%d p%d %-16s %-8s %s: %s -> %s" % [tier, pressure, name, row[2], v.measure, v.why, "PASS" if v.ok else "FAIL"])
+		_row("%s t%d p%d %s" % [name, tier, pressure, row[2]], "%s %.2f" % [v.measure, v.a], "%.2f" % v.b, "%s %.2f" % [BranchBench.rule_op(row), v.bound], v.ok)
+		assert_true(v.ok, "%s t%d p%d %s lane: %s | unbranched %s | branch %s | fails when: %s" % [name, tier, pressure, row[2], v.why, _fmt(res[row[2]]["-/-"]), _fmt(res[row[2]][BranchBench.branch_cfg(row[1])]), BranchBench.RULE_FAILS_WHEN[name]])
 
 func _check_specialists(pressure: int) -> void:
 	for row in BranchBench.SPECIALISTS:
@@ -215,3 +215,35 @@ func test_6_specialists_at_the_cap() -> void:
 func test_7_identity_at_the_cap() -> void:
 	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
 	await _check_identity(_cap())
+
+## E8 phase 2 Task 8 (B9, D-314.26): ON, OFF and NEUTRAL at the tier-4 cap, on the tier-4 mixes (each lane type's group of the real planner's split, BranchBench.mix_tier4).
+## THE RULE: every measure is summed over the four planner seeds BranchBench.T4_SEEDS (1, 2, 3, 4, in order): diner_lost and hares_in_zone are the sum, fence_stands_s the mean
+## (BranchBench.sum_runs); each rule is then judged on the sums by the same functions as at tier 3. One seed's mix puts different lanes beside the brutes, so no one seed decides.
+## OPEN ESCALATION (D-314.27): OFF Spike at the tier-4 cap, summed, FAILS on purpose and is left red (not weakened, skipped or retuned): it is a near tie, 25.46 s against
+## 25.55 s mean stands (needs <= 22.99 s); Spike's brute multiplier 4.0 is at its widened maximum. Waiting for the author. Every other rule here passes.
+## The per-seed numbers are printed. The micro-world is the same one-lane world as every other test here. CI runs the cap only; the base is in tests/bench_report/.
+func test_8_rules_on_off_neutral_at_the_tier_4_cap_summed_over_four_seeds() -> void:
+	await wait_physics_frames(10)  # records > 0 ticks: test_tick_budget requires every entry > 0
+	var pressure := int(Balance.data.tiers.tier_cap[4])
+	var stand_cfgs := BranchBench.stand_time_configs()
+	var res := {}
+	for lane in LANES:
+		res[lane] = {}
+		for cfg in BranchBench.FAST_CONFIGS:
+			var runs: Array = []
+			for sd in BranchBench.T4_SEEDS:
+				var key := "%s|%s|%s|%d|t4s%d" % [lane, cfg[0], cfg[1], pressure, sd]
+				if not _cache.has(key):
+					_cache[key] = await BranchBench.run(lane, cfg[0], cfg[1], pressure, {"tier": 4, "t4_seed": sd})
+				assert_false(_cache[key].timed_out, "%s did not clear in time" % key)
+				gut.p("  T4 seed %d %-8s %-12s %s" % [sd, lane, _cfg_name(cfg), _fmt(_cache[key])])
+				runs.append(_cache[key])
+			res[lane][_cfg_name(cfg)] = BranchBench.sum_runs(runs)
+			if _cfg_name(cfg) in stand_cfgs.get(lane, []):  # INF is expected where no rule reads the stand time (D-314.28)
+				assert_eq(res[lane][_cfg_name(cfg)].stands_inf, 0, "%s %s: a fence never fell in %d of the seed runs, and a rule reads this stand time (D-314.28)" % [lane, _cfg_name(cfg), res[lane][_cfg_name(cfg)].stands_inf])
+	for row in BranchBench.RULES:
+		var v := BranchBench.rule_verdict(row, res[row[2]])
+		var name := BranchBench.rule_name(row)
+		gut.p("RULE t4 p%d SUMMED %-16s %-8s %s: %s -> %s" % [pressure, name, row[2], v.measure, v.why, "PASS" if v.ok else "FAIL"])
+		_row("%s t4 p%d summed %s" % [name, pressure, row[2]], "%s %.2f" % [v.measure, v.a], "%.2f" % v.b, "%s %.2f" % [BranchBench.rule_op(row), v.bound], v.ok)
+		assert_true(v.ok, "%s t4 p%d summed over seeds 1-4, %s lane: %s | fails when: %s" % [name, pressure, row[2], v.why, BranchBench.RULE_FAILS_WHEN[name]])

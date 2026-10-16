@@ -31,7 +31,7 @@ func _decode(s: Dictionary) -> Dictionary:
 func test_schema_4_migrates_to_5_at_tier_1() -> void:
 	var r := _decode(_v4_state(12))
 	assert_true(r.ok, r.reason)
-	assert_eq([r.state.v, r.state.tier, r.state.tier_day, r.state.tier_paid, r.state.boss_pending], [7, 1, 1, 0, false])
+	assert_eq([r.state.v, r.state.tier, r.state.tier_day, r.state.tier_paid, r.state.boss_pending], [8, 1, 1, 0, false])
 	var keys: Array = r.state.buildings.keys()
 	keys.sort()  # the codec writes sorted keys
 	var want := MapLayout.spots_for_tier(1)

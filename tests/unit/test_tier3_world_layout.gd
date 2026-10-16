@@ -16,8 +16,10 @@ var _tier_changes: Array = []
 var _grew := 0
 
 ## `with_cost`: the build knows tier 3 (the shipped build does; false makes a two-tier build). It must be set before Main.create (pools, top tier).
-func _make(with_cost := true) -> void:
+func _make(with_cost := true, tier4 := false) -> void:
 	Balance.reset()
+	if tier4:
+		Tier4Support.open_tier4()  # E8 B5: tier 4 is for sale only in memory until Task 9
 	if with_cost and Balance.data.tiers.tier_costs.size() < 3:
 		Balance.data.tiers.tier_costs.append(1500)
 	elif not with_cost:
@@ -68,7 +70,10 @@ func test_the_sign_stands_where_the_next_tier_is_sold() -> void:
 	assert_true(sign.visible)
 	assert_true(sign.position.is_equal_approx(MapLayout.to3(Vector2(-4.7, 8.5))), "tier 2 sells tier 3 on the front lot")
 	GameState.debug_set_tier(3, 4)
-	assert_eq(sign.state(), &"hidden", "tier 3 is the top")
+	assert_eq(sign.state(), &"selling", "tier 3 sells tier 4 (E8 Task 9)")
+	assert_true(sign.position.is_equal_approx(MapLayout.to3(MapLayout.tier_sign(4))), "on the back lot")
+	GameState.debug_set_tier(4, 4)
+	assert_eq(sign.state(), &"hidden", "tier 4 is the top")
 	GameState.new_game(7)
 	assert_true(sign.position.is_equal_approx(MapLayout.to3(MapLayout.tier_sign(2))), "a new game puts it back in the west yard")
 	assert_eq(sign.state(), &"selling")
@@ -255,7 +260,7 @@ func test_the_front_lot_kerb_is_closed_except_where_the_things_of_tier_3_stand()
 	var bar := _bar("sw")
 	_front_clearance("fence_sw's bar", func(a, b): return _seg_seg(a, b, bar[0], bar[1]), BAR_HALF_DEPTH + half_w)
 	var pads := 0
-	for id in MapLayout.BRANCH_PADS:
+	for id in MapLayout.spots_for_tier(3):  # tier 3's pads (the back lot's are far from the lot: test_branch_pad_layout pins that the kerb is the same at tier 4)
 		for p in MapLayout.BRANCH_PADS[id]:
 			pads += 1
 			_front_clearance("branch pad %s of %s" % [p, id], func(a, b): return Geometry.dist_point_segment(p, a, b), MapLayout.BRANCH_PAD_RADIUS + half_w)
@@ -616,7 +621,7 @@ func _seg_clearances(tier: int, p0: Vector2, p1: Vector2, stats: Dictionary) -> 
 		stats.zone = minf(stats.zone, Geometry.dist_point_rect(p1, MapLayout.zone_rect(lane)) - TRAVELER_RADIUS)
 	if tier < 3:  # branch pads exist from tier 3
 		return
-	for id in MapLayout.BRANCH_PADS:
+	for id in MapLayout.spots_for_tier(tier):  # the pads that exist at this tier (22 at tier 4)
 		for pad in MapLayout.BRANCH_PADS[id]:
 			stats.pad = minf(stats.pad, Geometry.dist_point_segment(pad, p0, p1) - MapLayout.BRANCH_PAD_RADIUS)
 
@@ -672,6 +677,22 @@ func test_tier_3_day_traffic_keeps_off_the_fence_bars_the_zone_and_the_pads() ->
 	assert_gt(s.bar, 0.0, "no step within bar half-depth + traveler radius of a fence bar (all four lanes)")
 	assert_gt(s.zone, 0.0, "nor into an attack zone (the SW one included)")
 	assert_gt(s.pad, 0.0, "nor within a branch pad's radius")
+
+## E8 phase 2 Task 7 (Task 6 review note): real travelers at tier 4, with the back lot's four pads and two towers standing. The tier-4
+## layout tests prove the geometry; this proves the traffic (queue slots, exit and visits are the tier-3 ones).
+func test_tier_4_day_traffic_keeps_off_the_fence_bars_the_zone_and_the_pads() -> void:
+	await _make(true, true)
+	var s := await _traffic(4, Balance.data.stations.max_level)
+	assert_eq(GameState.tier, 4)
+	assert_eq(main.world.build_spots.size(), 11, "nine old spots and the back lot's two towers")
+	gut.p("tier 4 traffic: %s" % [s])
+	assert_eq(s.max_queue, 9, "the queue really reached nine")
+	assert_eq(s.grew, 0, "the traveler pool never grew during the walk")
+	assert_gte(s.visits, 6, "full visits were walked")
+	assert_gt(s.steps, 1000)
+	assert_gt(s.bar, 0.0, "no step within bar half-depth + traveler radius of a fence bar")
+	assert_gt(s.zone, 0.0, "nor into an attack zone")
+	assert_gt(s.pad, 0.0, "nor within a branch pad's radius (all 22 pads)")
 
 func _report_traffic(tier: int) -> void:
 	await _make()

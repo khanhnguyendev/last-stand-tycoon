@@ -68,8 +68,11 @@ func _enter_night() -> void:
 	phase = Phase.NIGHT
 	EventBus.phase_changed.emit(phase, GameState.day)
 	if GameState.is_boss_night():
-		if TierEffects.boss_kind_for(GameState.tier, Balance.data.tiers) == &"baron":
+		var boss_kind := TierEffects.boss_kind_for(GameState.tier, Balance.data.tiers)
+		if boss_kind == &"baron":
 			EventBus.banner_requested.emit(tr("Baron von Hop comes"))
+		elif boss_kind == &"wrecker":
+			EventBus.banner_requested.emit(tr("The Wrecker comes"))
 		else:
 			EventBus.banner_requested.emit(tr("The Boar King comes"))
 	wave_director.start_night(GameState.lane_plan)

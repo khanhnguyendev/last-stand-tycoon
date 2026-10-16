@@ -12,7 +12,7 @@ const SPREAD := 1.0
 const FRAMES := 3
 ## Five per row (x in -2..2 m) and nine rows centred vertically (y in -4..4 m), 6 m from the camera: on a 9:21 phone (KEEP_WIDTH,
 ## camera_fov_h 42) the half-width there is 6 * tan 21 deg = 2.30 m and at 9:16 the half-height is 4.09 m (the outer rows' centres are inside it).
-## Room for 45 nodes (37 at tier 3: E6 added the guard HP bar boxes, the lane badge icons and the hero's and pile's front variants).
+## Room for 45 nodes (38 at tier 3: E6 added the guard HP bar boxes, the lane badge icons and the hero's and pile's front variants).
 const ROW := 5
 const ROWS := 9
 const CAPACITY := ROW * ROWS
@@ -153,6 +153,8 @@ static func _prebuild_tier_caches() -> void:
 		GroundArt.terrain_mesh(World.ground_rect(), yards, MapLayout.lanes_for_tier(t), spread)
 		if t == 3:  # the tier-3 reveal's first step shows the lot's paving with the tier-2 lanes
 			GroundArt.terrain_mesh(World.ground_rect(), yards, MapLayout.lanes_for_tier(2), spread)
+		if t == 4:  # the tier-4 reveal's middle step shows the first lot with the tier-4 lanes
+			GroundArt.terrain_mesh(World.ground_rect(), TierReveal.stage_yards(4), MapLayout.lanes_for_tier(4), spread)
 		var rects: Array[Rect2] = []
 		for id in yards:
 			rects.append(MapLayout.yard_rect(id))

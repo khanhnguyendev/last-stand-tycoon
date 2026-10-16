@@ -81,9 +81,10 @@ static func _fix_winding(verts: PackedVector3Array, idx: PackedInt32Array) -> vo
 		idx[t * 3 + 2] = tmp
 
 ## Edge-stone transforms: every STONE_SPACING m along the path, on both sides at the strip's outer edge.
-static func edge_transforms(pts: Array, spacing := STONE_SPACING, width := WIDTH, avoid := false) -> Array[Transform3D]:
+static func edge_transforms(pts: Array, spacing := STONE_SPACING, width := WIDTH, avoid := false, tier := 3) -> Array[Transform3D]:
 	var out: Array[Transform3D] = []
 	var side := width * 0.5 + 0.25
+	var circles := avoid_circles(tier) if avoid else []
 	var walked := 0.0
 	var next := spacing * 0.5
 	for i in range(1, pts.size()):
@@ -96,7 +97,7 @@ static func edge_transforms(pts: Array, spacing := STONE_SPACING, width := WIDTH
 			var c := a + d * (next - walked)
 			for s in [-1.0, 1.0]:
 				var p: Vector2 = c + nrm * (side * s)
-				if STONE_SKIP.has_point(p) or (avoid and blocked(p)):
+				if STONE_SKIP.has_point(p) or (avoid and blocked(p, tier, circles)):
 					continue
 				var yaw := GroundArt.hash01(p.x, p.y) * TAU
 				out.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * STONE_SCALE), Vector3(p.x, 0.0, p.y)))
@@ -114,20 +115,20 @@ static func strip_y(lane: String) -> float:
 
 ## Circles (centre, radius) and rects a lane beyond the tier-1 three keeps its edge stones off: the branch pads, every build-spot and
 ## upgrade pad, the station zones and the signs, the gold pile, HOME, the tier-3 queue slots; and the counter and freezer rects.
-static func avoid_circles() -> Array:
+## E8 B2: only what exists at `tier` (3 unless the caller says 4): the spots, pads and signs of tiers up to it.
+static func avoid_circles(tier := 3) -> Array:
 	var out := []
-	var table := MapLayout.BRANCH_PADS
-	for id in table:
-		for c in table[id]:
-			out.append([c, MapLayout.BRANCH_PAD_RADIUS])
-	for id in MapLayout.ALL_SPOT_IDS:
+	for c in MapLayout.branch_pads_for_tier(tier):
+		out.append([c, MapLayout.BRANCH_PAD_RADIUS])
+	for id in MapLayout.spots_for_tier(tier):
 		out.append([MapLayout.spot_position(id), MapLayout.BUILD_RADIUS])
 	for c in MapLayout.STATION_PADS.values():
 		out.append([c, MapLayout.BUILD_RADIUS])
 	for c in [MapLayout.SIGN, MapLayout.FREEZER_ZONE, MapLayout.COUNTER_DROP, MapLayout.GOLD_PILE, MapLayout.HOME]:
 		out.append([c, MapLayout.STATION_RADIUS])
 	for t in MapLayout.TIER_SIGNS:
-		out.append([MapLayout.tier_sign(t), MapLayout.STATION_RADIUS])
+		if t <= tier:
+			out.append([MapLayout.tier_sign(t), MapLayout.STATION_RADIUS])
 	for c in MapLayout.queue_slots(3):
 		out.append([c, 0.5])
 	return out
@@ -136,8 +137,10 @@ static func avoid_rects() -> Array[Rect2]:
 	return [Rect2(MapLayout.COUNTER - MapLayout.COUNTER_SIZE * 0.5, MapLayout.COUNTER_SIZE),
 		Rect2(MapLayout.FREEZER - MapLayout.FREEZER_SIZE * 0.5, MapLayout.FREEZER_SIZE)]
 
-static func blocked(p: Vector2) -> bool:
-	for c in avoid_circles():
+static func blocked(p: Vector2, tier := 3, circles: Array = []) -> bool:
+	if circles.is_empty():
+		circles = avoid_circles(tier)
+	for c in circles:
 		if p.distance_to(c[0]) < float(c[1]) + STONE_RADIUS:
 			return true
 	for r in avoid_rects():
@@ -157,10 +160,10 @@ static func draw_order(lanes: Array) -> Array[String]:
 	return out
 
 ## The MultiMesh of the edge stones of `lanes` (World swaps it into its EdgeStones node when the lane set changes).
-static func edge_multimesh(lanes: Array = []) -> MultiMesh:
+static func edge_multimesh(lanes: Array = [], tier := 3) -> MultiMesh:
 	var xfs: Array[Transform3D] = []
 	for id in draw_order(lanes):
-		xfs.append_array(edge_transforms(MapLayout.lane_path(id), STONE_SPACING, WIDTH, not id in DRAW_ORDER))
+		xfs.append_array(edge_transforms(MapLayout.lane_path(id), STONE_SPACING, WIDTH, not id in DRAW_ORDER, tier))
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = load(STONE_MODEL) as Mesh
@@ -170,9 +173,9 @@ static func edge_multimesh(lanes: Array = []) -> MultiMesh:
 	return mm
 
 ## One world-level MultiMeshInstance3D with the edge stones of the lanes in `lanes` (D-201); none = the tier-1 lanes.
-static func edge_stones(lanes: Array = []) -> MultiMeshInstance3D:
+static func edge_stones(lanes: Array = [], tier := 3) -> MultiMeshInstance3D:
 	var mmi := MultiMeshInstance3D.new()
 	mmi.name = "EdgeStones"
-	mmi.multimesh = edge_multimesh(lanes)
+	mmi.multimesh = edge_multimesh(lanes, tier)
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return mmi

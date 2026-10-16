@@ -94,7 +94,7 @@ func _hop() -> Vector2:
 	match kind:
 		&"hare":
 			return Vector2(ui.hare_hop_height, ui.hare_hop_hz)
-		&"boss", &"brute":
+		&"boss", &"brute", &"wrecker":
 			return Vector2(ui.boss_hop_height, ui.boss_hop_hz)
 	return Vector2(ui.boar_hop_height, ui.boar_hop_hz)
 

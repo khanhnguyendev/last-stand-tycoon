@@ -33,6 +33,16 @@ static func build(wave: Dictionary, wb: WaveBalance, tb: TierBalance = null, tie
 		out.append({"t": lead + wb.side_group_delay + i * wb.spawn_interval, "lane": String(wave.side), "side": true, "kind": kind})
 	for j in brute_side:
 		out.append({"t": lead + wb.side_group_delay + (side_n + j) * wb.spawn_interval, "lane": String(wave.side), "side": true, "kind": &"brute"})
+	# E8 (spec 4.4): the tier-4 third group starts with the side group, after it in build order; hares last, brutes after.
+	var has_side2 := wave.has("side2")
+	if has_side2:
+		var side2_n := int(wave.get("side2_count", 0))
+		var fast_side2 := int(wave.get("fast_side2", 0))
+		for i in side2_n:
+			var kind: StringName = &"hare" if i >= side2_n - fast_side2 else &"boar"
+			out.append({"t": lead + wb.side_group_delay + i * wb.spawn_interval, "lane": String(wave.side2), "side": true, "kind": kind})
+		for j in int(wave.get("brute_side2", 0)):
+			out.append({"t": lead + wb.side_group_delay + (side2_n + j) * wb.spawn_interval, "lane": String(wave.side2), "side": true, "kind": &"brute"})
 	# E6: extra groups (LaneCharacter.apply) start with the side group, on their own lane, hares last; "side": true and
 	# "extra": true (the key exists only on these entries, so a wave without extra is entry-for-entry what it was).
 	var extras: Array = wave.get("extra", [])
@@ -43,7 +53,7 @@ static func build(wave: Dictionary, wb: WaveBalance, tb: TierBalance = null, tie
 		for i in n:
 			var kind: StringName = &"hare" if i >= n - fast else &"boar"
 			out.append({"t": lead + wb.side_group_delay + i * wb.spawn_interval, "lane": String(e.lane), "side": true, "extra": true, "kind": kind})
-	if extras.is_empty():
+	if extras.is_empty() and not has_side2:
 		out.sort_custom(func(a, b):
 			if not is_equal_approx(a.t, b.t):
 				return a.t < b.t
@@ -51,8 +61,8 @@ static func build(wave: Dictionary, wb: WaveBalance, tb: TierBalance = null, tie
 		return out
 	return _sorted_with_extras(out)
 
-## Ties at the same time break by group rank (boss and main 0, side 1, extra groups 2), then by build order (the boss
-## first, then main, brutes, side, then extra groups in wave.extra order): a total order, so the result never depends
+## Ties at the same time break by group rank (boss and main 0, side and side2 1, extra groups 2), then by build order (the boss
+## first, then main, brutes, side, side2, then extra groups in wave.extra order): a total order, so the result never depends
 ## on the sort's stability.
 static func _sorted_with_extras(entries: Array) -> Array:
 	var keyed: Array = []

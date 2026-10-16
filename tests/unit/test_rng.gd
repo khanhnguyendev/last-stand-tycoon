@@ -122,3 +122,11 @@ func test_lane_character_stream_is_pinned() -> void:
 	assert_eq(Rng.derive_seed(GOLDEN_RUN_SEED, 0, &"lane_character"), 2971160035)
 	var rng := Rng.stream(GOLDEN_RUN_SEED, 0, &"lane_character")
 	assert_eq([int(rng.randi()), int(rng.randi()), int(rng.randi())], [3561404524, 1919775873, 3074756434])
+
+## The E8 tier-4 stream, pinned by literals (seed from the FNV-1a of "20260930:20:lane_plan_t4", then its first three randi()).
+## Saves depend on it forever. Mutation: the stream renamed, or derived differently.
+func test_lane_plan_t4_stream_is_pinned() -> void:
+	assert_false(PINNED_PROD_STREAMS.has(&"lane_plan_t4"), "new name, not one of the pre-existing streams")
+	assert_eq(Rng.derive_seed(GOLDEN_RUN_SEED, 20, &"lane_plan_t4"), 3102834312)
+	var rng := Rng.stream(GOLDEN_RUN_SEED, 20, &"lane_plan_t4")
+	assert_eq([int(rng.randi()), int(rng.randi()), int(rng.randi())], [754129841, 2894561448, 4095528674])

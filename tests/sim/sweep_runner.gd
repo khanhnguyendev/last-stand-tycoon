@@ -2,6 +2,7 @@ extends Node
 ## Manual difficulty sweep (D-059, D-066, D-067): PlannerBot days 1-14 by default -> tests/sim/out/sweep.csv.
 ## `--bot=upgrader` runs the UpgraderBot and writes `sweep_upgrader.csv` with a `stations` column (E1).
 ## `--bot=tier` runs the TierBot -> `sweep_tier.csv` (+ tier,boss_night,boss_retries) and prints a TIER line (E5).
+## `--bot-max-tier=<1 to tiers.max_tier>` caps the tier bot: it never pays a tier above it (E8, D-314.12; tools/baseline_t3.sh and the tier-3 tools pass 3). Like --policy it only applies to --bot=tier (a warning for the other bots).
 ## `--policy=all_a|all_b|mixed|threat|volley_stone|unbranched` sets the tier bot's branch policy (default threat). `--tier3=off` removes the tier-3 cost entry in memory,
 ## and the run then asserts that no brute died, no wave came from the south-west and no branch was chosen (the Task 21 assertion, D-279):
 ## a TIER3_GATE line, exit code 1 on a violation. Tier rows end with brute_kills,sw_waves,branches (per day, appended after the old columns; sw_waves counts waves with a south-west lane, formerly named sw_spawns).
@@ -15,7 +16,7 @@ extends Node
 ## The TIER3 line (tier bot): nights, retry_nights, retries, cap_nights (pressure at tier_cap[3] when the night began), cap_retry_nights, and the min and median
 ## diner fraction over the tier-3 nights that were held (the final attempt's lowest diner HP; SweepMath.tier3_held_stats). T3RUN's min and median (SweepMath.tier3_stats) read every tier-3 night, a failed one included, so the two pairs differ whenever a night failed. NOTE: `kills` and `brute_kills` in the rows include the kills of failed attempts.
 ## Tier mode also prints, after TIER3_GATE (stdout only; the CSV is not touched):
-##   T3RUN seed policy nights retry_nights min median mean fences_lost_mean branches branch_gold unspent_last_day hard_break_day: the tier-3 facts of this run
+##   T3RUN seed policy nights retry_nights min median mean fences_lost_mean branches branch_gold unspent_last_day hard_break_day hard_break_tier hard_break_boss: the tier-3 facts of this run
 ##   (SweepMath.tier3_stats; the night statistics count nights that STARTED at tier >= 3; branches and branch_gold count every row that CLOSED at tier >= 3, the
 ##   tier-3 dawn day's purchases included; branch_gold = the cost of every branch bought, re-buys included; read by tests/sim/report_policies.gd). A retried night counts its final (mercy) attempt.
 ##   LADDER plot_day=<d> ladder_done_day=<d> max_unspent_during_ladder=<g> fence_rebuild_gold_median_at_cap=<g> income_at_cap=<g> t3_days_to_done=<n> max_unspent_while_purchasable=<g>
@@ -42,13 +43,18 @@ extends Node
 ##   first_t3_frac is then the mercy attempt's); worst_night_frac / worst_night_day = the lowest FIRST-attempt fraction over the tier-3 nights and its day (-1 none).
 ##   The `unbranched` policy (the report's floor) buys no branch, so its LADDER counts as done when every level and station is bought (SweepMath.ladder_done need_branches=false).
 ##   `--cols=extra` also appends fence_rebuild_gold (rebuild + rebranch of that row's day phase) at the END of the tier rows.
+## E8 (spec 4.6): tier-4 nights are counted apart. The tier-3 lines (TIER3, T3RUN, LADDER, RETUNE) read the nights that STARTED at tier 3 only, the tier-3 boss night's retries excluded from the retry counts
+## (it is BOSS_NIGHT's, B16), while RETUNE's guard_hits counts every night from tier 3 on (LANE_CAP_GUARD, all nights). A run that played a tier-4 night, or met the tier-3 boss night (the Wrecker), prints one more line:
+##   T4RUN seed policy nights retry_nights retries min median mean fences_lost_mean first_t4_frac first_t4_retries cap_nights worst_night_frac worst_night_day boss_seen boss_retries boss_failed
+##   fence_rebuild_gold_median_at_cap income_at_cap (SweepMath.tier4_stats; the tier-4 counterparts of T3RUN and LADDER; first_t4_frac is the mercy attempt's when first_t4_retries > 0). The CSV is not touched,
+##   and a bot capped at tier 3 (--bot-max-tier=3) prints no T4RUN line and every other line exactly as before.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
 
 func _ready() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	var args := {"seed": "20260930", "days": "14", "bot": "planner", "policy": "threat", "tier3": "on", "tier3-cap": "", "brute-caps": "", "brute-hp": "", "fence-mult": "", "out": "", "cols": "", "bot-rule": "walk"}
+	var args := {"seed": "20260930", "days": "14", "bot": "planner", "policy": "threat", "tier3": "on", "tier3-cap": "", "brute-caps": "", "brute-hp": "", "fence-mult": "", "out": "", "cols": "", "bot-rule": "walk", "bot-max-tier": ""}
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		if kv.size() == 2:
@@ -66,8 +72,8 @@ func _run() -> void:
 		push_error("bad --policy=%s (all_a|all_b|mixed|threat|volley_stone|unbranched) or --tier3=%s (on|off)" % [args.policy, args.tier3])
 		get_tree().quit(2)
 		return
-	if not String(args.bot) == "tier" and (args.policy != "threat" or args.tier3 != "on"):
-		print("WARNING: --policy and --tier3 only apply to --bot=tier; ignored for --bot=%s" % args.bot)
+	if not String(args.bot) == "tier" and (args.policy != "threat" or args.tier3 != "on" or String(args["bot-max-tier"]) != ""):
+		print("WARNING: --policy, --tier3 and --bot-max-tier only apply to --bot=tier; ignored for --bot=%s" % args.bot)
 	Balance.reset()
 	if String(args.tier3) == "off":
 		Balance.data.tiers.tier_costs.resize(2)  # in memory only: no sign sells tier 3
@@ -93,6 +99,12 @@ func _run() -> void:
 		ov.append("fence-mult=%s" % args["fence-mult"])
 	if String(args["bot-rule"]) != "walk":
 		ov.append("bot-rule=%s" % args["bot-rule"])  # E7 (D-310): old = the tier bot before D-310, far = the never-cross rule (set on the bot below), for the before/after measurement
+	if String(args["bot-max-tier"]) != "":
+		if not String(args["bot-max-tier"]).is_valid_int() or int(args["bot-max-tier"]) < 1 or int(args["bot-max-tier"]) > Balance.data.tiers.max_tier:
+			push_error("bad --bot-max-tier=%s (integer 1 to %d)" % [args["bot-max-tier"], Balance.data.tiers.max_tier])
+			get_tree().quit(2)
+			return
+		ov.append("bot-max-tier=%d" % int(args["bot-max-tier"]))  # E8 (D-314.12): the tier bot never pays a tier above it (set on the bot below)
 	if not String(args["bot-rule"]) in ["old", "far", "walk"]:
 		push_error("bad --bot-rule=%s (old|far|walk)" % args["bot-rule"])
 		get_tree().quit(2)
@@ -109,6 +121,8 @@ func _run() -> void:
 	if tier_mode:
 		h.bot.policy = String(args.policy)
 		h.bot.rule = String(args["bot-rule"])
+		if String(args["bot-max-tier"]) != "":
+			h.bot.max_tier = int(args["bot-max-tier"])
 		EventBus.enemy_killed.connect(_on_enemy_killed)
 		EventBus.wave_started.connect(_on_wave_started)
 		EventBus.branch_chosen.connect(_on_branch_chosen)
@@ -120,6 +134,8 @@ func _run() -> void:
 	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked" + (",stations" if upgrader else "") + (",tier,boss_night,boss_retries,brute_kills,sw_waves,branches" if tier_mode else "") + (",fences_lost,lane_load,fence_rebuild_gold" if extra else "")]
 	var first_fail_day := -1
 	var hard_break_day := -1
+	var hard_break_tier := 0  # the tier the hard-break night started at, and whether it was a boss night (T3RUN; report_retune reads a tier-4 or boss-night break as data)
+	var hard_break_boss := 0
 	var retries_per_day: Array = []
 	var nights: Array = []
 	var unspent_day14 := -1
@@ -144,6 +160,7 @@ func _run() -> void:
 		var at_tier_cap := SweepMath.cap_night(start_tier, GameState.pressure(), Balance.data.tiers)  # the night's own tier cap, any tier
 		var at_cap := at_tier_cap and start_tier == 2  # the tier-2 cap nights (SweepMath.tier_summary)
 		var at_cap3 := at_tier_cap and start_tier == 3  # the tier-3 cap nights (LADDER, TIER3)
+		var at_cap4 := at_tier_cap and start_tier == 4  # the tier-4 cap nights (T4RUN, E8)
 		var lane_load := _lane_load()
 		var night_character := GameState.lane_character()  # {} below tier 3: nothing is recorded then
 		var hare_share_now := _night_hare_share(night_character)
@@ -175,12 +192,14 @@ func _run() -> void:
 		for fid in _fence_hp:
 			lost_now += 1 if float(_fence_hp[fid]) <= 0.0 else 0
 		_capture_night_end()
-		nights.append({"day": day, "tier": start_tier, "tier_close": start_tier, "boss_night": boss_night, "retries": retries, "at_cap": at_cap, "at_cap3": at_cap3, "frac": n.diner_frac, "first_frac": first_attempt_frac, "failed": n.failed,
+		nights.append({"day": day, "tier": start_tier, "tier_close": start_tier, "boss_night": boss_night, "retries": retries, "at_cap": at_cap, "at_cap3": at_cap3, "at_cap4": at_cap4, "frac": n.diner_frac, "first_frac": first_attempt_frac, "failed": n.failed,
 			"fences_lost": lost_now, "branches": _branches, "branch_gold": _branch_gold,
 			"hare_share": hare_share_now, "guard_hits": guard_now})
 		var night_s := h.elapsed - t0
 		if n.failed:
 			hard_break_day = day
+			hard_break_tier = start_tier
+			hard_break_boss = 1 if boss_night else 0
 			var tcols := _tier_cols(tier_mode, start_tier, boss_night, retries) + (_extra_cols(lane_load) if extra else "")
 			tier3_events += _brute_kills + _sw_waves + _branches
 			rows.append("%d,%.3f,%d,%d,0,0,%s,%d,%.1f,,,%s,%d," % [day, n.diner_frac, retries, n.kills, defending, enemy_count, night_s, _cards(), _knockouts] + _stations(upgrader) + tcols)
@@ -204,7 +223,7 @@ func _run() -> void:
 			_gold_sold, defending, enemy_count, night_s, d.seconds, int(h.main.phase_controller.snapshot.gold), _cards(), _knockouts, _picked] + _stations(upgrader) + tcols)
 		last_unspent = int(h.main.phase_controller.snapshot.gold)
 		if tier_mode:
-			day_records.append({"day": day, "tier": GameState.tier, "at_cap3": at_cap3, "income": _gold_sold, "rebuild": _rebuild_gold, "rebranch": _rebranch_gold, "unspent": last_unspent, "done": _ladder_done()})
+			day_records.append({"day": day, "tier": GameState.tier, "tier_close": GameState.tier, "at_cap3": at_cap3, "at_cap4": at_cap4, "income": _gold_sold, "rebuild": _rebuild_gold, "rebranch": _rebranch_gold, "unspent": last_unspent, "done": _ladder_done()})
 		if day == 14:
 			unspent_day14 = int(h.main.phase_controller.snapshot.gold)
 	if EventBus.steak_sold.is_connected(_on_sold):
@@ -251,8 +270,8 @@ func _run() -> void:
 			h3.cap_nights, h3.cap_retry_nights, h3.min_held, h3.median_held])
 		print("TIER3_GATE tier3=%s policy=%s events=%d" % [args.tier3, args.policy, tier3_events])
 		var rs := SweepMath.tier3_stats(nights)
-		print("T3RUN seed=%s policy=%s nights=%d retry_nights=%d min=%.3f median=%.3f mean=%.4f fences_lost_mean=%.2f branches=%d branch_gold=%d unspent_last_day=%d hard_break_day=%d" % [
-			args.seed, args.policy, rs.nights, rs.retry_nights, rs.min, rs.median, rs.mean, rs.fences_lost_mean, rs.branches, rs.branch_gold, last_unspent, hard_break_day])
+		print("T3RUN seed=%s policy=%s nights=%d retry_nights=%d min=%.3f median=%.3f mean=%.4f fences_lost_mean=%.2f branches=%d branch_gold=%d unspent_last_day=%d hard_break_day=%d hard_break_tier=%d hard_break_boss=%d" % [
+			args.seed, args.policy, rs.nights, rs.retry_nights, rs.min, rs.median, rs.mean, rs.fences_lost_mean, rs.branches, rs.branch_gold, last_unspent, hard_break_day, hard_break_tier, hard_break_boss])
 		var ls := SweepMath.ladder_summary(_plot_day, day_records)
 		print("LADDER plot_day=%d ladder_done_day=%d max_unspent_during_ladder=%d fence_rebuild_gold_median_at_cap=%d income_at_cap=%d t3_days_to_done=%d max_unspent_while_purchasable=%d" % [
 			ls.plot_day, ls.ladder_done_day, ls.max_unspent_during_ladder, ls.fence_rebuild_gold_median_at_cap, ls.income_at_cap, ls.t3_days_to_done, ls.max_unspent_while_purchasable])
@@ -267,6 +286,11 @@ func _run() -> void:
 			print("RETUNE seed=%s policy=%s siege=%s hare=%s first_t3_frac=%.4f hare_share_mean=%.3f hare_share_min=%.3f far_walks=%d far_kept=%d guard_hits=%d t3_nights=%d max_retries=%d max_retries_day=%d unspent_before=%s unspent_after=%s first_t3_retries=%d worst_night_frac=%.4f worst_night_day=%d" % [
 				args.seed, args.policy, ch.siege, ch.hare, rt.first_t3_frac, rt.hare_share_mean, rt.hare_share_min, _far_walks, _far_kept(), rt.guard_hits, rt.t3_nights, rt.max_retries, rt.max_retries_day,
 				_gold_list(us.before), _gold_list(us.after), rt.first_t3_retries, rt.worst_night_frac, rt.worst_night_day])
+		var t4 := SweepMath.tier4_stats(nights, day_records)
+		if int(t4.nights) > 0 or bool(t4.boss_seen):  # a run that played a tier-4 night or met the tier-3 boss night (E8, spec 4.6); read by tests/sim/report_retune.gd
+			print("T4RUN seed=%s policy=%s nights=%d retry_nights=%d retries=%d min=%.3f median=%.3f mean=%.4f fences_lost_mean=%.2f first_t4_frac=%.4f first_t4_retries=%d cap_nights=%d worst_night_frac=%.4f worst_night_day=%d boss_seen=%d boss_retries=%d boss_failed=%d fence_rebuild_gold_median_at_cap=%d income_at_cap=%d" % [
+				args.seed, args.policy, t4.nights, t4.retry_nights, t4.retries, t4.min, t4.median, t4.mean, t4.fences_lost_mean, t4.first_t4_frac, t4.first_t4_retries, t4.cap_nights,
+				t4.worst_night_frac, t4.worst_night_day, 1 if t4.boss_seen else 0, t4.boss_retries, 1 if t4.boss_failed else 0, t4.fence_median, t4.income_at_cap])
 		if String(args.tier3) == "off" and tier3_events != 0:
 			push_error("tier 3 is not for sale but %d brute kills, south-west spawns and branches were counted" % tier3_events)
 			h.finish()
@@ -306,7 +330,7 @@ var _last_goal := ""
 
 func _count_far_walks() -> void:
 	var bot = _h.bot if _h != null else null
-	if bot == null or not bot is TierBot or _h.main == null or _h.main.phase_controller.phase != Phase.NIGHT or GameState.tier < 3:
+	if bot == null or not bot is TierBot or _h.main == null or _h.main.phase_controller.phase != Phase.NIGHT or GameState.tier != 3:
 		_last_goal = ""
 		return
 	var g: String = bot.goal
@@ -416,7 +440,7 @@ func _on_building_changed(spot_id: StringName, _level: int, _paid: int) -> void:
 	_fence_paid[id] = total
 
 func _ladder_done() -> bool:
-	if GameState.tier < 3:
+	if GameState.tier != 3:  # the tier-3 ladder (E8: at tier 4 the spots are the tier-4 ones; the ladder of tier 3 was done before, or never)
 		return false
 	var spots: Array = []
 	for id in MapLayout.spots_for_tier(GameState.tier):

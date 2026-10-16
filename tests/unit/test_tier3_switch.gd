@@ -1,5 +1,5 @@
 extends GutTest
-## E5 tier 3 Task 21 (D-270.1): the switch. `tier_costs` is [0, 500, 1500] as shipped, and tier 3 is reachable through the real
+## E5 tier 3 Task 21 (D-270.1): the switch. `tier_costs` was [0, 500, 1500] when tier 3 shipped (E8 Task 9 added 3500 for tier 4), and tier 3 is reachable through the real
 ## game: the tier-1 sign, the King's night, the tier-2 sign that sells the front lot, the Baron's night, the tier-3 dawn.
 ## NOTHING here appends a cost entry or calls debug_set_tier: the shipped build is the subject.
 
@@ -60,6 +60,29 @@ func _pay_tier_3_by_standing(extra := 0) -> void:
 		ticks += 1
 	main.hero.teleport(Vector2(15, 8))
 
+## Stand on the back-lot sign with the gold and let the zone take it (tier 4 sells for 3500).
+func _pay_tier_4_by_standing() -> void:
+	GameState.add_gold(3500)
+	await TestHelpers.walk_in(main.hero, MapLayout.tier_sign(4))
+	var ticks := 0
+	while not GameState.boss_pending and ticks < 60 * 20:
+		await get_tree().physics_frame
+		ticks += 1
+	main.hero.teleport(Vector2(15, 8))
+
+## Tier 3 -> 4 through the controller: the tier-3 dawn, the tier-4 sign paid by standing, the Wrecker's night won, the reveal finished, the card pick skipped.
+func _to_tier_4_day() -> void:
+	await _to_tier_3_dawn()
+	main.phase_controller.finish_reveal_now()
+	main.phase_controller.debug_skip_to_day()
+	await get_tree().physics_frame
+	await _pay_tier_4_by_standing()
+	main.phase_controller.debug_skip_to_night()
+	main.phase_controller.debug_skip_to_day()
+	main.phase_controller.finish_reveal_now()
+	main.phase_controller.debug_skip_to_day()
+	await get_tree().physics_frame
+
 ## Pays the tier-3 sign and wins the Baron's night: ends at the tier-3 dawn, the reveal about to run.
 func _to_tier_3_dawn() -> void:
 	await _to_tier_2_day()
@@ -69,13 +92,14 @@ func _to_tier_3_dawn() -> void:
 
 # --- the shipped ladder --------------------------------------------------------------------------
 
-## Mutation: tier_costs left at [0, 500] (the switch not thrown) fails every value here.
-func test_the_shipped_build_has_three_tiers_and_the_third_costs_1500() -> void:
+## Mutation: tier_costs left at [0, 500] (the switch not thrown) fails every value here. E8 Task 9: tier 4 costs 3500 and is the top.
+func test_the_shipped_build_has_four_tiers_and_the_third_costs_1500() -> void:
 	var tb := Balance.data.tiers
-	assert_eq(Array(tb.tier_costs), [0, 500, 1500])
-	assert_eq(TierEffects.top_tier(tb), 3)
+	assert_eq(Array(tb.tier_costs), [0, 500, 1500, 3500])
+	assert_eq(TierEffects.top_tier(tb), 4)
 	assert_eq(TierEffects.tier_cost(2, tb), 1500)
-	assert_eq(TierEffects.tier_cost(3, tb), -1, "nothing is sold beyond tier 3")
+	assert_eq(TierEffects.tier_cost(3, tb), 3500)
+	assert_eq(TierEffects.tier_cost(4, tb), -1, "nothing is sold beyond tier 4")
 
 # --- the tier-2 sign sells the front lot ---------------------------------------------------------
 
@@ -245,14 +269,11 @@ func test_branch_pads_show_at_the_first_tier_3_day_for_max_level_buildings() -> 
 
 # --- the top of the ladder -----------------------------------------------------------------------
 
-## Mutation: a fourth sign (a cost entry beyond 1500, or has_tier_sign(4)) fails the hidden state; pay_into_tier taking gold at the top fails the gold.
-func test_at_tier_3_no_sign_is_shown_and_paying_does_nothing() -> void:
-	await _to_tier_3_dawn()
-	main.phase_controller.finish_reveal_now()
-	main.phase_controller.debug_skip_to_day()
-	await get_tree().physics_frame
+## Mutation: a fifth sign (a cost entry beyond 3500, or has_tier_sign(5)) fails the hidden state; pay_into_tier taking gold at the top fails the gold.
+func test_at_tier_4_no_sign_is_shown_and_paying_does_nothing() -> void:
+	await _to_tier_4_day()
 	var sign := main.world.tier_sign
-	assert_eq(GameState.tier, 3)
+	assert_eq(GameState.tier, 4)
 	assert_eq(GameState.tier_next_cost(), -1)
 	assert_eq(GameState.tier_remaining_cost(), -1)
 	assert_eq(sign.state(), &"hidden")
@@ -261,7 +282,58 @@ func test_at_tier_3_no_sign_is_shown_and_paying_does_nothing() -> void:
 	GameState.add_gold(5000)
 	assert_eq(GameState.pay_into_tier(1500), 0)
 	assert_eq([GameState.gold, GameState.tier_paid, GameState.boss_pending], [5000, 0, false])
+	assert_eq(GameState.tier, 4)
+
+## E8 Task 9 (restates "at tier 3 no sign is shown"): at tier 3 the sign sells tier 4 on the back lot for 3500.
+func test_at_tier_3_the_sign_sells_tier_4_on_the_back_lot() -> void:
+	await _to_tier_3_dawn()
+	main.phase_controller.finish_reveal_now()
+	main.phase_controller.debug_skip_to_day()
+	await get_tree().physics_frame
+	var sign := main.world.tier_sign
 	assert_eq(GameState.tier, 3)
+	assert_eq(GameState.tier_next_cost(), 3500)
+	assert_eq(sign.state(), &"selling")
+	assert_true(sign.visible)
+	assert_true(sign.position.is_equal_approx(MapLayout.to3(MapLayout.tier_sign(4))), "on the back lot")
+	assert_eq(sign.label.text, tr("Buy the lot") + "\n3500")
+
+## E8 Task 9 (B11): a won Wrecker night tiers up to 4 and the world has everything of tier 4.
+## Mutation: the tier staying 3 (the cost entry missing) fails the first line; a world not rebuilt for tier 4 fails each world check;
+## a reveal with a missing or extra step fails the count of four.
+func test_a_won_wrecker_night_tiers_up_and_the_world_has_everything_of_tier_4() -> void:
+	await _to_tier_3_dawn()
+	main.phase_controller.finish_reveal_now()
+	main.phase_controller.debug_skip_to_day()  # the card pick
+	await get_tree().physics_frame
+	await _pay_tier_4_by_standing()
+	assert_true(GameState.boss_pending)
+	assert_eq(main.world.tier_sign.state(), &"boss")
+	banners.clear()
+	main.phase_controller.debug_skip_to_night()
+	assert_true(GameState.is_boss_night())
+	assert_true(banners.has(tr("The Wrecker comes")), str(banners))
+	var kinds := WaveSchedule.build(GameState.lane_plan.back(), Balance.data.wave, Balance.data.tiers, GameState.tier).map(func(e): return e.kind)
+	assert_eq(kinds[0], &"wrecker")
+	main.phase_controller.debug_skip_to_day()
+	assert_eq([GameState.tier, GameState.boss_pending, GameState.tier_paid], [4, false, 0])
+	var reveal := main.world.tier_reveal
+	assert_true(reveal.running(), "the reveal starts at the dawn")
+	assert_eq(reveal.steps_left(), 4, "four steps: north lot, tower_n2, north-east lot, tower_e2")
+	var base := sfx.count(&"build_done")
+	await _frames(int(ceil(Balance.data.tiers.tier_reveal_time * 60.0)) + 10)
+	assert_false(reveal.running(), "it ran out")
+	assert_eq(sfx.count(&"build_done") - base, 4, "four step sounds")
+	var w := main.world
+	for id in MapLayout.TIER_SPOTS[4]:
+		assert_true(w.build_spots.has(id), id)
+		assert_true(GameState.buildings.has(id), id)
+		assert_true(w.branch_pads.has(id), "%s has its pads" % id)
+	assert_eq(w.yard_ids(), ["west", "east", "front", "north", "northeast"])
+	assert_eq(w.build_spots.size(), 11)
+	assert_false(w.tier_sign.visible, "tier 4 is the top")
+	var tb := Balance.data.tiers
+	assert_eq(GameState.lane_plan, LaneCharacter.apply(LanePlanner.plan(GameState.run_seed, GameState.day, Balance.data.wave, 4, GameState.tier_day, tb), LaneCharacter.for_run(GameState.run_seed), tb))
 
 # --- saves ---------------------------------------------------------------------------------------
 
@@ -277,7 +349,7 @@ func test_a_schema_6_save_at_tier_2_keeps_its_partial_tier_3_payment() -> void:
 	GameState.add_gold(700)
 	assert_eq(GameState.pay_into_tier(700), 700)
 	var saved := GameState.to_dict()
-	assert_eq([int(saved.v), int(saved.tier), int(saved.tier_paid)], [7, 2, 700])
+	assert_eq([int(saved.v), int(saved.tier), int(saved.tier_paid)], [8, 2, 700])
 	GameState.new_game(1)
 	_load_state(saved)
 	assert_eq([GameState.tier, GameState.tier_paid, GameState.boss_pending], [2, 700, false])
@@ -285,13 +357,15 @@ func test_a_schema_6_save_at_tier_2_keeps_its_partial_tier_3_payment() -> void:
 	assert_eq(main.world.tier_sign.label.text, tr("Buy the lot") + "\n800")
 	assert_eq(main.world.tier_sign.state(), &"selling")
 
+## E8 Task 9 (B11): tier 4 is now for sale, so the clamp is shown on a build that stops at tier 3 (tier_costs trimmed in memory).
 ## Mutation: a load that trusts the saved tier (4 on a three-tier build: the world and the sign index past the ladder) fails the first line;
 ## one that keeps a payment at the full price (the sign could never complete it) fails the second.
-func test_a_save_claiming_tier_4_loads_at_3_and_a_full_payment_loads_one_short() -> void:
+func test_a_save_claiming_tier_4_on_a_three_tier_build_loads_at_3_and_a_full_payment_loads_one_short() -> void:
 	await _to_tier_3_dawn()
 	var saved := GameState.to_dict()
 	assert_eq(int(saved.tier), 3)
 	saved.tier = 4
+	Balance.data.tiers.tier_costs = [0, 500, 1500]  # a three-tier build
 	GameState.new_game(1)
 	_load_state(saved)
 	assert_eq(GameState.tier, 3, "clamped to the top of the ladder")

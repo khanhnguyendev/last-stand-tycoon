@@ -114,6 +114,23 @@ const RULES: Array = [
 	[&"NEUTRAL", &"spike", &"neutral", "diner_lost", false, ["-/-"], []],
 ]
 
+## D-314.28: the (lane, cfg_name) pairs whose fence_stands_s a rule reads: the rows whose measure is fence_stands_s, their branch configuration and their refs, on their lane.
+## {lane: [cfg_name, ...]}. Today: the siege lane's "-/-", "-/stone" and "-/spike". Where no rule reads the stand time, an INF (a fence that never fell) is expected.
+static func stand_time_configs() -> Dictionary:
+	var out := {}
+	for row in RULES:
+		if row[3] != "fence_stands_s":
+			continue
+		var lane: StringName = row[2]
+		if not out.has(lane):
+			out[lane] = []
+		var names: Array = [("%s/-" % row[1]) if row[1] in [&"longbow", &"volley"] else ("-/%s" % row[1])]
+		names.append_array(row[5])
+		for n in names:
+			if not n in out[lane]:
+				out[lane].append(n)
+	return out
+
 static func _verdict(ok: bool, measure: String, a: float, b: float, bound: float, why: String) -> Dictionary:
 	return {"ok": ok, "measure": measure, "a": a, "b": b, "bound": bound, "why": why}
 
@@ -298,7 +315,10 @@ static func fast_results() -> Dictionary:
 ## `brutes` (sensitivity tables only, default -1 = all waves): how many of the night's waves, counted from the LAST one, carry the siege lane's brute
 ## (TierEffects.brute_counts: a tier-3 night has 1 brute on its first night, 2 on its second, 3 from the third; brute_cap_main[3] is 1 per wave).
 ## `boars_only` (default false): every hare of the mix is a boar instead (same monster count), the "plain boar lane" of the Longbow study.
-static func mix(lane_type: StringName, pressure: int, brutes := -1, boars_only := false) -> Array:
+static func mix(lane_type: StringName, pressure: int, brutes := -1, boars_only := false, tier := 3, t4_seed := SEED) -> Array:
+	assert(tier >= 3, "mix() is the tier-3 and tier-4 mix")
+	if tier >= 4:
+		return mix_tier4(lane_type, pressure, brutes, boars_only, t4_seed)
 	var wb: WaveBalance = Balance.data.wave
 	var tb: TierBalance = Balance.data.tiers
 	var share: float = tb.hare_lane_share
@@ -327,9 +347,64 @@ static func mix(lane_type: StringName, pressure: int, brutes := -1, boars_only :
 		})
 	return out
 
-static func plan_for(lane_type: StringName, pressure: int, brutes := -1, boars_only := false) -> Array:
+## E8 phase 2 Task 8 (B9, spec 4.5): the day of the tier-4 base night in the tier-4 planner's calendar. tier4_plan() maps a pressure to day = T4_TIER_DAY + pressure - tier_base[4],
+## so the night at tier_base[4] is the first night of tier 4 (one brute on its last wave) and a later pressure is a later night (the full ramp).
+const T4_TIER_DAY := 20
+## E8 phase 2 Task 8 (D-314.26): the tier-4 cap rules are judged on SUMS over these four planner seeds, taken in order, because one seed's mix decides which lane
+## shares its group with the brutes. Every RULE (ON, OFF, NEUTRAL) reads sum_runs() of the four runs of one configuration: diner_lost, hares_in_zone, fence_hp_left, clear_s,
+## ticks and kills are summed, fence_stands_s is the MEAN (INF if any seed never lost the fence), timed_out is true if any seed timed out.
+## A rule's a_floor (the absolute slack under a measure) applies ONCE to the SUM, not once per seed: four seeds' sums are judged as one number.
+## `stands_inf` counts the runs whose fence never fell (D-314.28): an INF mean alone is never trusted, the callers assert it is 0.
+const T4_SEEDS: Array[int] = [1, 2, 3, 4]
+
+static func sum_runs(runs: Array) -> Dictionary:
+	var out := {"diner_lost": 0.0, "fence_hp_left": 0.0, "hares_in_zone": 0, "clear_s": 0.0, "ticks": 0, "kills": 0, "timed_out": false,
+		"fence_absorbed": 0.0, "fence_stands_s": 0.0, "stands_inf": 0}
+	for r in runs:
+		for k in ["diner_lost", "fence_hp_left", "hares_in_zone", "clear_s", "ticks", "kills", "fence_absorbed"]:
+			out[k] += r[k]
+		out.timed_out = out.timed_out or r.timed_out
+		out.fence_stands_s += float(r.fence_stands_s)
+		if is_inf(float(r.fence_stands_s)):
+			out.stands_inf += 1
+	out.fence_stands_s /= float(runs.size())
+	return out
+
+## The tier-4 plan the tier-4 mixes are cut from: the REAL planner and lane character, for a run seed (default SEED) and the day of `pressure` (see T4_TIER_DAY).
+## One shared helper: the unit tests of the planner's split read it too.
+static func tier4_plan(pressure: int, plan_seed := SEED) -> Array:
+	var wb: WaveBalance = Balance.data.wave
+	var tb: TierBalance = Balance.data.tiers
+	var day := T4_TIER_DAY + pressure - int(tb.tier_base[4])
+	return LaneCharacter.apply(LanePlanner.plan(plan_seed, day, wb, 4, T4_TIER_DAY, tb), LaneCharacter.for_run(plan_seed), tb)
+
+## A tier-4 lane type's mix: per wave, the group of the plan (main, side or side2) whose lane has that type under the run's lane character. Every tier-4 wave has the siege lane,
+## the hare lane and one neutral lane, so each type has exactly one group per wave. boars = the group's count minus its hares; brutes are on top of the count. `brutes` (>= 0) keeps
+## the brutes of the last `brutes` waves only; `boars_only` turns the group's hares into boars.
+static func mix_tier4(lane_type: StringName, pressure: int, brutes := -1, boars_only := false, plan_seed := SEED) -> Array:
+	var character := LaneCharacter.for_run(plan_seed)
+	var plan := tier4_plan(pressure, plan_seed)
+	var out: Array = []
+	for w in plan.size():
+		var wave: Dictionary = plan[w]
+		var group := ""
+		for g in ["main", "side", "side2"]:
+			if wave.has(g) and String(wave[g]) != "" and LaneCharacter.lane_type(character, String(wave[g])) == lane_type:
+				group = g
+		assert(group != "", "a tier-4 wave holds a group of every lane type")
+		var count := int(wave[group + "_count"])
+		var hares := int(wave["fast_" + group])
+		var boars := count - hares
+		if boars_only:
+			boars += hares
+			hares = 0
+		var carries := brutes < 0 or w >= plan.size() - brutes
+		out.append({"boars": boars, "hares": hares, "brutes": int(wave["brute_" + group]) if carries else 0, "hp_mult": float(wave.hp_mult)})
+	return out
+
+static func plan_for(lane_type: StringName, pressure: int, brutes := -1, boars_only := false, tier := 3, t4_seed := SEED) -> Array:
 	var waves: Array = []
-	for m in mix(lane_type, pressure, brutes, boars_only):
+	for m in mix(lane_type, pressure, brutes, boars_only, tier, t4_seed):
 		waves.append({
 			"main": LANE, "side": "", "main_count": int(m.boars) + int(m.hares), "side_count": 0, "hp_mult": float(m.hp_mult),
 			"fast_main": int(m.hares), "fast_side": 0, "boss": false, "brute_main": int(m.brutes), "brute_side": 0,
@@ -338,7 +413,7 @@ static func plan_for(lane_type: StringName, pressure: int, brutes := -1, boars_o
 
 ## `overrides` (sensitivity tables only), applied in memory before the world exists and undone on return:
 ## longbow_brute_mult, longbow_hare_mult, volley_brute_mult, spike_brute_mult, longbow_damage, longbow_interval (sets the RETUNE field), longbow_range, spike_pass, spike_thorn, stone_brute_mult, stone_hp (all floats), and
-## brutes (int, siege lane: how many waves from the last carry a brute, see mix()), boars_only (bool: no hares, see mix()), last_wave_only (bool: the director plays only the LAST wave of the mix; GameState.lane_plan keeps the full plan so Spike's scale is unchanged).
+## t4_seed (int, default SEED: the planner seed of a tier-4 mix), tier (int, default 3: 4 plays the tier-4 mix of that lane type, see mix_tier4(); the micro-world is the same), brutes (int, siege lane: how many waves from the last carry a brute, see mix()), boars_only (bool: no hares, see mix()), last_wave_only (bool: the director plays only the LAST wave of the mix; GameState.lane_plan keeps the full plan so Spike's scale is unchanged).
 ## `&""` as a branch = unbranched.
 static func run(lane_type: StringName, tower_branch: StringName, fence_branch: StringName, pressure: int, overrides := {}) -> Dictionary:
 	var tree := Engine.get_main_loop() as SceneTree
@@ -372,7 +447,7 @@ static func run(lane_type: StringName, tower_branch: StringName, fence_branch: S
 	if overrides.has("stone_hp"):
 		bb.stone.hp = float(overrides.stone_hp)
 	Balance.data.build.diner_max_hp = INVULNERABLE_HP
-	var plan := plan_for(lane_type, pressure, int(overrides.get("brutes", -1)), bool(overrides.get("boars_only", false)))
+	var plan := plan_for(lane_type, pressure, int(overrides.get("brutes", -1)), bool(overrides.get("boars_only", false)), int(overrides.get("tier", 3)), int(overrides.get("t4_seed", SEED)))
 
 	var main := Main.create()
 	tree.root.add_child(main)

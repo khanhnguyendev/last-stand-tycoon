@@ -2,7 +2,7 @@ class_name MonsterBalance
 extends Resource
 ## E5 spec 4.3: the hare and the boss as resources; the boar is read from EnemyBalance (one source per number).
 
-const KINDS: Array[StringName] = [&"boar", &"hare", &"boss", &"brute", &"baron"]
+const KINDS: Array[StringName] = [&"boar", &"hare", &"boss", &"brute", &"baron", &"wrecker"]
 
 @export var hare: MonsterStats = MonsterBalance._hare()
 @export var boss: MonsterStats = MonsterBalance._boss()
@@ -10,9 +10,11 @@ const KINDS: Array[StringName] = [&"boar", &"hare", &"boss", &"brute", &"baron"]
 ## wave target priority); the baron is the hare's rules at boss scale.
 @export var brute: MonsterStats = MonsterBalance._brute()
 @export var baron: MonsterStats = MonsterBalance._baron()
+## E8 (spec 4.2, B4): the tier-3 siege boss, the brute's rules at boss scale.
+@export var wrecker: MonsterStats = MonsterBalance._wrecker()
 
 ## E8 (D-314.10): the class a kind meets branch multipliers as. Bosses share their kin's numbers.
-const KIND_CLASS := {&"baron": &"hare"}
+const KIND_CLASS := {&"baron": &"hare", &"wrecker": &"brute"}
 
 static func kind_class(kind: StringName) -> StringName:
 	return KIND_CLASS.get(kind, kind)
@@ -66,6 +68,20 @@ static func _baron() -> MonsterStats:
 	s.priority = [&"guard", &"diner"]
 	return s
 
+static func _wrecker() -> MonsterStats:
+	var s := MonsterStats.new()
+	# E8 phase-2 tuning round 2: 1080 (-25%); round 1 was 1440 (the tier-3 boss night needed 3-4 branch-build retries).
+	s.hp = 1080.0
+	s.speed = 1.2
+	s.damage = 15.0
+	s.attack_interval = 1.0
+	s.reach = 1.2
+	s.steaks_per_kill = 100
+	s.drop_scatter = 2.5
+	s.priority = [&"fence_on_lane", &"guard", &"diner"]
+	s.fence_damage_mult = 12.0
+	return s
+
 func has_kind(kind: StringName) -> bool:
 	return kind in KINDS
 
@@ -81,6 +97,8 @@ func stats(kind: StringName) -> MonsterStats:
 			return brute
 		&"baron":
 			return baron
+		&"wrecker":
+			return wrecker
 	var eb: EnemyBalance = Balance.data.enemy
 	var s := MonsterStats.new()
 	s.hp = eb.hp

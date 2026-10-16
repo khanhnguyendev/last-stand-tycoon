@@ -26,6 +26,9 @@ var _badge_markers: Array[TelegraphMarker] = []
 var _badge_base := {}
 var _diner_kept: Node3D  ## tier 3: the new storey's art, taken out of the diner for the first steps and put back at step 5 (no second instantiation)
 
+## Tier 4: the height (m) above a tower spot that the reveal frame must show (the tower's top).
+const TOWER_TOP_M := 3.0
+
 func setup(world: World) -> void:
 	_world = world
 	name = "TierReveal"
@@ -34,10 +37,22 @@ func setup(world: World) -> void:
 	EventBus.card_offered.connect(_on_pick_opened)
 	EventBus.phase_changed.connect(_on_phase_changed)
 
+## Tier 4 (E8 spec 4.5): the yards the ground shows between the two lots' steps: the older tiers' yards and the first of the tier's own.
+## The reveal stages it and the warm-up builds its terrain mesh, so both read this one list.
+static func stage_yards(tier: int) -> Array:
+	var out: Array = MapLayout.yards_for_tier(tier - 1).duplicate()
+	for id in MapLayout.yards_for_tier(tier):
+		if MapLayout.yard_tier(id) == tier:
+			out.append(id)
+			break
+	return out
+
 ## The points the reveal camera must show: the diner's footprint corners and the corners of every yard `tier` opened.
 static func subject_points(tier: int) -> Array[Vector3]:
 	var out: Array[Vector3] = []
 	var h := MapLayout.DINER_HALF
+	if tier == 4:
+		return _subject_points_t4()
 	for c in [Vector2(-h, -h), Vector2(h, -h), Vector2(-h, h), Vector2(h, h)]:
 		out.append(MapLayout.to3(c))
 	for id in MapLayout.yards_for_tier(tier):
@@ -49,6 +64,24 @@ static func subject_points(tier: int) -> Array[Vector3]:
 	if tier == 3:
 		for p in lane_stretch_points(Balance.ui.tier_reveal_lane_stretch_m):
 			out.append(MapLayout.to3(p))
+	return out
+
+## E8 (spec 4.5): tier 4 changes no diner, so the frame holds the back lot alone: the corners of its yards and both towers (the tower mesh's
+## footprint, TOWER_VISUAL_RADIUS, in the four directions and its height above the spot). The two lots are 14.6 m apart in x.
+static func _subject_points_t4() -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	for id in MapLayout.yards_for_tier(4):
+		if MapLayout.yard_tier(id) != 4:
+			continue
+		var r: Rect2 = MapLayout.yard_rect(id)
+		for c in [r.position, Vector2(r.end.x, r.position.y), Vector2(r.position.x, r.end.y), r.end]:
+			out.append(MapLayout.to3(c))
+	var rad := MapLayout.TOWER_VISUAL_RADIUS
+	for id in MapLayout.TIER_SPOTS[4]:
+		var c := MapLayout.spot_position(id)
+		for d in [Vector2(rad, 0), Vector2(-rad, 0), Vector2(0, rad), Vector2(0, -rad)]:
+			out.append(MapLayout.to3(c + d))
+		out.append(MapLayout.to3(c, TOWER_TOP_M))
 	return out
 
 ## The south-west lane's last `stretch` metres (xz): the point that far back from its end, every path vertex nearer the end than that, and
@@ -78,7 +111,11 @@ static func frame_for(tier: int, ui: UiTuning, aspect := CameraMath.ASPECT, extr
 	var focus := (lo + hi) * 0.5
 	var proj := CameraMath.projection(ui, aspect)
 	var cap := ui.tier_reveal_zoom
-	var lim := ui.tier_reveal_fit_t3 if tier == 3 else 1.0  # tier 2 fits to the very edge (pinned); tier 3 keeps some air
+	var lim := 1.0  # tier 2 fits to the very edge (pinned); tiers 3 and 4 keep some air
+	if tier == 3:
+		lim = ui.tier_reveal_fit_t3
+	elif tier == 4:
+		lim = ui.tier_reveal_fit_t4
 	var z := 1.0
 	while z < cap - 1e-6:
 		var xf := CameraMath.zoomed_transform(focus, ui, z)
@@ -171,7 +208,7 @@ func _on_tier_reached(tier: int) -> void:
 	# already rebuilt because the tier-up emits tier_changed first and World rebuilds on it. This call is a guarded no-op
 	# (rebuild_for_tier returns at once when the built tier equals the tier) that keeps the order from mattering.
 	_world.rebuild_for_tier()
-	EventBus.banner_requested.emit(tr("The diner grows!"))
+	EventBus.banner_requested.emit(tr("The back lot opens!") if tier == 4 else tr("The diner grows!"))  # D-314.25: tier 4 grows no storey
 	var yards: Array[String] = []
 	for id in MapLayout.yards_for_tier(tier):
 		if MapLayout.yard_tier(id) == tier:
@@ -180,6 +217,8 @@ func _on_tier_reached(tier: int) -> void:
 	_steps = []
 	if tier == 3:
 		_plan_tier3()
+	elif tier == 4:
+		_plan_tier4(yards)
 	else:
 		_plan_default(tier, yards)
 	var ui := Balance.ui
@@ -257,6 +296,25 @@ func _plan_tier3() -> void:
 			s.marker.visible = false
 			_hidden_spots.append(s)
 
+## The tier-4 list (E8 spec 4.5): the back lot, land then tower, for each lot in turn (the north one, then the north-east one). The diner
+## is not touched (tier 4 grows no storey), there is no lane-character step (no new lane, no badge) and no sign step (tier 4 is the top, so the
+## sign is already hidden). The ground and kerb show the older yards until each lot's step; the two towers' markers are hidden until theirs.
+func _plan_tier4(yards: Array[String]) -> void:
+	var spot_ids: Array = MapLayout.TIER_SPOTS.get(4, [])
+	var middle := stage_yards(4)
+	for i in yards.size():
+		_steps.append({"kind": &"land", "yards": middle if i < yards.size() - 1 else MapLayout.yards_for_tier(4), "final": i == yards.size() - 1,
+			"at": MapLayout.to3(MapLayout.yard_rect(yards[i]).get_center())})
+		if i < spot_ids.size():
+			_steps.append({"kind": &"spot", "id": spot_ids[i], "at": MapLayout.to3(MapLayout.spot_position(spot_ids[i]), 1.0)})
+	_world.show_map_stage(MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(4))
+	_staged = true
+	for id in spot_ids:
+		var s: BuildSpot = _world.build_spots.get(id)
+		if s != null:
+			s.marker.visible = false
+			_hidden_spots.append(s)
+
 ## E6 (spec 5.4): with a lane character, the step after the lane's where both badges pop. Hides the badges until then. Returns the step, or
 ## {} with no badge (no lane character: the list stays the five steps of E5).
 func _plan_lane_character() -> Dictionary:
@@ -319,6 +377,12 @@ func _apply(st: Dictionary, animate: bool) -> void:
 		&"lot":
 			if _staged and animate:  # a skip goes straight to the full map at the lane step: no mesh built to be replaced at once
 				_world.show_map_stage(MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(2))  # the paving, props and kerb of the lot
+		&"land":
+			if st.final:
+				_staged = false
+				_world.show_map_full()  # the last lot: everything the tier built
+			elif _staged and animate:
+				_world.show_map_stage(st.yards, MapLayout.lanes_for_tier(4))
 		&"lane":
 			if _staged:
 				_staged = false

@@ -135,4 +135,9 @@ func test_an_affordable_tier_3_sign_blocks_the_pulse_at_tier_2_and_nothing_else_
 	assert_true(Pulse.should_pulse(s, Balance.data), "paid in full: nothing to buy")
 	s.boss_pending = false
 	s.tier = 3
-	assert_true(Pulse.should_pulse(s, Balance.data), "tier 3 has no sign")
+	assert_false(Pulse.should_pulse(s, Balance.data), "tier 3 sells tier 4 (gold 5000 >= 3500): something is left to do")
+	s.gold = 3499
+	assert_true(Pulse.should_pulse(s, Balance.data), "one gold short of the back lot")
+	s.gold = 5000
+	s.tier = 4
+	assert_true(Pulse.should_pulse(s, Balance.data), "tier 4 has no sign")

@@ -122,9 +122,9 @@ func _is_older_step_addition(line: String, from_v: int) -> bool:
 		return line == "/stations: added " + str(a) or line == "/stations: added " + str(b)
 	return false
 
-## Schema 7 (E6) adds one more field to what this chain produces: an empty `lane_character` and `lane_character_shown: false` (E6 Task 11); they are the only additions allowed besides the v6 ones.
-func test_every_old_fixture_migrates_to_v7_adding_only_the_branch_fields_and_an_empty_lane_character() -> void:
-	assert_eq(GameState.SCHEMA_VERSION, 7)
+## Schema 7 (E6) adds one more field to what this chain produces: an empty `lane_character` and `lane_character_shown: false` (E6 Task 11); they are the only additions allowed besides the v6 ones; schema 8 (E8) adds nothing.
+func test_every_old_fixture_migrates_to_v8_adding_only_the_branch_fields_and_an_empty_lane_character() -> void:
+	assert_eq(GameState.SCHEMA_VERSION, 8)
 	for f in _fixture_files():
 		var old := _v5_state(f)
 		var from_v := int(old.v)
@@ -132,7 +132,7 @@ func test_every_old_fixture_migrates_to_v7_adding_only_the_branch_fields_and_an_
 		assert_true(r.ok, "%s: %s" % [f, r.reason])
 		if not r.ok:
 			continue
-		assert_eq(int(r.state.v), 7, f)
+		assert_eq(int(r.state.v), 8, f)
 		assert_eq(r.state.lane_character, {}, f)
 		assert_false(r.state.lane_character_shown, f)
 		var diffs: Array[String] = []

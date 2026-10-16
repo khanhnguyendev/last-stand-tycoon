@@ -24,12 +24,16 @@ var _pad_wait := 0
 var _blocked_pads := {}
 var _blocked_day := -1
 var _graph_tier := 1
+var _graph_sign4 := false
 ## E7 (D-310, escalation 16): the re-decision rule at tier 3. "walk" (shipped): a far move is made only when the picked lane's clear time exceeds the walk time there;
 ## "far": the D-310 never-cross rule (no far move while the own lane has monsters), kept for comparison; "old": no rule, the bot before D-310.
 ## The sweep's `--bot-rule=` and the study's `--oldbot=1` (= "old") set it.
 var rule := "walk"
 ## Far moves refused by the walk-time rule (or by "far"), counted per re-decision at tier 3 (the sweep's FAR_KEPT). A hero that keeps its lane is asked again every second, so this counts refusals, not distinct moves.
 var far_kept := 0
+## E8 (D-314.12): the highest tier the bot pays for. The bot never walks to the sign of a tier above it (idle_goal and day_think's hold). the balance's tiers.max_tier (5) = uncapped.
+## The tier-3 sims and tools/baseline_t3.sh cap it at 3 (the sweep's `--bot-max-tier=3`) so they keep playing the tier-3 game once tier 4 is for sale.
+var max_tier: int = Balance.data.tiers.max_tier
 ## E7 (D-310): a zone-to-zone walk longer than this (metres, straight line between the two zone nodes) is a far walk.
 const FAR_WALK_M := 9.0
 
@@ -40,6 +44,8 @@ func _init() -> void:
 ## replaces; the four pad lines below repeat that _init (known duplication, upgrader untouched).
 func _make_graph(tier: int) -> WaypointGraph:
 	var g := WaypointGraph.create_for_bot(tier)  # the bot walks to the pads where they stand (MapLayout.BRANCH_PADS)
+	if _sign4_wanted(tier):
+		WaypointGraph.add_tier_sign_4(g)
 	g.add_node("pad_counter", MapLayout.STATION_PADS[&"counter"])
 	g.add_edge("pad_counter", "front_e")
 	g.add_edge("pad_counter", "home")
@@ -50,10 +56,17 @@ func _make_graph(tier: int) -> WaypointGraph:
 
 ## The graph follows the tier (every old node keeps its name and position, so a goal and a route in progress stay valid).
 func _sync_graph() -> void:
-	var t := clampi(GameState.tier, 1, 3)
-	if t != _graph_tier:
+	var t := clampi(GameState.tier, 1, 4)  # E8: a tier-4 bot walks the tier-4 graph
+	var sign4 := _sign4_wanted(t)
+	if t != _graph_tier or sign4 != _graph_sign4:
 		_graph_tier = t
+		_graph_sign4 = sign4
 		graph = _make_graph(t)
+
+## E8 B10: the tier-4 sign's node stands in the tier-3 graph only when the bot may buy tier 4 (max_tier >= 4 and the build sells it), so a bot
+## capped at tier 3, or a build without tier 4, walks the graph it always did.
+func _sign4_wanted(tier: int) -> bool:
+	return tier == 3 and max_tier > tier and TierEffects.top_tier(Balance.data.tiers) > tier  # tier 4 is allowed and for sale
 
 func think(delta: float) -> void:
 	_sync_graph()
@@ -278,7 +291,7 @@ func _on_tier_reached(_tier: int) -> void:
 
 func day_think(delta: float) -> void:
 	# keep standing on the sign mid-payment (gold and remaining cost fall together)
-	if (goal == "tier_sign" or goal == "tier_sign_3") and arrived() and GameState.tier_paid > 0 and GameState.gold > 0 \
+	if goal == next_sign_name() and _may_pay_next_tier() and arrived() and GameState.tier_paid > 0 and GameState.gold > 0 \
 			and GameState.tier_remaining_cost() > 0:
 		return
 	# the same for a yard tower spot (the planner's check covers SPOT_IDS only)
@@ -307,14 +320,42 @@ func day_think(delta: float) -> void:
 		goal = ""
 	super.day_think(delta)
 
+## The cap: the next tier (the one the sign sells) is within max_tier. E8 B10: tier 4 is also bought only when the build sells it
+## (top tier >= 4), and (idle_goal only, see `_ladder_done_for_tier_4`) only after the tier-3 ladder.
+func _may_pay_next_tier() -> bool:
+	var next := GameState.tier + 1
+	if next >= 4 and TierEffects.top_tier(Balance.data.tiers) < next:
+		return false
+	return next <= max_tier
+
+## E8 B10: the node name of the sign that sells the next tier: "tier_sign" (tier 2), "tier_sign_3", "tier_sign_4" (the sign of tier N sells tier N).
+func next_sign_name() -> String:
+	var next := GameState.tier + 1
+	return "tier_sign" if next <= 2 else "tier_sign_%d" % next
+
+## E8 B10: "after the ladder" is SweepMath.ladder_done for the tier-3 build: every tier-3 spot at max level, every tower and fence branched
+## (the `unbranched` policy needs no branch), the stations at max. Read at tier 3 only; true below it (no ladder gates tiers 2 and 3).
+func _ladder_done_for_tier_4() -> bool:
+	if GameState.tier != 3:
+		return true
+	var spots: Array = []
+	for id in MapLayout.spots_for_tier(3):
+		if GameState.buildings.has(id):
+			spots.append({"kind": MapLayout.spot_kind(id), "level": int(GameState.buildings[id].level), "branch": String(GameState.buildings[id].branch)})
+	var stations: Array = []
+	for sid in StationEffects.IDS:
+		stations.append(GameState.station_level(sid))
+	return SweepMath.ladder_done(spots, stations, int(Balance.data.build.max_level), int(Balance.data.stations.max_level), policy != "unbranched")
+
 ## The tier-up when the gold in hand finishes it, else the upgrader's cheapest station level, else the sign.
-## Rule (tiers 2 and 3 alike): this runs only when next_purchase() found nothing to build, so the gold in hand is what is left after
+## Rule (tiers 2, 3 and 4 alike): this runs only when next_purchase() found nothing to build, so the gold in hand is what is left after
 ## the defense purchases; the sign is sought when the remaining cost is above 0 (not paid, not the top tier) and the gold covers it.
+## Tier 4 is bought only once the tier-3 ladder is complete.
 func idle_goal() -> String:
 	_sync_graph()
 	var rem := GameState.tier_remaining_cost()
-	if rem > 0 and rem <= GameState.gold:
-		return "tier_sign_3" if GameState.tier >= 2 else "tier_sign"
+	if rem > 0 and rem <= GameState.gold and _may_pay_next_tier() and _ladder_done_for_tier_4():
+		return next_sign_name()
 	return super.idle_goal()
 
 ## Defense first, exactly the planner's over the tier-1 spots. Only when it has nothing: the yard spots the planner

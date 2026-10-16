@@ -176,7 +176,7 @@ func _foci(tier: int) -> Array:
 	for id in MapLayout.spots_for_tier(tier):
 		out.append(MapLayout.spot_position(id))
 	if tier >= 3:
-		for id in MapLayout.BRANCH_PADS:
+		for id in MapLayout.spots_for_tier(tier):  # E8: the pads of the spots that exist at this tier
 			for pad in MapLayout.BRANCH_PADS[id]:
 				out.append(pad)
 	return out
@@ -301,6 +301,31 @@ func test_tier3_rows_clear_every_cost_label_pip_the_hero_and_the_queue() -> void
 				for lane in main.world.telegraph_markers:
 					if not _marker(lane).shown().is_empty():
 						assert_false(_row_rect(_marker(lane), v).intersects(body), "%s row on the queue slot %s" % [lane, slot])
+
+## E8 phase 2 Task 6: the hero standing at any tier-4 place (the back lot's towers, their stand points and pads, the tier-4 sign) is not covered by a
+## telegraph row, at the three aspects. (The cost labels of the back lot's spots are checked when the world builds them, Task 7.) A first south-of-the-road
+## layout put pad a under the south-west row; this test is why no tower stands there (D-314.24).
+func test_tier4_places_keep_the_hero_off_every_row() -> void:
+	_tier3()
+	await get_tree().physics_frame
+	var g := WaypointGraph.create_for_tier(4)
+	var foci: Array = [MapLayout.tier_sign(4)]
+	for id in MapLayout.TIER_SPOTS[4]:
+		foci.append(MapLayout.spot_position(id))
+		foci.append(g.position_of(id))
+		foci.append_array(MapLayout.BRANCH_PADS[id])
+	var checked := 0
+	for boss in ["west", "north", "east", "sw"]:
+		_set_plan(_plan_boss_on(boss))
+		for aspect in ASPECTS:
+			for f in foci:
+				var v := View.new(f, aspect)
+				var hero := _hero_rect(f, v)
+				for lane in main.world.telegraph_markers:
+					if not _marker(lane).shown().is_empty():
+						checked += 1
+						assert_false(_row_rect(_marker(lane), v).intersects(hero), "%.2f focus %s: the %s row %s is on the hero %s" % [aspect, f, lane, _row_rect(_marker(lane), v), hero])
+	assert_gt(checked, 100)
 
 ## The rows the game shows are fully on screen: the three northern ones from a camera up north (from HOME at 9:16 the game hides them,
 ## they project under the HUD's top bar: the next test), the south-west one from HOME.

@@ -42,11 +42,11 @@ const TELEGRAPH_OFFSET_FROM_END := 5.5
 
 ## E5 (spec 5.1, D-239, D-240): spots a tier unlocks (appended to spots_for_tier), the side yards (Rect2(x, z, w, h)) and
 ## the tier sign, which stands on the land it sells. SPOT_IDS stays the tier-1 list; nothing above moves.
-const TIER_SPOTS := {2: ["tower_w", "tower_e"], 3: ["tower_sw", "fence_sw"]}
+const TIER_SPOTS := {2: ["tower_w", "tower_e"], 3: ["tower_sw", "fence_sw"], 4: ["tower_n2", "tower_e2"]}
 const YARDS := {"west": Rect2(-13.5, -2.5, 4.5, 10.5), "east": Rect2(8.0, -0.5, 5.0, 3.5)}
 const YARD_TIER := {"west": 2, "east": 2}
 const TIER_SIGN := Vector2(-10.0, 7.5)
-const ALL_SPOT_IDS: Array[String] = ["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e", "tower_w", "tower_e", "tower_sw", "fence_sw"]
+const ALL_SPOT_IDS: Array[String] = ["tower_nw", "tower_ne", "fence_w", "fence_n", "fence_e", "tower_w", "tower_e", "tower_sw", "fence_sw", "tower_n2", "tower_e2"]
 
 ## E5 tier 3 (spec 4.1, D-271). The tier-3 entries live in their own dictionaries, NOT in LANE_PATHS, ZONE_RECTS, ZONE_AXIS, FENCE_LANE,
 ## LANE_FENCE, TOWER_SPOTS, TOWER_LANES or YARDS: art/env/ground.gd and art/env/lane_strip.gd iterate LANE_PATHS by key and would draw the
@@ -63,7 +63,13 @@ const LANE_FENCE_T3 := {"sw": "fence_sw"}
 const YARDS_T3 := {"front": Rect2(-7.6, 5.6, 6.1, 4.3)}
 const YARD_TIER_T3 := {"front": 3}
 ## The sign of tier N sells tier N and is shown at tier N - 1 (TIER_SIGN is the tier-2 value, kept).
-const TIER_SIGNS := {2: Vector2(-10.0, 7.5), 3: Vector2(-4.7, 8.5)}
+const TIER_SIGNS := {2: Vector2(-10.0, 7.5), 3: Vector2(-4.7, 8.5), 4: Vector2(13.0, -2.2)}
+## E8 tier 4 (spec 4.3, D-314.5): the back lot. The same storage rule as tier 3: its entries live in their own dictionaries, never in the shared ones.
+const TOWER_SPOTS_T4 := {"tower_n2": Vector2(-5.0, -11.0), "tower_e2": Vector2(9.6, -2.2)}
+const TOWER_LANES_T4 := {"tower_n2": ["north"], "tower_e2": ["east"]}
+const YARDS_T4 := {"north": Rect2(-8.2, -13.6, 4.8, 3.2), "northeast": Rect2(9.1, -2.8, 4.6, 1.3)}
+const YARD_TIER_T4 := {"north": 4, "northeast": 4}
+
 ## From tier 3 (spec 4.2): today's slots 2 to 4 would sit on the south-west lane or in its fence, and today's west exit would pass the tower.
 const QUEUE_SLOTS_T3 := [Vector2(0, 6.0), Vector2(1.1, 6.9), Vector2(1.3, 8.0), Vector2(1.4, 9.1),
 	Vector2(1.8, 10.3), Vector2(3.0, 10.3), Vector2(4.2, 10.3), Vector2(5.4, 10.3), Vector2(6.6, 10.3)]
@@ -82,11 +88,23 @@ const BRANCH_PADS := {
 	"tower_ne": [Vector2(3.2, -5.1), Vector2(3.5, -7.3)],
 	"tower_w": [Vector2(-10.7, 2.4), Vector2(-8.7, 0.8)],
 	"tower_e": [Vector2(6.8, 3.0), Vector2(7.5, 0.0)],
+	"tower_n2": [Vector2(-7.0, -11.0), Vector2(-3.8, -12.6)],
+	"tower_e2": [Vector2(11.3, -1.9), Vector2(11.6, -4.1)],
 }
 
 ## The centre of pad `index` (0 or 1) of `spot_id`.
 static func branch_pad(spot_id: String, index: int) -> Vector2:
 	return (BRANCH_PADS[spot_id] as Array)[index]
+
+## The pad centres of the spots that exist at `tier` (E8 B2: art and graph code reads pads up to the current tier only, so the tier-4 pads
+## never move a tier-3 kerb stone or lane stone). Order = the table's.
+static func branch_pads_for_tier(tier: int) -> Array:
+	var have := spots_for_tier(tier)
+	var out: Array = []
+	for id in BRANCH_PADS:
+		if id in have:
+			out.append_array(BRANCH_PADS[id])
+	return out
 
 static func spots_for_tier(tier: int) -> Array[String]:
 	var out: Array[String] = []
@@ -104,6 +122,9 @@ static func yards_for_tier(tier: int) -> Array[String]:
 	for id in YARDS_T3:
 		if int(YARD_TIER_T3[id]) <= tier:
 			out.append(id)
+	for id in YARDS_T4:
+		if int(YARD_TIER_T4[id]) <= tier:
+			out.append(id)
 	return out
 
 ## Every yard id of the build, in yard order (tier 2's, then tier 3's).
@@ -111,12 +132,17 @@ static func all_yards() -> Array[String]:
 	var out: Array[String] = []
 	out.append_array(YARDS.keys())
 	out.append_array(YARDS_T3.keys())
+	out.append_array(YARDS_T4.keys())
 	return out
 
 static func yard_rect(id: String) -> Rect2:
+	if YARDS_T4.has(id):
+		return YARDS_T4[id]
 	return YARDS_T3[id] if YARDS_T3.has(id) else YARDS[id]
 
 static func yard_tier(id: String) -> int:
+	if YARD_TIER_T4.has(id):
+		return int(YARD_TIER_T4[id])
 	return int(YARD_TIER_T3[id]) if YARD_TIER_T3.has(id) else int(YARD_TIER[id])
 
 ## The lanes monsters use at `tier`: the three of tiers 1 and 2, plus the south-west lane from tier 3 (spec 3.1).
@@ -142,9 +168,13 @@ static func lane_fence(lane: String) -> String:
 	return LANE_FENCE_T3[lane] if LANE_FENCE_T3.has(lane) else LANE_FENCE[lane]
 
 static func tower_spot(spot_id: String) -> Vector2:
+	if TOWER_SPOTS_T4.has(spot_id):
+		return TOWER_SPOTS_T4[spot_id]
 	return TOWER_SPOTS_T3[spot_id] if TOWER_SPOTS_T3.has(spot_id) else TOWER_SPOTS[spot_id]
 
 static func tower_lanes(spot_id: String) -> Array:
+	if TOWER_LANES_T4.has(spot_id):
+		return TOWER_LANES_T4[spot_id]
 	return TOWER_LANES_T3[spot_id] if TOWER_LANES_T3.has(spot_id) else TOWER_LANES[spot_id]
 
 ## Position of the sign that sells `tier`.
@@ -225,6 +255,6 @@ static func spot_kind(spot_id: String) -> String:
 	return "tower" if spot_id.begins_with("tower") else "fence"
 
 static func spot_position(spot_id: String) -> Vector2:
-	if TOWER_SPOTS.has(spot_id) or TOWER_SPOTS_T3.has(spot_id):
+	if TOWER_SPOTS.has(spot_id) or TOWER_SPOTS_T3.has(spot_id) or TOWER_SPOTS_T4.has(spot_id):
 		return tower_spot(spot_id)
 	return fence_spot(fence_lane(spot_id))

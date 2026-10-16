@@ -65,22 +65,22 @@ func _plan_rows(plan: Array) -> Array:
 
 # --- schema and migration -------------------------------------------------------------------------------
 
-func test_schema_is_7() -> void:
-	assert_eq(GameState.SCHEMA_VERSION, 7)
-	assert_eq(int(GameState.to_dict().v), 7)
+func test_schema_is_8() -> void:  # restated for E8 (schema 8, Task 3); the v7 content is still pinned below
+	assert_eq(GameState.SCHEMA_VERSION, 8)
+	assert_eq(int(GameState.to_dict().v), 8)
 
 ## Mutation: the migration does not add the field (decode would reject the save as "missing lane_character").
-func test_the_real_v6_fixture_migrates_to_v7_adding_only_an_empty_lane_character_and_the_shown_flag() -> void:
+func test_the_real_v6_fixture_migrates_to_v8_adding_only_an_empty_lane_character_and_the_shown_flag() -> void:
 	var old := _v6_state()
 	assert_eq(int(old.v), 6, "setup: the fixture really is schema 6")
 	assert_false(old.has("lane_character"))
 	var r := SaveCodec.decode(FileAccess.get_file_as_string(V6_FIXTURE), GameState.SCHEMA_VERSION, Balance.data)
 	assert_true(r.ok, r.reason)
-	assert_eq(int(r.state.v), 7)
+	assert_eq(int(r.state.v), 8, "6 to 7 adds the character, 7 to 8 adds nothing")
 	assert_eq(r.state.lane_character, {})
 	assert_false(r.state.lane_character_shown)
 	var want: Dictionary = old.duplicate(true)
-	want.v = 7
+	want.v = 8
 	want.lane_character = {}
 	want.lane_character_shown = false
 	assert_eq(JSON.stringify(r.state, "", true, true), JSON.stringify(want, "", true, true), "nothing else changed")
@@ -349,6 +349,8 @@ func test_malformed_lane_character_is_rejected() -> void:
 func test_a_v7_branch_save_loads_with_the_new_values() -> void:
 	var r := SaveCodec.decode(FileAccess.get_file_as_string("res://export/fixtures/tier3_cap_all_b.save.json"), GameState.SCHEMA_VERSION, Balance.data)
 	assert_true(r.ok, r.reason)
+	var raw: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://export/fixtures/tier3_cap_all_b.save.json"))
+	assert_eq(int(JSON.parse_string(String(raw.state_json)).v), 7, "the fixture really is a v7 file (it predates schema 8)")
 	var main := Main.create()
 	add_child_autofree(main)
 	main.hero.input.player_control = false
@@ -359,7 +361,7 @@ func test_a_v7_branch_save_loads_with_the_new_values() -> void:
 	GameState.from_dict(r.state)
 	main.world.rebuild_for_tier()
 	await get_tree().process_frame
-	assert_eq(_decode(GameState.to_dict()).state, r.state, "a re-save equals the loaded state")
+	assert_eq(_decode(GameState.to_dict()).state, _decode(r.state).state, "a re-save equals the loaded state")
 	var tower: TowerSpot = main.world.build_spots["tower_sw"]
 	assert_eq(GameState.branch_of("tower_sw"), &"volley", "the save's branch")
 	assert_eq(tower.attacker.kind_mults, {&"brute": 0.3}, "a Volley tower's table comes from the balance")

@@ -1,7 +1,7 @@
 extends Node
 ## The only mutable game data (spec 4, D-096). Only these methods change it; they emit EventBus signals.
 
-const SCHEMA_VERSION := 7
+const SCHEMA_VERSION := 8
 
 var resume_phase := "NIGHT"
 var run_seed := 0
@@ -134,6 +134,11 @@ func from_dict(d: Dictionary) -> void:
 		if tier >= 3:  # mirrors the planner's gate: a tier-1/2 plan keeps its eight keys
 			wave["brute_main"] = int(w.get("brute_main", 0))
 			wave["brute_side"] = int(w.get("brute_side", 0))
+		if tier >= 4 and w.has("side2"):  # E8 (B8): read for symmetry; at tier >= 3 the plan is rebuilt below (lane_character), so this is overwritten
+			wave["side2"] = String(w.side2)
+			wave["side2_count"] = int(w.get("side2_count", 0))
+			wave["fast_side2"] = int(w.get("fast_side2", 0))
+			wave["brute_side2"] = int(w.get("brute_side2", 0))
 		lane_plan.append(wave)
 	# A pending boss always rides tonight's plan (a hand-edited save cannot skip it), when the tier has a boss to send.
 	if boss_pending and not lane_plan.is_empty() and TierEffects.boss_kind_for(tier, Balance.data.tiers) != &"":
@@ -487,7 +492,7 @@ func lane_character() -> Dictionary:
 
 ## Marks the last wave as the boss wave, unless this tier has no boss to send (the top tier: a pending boss there is a clamped save).
 func _with_tonights_boss(p: Array) -> Array:
-	return LanePlanner.with_boss(p) if TierEffects.boss_kind_for(tier, Balance.data.tiers) != &"" else p
+	return LanePlanner.with_boss(p, lane_character()) if TierEffects.boss_kind_for(tier, Balance.data.tiers) != &"" else p
 
 func pressure() -> int:
 	return WaveMath.pressure(day, tier, tier_day, Balance.data.tiers)
