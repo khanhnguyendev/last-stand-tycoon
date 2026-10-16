@@ -3628,3 +3628,11 @@ is no longer reachable. The tests already pin this (D-308.3).
     the Volley builds retried 3 tier-4 cap nights each, the first tier-4 night was trivial (median 100%), and the
     tier-4 lead was +1.4 with the south-west lane at -4.9. With the cap at 14, OFF Spike passes at the tier-4 cap
     (24.00 s against 29.63 s, bound 26.67 s), which closes D-314.27. Cost: the Wrecker is 4.5 times a brute, not 6.
+31. Phase-2 tuning stops after round 2. Round 2 fixed the tier-4 cap nights (no branch build retries one) and OFF
+    Spike. Three tier-4 targets fail with no lever left inside the ranges, and go to the author:
+    - BOSS_NIGHT: Volley builds still need 3 or more retries on the Wrecker night. The Volley is weak to brutes by
+      design and the Wrecker counts as one; its HP is already at -25%.
+    - THREAT_LEAD_T4 -0.7 (south-west -10.0, the lane left with one tower by D-314.24).
+    - FIRST_NIGHT_BAND_T4 100% (the first tier-4 night at pressure 12 is trivial for a full tier-3 build).
+    Hold-out set #6 is still run once, for the unseen reading. Cost: phase 2 ends with failed targets; the checkpoint
+    asks the author to choose.
