@@ -3617,7 +3617,9 @@ is no longer reachable. The tests already pin this (D-308.3).
 27. OFF Spike at the tier-4 cap stays red: on the four-seed sums the Spike fence stands 25.46 s against unbranched
     25.55 s (it must be 10% shorter); Spike's brute multiplier is at its widened maximum 4.0. Not tuned further, not
     dropped: escalated to the author at checkpoint B. Cost: the bench job is red on `e8/p2-tier4` until then.
-28. A seed whose fence never falls (INF) fails the tier-4 sum check loudly instead of deciding the mean alone.
-    Cost: none today (no INF occurs).
+28. A seed whose fence never falls (INF) fails the tier-4 sum check loudly instead of deciding the mean alone, for
+    the runs a rule reads the stand time from (the siege lane's unbranched, Stone wall and Spike runs). Corrected
+    after the bench: INF is expected on the hare and neutral lanes, where no brute hits the fence and no rule reads
+    the stand time. Cost: none.
 29. The tier-4 reveal frames towers at a 3.0 m top (`TierReveal.TOWER_TOP_M`), as tier 3 does, though built towers
     are up to 3.7 m. Cost: a tall branch tower's top may sit near the frame edge; the reveal shows level-0 markers.
