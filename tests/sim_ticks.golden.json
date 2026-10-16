@@ -6,7 +6,7 @@
   "res://tests/bench/test_branch_bench_full.gd::test_5_rules_on_off_neutral_at_the_tier_cap": 11,
   "res://tests/bench/test_branch_bench_full.gd::test_6_specialists_at_the_cap": 11,
   "res://tests/bench/test_branch_bench_full.gd::test_7_identity_at_the_cap": 11,
-  "res://tests/bench/test_branch_bench_full.gd::test_8_rules_on_off_neutral_at_the_tier_4_cap_summed_over_four_seeds": 593088,
+  "res://tests/bench/test_branch_bench_full.gd::test_8_rules_on_off_neutral_at_the_tier_4_cap_summed_over_four_seeds": 544849,
   "res://tests/sim/test_day_sims.gd::test_night2_naive_unaided_is_hard_and_deterministic": 20686,
   "res://tests/sim/test_day_sims.gd::test_night2_planner_is_comfortable": 15604,
   "res://tests/sim/test_guide_sim.gd::test_guide_bot_canonical_seed": 10412,

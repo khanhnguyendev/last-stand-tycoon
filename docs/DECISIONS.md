@@ -3623,3 +3623,8 @@ is no longer reachable. The tests already pin this (D-308.3).
     the stand time. Cost: none.
 29. The tier-4 reveal frames towers at a 3.0 m top (`TierReveal.TOWER_TOP_M`), as tier 3 does, though built towers
     are up to 3.7 m. Cost: a tall branch tower's top may sit near the frame edge; the reveal shows level-0 markers.
+30. Phase-2 tuning round 2 (inside the pre-authorized ranges): the Wrecker's HP 1440 to 1080 (-25%) and the tier-4 cap
+    15 to 14. Round 1 at 45 days: branch builds needed up to 3 or 4 retries on the Wrecker night (BOSS_NIGHT fails),
+    the Volley builds retried 3 tier-4 cap nights each, the first tier-4 night was trivial (median 100%), and the
+    tier-4 lead was +1.4 with the south-west lane at -4.9. With the cap at 14, OFF Spike passes at the tier-4 cap
+    (24.00 s against 29.63 s, bound 26.67 s), which closes D-314.27. Cost: the Wrecker is 4.5 times a brute, not 6.
