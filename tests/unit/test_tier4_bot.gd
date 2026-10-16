@@ -95,7 +95,8 @@ func test_with_max_tier_3_the_bot_never_buys_tier_4() -> void:
 	assert_eq(bot.idle_goal(), "tier_sign_4", "capped at 4: it pays tier 4")
 
 func test_a_build_without_tier_4_never_sends_the_bot_to_its_sign() -> void:
-	Balance.reset()  # tier 4 is not for sale: top tier 3
+	Balance.reset()
+	Balance.data.tiers.tier_costs = [0, 500, 1500]  # tier 4 is not for sale: top tier 3 (in memory; tier 4 has a price since Task 9)
 	GameState.new_game(1)
 	GameState.debug_set_tier(3, 1)
 	GameState.add_gold(20000)
