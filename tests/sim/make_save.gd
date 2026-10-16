@@ -33,6 +33,10 @@ func _run() -> void:
 		quit(2)
 		return
 	if _fixture == "tier4":
+		if _t4_seed_given() and not _retune_seed in T4_SEEDS:
+			push_error("--fixture=tier4: seed %d is not one of the tier-4 seeds %s" % [_retune_seed, str(T4_SEEDS)])
+			quit(2)
+			return
 		quit(0 if await _run_tier4() else 1)
 		return
 	if _fixture == "retune" and not _retune_seed in SweepMath.set_seeds(SweepMath.TUNING_SET):

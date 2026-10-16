@@ -209,7 +209,7 @@ func test_volley_fires_after_an_empty_scan() -> void:
 	assert_eq(fired.size(), 1)
 	assert_lte(ticks, ceili(Balance.data.hero.retarget_interval * 60.0) + 1, "within retarget_interval and one tick")
 
-func test_projectile_pool_covers_five_volley_towers() -> void:
+func test_projectile_pool_covers_the_volley_towers_of_each_top_tier() -> void:
 	# Top tier 2 (4 towers; a two-tier build): ceil((4 x 6 + 5) x 1.2) = 35. With the tier-3 entry (5 towers; the shipped build): ceil((5 x 6 + 5) x 1.2) = 42.
 	# in_flight(3, 8.0, 0.5, 16) = 3 x (floor(1.0) + 1) = 6.
 	assert_eq(World.in_flight(3, 8.0, 0.5, 16.0), 6)

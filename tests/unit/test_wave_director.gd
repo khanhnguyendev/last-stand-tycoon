@@ -225,7 +225,9 @@ func test_steak_pool_holds_a_tier4_night_plus_its_brutes_and_the_biggest_boss() 
 		kills += WaveMath.total_count(tb.tier_cap[TierEffects.top_tier(tb)], w, Balance.data.wave)
 	assert_eq(TierEffects.top_tier(tb), 4)
 	var brutes: int = 3 * (tb.brute_cap_main[4] + tb.brute_cap_side[4]) * Balance.data.monsters.stats(&"brute").steaks_per_kill
-	var biggest_boss: int = maxi(Balance.data.monsters.stats(&"boss").steaks_per_kill, Balance.data.monsters.stats(&"baron").steaks_per_kill)
+	var biggest_boss: int = 0
+	for boss_kind in [&"boss", &"baron", &"wrecker"]:
+		biggest_boss = maxi(biggest_boss, Balance.data.monsters.stats(boss_kind).steaks_per_kill)
 	var need := int(ceil((kills * Balance.data.economy.steaks_per_kill + brutes + biggest_boss) * 1.2))
 	assert_eq(sizes.steak, need)
 	assert_eq(sizes.steak, 411, "the literal: 84 kills x 2 + 24 + 150 = 342, x 1.2")

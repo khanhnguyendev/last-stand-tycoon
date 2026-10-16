@@ -2,6 +2,7 @@ extends GutTest
 ## E8 phase 2 Task 9 (B12): the tier-4 sims. Every state starts from a fixture written by `tests/sim/make_save.gd -- --fixture=tier4`
 ## (TierBot real play, threat policy, max_tier 4, tuning seeds 1, 4 and 7; the seed-1 run also records the Wrecker night and the first tier-4 night;
 ## the Wrecker alone is the one constructed night, built from the real Wrecker-night capture).
+## tier4_wrecker_only is valid only with the in-memory emptying of sim 1a (a tier-3 load re-derives the plan, D-286.4); no other test may start from it.
 ## 1. The Wrecker alone needs at least boss_min_hold_s to fell the diner from its first hit; a branch build wins the Wrecker night within boss_night_max_retries.
 ## 2. The first tier-4 night is held with 0 retries.
 ## 3. A full tier-4 branch build holds the tier-4 cap with 0 retries on seeds 1, 4 and 7.
@@ -96,6 +97,15 @@ func test_1a_the_wrecker_alone_needs_at_least_boss_min_hold_s_to_fell_the_diner(
 		w.extra = []
 		w.side = ""
 	GameState.lane_plan = emptied
+	# The emptied plan, through the real schedule: waves 1 and 2 empty, wave 3 only the Wrecker.
+	assert_eq(emptied.size(), 3, "a three-wave night")
+	for i in emptied.size():
+		var sched := WaveSchedule.build(emptied[i], Balance.data.wave, Balance.data.tiers, 3)
+		if i < emptied.size() - 1:
+			assert_eq(sched.size(), 0, "wave %d is empty" % (i + 1))
+		else:
+			assert_eq(sched.size(), 1, "wave %d holds only the boss" % (i + 1))
+			assert_eq(sched[0].kind, &"wrecker", "the boss is the Wrecker")
 	h.main.phase_controller.close_up()
 	EventBus.wave_started.connect(_on_wave_started)
 	EventBus.enemy_killed.connect(_count_kill)
@@ -153,6 +163,8 @@ func test_1b_a_branch_build_wins_the_wrecker_night_within_the_allowed_retries() 
 	assert_eq(GameState.tier, 4, "the dawn tiered up")
 	assert_true(GameState.buildings.has("tower_n2"), "the back lot")
 	assert_eq(GameState.night_fails, 0, "the win clears the fail count")
+	gut.p("pool growth %s" % [growth])
+	assert_eq(growth, [], "the enemy, steak and projectile pools never grew at runtime")
 
 # ---- sim 2: the first tier-4 night ---------------------------------------------------------------------------------------
 
@@ -169,6 +181,8 @@ func test_2_the_first_tier_4_night_is_held_with_0_retries() -> void:
 	assert_true(n.cleared, "the first tier-4 night is held on the first attempt")
 	assert_eq(GameState.night_fails, 0)
 	assert_eq(h.bot.stuck_count, 0, "the bot never got stuck")
+	gut.p("pool growth %s" % [growth])
+	assert_eq(growth, [], "the enemy, steak and projectile pools never grew at runtime")
 
 # ---- sim 3: the tier-4 cap -------------------------------------------------------------------------------------------------
 
@@ -198,4 +212,6 @@ func test_3_a_full_tier_4_branch_build_holds_the_cap_with_0_retries_on_seeds_1_4
 		assert_true(n.cleared, "seed %d holds the tier-4 cap with 0 retries" % sd)
 		assert_eq(GameState.night_fails, 0, "seed %d: 0 retries" % sd)
 		assert_eq(h.bot.stuck_count, 0, "seed %d: never stuck" % sd)
+		gut.p("seed %d: pool growth %s" % [sd, growth])
+		assert_eq(growth, [], "seed %d: the enemy, steak and projectile pools never grew at runtime" % sd)
 	gut.p("tier-4 cap: " + " | ".join(lines))

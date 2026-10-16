@@ -1,5 +1,5 @@
 extends GutTest
-## E5 tier 3 Task 21 (D-270.1): the switch. `tier_costs` is [0, 500, 1500] as shipped, and tier 3 is reachable through the real
+## E5 tier 3 Task 21 (D-270.1): the switch. `tier_costs` was [0, 500, 1500] when tier 3 shipped (E8 Task 9 added 3500 for tier 4), and tier 3 is reachable through the real
 ## game: the tier-1 sign, the King's night, the tier-2 sign that sells the front lot, the Baron's night, the tier-3 dawn.
 ## NOTHING here appends a cost entry or calls debug_set_tier: the shipped build is the subject.
 
