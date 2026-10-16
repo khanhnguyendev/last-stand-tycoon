@@ -35,14 +35,15 @@ static func tier3_stats(nights: Array) -> Dictionary:
 	var fracs: Array = []
 	var lost := 0
 	for n in nights:
-		if int(n.get("tier_close", n.tier)) >= 3:
+		if int(n.get("tier_close", n.tier)) == 3:  # E8: the tier-4 dawn day's purchases (the Wrecker night's row closes at tier 4) are tier-4 facts
 			out.branches += int(n.branches)
 			out.branch_gold += int(n.branch_gold)
-		if int(n.tier) < 3:
+		if int(n.tier) != 3:
 			continue
 		fracs.append(float(n.frac))
 		lost += int(n.fences_lost)
-		out.retry_nights += 1 if int(n.retries) > 0 else 0
+		if not bool(n.get("boss_night", false)):  # E8 (B16): the tier-3 boss night is judged by BOSS_NIGHT, not by RETRY_NIGHTS
+			out.retry_nights += 1 if int(n.retries) > 0 else 0
 	out.nights = fracs.size()
 	if fracs.is_empty():
 		return out
@@ -64,13 +65,14 @@ static func tier3_held_stats(nights: Array) -> Dictionary:
 	var out := {"nights": 0, "retry_nights": 0, "retries": 0, "cap_nights": 0, "cap_retry_nights": 0, "min_held": -1.0, "median_held": -1.0}
 	var held: Array = []
 	for nt in nights:
-		if int(nt.tier) < 3:
+		if int(nt.tier) != 3:  # E8: tier-4 nights are counted apart (tier4_stats)
 			continue
+		var boss: bool = bool(nt.get("boss_night", false))  # E8 (B16): the tier-3 boss night's retries are BOSS_NIGHT's, not RETRY_NIGHTS'
 		out.nights += 1
-		out.retries += int(nt.retries)
-		out.retry_nights += 1 if int(nt.retries) > 0 else 0
+		out.retries += 0 if boss else int(nt.retries)
+		out.retry_nights += 1 if (int(nt.retries) > 0 and not boss) else 0
 		out.cap_nights += 1 if nt.at_cap3 else 0
-		out.cap_retry_nights += 1 if (nt.at_cap3 and int(nt.retries) > 0) else 0
+		out.cap_retry_nights += 1 if (nt.at_cap3 and int(nt.retries) > 0 and not boss) else 0
 		if not nt.failed:
 			held.append(float(nt.frac))
 	if not held.is_empty():
@@ -121,7 +123,7 @@ static func ladder_summary(plot_day: int, days: Array) -> Dictionary:
 	var rebranch: Array = []
 	var income: Array = []
 	for d in days:
-		if int(d.tier) >= 3 and (done_day < 0 or int(d.day) <= done_day):
+		if int(d.tier) == 3 and (done_day < 0 or int(d.day) <= done_day):
 			max_unspent = maxi(max_unspent, int(d.unspent))
 			t3_days += 1
 			if int(d.day) != done_day:
@@ -309,6 +311,16 @@ const FIRST_NIGHT_BAND_HIGH := 80.0
 ## FIXED_SPREAD turned around (E8 spec 3.5): the builds should now differ; reported as information.
 const FIXED_SPREAD_EXPECTED := 5.0
 
+## E8 (D-314.12): the one non-final run of a spent set that the report allows: set #5 with the bot capped at tier 3.
+const TIER3_CHECK_SET := "5"
+const TIER3_CHECK_MAX_TIER := 3
+## The file-name tag of a report run: set, bot rule and, for a capped bot, `_mt<n>` (a run with another rule or tier cap never overwrites another's logs).
+static func run_tag(set_id: String, bot_rule: String, bot_max_tier := 0) -> String:
+	return "%s_%s%s" % [set_id, bot_rule, "_mt%d" % bot_max_tier if bot_max_tier > 0 else ""]
+
+## E8 (spec 4.6): the tier-3 boss night (the Wrecker) is won within this many retries by every branch policy. Pinned equal to Balance.data.sim.boss_night_max_retries by a unit test (this file reads no autoload).
+const BOSS_NIGHT_MAX_RETRIES := 2
+
 static func final_days(set_id: String) -> int:
 	return int(FINAL_DAYS_BY_SET.get(set_id, FINAL_DAYS))
 
@@ -385,7 +397,7 @@ static func set_by_id(set_id: String) -> Dictionary:
 ## E7 (D-310, escalation 16): the measurement sets (#3 to #6) may be run once per bot rule (`bot_rule`, "walk", "far" or "old", stored in the entry): a further run of the same set is allowed only when its bot_rule differs from
 ## every earlier COMPLETE entry of that set (`new` and an entry without a bot_rule count as "far"; an entry without `complete` counts as complete; an entry with `complete: false`, a run that
 ## printed no verdict, does not block a re-run); a repeat with a rule already used by a complete entry is refused. Sets #1 and #2 are refused always (retired, spent).
-static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary, date := "", days := FINAL_DAYS, bot_rule := "walk") -> Dictionary:  # days: 32, or 45 for set #6 (final_days)
+static func final_gate(set_id: String, final_flag: bool, commit: String, record: Dictionary, date := "", days := FINAL_DAYS, bot_rule := "walk", bot_max_tier := 0) -> Dictionary:  # days: 32, or 45 for set #6 (final_days)
 	var refuse := func(msg: String) -> Dictionary:
 		return {"allowed": false, "lines": ["REFUSED: " + msg], "record": record}
 	if set_id == "tuning":
@@ -398,6 +410,11 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 		return refuse.call("unknown set '%s' (tuning|3|4|5|6)" % set_id)
 	if not bot_rule in BOT_RULES:
 		return refuse.call("unknown bot rule '%s' (walk|far|old)" % bot_rule)
+	if not final_flag and set_id == TIER3_CHECK_SET and bot_max_tier == TIER3_CHECK_MAX_TIER:
+		# E8 (D-314.12): the tier-3 check of phase 2 re-runs the SPENT set #5 with the bot capped at tier 3, 32 days. It reads nothing new, so it is allowed without --final, on any tree, and never recorded.
+		if days != final_days(set_id):
+			return refuse.call("the tier-3 check of set #%s is %d days (--days=%d given): it must equal phase 1's reading" % [set_id, final_days(set_id), days])
+		return {"allowed": true, "lines": ["TIER3_CHECK set=#%s days=%d bot_max_tier=%d: a plain report run of a spent set, not a --final run; it reads nothing new and the history (tests/sim/retune_final.json) is NOT written" % [set_id, days, bot_max_tier]], "record": record}
 	if not final_flag:
 		return refuse.call("hold-out set #%s runs only with --final (D-290); no run was started" % set_id)
 	if commit == "" or commit == "unknown" or commit.ends_with("-dirty"):
@@ -424,7 +441,10 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 			lines.append("FINAL_REPEAT: set #%s was already run at the same commit %s" % [set_id, commit])
 	var out := record.duplicate(true)
 	var list: Array = out.get("history", [])
-	list.append({"set": set_id, "commit": commit, "date": date, "days": days, "bot_rule": bot_rule, "done": false, "ok": false})
+	var entry := {"set": set_id, "commit": commit, "date": date, "days": days, "bot_rule": bot_rule, "done": false, "ok": false}
+	if bot_max_tier > 0:
+		entry["bot_max_tier"] = bot_max_tier  # E8: only a capped run says so; an uncapped entry is what it always was
+	list.append(entry)
 	out["history"] = list
 	return {"allowed": true, "lines": lines, "record": out}
 
@@ -477,6 +497,9 @@ static func retune_run_stats(nights: Array) -> Dictionary:
 	for n in nights:
 		if int(n.tier) < 3:
 			continue
+		out.guard_hits += int(n.get("guard_hits", 0))  # LANE_CAP_GUARD reads ALL nights (E8 spec 4.6), the tier-4 ones included
+		if int(n.tier) != 3:
+			continue
 		if out.t3_nights == 0:
 			out.first_t3_frac = float(n.frac)
 			out.first_t3_retries = int(n.get("retries", 0))
@@ -485,10 +508,9 @@ static func retune_run_stats(nights: Array) -> Dictionary:
 			out.worst_night_frac = ff
 			out.worst_night_day = int(n.get("day", -1))
 		out.t3_nights += 1
-		if int(n.get("retries", 0)) > out.max_retries:
+		if int(n.get("retries", 0)) > out.max_retries and not bool(n.get("boss_night", false)):  # E8 (B16): the boss night is BOSS_NIGHT's
 			out.max_retries = int(n.retries)
 			out.max_retries_day = int(n.get("day", -1))
-		out.guard_hits += int(n.get("guard_hits", 0))
 		if float(n.get("hare_share", -1.0)) >= 0.0:
 			shares.append(float(n.hare_share))
 	if not shares.is_empty():
@@ -509,7 +531,7 @@ static func unspent_split(days: Array) -> Dictionary:
 			break
 	var out := {"before": [], "after": []}
 	for d in days:
-		if int(d.tier) < 3:
+		if int(d.tier) != 3:
 			continue
 		if done_day >= 0 and int(d.day) >= done_day:
 			out.after.append(int(d.unspent))
@@ -519,7 +541,7 @@ static func unspent_split(days: Array) -> Dictionary:
 
 ## One run row for the verdicts from the parsed T3RUN (`kv`), LADDER (`ld`) and RETUNE (`rt`) lines of a log. A run without a LADDER line is a FAILED run (its fence figures would be
 ## silently dropped from FENCE_TAX): failed, with the reason. The caller handles a missing T3RUN / RETUNE line (no row).
-static func run_row(seed: int, lane: String, policy: String, kv: Dictionary, ld: Dictionary, rt: Dictionary) -> Dictionary:
+static func run_row(seed: int, lane: String, policy: String, kv: Dictionary, ld: Dictionary, rt: Dictionary, t4 := {}) -> Dictionary:
 	var hard := int(kv.get("hard_break_day", "-1")) >= 0
 	var row := {"seed": seed, "lane": lane, "policy": policy, "mean_frac": float(kv.get("mean", "0")), "retry_nights": int(kv.get("retry_nights", "0")),
 		"first_t3_frac": float(rt.get("first_t3_frac", "-1")), "fence_median": int(ld.get("fence_rebuild_gold_median_at_cap", "0")), "income_at_cap": int(ld.get("income_at_cap", "0")),
@@ -528,6 +550,11 @@ static func run_row(seed: int, lane: String, policy: String, kv: Dictionary, ld:
 		"max_retries": int(rt.get("max_retries", "0")), "max_retries_day": int(rt.get("max_retries_day", "-1")), "unspent_before": _gold_array(String(rt.get("unspent_before", "-"))),
 		"unspent_after": _gold_array(String(rt.get("unspent_after", "-"))), "unspent_last": int(kv.get("unspent_last_day", "0")), "ladder_done": int(ld.get("ladder_done_day", "-1")) >= 0,
 		"first_t3_retries": int(rt.get("first_t3_retries", "0")), "far_walks": int(rt.get("far_walks", "0")), "far_kept": int(rt.get("far_kept", "0")), "worst_night_frac": float(rt.get("worst_night_frac", "-1")), "worst_night_day": int(rt.get("worst_night_day", "-1"))}
+	# E8 (spec 4.6): the tier-4 facts of the T4RUN line ({} when the run played no tier-4 night and met no tier-3 boss night: first_t4_frac -1, boss_seen false)
+	row.merge({"t4_nights": int(t4.get("nights", "0")), "t4_retry_nights": int(t4.get("retry_nights", "0")), "t4_mean": float(t4.get("mean", "0")), "first_t4_frac": float(t4.get("first_t4_frac", "-1")),
+		"first_t4_retries": int(t4.get("first_t4_retries", "0")), "t4_fence_median": int(t4.get("fence_rebuild_gold_median_at_cap", "0")), "t4_income_at_cap": int(t4.get("income_at_cap", "0")),
+		"boss_seen": int(t4.get("boss_seen", "0")) > 0, "boss_retries": int(t4.get("boss_retries", "0")), "boss_failed": int(t4.get("boss_failed", "0")) > 0,
+		"t4_worst_night_frac": float(t4.get("worst_night_frac", "-1")), "t4_worst_night_day": int(t4.get("worst_night_day", "-1"))})
 	if ld.is_empty():
 		row.failed = true
 		row.failed_reason = "LADDER line missing"
@@ -907,4 +934,158 @@ static func retune_report(rows: Array, expected: Array, final := false) -> Dicti
 	lines.append_array(unspent_lines(rows))
 	lines.append(far_walks_total_line(rows))
 	lines.append(far_walks_total_line(rows, "far_kept", "FAR_KEPT_TOTAL"))
+	return {"exit": 0, "ok": failed.is_empty(), "failed": failed, "lines": lines}
+
+
+# ---- E8 phase 2 (spec 4.5, 4.6): tier-4 nights are counted apart from tier-3 nights ----------------------------------------------------------------------------------------
+
+## Tier-4 facts of one tier-bot run (the T4RUN line). `nights`: the sweep's night rows {tier, retries, frac, first_frac, failed, boss_night, day, fences_lost, at_cap4}; `day_records`: {tier, at_cap4, income, rebuild, rebranch}.
+## nights / retry_nights / retries / mean / min / median / fences_lost_mean / worst_night_* read the nights that STARTED at tier 4 (a failed night included as played, like tier3_stats); first_t4_frac and first_t4_retries are the
+## first of them (-1 / 0 none; the frac is then the mercy attempt's, FIRST_T4_NIGHT counts a retried one as 0). boss_*: the tier-3 boss night (the Wrecker: a boss night that started at tier 3): boss_seen, the retries it needed,
+## boss_failed (no win: the run's hard break). fence_median / income_at_cap: the medians over the rows that closed after a tier-4 cap night of (rebuild + rebranch) and of the sales.
+static func tier4_stats(nights: Array, day_records: Array = []) -> Dictionary:
+	var out := {"nights": 0, "retry_nights": 0, "retries": 0, "min": 0.0, "median": 0.0, "mean": 0.0, "fences_lost_mean": 0.0, "first_t4_frac": -1.0, "first_t4_retries": 0,
+		"cap_nights": 0, "worst_night_frac": -1.0, "worst_night_day": -1, "boss_seen": false, "boss_retries": 0, "boss_failed": false, "fence_median": 0, "income_at_cap": 0}
+	var fracs: Array = []
+	var lost := 0
+	for n in nights:
+		if bool(n.get("boss_night", false)) and int(n.tier) == 3:
+			out.boss_seen = true
+			out.boss_retries += int(n.retries)
+			out.boss_failed = out.boss_failed or bool(n.get("failed", false))
+		if int(n.tier) != 4:
+			continue
+		if fracs.is_empty():
+			out.first_t4_frac = float(n.frac)
+			out.first_t4_retries = int(n.retries)
+		var ff := float(n.get("first_frac", n.frac))
+		if out.worst_night_frac < 0.0 or ff < out.worst_night_frac:
+			out.worst_night_frac = ff
+			out.worst_night_day = int(n.get("day", -1))
+		fracs.append(float(n.frac))
+		lost += int(n.get("fences_lost", 0))
+		out.retries += int(n.retries)
+		out.retry_nights += 1 if int(n.retries) > 0 else 0
+		out.cap_nights += 1 if bool(n.get("at_cap4", false)) else 0
+	out.nights = fracs.size()
+	if not fracs.is_empty():
+		var sum := 0.0
+		for f in fracs:
+			sum += float(f)
+		out.min = ReportMath.percentile(fracs, 0.0)
+		out.median = ReportMath.median(fracs)
+		out.mean = sum / fracs.size()
+		out.fences_lost_mean = float(lost) / fracs.size()
+	var fence: Array = []
+	var income: Array = []
+	for d in day_records:
+		if bool(d.get("at_cap4", false)):
+			fence.append(int(d.rebuild) + int(d.rebranch))
+			income.append(int(d.income))
+	out.fence_median = int(round(ReportMath.median(fence)))
+	out.income_at_cap = int(round(ReportMath.median(income)))
+	return out
+
+## True when the run's row carries a tier-4 night (the T4RUN line was read and a tier-4 night started).
+static func _has_t4(r: Dictionary) -> bool:
+	return float(r.get("first_t4_frac", -1.0)) >= 0.0
+
+## The rows as the tier-3 target functions read them, from the tier-4 fields: mean_frac, retry_nights, first_t3_frac / _retries, fence_median and income_at_cap become their tier-4 values.
+static func t4_view(rows: Array) -> Array:
+	var out: Array = []
+	for r in rows:
+		var v: Dictionary = r.duplicate()
+		v.mean_frac = float(r.get("t4_mean", 0.0))
+		v.retry_nights = int(r.get("t4_retry_nights", 0))
+		v.first_t3_frac = float(r.get("first_t4_frac", -1.0))
+		v.first_t3_retries = int(r.get("first_t4_retries", 0))
+		v.fence_median = int(r.get("t4_fence_median", 0))
+		v.income_at_cap = int(r.get("t4_income_at_cap", 0))
+		out.append(v)
+	return out
+
+## A tier-3 verdict's lines moved to the tier-4 name: `from` -> `to` on the lines that start with it, "tier-3" -> "tier-4" and "T3" -> "T4" in the text.
+static func _relabel(res: Dictionary, from: String, to: String) -> Dictionary:
+	var lines: Array = []
+	for l in res.lines:
+		var t := String(l)
+		var is_head := t.begins_with(from + ":")
+		t = t.replace("tier-3", "tier-4").replace("T3", "T4")
+		if is_head:
+			t = to + t.substr(t.find(":"))
+		lines.append(t)
+	var out: Dictionary = res.duplicate()
+	out.lines = lines
+	return out
+
+## THREAT_LEAD_T4: THREAT_LEAD (D-285) on the tier-4 nights: mean lead >= 5 points over the best fixed pair, ahead on 6 of 8 seeds on a final set.
+static func threat_lead_t4(rows: Array, final := false) -> Dictionary:
+	return _relabel(threat_lead(t4_view(rows), final), "THREAT_LEAD", "THREAT_LEAD_T4")
+
+## THREAT_LEAD_BY_LANE_T4: no siege lane has a negative mean lead on the tier-4 nights.
+static func threat_lead_by_lane_t4(rows: Array) -> Dictionary:
+	return _relabel(threat_lead_by_lane(t4_view(rows)), "THREAT_LEAD_BY_LANE", "THREAT_LEAD_BY_LANE_T4")
+
+## RETRY_NIGHTS_T4: no tier-4 night of a branch policy needed a retry (unbranched is the reference). The tier-3 boss night starts at tier 3: it is BOSS_NIGHT's.
+static func retry_nights_t4(rows: Array) -> Dictionary:
+	return _relabel(retry_nights(t4_view(rows)), "RETRY_NIGHTS", "RETRY_NIGHTS_T4")
+
+## FIRST_T4_NIGHT: no run's first tier-4 night below 25% of the diner's HP, every policy included; a first night that needed a retry counts 0% (as FIRST_T3_NIGHT).
+static func first_t4_night(rows: Array) -> Dictionary:
+	return _relabel(first_t3_night(t4_view(rows)), "FIRST_T3_NIGHT", "FIRST_T4_NIGHT")
+
+## FIRST_NIGHT_BAND_T4: the pooled median of the branch policies' first tier-4 night in [50, 80] percent, a retried first night counting 0 (spec 4.6; the tier-3 rule).
+static func first_night_band_t4(rows: Array, policies := BRANCH_POLICIES) -> Dictionary:
+	return _relabel(first_night_band(t4_view(rows), policies), "FIRST_NIGHT_BAND", "FIRST_NIGHT_BAND_T4")
+
+## FENCE_TAX_T4: the median (fence rebuild + rebranch gold) / income at the tier-4 cap <= 30 percent.
+static func fence_tax_t4(rows: Array) -> Dictionary:
+	return _relabel(fence_tax(t4_view(rows)), "FENCE_TAX", "FENCE_TAX_T4")
+
+## BOSS_NIGHT (spec 4.6, B16): every branch policy wins the tier-3 boss night (the Wrecker) within `max_retries` (boss_night_max_retries) retries. A run that never met the boss night, or lost it,
+## fails. The unbranched reference is printed, not judged. The boss night's retries are not RETRY_NIGHTS'.
+static func boss_night(rows: Array, max_retries := BOSS_NIGHT_MAX_RETRIES) -> Dictionary:
+	var ok := true
+	var bad: Array = []
+	var parts: Array = []
+	for r in rows:
+		if r.policy == REFERENCE_POLICY:
+			continue
+		var won: bool = bool(r.get("boss_seen", false)) and not bool(r.get("boss_failed", false)) and int(r.get("boss_retries", 0)) <= max_retries
+		if not won:
+			ok = false
+			bad.append("seed %d %s (%s, %d retries)" % [r.seed, r.policy, "never met" if not bool(r.get("boss_seen", false)) else ("lost" if bool(r.get("boss_failed", false)) else "won late"), int(r.get("boss_retries", 0))])
+	for p in RETUNE_POLICIES:
+		var mine := _of(rows, p)
+		if not mine.is_empty():
+			parts.append("%s %d%s" % [p, mine.map(func(r): return int(r.get("boss_retries", 0))).reduce(func(a, b): return a + b, 0), " (reference)" if p == REFERENCE_POLICY else ""])
+	var head := "BOSS_NIGHT: %s (every branch-policy run wins the tier-3 boss night within %d retries; boss-night retries summed per policy: %s)" % ["PASS" if ok else "FAIL", max_retries, ", ".join(parts)]
+	var lines: Array = [head]
+	for b in bad:
+		lines.append("  not won in time: " + b)
+	return {"ok": ok, "lines": lines}
+
+## The tier-4 block of the report (spec 4.6). `rows` as retune_report's plus the tier-4 fields (run_row). A missing run, a failed run or a run that never played a tier-4 night = NO verdict lines, exit 1.
+## LANE_CAP_GUARD (all nights) is the tier-3 block's: the row's guard_hits already counts every night from tier 3 on, the tier-4 ones included.
+static func retune_report_t4(rows: Array, expected: Array, final := false) -> Dictionary:
+	var problems: Array = []
+	for e in expected:
+		var found: Array = rows.filter(func(r): return int(r.seed) == int(e[0]) and r.policy == e[1])
+		if found.is_empty():
+			problems.append("seed %d %s: missing" % [e[0], e[1]])
+		elif bool(found[0].get("failed", false)):
+			problems.append("seed %d %s: failed (%s)" % [e[0], e[1], found[0].get("failed_reason", "hard break or no result")])
+		elif not _has_t4(found[0]):
+			problems.append("seed %d %s: no tier-4 night" % [e[0], e[1]])
+	if not problems.is_empty():
+		return {"exit": 1, "ok": false, "failed": [], "lines": ["TIER4 FAILED: a run is missing, failed or never reached tier 4; no tier-4 verdict lines"] + problems}
+	var lines: Array = []
+	var failed: Array = []
+	var results := {"THREAT_LEAD_T4": threat_lead_t4(rows, final), "THREAT_LEAD_BY_LANE_T4": threat_lead_by_lane_t4(rows), "RETRY_NIGHTS_T4": retry_nights_t4(rows), "FIRST_T4_NIGHT": first_t4_night(rows),
+		"FIRST_NIGHT_BAND_T4": first_night_band_t4(rows), "FENCE_TAX_T4": fence_tax_t4(rows), "BOSS_NIGHT": boss_night(rows)}
+	for name in results:
+		lines.append_array(results[name].lines)
+		if not results[name].ok:
+			failed.append(name)
+	lines.append("LANE_CAP_GUARD: counted in the tier-3 block above over ALL nights (tier 4 included)")
 	return {"exit": 0, "ok": failed.is_empty(), "failed": failed, "lines": lines}

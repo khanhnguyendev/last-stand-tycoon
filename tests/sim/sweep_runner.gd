@@ -43,6 +43,11 @@ extends Node
 ##   first_t3_frac is then the mercy attempt's); worst_night_frac / worst_night_day = the lowest FIRST-attempt fraction over the tier-3 nights and its day (-1 none).
 ##   The `unbranched` policy (the report's floor) buys no branch, so its LADDER counts as done when every level and station is bought (SweepMath.ladder_done need_branches=false).
 ##   `--cols=extra` also appends fence_rebuild_gold (rebuild + rebranch of that row's day phase) at the END of the tier rows.
+## E8 (spec 4.6): tier-4 nights are counted apart. The tier-3 lines (TIER3, T3RUN, LADDER, RETUNE) read the nights that STARTED at tier 3 only, the tier-3 boss night's retries excluded from the retry counts
+## (it is BOSS_NIGHT's, B16), while RETUNE's guard_hits counts every night from tier 3 on (LANE_CAP_GUARD, all nights). A run that played a tier-4 night, or met the tier-3 boss night (the Wrecker), prints one more line:
+##   T4RUN seed policy nights retry_nights retries min median mean fences_lost_mean first_t4_frac first_t4_retries cap_nights worst_night_frac worst_night_day boss_seen boss_retries boss_failed
+##   fence_rebuild_gold_median_at_cap income_at_cap (SweepMath.tier4_stats; the tier-4 counterparts of T3RUN and LADDER; first_t4_frac is the mercy attempt's when first_t4_retries > 0). The CSV is not touched,
+##   and a bot capped at tier 3 (--bot-max-tier=3) prints no T4RUN line and every other line exactly as before.
 ## Loaded at run time by tests/sim/sweep.gd, after the autoloads exist (D-150).
 
 func _ready() -> void:
@@ -153,6 +158,7 @@ func _run() -> void:
 		var at_tier_cap := SweepMath.cap_night(start_tier, GameState.pressure(), Balance.data.tiers)  # the night's own tier cap, any tier
 		var at_cap := at_tier_cap and start_tier == 2  # the tier-2 cap nights (SweepMath.tier_summary)
 		var at_cap3 := at_tier_cap and start_tier == 3  # the tier-3 cap nights (LADDER, TIER3)
+		var at_cap4 := at_tier_cap and start_tier == 4  # the tier-4 cap nights (T4RUN, E8)
 		var lane_load := _lane_load()
 		var night_character := GameState.lane_character()  # {} below tier 3: nothing is recorded then
 		var hare_share_now := _night_hare_share(night_character)
@@ -184,7 +190,7 @@ func _run() -> void:
 		for fid in _fence_hp:
 			lost_now += 1 if float(_fence_hp[fid]) <= 0.0 else 0
 		_capture_night_end()
-		nights.append({"day": day, "tier": start_tier, "tier_close": start_tier, "boss_night": boss_night, "retries": retries, "at_cap": at_cap, "at_cap3": at_cap3, "frac": n.diner_frac, "first_frac": first_attempt_frac, "failed": n.failed,
+		nights.append({"day": day, "tier": start_tier, "tier_close": start_tier, "boss_night": boss_night, "retries": retries, "at_cap": at_cap, "at_cap3": at_cap3, "at_cap4": at_cap4, "frac": n.diner_frac, "first_frac": first_attempt_frac, "failed": n.failed,
 			"fences_lost": lost_now, "branches": _branches, "branch_gold": _branch_gold,
 			"hare_share": hare_share_now, "guard_hits": guard_now})
 		var night_s := h.elapsed - t0
@@ -213,7 +219,7 @@ func _run() -> void:
 			_gold_sold, defending, enemy_count, night_s, d.seconds, int(h.main.phase_controller.snapshot.gold), _cards(), _knockouts, _picked] + _stations(upgrader) + tcols)
 		last_unspent = int(h.main.phase_controller.snapshot.gold)
 		if tier_mode:
-			day_records.append({"day": day, "tier": GameState.tier, "at_cap3": at_cap3, "income": _gold_sold, "rebuild": _rebuild_gold, "rebranch": _rebranch_gold, "unspent": last_unspent, "done": _ladder_done()})
+			day_records.append({"day": day, "tier": GameState.tier, "at_cap3": at_cap3, "at_cap4": at_cap4, "income": _gold_sold, "rebuild": _rebuild_gold, "rebranch": _rebranch_gold, "unspent": last_unspent, "done": _ladder_done()})
 		if day == 14:
 			unspent_day14 = int(h.main.phase_controller.snapshot.gold)
 	if EventBus.steak_sold.is_connected(_on_sold):
@@ -276,6 +282,11 @@ func _run() -> void:
 			print("RETUNE seed=%s policy=%s siege=%s hare=%s first_t3_frac=%.4f hare_share_mean=%.3f hare_share_min=%.3f far_walks=%d far_kept=%d guard_hits=%d t3_nights=%d max_retries=%d max_retries_day=%d unspent_before=%s unspent_after=%s first_t3_retries=%d worst_night_frac=%.4f worst_night_day=%d" % [
 				args.seed, args.policy, ch.siege, ch.hare, rt.first_t3_frac, rt.hare_share_mean, rt.hare_share_min, _far_walks, _far_kept(), rt.guard_hits, rt.t3_nights, rt.max_retries, rt.max_retries_day,
 				_gold_list(us.before), _gold_list(us.after), rt.first_t3_retries, rt.worst_night_frac, rt.worst_night_day])
+		var t4 := SweepMath.tier4_stats(nights, day_records)
+		if int(t4.nights) > 0 or bool(t4.boss_seen):  # a run that played a tier-4 night or met the tier-3 boss night (E8, spec 4.6); read by tests/sim/report_retune.gd
+			print("T4RUN seed=%s policy=%s nights=%d retry_nights=%d retries=%d min=%.3f median=%.3f mean=%.4f fences_lost_mean=%.2f first_t4_frac=%.4f first_t4_retries=%d cap_nights=%d worst_night_frac=%.4f worst_night_day=%d boss_seen=%d boss_retries=%d boss_failed=%d fence_rebuild_gold_median_at_cap=%d income_at_cap=%d" % [
+				args.seed, args.policy, t4.nights, t4.retry_nights, t4.retries, t4.min, t4.median, t4.mean, t4.fences_lost_mean, t4.first_t4_frac, t4.first_t4_retries, t4.cap_nights,
+				t4.worst_night_frac, t4.worst_night_day, 1 if t4.boss_seen else 0, t4.boss_retries, 1 if t4.boss_failed else 0, t4.fence_median, t4.income_at_cap])
 		if String(args.tier3) == "off" and tier3_events != 0:
 			push_error("tier 3 is not for sale but %d brute kills, south-west spawns and branches were counted" % tier3_events)
 			h.finish()
@@ -315,7 +326,7 @@ var _last_goal := ""
 
 func _count_far_walks() -> void:
 	var bot = _h.bot if _h != null else null
-	if bot == null or not bot is TierBot or _h.main == null or _h.main.phase_controller.phase != Phase.NIGHT or GameState.tier < 3:
+	if bot == null or not bot is TierBot or _h.main == null or _h.main.phase_controller.phase != Phase.NIGHT or GameState.tier != 3:
 		_last_goal = ""
 		return
 	var g: String = bot.goal
@@ -425,7 +436,7 @@ func _on_building_changed(spot_id: StringName, _level: int, _paid: int) -> void:
 	_fence_paid[id] = total
 
 func _ladder_done() -> bool:
-	if GameState.tier < 3:
+	if GameState.tier != 3:  # the tier-3 ladder (E8: at tier 4 the spots are the tier-4 ones; the ladder of tier 3 was done before, or never)
 		return false
 	var spots: Array = []
 	for id in MapLayout.spots_for_tier(GameState.tier):
