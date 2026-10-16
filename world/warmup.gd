@@ -153,6 +153,8 @@ static func _prebuild_tier_caches() -> void:
 		GroundArt.terrain_mesh(World.ground_rect(), yards, MapLayout.lanes_for_tier(t), spread)
 		if t == 3:  # the tier-3 reveal's first step shows the lot's paving with the tier-2 lanes
 			GroundArt.terrain_mesh(World.ground_rect(), yards, MapLayout.lanes_for_tier(2), spread)
+		if t == 4:  # the tier-4 reveal's middle step shows the first lot with the tier-4 lanes
+			GroundArt.terrain_mesh(World.ground_rect(), TierReveal.stage_yards(4), MapLayout.lanes_for_tier(4), spread)
 		var rects: Array[Rect2] = []
 		for id in yards:
 			rects.append(MapLayout.yard_rect(id))

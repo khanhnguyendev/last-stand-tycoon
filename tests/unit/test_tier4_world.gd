@@ -64,8 +64,11 @@ func _tier4_dawn() -> void:
 	main.phase_controller.debug_skip_to_day()
 
 func _wait_for_steps(n: int, base: int) -> void:
-	while sfx.count(&"build_done") - base < n:
+	var guard := 0
+	while sfx.count(&"build_done") - base < n and guard < 1200:  # 20 s of ticks: the whole reveal is far shorter
 		await get_tree().physics_frame
+		guard += 1
+	assert_lt(guard, 1200, "the reveal reached step %d" % n)
 
 # --- the nodes at tier 4 -----------------------------------------------------
 
@@ -111,6 +114,14 @@ func test_the_sign_is_gone_at_tier_4() -> void:
 	assert_false(main.world.tier_sign.visible, "tier 4 is the top: nothing is sold")
 	assert_false(main.world.tier_sign.zone.is_active() and main.world.tier_sign.state() != &"hidden")
 
+func test_the_sign_is_hidden_after_the_real_tier_4_dawn() -> void:
+	_tier4_dawn()
+	assert_eq(GameState.tier, 4)
+	assert_false(main.world.tier_sign.visible, "the dawn that opens tier 4 hides the sign")
+	assert_eq(main.world.tier_sign.state(), &"hidden")
+	_reveal().skip()
+	assert_false(main.world.tier_sign.visible, "and the reveal does not bring it back")
+
 func test_new_game_from_tier_4_removes_every_tier_4_node() -> void:
 	await _day_at_4()
 	var w := main.world
@@ -121,7 +132,8 @@ func test_new_game_from_tier_4_removes_every_tier_4_node() -> void:
 	for id in MapLayout.TIER_SPOTS[4]:
 		assert_false(w.build_spots.has(id), "%s gone" % id)
 		assert_false(w.branch_pads.has(id), "%s's pads gone" % id)
-	assert_eq(w.build_spots.size(), 0 if GameState.buildings.is_empty() else MapLayout.spots_for_tier(1).size())
+	assert_false(GameState.buildings.is_empty(), "a new game has its stations")
+	assert_eq(w.build_spots.size(), MapLayout.spots_for_tier(1).size())
 	assert_eq(w.branch_pads.size(), 0)
 	assert_eq(w.yard_ids(), [])
 	assert_null(w.yard_stones, "no yard open: no kerb")
@@ -138,7 +150,8 @@ func test_the_tier_4_reveal_runs_land_tower_land_tower_and_hides_what_it_brings(
 	assert_eq(GameState.tier, 4)
 	var reveal := _reveal()
 	assert_eq(reveal.steps_left(), 4, "north lot, tower_n2, north-east lot, tower_e2: no diner, no lane character, no sign")
-	assert_true(banners.has(tr("The diner grows!")))
+	assert_true(banners.has(tr("The back lot opens!")), "D-314.25: tier 4 grows no storey")
+	assert_false(banners.has(tr("The diner grows!")))
 	sfx.clear()
 	fx.clear()
 	var diner := (w.diner_body.get_node("Visual").get_node("DinerArt") as Node).scene_file_path
@@ -204,7 +217,7 @@ func test_the_reveal_camera_shows_both_towers_and_both_lots_at_9_16_and_9_21() -
 		var towers: Array = []
 		for id in MapLayout.TIER_SPOTS[4]:
 			towers.append(MapLayout.to3(MapLayout.spot_position(id)))
-			towers.append(MapLayout.to3(MapLayout.spot_position(id), 3.0))
+			towers.append(MapLayout.to3(MapLayout.spot_position(id), TierReveal.TOWER_TOP_M))
 		assert_true(_on_screen_all(towers, xf, aspect), "aspect %.2f: both towers (ground and top) on screen" % aspect)
 		var pads: Array = []
 		for id in MapLayout.TIER_SPOTS[4]:
@@ -225,7 +238,15 @@ func test_the_held_camera_shows_both_towers_at_the_first_and_the_last_step() -> 
 	assert_almost_eq(main.camera_rig.zoom_now(), frame.zoom, 0.02, "at the last step the camera still holds")
 	assert_true(_on_screen_all(TierReveal.subject_points(4), main.camera_rig.camera.global_transform, CameraMath.ASPECT), "last step: all on screen")
 
+## Pinned against the tier-2 and tier-3 frames as commit 4e369c4 (before the tier-4 frame) computed them.
 func test_the_tier_2_and_3_frames_are_unchanged() -> void:
+	for aspect in [CameraMath.ASPECT, CameraMath.ASPECT_MIN]:
+		var f2 := TierReveal.frame_for(2, Balance.ui, aspect)
+		assert_almost_eq(f2.zoom, 2.15, 1e-4, "tier 2 zoom at %.2f" % aspect)
+		assert_almost_eq(f2.focus, Vector2(-0.25, 2.0), Vector2.ONE * 1e-4, "tier 2 focus")
+		var f3 := TierReveal.frame_for(3, Balance.ui, aspect)
+		assert_almost_eq(f3.zoom, 1.3, 1e-4, "tier 3 zoom at %.2f" % aspect)
+		assert_almost_eq(f3.focus, Vector2(-1.8, 3.5), Vector2.ONE * 1e-4, "tier 3 focus")
 	assert_eq(TierReveal.subject_points(2).size(), 4 + 4 * MapLayout.yards_for_tier(2).filter(func(i): return MapLayout.yard_tier(i) == 2).size())
 	assert_gt(TierReveal.subject_points(3).size(), 8, "the diner, the front lot and the lane stretch")
 
@@ -288,6 +309,7 @@ func test_a_bot_that_may_buy_tier_4_has_its_sign_in_the_tier_3_graph_and_not_aft
 		GameState.debug_set_tier(t, 1)
 		bot._sync_graph()
 		assert_false(bot.graph.nodes.has("tower_n2"), "tier %d" % t)
+		assert_eq(bot.graph.nodes.has("tier_sign_4"), t == 3, "tier %d: the sign node is in the tier-3 graph only" % t)
 
 func test_the_tier_4_sign_edges_clear_the_colliders() -> void:
 	var g := WaypointGraph.create_for_bot(3)

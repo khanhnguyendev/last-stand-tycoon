@@ -214,6 +214,21 @@ func test_warmup_prebuilds_the_tier_3_reveals_first_step_mesh() -> void:
 	assert_true(GroundArt._cache.has(full), "the tier-3 terrain too")
 	assert_true(GroundArt.is_cached(World.ground_rect(), MapLayout.yards_for_tier(3), MapLayout.lanes_for_tier(2), spread))
 
+## E8 phase 2 Task 7: the tier-4 reveal's middle step shows the first back lot with the tier-4 lanes: that mesh is built before the tier-up.
+func test_warmup_prebuilds_the_tier_4_reveals_middle_step_mesh() -> void:
+	Tier4Support.open_tier4()
+	var spread: float = Balance.data.enemy.lateral_spread
+	var middle := TierReveal.stage_yards(4)
+	assert_eq(middle, MapLayout.yards_for_tier(3) + ["north"], "the older yards and the first back lot")
+	var key := GroundArt._terrain_key(World.ground_rect(), middle, MapLayout.lanes_for_tier(4), spread)
+	var full := GroundArt._terrain_key(World.ground_rect(), MapLayout.yards_for_tier(4), MapLayout.lanes_for_tier(4), spread)
+	GroundArt._cache.erase(key)
+	GroundArt._cache.erase(full)
+	assert_false(GroundArt._cache.has(key))
+	Warmup._prebuild_tier_caches()
+	assert_true(GroundArt._cache.has(key), "the middle step's mesh")
+	assert_true(GroundArt._cache.has(full), "the tier-4 terrain too")
+
 ## E6 A2. Mutation: the warm-up draws no guard bar, or draws it unshaded (the boss bar's variant, not the guard's), or with shadows on.
 func test_warmup_draws_the_guard_hp_bar_variant() -> void:
 	_main()

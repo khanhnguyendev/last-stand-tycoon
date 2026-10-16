@@ -26,6 +26,9 @@ var _badge_markers: Array[TelegraphMarker] = []
 var _badge_base := {}
 var _diner_kept: Node3D  ## tier 3: the new storey's art, taken out of the diner for the first steps and put back at step 5 (no second instantiation)
 
+## Tier 4: the height (m) above a tower spot that the reveal frame must show (the tower's top).
+const TOWER_TOP_M := 3.0
+
 func setup(world: World) -> void:
 	_world = world
 	name = "TierReveal"
@@ -33,6 +36,16 @@ func setup(world: World) -> void:
 	EventBus.state_restored.connect(_cancel)
 	EventBus.card_offered.connect(_on_pick_opened)
 	EventBus.phase_changed.connect(_on_phase_changed)
+
+## Tier 4 (E8 spec 4.5): the yards the ground shows between the two lots' steps: the older tiers' yards and the first of the tier's own.
+## The reveal stages it and the warm-up builds its terrain mesh, so both read this one list.
+static func stage_yards(tier: int) -> Array:
+	var out: Array = MapLayout.yards_for_tier(tier - 1).duplicate()
+	for id in MapLayout.yards_for_tier(tier):
+		if MapLayout.yard_tier(id) == tier:
+			out.append(id)
+			break
+	return out
 
 ## The points the reveal camera must show: the diner's footprint corners and the corners of every yard `tier` opened.
 static func subject_points(tier: int) -> Array[Vector3]:
@@ -68,7 +81,7 @@ static func _subject_points_t4() -> Array[Vector3]:
 		var c := MapLayout.spot_position(id)
 		for d in [Vector2(rad, 0), Vector2(-rad, 0), Vector2(0, rad), Vector2(0, -rad)]:
 			out.append(MapLayout.to3(c + d))
-		out.append(MapLayout.to3(c, 3.0))
+		out.append(MapLayout.to3(c, TOWER_TOP_M))
 	return out
 
 ## The south-west lane's last `stretch` metres (xz): the point that far back from its end, every path vertex nearer the end than that, and
@@ -195,7 +208,7 @@ func _on_tier_reached(tier: int) -> void:
 	# already rebuilt because the tier-up emits tier_changed first and World rebuilds on it. This call is a guarded no-op
 	# (rebuild_for_tier returns at once when the built tier equals the tier) that keeps the order from mattering.
 	_world.rebuild_for_tier()
-	EventBus.banner_requested.emit(tr("The diner grows!"))
+	EventBus.banner_requested.emit(tr("The back lot opens!") if tier == 4 else tr("The diner grows!"))  # D-314.25: tier 4 grows no storey
 	var yards: Array[String] = []
 	for id in MapLayout.yards_for_tier(tier):
 		if MapLayout.yard_tier(id) == tier:
@@ -288,10 +301,9 @@ func _plan_tier3() -> void:
 ## sign is already hidden). The ground and kerb show the older yards until each lot's step; the two towers' markers are hidden until theirs.
 func _plan_tier4(yards: Array[String]) -> void:
 	var spot_ids: Array = MapLayout.TIER_SPOTS.get(4, [])
-	var shown: Array = MapLayout.yards_for_tier(3)
+	var middle := stage_yards(4)
 	for i in yards.size():
-		shown = shown + [yards[i]]
-		_steps.append({"kind": &"land", "yards": shown.duplicate(), "final": i == yards.size() - 1,
+		_steps.append({"kind": &"land", "yards": middle if i < yards.size() - 1 else MapLayout.yards_for_tier(4), "final": i == yards.size() - 1,
 			"at": MapLayout.to3(MapLayout.yard_rect(yards[i]).get_center())})
 		if i < spot_ids.size():
 			_steps.append({"kind": &"spot", "id": spot_ids[i], "at": MapLayout.to3(MapLayout.spot_position(spot_ids[i]), 1.0)})
