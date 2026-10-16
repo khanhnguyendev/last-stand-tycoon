@@ -16,7 +16,7 @@ extends Node
 ## The TIER3 line (tier bot): nights, retry_nights, retries, cap_nights (pressure at tier_cap[3] when the night began), cap_retry_nights, and the min and median
 ## diner fraction over the tier-3 nights that were held (the final attempt's lowest diner HP; SweepMath.tier3_held_stats). T3RUN's min and median (SweepMath.tier3_stats) read every tier-3 night, a failed one included, so the two pairs differ whenever a night failed. NOTE: `kills` and `brute_kills` in the rows include the kills of failed attempts.
 ## Tier mode also prints, after TIER3_GATE (stdout only; the CSV is not touched):
-##   T3RUN seed policy nights retry_nights min median mean fences_lost_mean branches branch_gold unspent_last_day hard_break_day: the tier-3 facts of this run
+##   T3RUN seed policy nights retry_nights min median mean fences_lost_mean branches branch_gold unspent_last_day hard_break_day hard_break_tier hard_break_boss: the tier-3 facts of this run
 ##   (SweepMath.tier3_stats; the night statistics count nights that STARTED at tier >= 3; branches and branch_gold count every row that CLOSED at tier >= 3, the
 ##   tier-3 dawn day's purchases included; branch_gold = the cost of every branch bought, re-buys included; read by tests/sim/report_policies.gd). A retried night counts its final (mercy) attempt.
 ##   LADDER plot_day=<d> ladder_done_day=<d> max_unspent_during_ladder=<g> fence_rebuild_gold_median_at_cap=<g> income_at_cap=<g> t3_days_to_done=<n> max_unspent_while_purchasable=<g>
@@ -134,6 +134,8 @@ func _run() -> void:
 	var rows := ["day,diner_frac,failed_retries,kills,steaks,gold_earned,builds_defending,enemy_count,night_seconds,day_seconds,unspent_gold_at_closeup,cards,guard_knockouts,picked" + (",stations" if upgrader else "") + (",tier,boss_night,boss_retries,brute_kills,sw_waves,branches" if tier_mode else "") + (",fences_lost,lane_load,fence_rebuild_gold" if extra else "")]
 	var first_fail_day := -1
 	var hard_break_day := -1
+	var hard_break_tier := 0  # the tier the hard-break night started at, and whether it was a boss night (T3RUN; report_retune reads a tier-4 or boss-night break as data)
+	var hard_break_boss := 0
 	var retries_per_day: Array = []
 	var nights: Array = []
 	var unspent_day14 := -1
@@ -196,6 +198,8 @@ func _run() -> void:
 		var night_s := h.elapsed - t0
 		if n.failed:
 			hard_break_day = day
+			hard_break_tier = start_tier
+			hard_break_boss = 1 if boss_night else 0
 			var tcols := _tier_cols(tier_mode, start_tier, boss_night, retries) + (_extra_cols(lane_load) if extra else "")
 			tier3_events += _brute_kills + _sw_waves + _branches
 			rows.append("%d,%.3f,%d,%d,0,0,%s,%d,%.1f,,,%s,%d," % [day, n.diner_frac, retries, n.kills, defending, enemy_count, night_s, _cards(), _knockouts] + _stations(upgrader) + tcols)
@@ -219,7 +223,7 @@ func _run() -> void:
 			_gold_sold, defending, enemy_count, night_s, d.seconds, int(h.main.phase_controller.snapshot.gold), _cards(), _knockouts, _picked] + _stations(upgrader) + tcols)
 		last_unspent = int(h.main.phase_controller.snapshot.gold)
 		if tier_mode:
-			day_records.append({"day": day, "tier": GameState.tier, "at_cap3": at_cap3, "at_cap4": at_cap4, "income": _gold_sold, "rebuild": _rebuild_gold, "rebranch": _rebranch_gold, "unspent": last_unspent, "done": _ladder_done()})
+			day_records.append({"day": day, "tier": GameState.tier, "tier_close": GameState.tier, "at_cap3": at_cap3, "at_cap4": at_cap4, "income": _gold_sold, "rebuild": _rebuild_gold, "rebranch": _rebranch_gold, "unspent": last_unspent, "done": _ladder_done()})
 		if day == 14:
 			unspent_day14 = int(h.main.phase_controller.snapshot.gold)
 	if EventBus.steak_sold.is_connected(_on_sold):
@@ -266,8 +270,8 @@ func _run() -> void:
 			h3.cap_nights, h3.cap_retry_nights, h3.min_held, h3.median_held])
 		print("TIER3_GATE tier3=%s policy=%s events=%d" % [args.tier3, args.policy, tier3_events])
 		var rs := SweepMath.tier3_stats(nights)
-		print("T3RUN seed=%s policy=%s nights=%d retry_nights=%d min=%.3f median=%.3f mean=%.4f fences_lost_mean=%.2f branches=%d branch_gold=%d unspent_last_day=%d hard_break_day=%d" % [
-			args.seed, args.policy, rs.nights, rs.retry_nights, rs.min, rs.median, rs.mean, rs.fences_lost_mean, rs.branches, rs.branch_gold, last_unspent, hard_break_day])
+		print("T3RUN seed=%s policy=%s nights=%d retry_nights=%d min=%.3f median=%.3f mean=%.4f fences_lost_mean=%.2f branches=%d branch_gold=%d unspent_last_day=%d hard_break_day=%d hard_break_tier=%d hard_break_boss=%d" % [
+			args.seed, args.policy, rs.nights, rs.retry_nights, rs.min, rs.median, rs.mean, rs.fences_lost_mean, rs.branches, rs.branch_gold, last_unspent, hard_break_day, hard_break_tier, hard_break_boss])
 		var ls := SweepMath.ladder_summary(_plot_day, day_records)
 		print("LADDER plot_day=%d ladder_done_day=%d max_unspent_during_ladder=%d fence_rebuild_gold_median_at_cap=%d income_at_cap=%d t3_days_to_done=%d max_unspent_while_purchasable=%d" % [
 			ls.plot_day, ls.ladder_done_day, ls.max_unspent_during_ladder, ls.fence_rebuild_gold_median_at_cap, ls.income_at_cap, ls.t3_days_to_done, ls.max_unspent_while_purchasable])

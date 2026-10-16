@@ -28,8 +28,8 @@ static func tier_summary(nights: Array) -> Dictionary:
 ## Tier-3 facts of one tier-bot run (the T3RUN line, the policy report). `nights`: one Dictionary per night played, from the sweep:
 ## {tier, tier_close (optional, default tier), retries, frac, fences_lost, branches, branch_gold}. `tier` = the tier at the night's start; `tier_close` = the tier at
 ## the day's close-up (the Baron's night starts at tier 2 and closes at tier 3). nights, retry_nights, min, median, mean and fences_lost_mean count the nights that
-## STARTED at tier >= 3 (frac = the final attempt's lowest diner HP fraction, a failed night included as played); branches and branch_gold count every row that CLOSED at
-## tier >= 3, so the tier-3 dawn day's purchases are in. Empty set: every number 0.
+## STARTED at tier == 3 (frac = the final attempt's lowest diner HP fraction, a failed night included as played); retry_nights excludes the tier-3 boss night (B16: BOSS_NIGHT judges it);
+## branches and branch_gold count every row that CLOSED at tier == 3, so the tier-3 dawn day's purchases are in and the tier-4 dawn day's are not. Empty set: every number 0.
 static func tier3_stats(nights: Array) -> Dictionary:
 	var out := {"nights": 0, "retry_nights": 0, "min": 0.0, "median": 0.0, "mean": 0.0, "fences_lost_mean": 0.0, "branches": 0, "branch_gold": 0}
 	var fracs: Array = []
@@ -57,9 +57,9 @@ static func tier3_stats(nights: Array) -> Dictionary:
 	return out
 
 ## The two tier-3 statistics of a run differ on purpose (debt sweep; both are printed, neither is derived from the other):
-## - tier3_stats (the T3RUN line, the policy report): every night that STARTED at tier >= 3, a failed night included as played (its frac is the final attempt's lowest diner HP).
-## - tier3_held_stats (the TIER3 line of the sweep): the same nights (tier >= 3, as tier3_stats), but min_held and median_held read only the nights that were HELD (not failed). nights, retry_nights,
-##   retries, cap_nights and cap_retry_nights count the failed nights too. -1.0 when no night was held.
+## - tier3_stats (the T3RUN line, the policy report): every night that STARTED at tier == 3, a failed night included as played (its frac is the final attempt's lowest diner HP).
+## - tier3_held_stats (the TIER3 line of the sweep): the same nights (tier == 3, as tier3_stats), but min_held and median_held read only the nights that were HELD (not failed). nights, retry_nights,
+##   retries, cap_nights and cap_retry_nights count the failed nights too; retries, retry_nights and cap_retry_nights leave the tier-3 boss night out (B16, as tier3_stats). -1.0 when no night was held.
 ## `nights`: {tier, retries, frac, failed, at_cap3}.
 static func tier3_held_stats(nights: Array) -> Dictionary:
 	var out := {"nights": 0, "retry_nights": 0, "retries": 0, "cap_nights": 0, "cap_retry_nights": 0, "min_held": -1.0, "median_held": -1.0}
@@ -105,9 +105,9 @@ static func ladder_done(spots: Array, station_levels: Array, max_level: int, sta
 ## {day, tier, at_cap3, income, rebuild, rebranch, unspent, done}; tier = the tier AT CLOSE-UP (the Baron night's row closes at tier 3); at_cap3 = a tier-3 night
 ## at the cap; income = gold the day's sales paid; rebuild / rebranch = gold paid that day to rebuild fences that fell / to re-buy the branch they had lost;
 ## unspent = gold at close-up; done = ladder_done() at close-up.
-## ladder_done_day = the first done row (-1 never); t3_days_to_done = the closed rows with tier >= 3 up to and including it (-1 when never);
-## max_unspent_during_ladder = the largest unspent over the rows with tier >= 3 up to and including ladder_done_day (every such row when -1);
-## max_unspent_while_purchasable = the same without the done row itself (something was still to buy); the medians run over the at_cap3 rows (0 when none);
+## ladder_done_day = the first done row (-1 never); t3_days_to_done = the closed rows with tier == 3 up to and including it (-1 when never);
+## max_unspent_during_ladder = the largest unspent over the rows with tier == 3 up to and including ladder_done_day (every such row when -1);
+## max_unspent_while_purchasable = the same without the done row itself (something was still to buy); the medians run over the at_cap3 rows that closed at tier 3 (`tier_close`, default `tier`; 0 when none);
 ## fence_rebuild_gold_median_at_cap is the median of rebuild + rebranch per row.
 static func ladder_summary(plot_day: int, days: Array) -> Dictionary:
 	var done_day := -1
@@ -128,7 +128,7 @@ static func ladder_summary(plot_day: int, days: Array) -> Dictionary:
 			t3_days += 1
 			if int(d.day) != done_day:
 				max_buying = maxi(max_buying, int(d.unspent))
-		if bool(d.at_cap3):
+		if bool(d.at_cap3) and int(d.get("tier_close", d.tier)) == 3:  # E8: a tier-3 cap night whose day closed at tier 4 (the Wrecker night) is a tier-4 dawn row, not a tier-3 fence-tax row
 			total.append(int(d.rebuild) + int(d.rebranch))
 			rebuild.append(int(d.rebuild))
 			rebranch.append(int(d.rebranch))
@@ -314,6 +314,10 @@ const FIXED_SPREAD_EXPECTED := 5.0
 ## E8 (D-314.12): the one non-final run of a spent set that the report allows: set #5 with the bot capped at tier 3.
 const TIER3_CHECK_SET := "5"
 const TIER3_CHECK_MAX_TIER := 3
+## The default length of an uncapped tuning run of the report (it reaches tier 4 at 45 days).
+const TUNING_DAYS_T4 := 45
+## The first tier the tier-4 verdicts need: a --final run with a bot capped below it is refused.
+const TIER4_TIER := 4
 ## The file-name tag of a report run: set, bot rule and, for a capped bot, `_mt<n>` (a run with another rule or tier cap never overwrites another's logs).
 static func run_tag(set_id: String, bot_rule: String, bot_max_tier := 0) -> String:
 	return "%s_%s%s" % [set_id, bot_rule, "_mt%d" % bot_max_tier if bot_max_tier > 0 else ""]
@@ -410,8 +414,19 @@ static func final_gate(set_id: String, final_flag: bool, commit: String, record:
 		return refuse.call("unknown set '%s' (tuning|3|4|5|6)" % set_id)
 	if not bot_rule in BOT_RULES:
 		return refuse.call("unknown bot rule '%s' (walk|far|old)" % bot_rule)
+	if final_flag and bot_max_tier >= 1 and bot_max_tier < TIER4_TIER:
+		return refuse.call("a --final run needs a bot that can reach tier 4 (--bot-max-tier=%d given): the tier-4 verdicts would be missing" % bot_max_tier)
 	if not final_flag and set_id == TIER3_CHECK_SET and bot_max_tier == TIER3_CHECK_MAX_TIER:
-		# E8 (D-314.12): the tier-3 check of phase 2 re-runs the SPENT set #5 with the bot capped at tier 3, 32 days. It reads nothing new, so it is allowed without --final, on any tree, and never recorded.
+		# E8 (D-314.12): the tier-3 check of phase 2 re-runs the SPENT set #5 with the bot capped at tier 3, 32 days, to compare with phase 1's reading. It reads nothing new, so it is allowed without --final and never
+		# recorded, but only at a clean, known commit and only when the history holds a COMPLETE, uncapped set-5 entry with the same bot rule (there is a reading to compare with).
+		if commit == "" or commit == "unknown" or commit.ends_with("-dirty"):
+			return refuse.call("the tier-3 check needs a clean tree at a known commit (got '%s')" % commit)
+		var has_reading := false
+		for e in record.get("history", []):
+			if String(e.set) == set_id and bool(e.get("complete", true)) and not e.has("bot_max_tier") and canon_bot_rule(String(e.get("bot_rule", "new"))) == bot_rule:
+				has_reading = true
+		if not has_reading:
+			return refuse.call("the tier-3 check of set #%s needs a complete earlier run of that set with bot rule '%s' in the history (tests/sim/retune_final.json) to compare with" % [set_id, bot_rule])
 		if days != final_days(set_id):
 			return refuse.call("the tier-3 check of set #%s is %d days (--days=%d given): it must equal phase 1's reading" % [set_id, final_days(set_id), days])
 		return {"allowed": true, "lines": ["TIER3_CHECK set=#%s days=%d bot_max_tier=%d: a plain report run of a spent set, not a --final run; it reads nothing new and the history (tests/sim/retune_final.json) is NOT written" % [set_id, days, bot_max_tier]], "record": record}
@@ -539,10 +554,20 @@ static func unspent_split(days: Array) -> Dictionary:
 			out.before.append(int(d.unspent))
 	return out
 
+## E8 (Task 10 review): does the T3RUN line's hard break fail the run? A run that never broke does not. When the report reads tier 4 (`reads_t4`: an uncapped bot), a break on a night that started at tier 4 or
+## above (`hard_break_tier` >= 4) or on the tier-3 boss night (`hard_break_boss` 1) is DATA (the tier-4 verdicts count it: boss_failed, a retry night of its tier), not a failed run. Every other break (a tier-3
+## non-boss night, or any break when the bot is capped, or a log without the two fields) fails the run and the report aborts.
+static func hard_break_fails_run(kv: Dictionary, reads_t4: bool) -> bool:
+	if int(kv.get("hard_break_day", "-1")) < 0:
+		return false
+	if reads_t4 and (int(kv.get("hard_break_tier", "0")) >= 4 or int(kv.get("hard_break_boss", "0")) > 0):
+		return false
+	return true
+
 ## One run row for the verdicts from the parsed T3RUN (`kv`), LADDER (`ld`) and RETUNE (`rt`) lines of a log. A run without a LADDER line is a FAILED run (its fence figures would be
 ## silently dropped from FENCE_TAX): failed, with the reason. The caller handles a missing T3RUN / RETUNE line (no row).
-static func run_row(seed: int, lane: String, policy: String, kv: Dictionary, ld: Dictionary, rt: Dictionary, t4 := {}) -> Dictionary:
-	var hard := int(kv.get("hard_break_day", "-1")) >= 0
+static func run_row(seed: int, lane: String, policy: String, kv: Dictionary, ld: Dictionary, rt: Dictionary, t4 := {}, reads_t4 := false) -> Dictionary:
+	var hard := hard_break_fails_run(kv, reads_t4)
 	var row := {"seed": seed, "lane": lane, "policy": policy, "mean_frac": float(kv.get("mean", "0")), "retry_nights": int(kv.get("retry_nights", "0")),
 		"first_t3_frac": float(rt.get("first_t3_frac", "-1")), "fence_median": int(ld.get("fence_rebuild_gold_median_at_cap", "0")), "income_at_cap": int(ld.get("income_at_cap", "0")),
 		"hare_share": float(rt.get("hare_share_mean", "-1")), "hare_share_min": float(rt.get("hare_share_min", "-1")), "guard_hits": int(rt.get("guard_hits", "0")),

@@ -16,4 +16,4 @@ rc=0
 grep -q -F 'OVERRIDES bot-max-tier=3' "$LOG" || { echo "tier-3: the sweep did not run with the tier cap (no 'OVERRIDES bot-max-tier=3' line), log $LOG" >&2; exit 1; }
 [ -s "$OUT" ] || { echo "tier-3: the sweep wrote no rows" >&2; exit 1; }
 if [ "${1:-}" = "--record" ]; then cp "$OUT" "$BASE"; echo "tier-3 recorded $(git rev-parse --short HEAD) ($(wc -l < "$BASE" | tr -d ' ') lines)"; exit 0; fi
-if cmp -s "$OUT" "$BASE"; then echo "tier-3 identical $(git rev-parse --short HEAD)"; else echo "tier-3 DIFFERS:"; diff "$BASE" "$OUT" | head -6; echo "sweep log (stdout and stderr): $LOG"; echo "Godot processes now:"; pgrep -fl Godot || echo "(none)"; exit 1; fi
+if cmp -s "$OUT" "$BASE"; then echo "tier-3 identical $(git rev-parse --short HEAD)"; else echo "tier-3 DIFFERS:"; { diff "$BASE" "$OUT" || true; } | head -6; echo "sweep log (stdout and stderr): $LOG"; echo "Godot processes now:"; pgrep -fl Godot || echo "(none)"; exit 1; fi
