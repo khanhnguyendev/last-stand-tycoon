@@ -3628,14 +3628,13 @@ is no longer reachable. The tests already pin this (D-308.3).
     the Volley builds retried 3 tier-4 cap nights each, the first tier-4 night was trivial (median 100%), and the
     tier-4 lead was +1.4 with the south-west lane at -4.9. With the cap at 14, OFF Spike passes at the tier-4 cap
     (24.00 s against 29.63 s, bound 26.67 s), which closes D-314.27. Cost: the Wrecker is 4.5 times a brute, not 6.
-31. Phase-2 tuning stops after round 2. Round 2 fixed the tier-4 cap nights (no branch build retries one) and OFF
-    Spike. Three tier-4 targets fail with no lever left inside the ranges, and go to the author:
-    - BOSS_NIGHT: Volley builds still need 3 or more retries on the Wrecker night. The Volley is weak to brutes by
-      design and the Wrecker counts as one; its HP is already at -25%.
-    - THREAT_LEAD_T4 -0.7 (south-west -10.0, the lane left with one tower by D-314.24).
-    - FIRST_NIGHT_BAND_T4 100% (the first tier-4 night at pressure 12 is trivial for a full tier-3 build).
-    Hold-out set #6 is still run once, for the unseen reading. Cost: phase 2 ends with failed targets; the checkpoint
-    asks the author to choose.
+31. Phase-2 tuning stopped after round 2 of the three the plan allows. Corrected after the pack review: the stop
+    was early. Two in-range levers were never tried (the price of tier 4, `tier_costs[3]`, 3000 to 5000; the tier-4
+    brute caps, +1 each), and I wrote "no lever left", which was false. Hold-out set #6 was then run, so any third
+    round now needs a fresh unseen set for its reading (set #7, scan positions 14 and 15). Round 2 fixed the tier-4
+    cap nights on the tuning set only; set #6 still has 2 tier-4 retry nights. Failing on set #6: BOSS_NIGHT,
+    THREAT_LEAD_T4, its per-lane line, RETRY_NIGHTS_T4, FIRST_NIGHT_BAND_T4, and at tier 3 RETRY_NIGHTS and the band.
+    Cost: the author is asked to choose with one round and two levers still open; that is stated in the pack.
 32. Perf is not measured this session (D-260 owes one run): the machine was not idle (the author's own apps were
     running; idle 71% against the 75% gate). The author's apps were left alone. The commands and the tier-4 day
     fixture recipe are in `docs/review/media/e8/perf/README.md`. Cost: the tier-4 cap night's frame time on a phone
