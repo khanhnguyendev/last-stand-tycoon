@@ -19,4 +19,4 @@ grep -q -F 'OVERRIDES none' "$LOG" || { echo "tier-4: the sweep ran with overrid
 [ -s "$OUT" ] || { echo "tier-4: the sweep wrote no rows" >&2; exit 1; }
 grep -q '^T4RUN ' "$LOG" || { echo "tier-4: the run played no tier-4 night or boss night (no T4RUN line), log $LOG" >&2; exit 1; }
 if [ "${1:-}" = "--record" ]; then cp "$OUT" "$BASE"; echo "tier-4 recorded $(git rev-parse --short HEAD) ($(wc -l < "$BASE" | tr -d ' ') lines)"; exit 0; fi
-if cmp -s "$OUT" "$BASE"; then echo "tier-4 identical $(git rev-parse --short HEAD)"; else echo "tier-4 DIFFERS:"; diff "$BASE" "$OUT" | head -6; echo "sweep log (stdout and stderr): $LOG"; echo "Godot processes now:"; pgrep -fl Godot || echo "(none)"; exit 1; fi
+if cmp -s "$OUT" "$BASE"; then echo "tier-4 identical $(git rev-parse --short HEAD)"; else echo "tier-4 DIFFERS:"; { diff "$BASE" "$OUT" || true; } | head -6; echo "sweep log (stdout and stderr): $LOG"; echo "Godot processes now:"; pgrep -fl Godot || echo "(none)"; exit 1; fi

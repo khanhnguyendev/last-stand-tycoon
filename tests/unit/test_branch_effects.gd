@@ -210,7 +210,7 @@ func test_volley_fires_after_an_empty_scan() -> void:
 	assert_lte(ticks, ceili(Balance.data.hero.retarget_interval * 60.0) + 1, "within retarget_interval and one tick")
 
 func test_projectile_pool_covers_the_volley_towers_of_each_top_tier() -> void:
-	# Top tier 2 (4 towers; a two-tier build): ceil((4 x 6 + 5) x 1.2) = 35. With the tier-3 entry (5 towers; the shipped build): ceil((5 x 6 + 5) x 1.2) = 42.
+	# Top tier 2 (4 towers; a two-tier build): ceil((4 x 6 + 5) x 1.2) = 35. Top tier 3 (5 towers; a three-tier build): ceil((5 x 6 + 5) x 1.2) = 42.
 	# in_flight(3, 8.0, 0.5, 16) = 3 x (floor(1.0) + 1) = 6.
 	assert_eq(World.in_flight(3, 8.0, 0.5, 16.0), 6)
 	# E8 Task 9: the shipped build has tier 4 (7 towers): ceil((7 x 6 + 5) x 1.2) = 57.
@@ -220,7 +220,7 @@ func test_projectile_pool_covers_the_volley_towers_of_each_top_tier() -> void:
 	assert_eq(World.pool_sizes(Balance.data).projectile, 57, "the shipped build: top tier 4")
 	Balance.data.tiers.tier_costs = [0, 500, 1500]  # a three-tier build (5 towers)
 	assert_eq(World.pool_sizes(Balance.data).projectile, 42, "top tier 3")
-	Balance.data.tiers.tier_costs = [0, 500]  # a two-tier build (the shipped one has three)
+	Balance.data.tiers.tier_costs = [0, 500]  # a two-tier build (the shipped one has four entries: top tier 4)
 	assert_eq(World.pool_sizes(Balance.data).projectile, 35, "top tier 2")
 	assert_eq(World.pool_sizes(Balance.data).steak, 293, "the two-tier steak pool (a pin: it must not change with the switch)")
 

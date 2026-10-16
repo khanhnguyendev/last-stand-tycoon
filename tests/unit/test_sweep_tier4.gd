@@ -343,8 +343,8 @@ func test_the_tier_3_report_ignores_the_tier_4_fields() -> void:
 
 func test_set_5_may_be_re_run_without_final_only_capped_at_tier_3_and_at_32_days() -> void:
 	var rec := {"history": [{"set": "5", "commit": "abc1234", "date": DATE, "days": 32, "bot_rule": "walk", "done": true, "ok": true}]}
-	var g := SweepMath.final_gate("5", false, "abc1234-dirty", rec, DATE, 32, "walk", 3)
-	assert_true(g.allowed, "no --final, a dirty tree: a plain report run")
+	var g := SweepMath.final_gate("5", false, "abc1234", rec, DATE, 32, "walk", 3)
+	assert_true(g.allowed, "no --final, a clean known commit, a complete walk entry: a plain report run")
 	assert_string_contains(g.lines[0], "TIER3_CHECK")
 	assert_string_contains(g.lines[0], "NOT written")
 	assert_eq(g.record, rec, "the history is untouched")
@@ -355,13 +355,73 @@ func test_set_5_may_be_re_run_without_final_only_capped_at_tier_3_and_at_32_days
 		assert_false(SweepMath.final_gate(id, false, "abc1234", rec, DATE, SweepMath.final_days(id), "walk", 3).allowed, "set #%s has no such allowance" % id)
 	assert_false(SweepMath.final_gate("tuning", true, "abc1234", rec, DATE, 32, "walk", 3).allowed)
 
-## With --final the capped run goes through the normal rules: a spent set stays refused, and a fresh entry says it was capped.
+## Task 10 review: the check compares with an earlier reading, so it needs one (complete, uncapped, same canonical rule), and a clean known commit.
+func test_the_tier_3_check_needs_a_complete_same_rule_entry_and_a_clean_commit() -> void:
+	var rec := {"history": [{"set": "5", "commit": "abc1234", "date": DATE, "days": 32, "bot_rule": "walk", "done": true, "ok": true}]}
+	assert_false(SweepMath.final_gate("5", false, "abc1234-dirty", rec, DATE, 32, "walk", 3).allowed, "a dirty tree")
+	assert_false(SweepMath.final_gate("5", false, "unknown", rec, DATE, 32, "walk", 3).allowed, "an unknown commit")
+	assert_false(SweepMath.final_gate("5", false, "", rec, DATE, 32, "walk", 3).allowed, "no commit")
+	assert_false(SweepMath.final_gate("5", false, "abc1234", rec, DATE, 32, "far", 3).allowed, "--bot-rule=far: no far reading in the history")
+	assert_false(SweepMath.final_gate("5", false, "abc1234", {"history": []}, DATE, 32, "walk", 3).allowed, "an empty history")
+	var other_set := {"history": [{"set": "4", "commit": "abc1234", "date": DATE, "days": 32, "bot_rule": "walk", "done": true, "ok": true}]}
+	assert_false(SweepMath.final_gate("5", false, "abc1234", other_set, DATE, 32, "walk", 3).allowed, "a reading of another set")
+	var incomplete := {"history": [{"set": "5", "commit": "abc1234", "date": DATE, "days": 32, "bot_rule": "walk", "done": true, "ok": false, "complete": false}]}
+	assert_false(SweepMath.final_gate("5", false, "abc1234", incomplete, DATE, 32, "walk", 3).allowed, "an incomplete entry is no reading")
+	var capped := {"history": [{"set": "5", "commit": "abc1234", "date": DATE, "days": 32, "bot_rule": "walk", "done": true, "ok": true, "bot_max_tier": 3}]}
+	assert_false(SweepMath.final_gate("5", false, "abc1234", capped, DATE, 32, "walk", 3).allowed, "a capped entry is no reading")
+	var legacy := {"history": [{"set": "5", "commit": "abc1234", "date": DATE, "days": 32, "bot_rule": "new", "done": true, "ok": true}]}
+	assert_true(SweepMath.final_gate("5", false, "abc1234", legacy, DATE, 32, "far", 3).allowed, "`new` is the canonical `far`")
+	assert_eq(SweepMath.final_gate("5", false, "abc1234-dirty", rec, DATE, 32, "walk", 3).record, rec)
+
+## Task 10 review: a hard break at tier 4 or on the tier-3 boss night is data when the report reads tier 4; every other break fails the run.
+func test_a_tier_4_or_boss_night_hard_break_is_data_only_when_the_report_reads_tier_4() -> void:
+	var none := {"hard_break_day": "-1", "hard_break_tier": "0", "hard_break_boss": "0"}
+	var t4 := {"hard_break_day": "40", "hard_break_tier": "4", "hard_break_boss": "0"}
+	var boss := {"hard_break_day": "33", "hard_break_tier": "3", "hard_break_boss": "1"}
+	var t3 := {"hard_break_day": "20", "hard_break_tier": "3", "hard_break_boss": "0"}
+	var old := {"hard_break_day": "20"}
+	assert_false(SweepMath.hard_break_fails_run(none, true))
+	assert_false(SweepMath.hard_break_fails_run(none, false))
+	assert_false(SweepMath.hard_break_fails_run(t4, true), "tier 4 night: data")
+	assert_false(SweepMath.hard_break_fails_run(boss, true), "tier-3 boss night: data")
+	assert_true(SweepMath.hard_break_fails_run(t3, true), "a tier-3 non-boss break aborts")
+	assert_true(SweepMath.hard_break_fails_run(old, true), "a log without the fields is a tier-3 break")
+	assert_true(SweepMath.hard_break_fails_run(t4, false), "a capped bot never reaches tier 4: any break fails")
+	assert_true(SweepMath.hard_break_fails_run(boss, false))
+	var rt := {"first_t3_frac": "0.5"}
+	assert_false(SweepMath.run_row(1, "east", "threat", boss.merged({"mean": "0.5"}), {"ladder_done_day": "3"}, rt, {"boss_seen": "1", "boss_failed": "1"}, true).failed)
+	assert_true(SweepMath.run_row(1, "east", "threat", boss.merged({"mean": "0.5"}), {"ladder_done_day": "3"}, rt, {"boss_seen": "1", "boss_failed": "1"}).failed, "default: not reading tier 4")
+	assert_true(SweepMath.run_row(1, "east", "threat", t3, {"ladder_done_day": "3"}, rt, {}, true).failed)
+	assert_true(SweepMath.run_row(1, "east", "threat", boss.merged({"mean": "0.5"}), {"ladder_done_day": "3"}, rt, {"boss_seen": "1", "boss_failed": "1"}, true).boss_failed)
+
+## Task 10 review: the tier-3 FENCE_TAX reads the cap rows that CLOSED at tier 3; a tier-3 cap night whose day closed at tier 4 is a tier-4 dawn row.
+func test_the_tier_3_fence_tax_skips_a_cap_row_that_closed_at_tier_4() -> void:
+	var rows := [
+		{"day": 10, "tier": 3, "tier_close": 3, "at_cap3": true, "income": 100, "rebuild": 10, "rebranch": 0, "unspent": 0, "done": false},
+		{"day": 11, "tier": 4, "tier_close": 4, "at_cap3": true, "income": 900, "rebuild": 800, "rebranch": 0, "unspent": 0, "done": false},
+	]
+	var s := SweepMath.ladder_summary(-1, rows)
+	assert_eq(s.income_at_cap, 100)
+	assert_eq(s.fence_rebuild_gold_median_at_cap, 10)
+	rows[1].erase("tier_close")
+	rows[1].tier = 3
+	assert_eq(SweepMath.ladder_summary(-1, rows).income_at_cap, 500, "no tier_close: the row's tier decides (older callers)")
+
+func test_the_tuning_run_days_default_is_45_for_a_tier_4_reading() -> void:
+	assert_eq(SweepMath.TUNING_DAYS_T4, 45)
+
+## With --final the run goes through the normal rules: a spent set stays refused, a bot capped below tier 4 is refused, and a fresh entry says it was capped.
 func test_a_final_run_keeps_the_normal_rules_and_records_the_cap() -> void:
 	var done := {"history": [{"set": "5", "commit": "abc1234", "date": DATE, "days": 32, "bot_rule": "walk", "done": true, "ok": true}]}
 	assert_false(SweepMath.final_gate("5", true, "def5678", done, DATE, 32, "walk", 3).allowed, "set #5 already ran with the walk rule")
-	var g := SweepMath.final_gate("6", true, "def5678", {"history": []}, DATE, 45, "walk", 3)
+	for cap in [1, 2, 3]:
+		var refused := SweepMath.final_gate("6", true, "def5678", {"history": []}, DATE, 45, "walk", cap)
+		assert_false(refused.allowed, "a --final run needs a bot that can reach tier 4 (cap %d)" % cap)
+		assert_string_contains(refused.lines[0], "a --final run needs a bot that can reach tier 4")
+		assert_eq(refused.record, {"history": []}, "nothing recorded")
+	var g := SweepMath.final_gate("6", true, "def5678", {"history": []}, DATE, 45, "walk", 4)
 	assert_true(g.allowed)
-	assert_eq(g.record.history[0].bot_max_tier, 3)
+	assert_eq(g.record.history[0].bot_max_tier, 4, "a cap that still reaches tier 4 is recorded")
 	var plain := SweepMath.final_gate("6", true, "def5678", {"history": []}, DATE, 45, "walk")
 	assert_false(plain.record.history[0].has("bot_max_tier"), "an uncapped entry is what it always was")
 

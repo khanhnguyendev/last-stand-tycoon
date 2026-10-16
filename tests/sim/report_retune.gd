@@ -20,7 +20,7 @@ extends SceneTree
 ## never overwritten. Each entry: set, commit, the commit's date (from git), and at the end of the run `done` and `ok`. Unknown arguments exit 2.
 ## E8 phase 2 (spec 4.6): when the bot is NOT capped below tier 4 (no --bot-max-tier, or 4 and up) the report also reads each run's T4RUN line and prints a tier-4 block after the tier-3 one, on the tier-4 nights only:
 ## THREAT_LEAD_T4, THREAT_LEAD_BY_LANE_T4, RETRY_NIGHTS_T4, FIRST_T4_NIGHT, FIRST_NIGHT_BAND_T4, FENCE_TAX_T4 and BOSS_NIGHT (every branch policy wins the tier-3 boss night within boss_night_max_retries), plus RUN_T4 lines and a TARGETS_T4
-## line; LANE_CAP_GUARD (all nights) is the tier-3 block's. A run that never reached tier 4 gives no tier-4 verdict lines and exit 1. Use `--days=45` (set #6 is 45 days only and defaults to it; the tuning set reaches tier 4 at 45 days).
+## line; LANE_CAP_GUARD (all nights) is the tier-3 block's. A run that never reached tier 4 gives no tier-4 verdict lines and exit 1. With a bot that can reach tier 4, a hard break at tier 4 or on the tier-3 boss night is data (boss_failed, a retry night of its tier), not a failed run; a tier-3 non-boss hard break still aborts. An uncapped tuning run defaults to --days=45. Use `--days=45` (set #6 is 45 days only and defaults to it; the tuning set reaches tier 4 at 45 days).
 ## `--bot-max-tier=<n>` is printed in the header (BOT_MAX_TIER) and tags the log and output file names (`_mt<n>`), so a capped run never overwrites an uncapped one. With --bot-max-tier=3 the report prints no tier-4 block, and set #5
 ## (spent) may be re-run WITHOUT --final at 32 days: the D-314.12 tier-3 check (phase 1's set-#5 reading must come out identical). The header says so (TIER3_CHECK) and the history is never written.
 ## Child runs: each has a wall-time deadline (RUN_DEADLINE_MSEC, killed and counted as failed when exceeded), must exit 0 and must leave no `SCRIPT ERROR` line in its log (a plain
@@ -31,7 +31,7 @@ extends SceneTree
 const RECORD_PATH := "res://tests/sim/retune_final.json"
 const DEFAULT_DEADLINE_MIN := 20  # per child run (a run takes about 220 s idle); --deadline-min=<5..240>
 const KNOWN_ARGS := ["set", "days", "parallel", "dry", "final", "bot-rule", "bot-max-tier", "deadline-min"]
-const T4_RUN_FIELDS := ["nights", "retry_nights", "mean", "first_t4_frac", "first_t4_retries", "boss_retries", "boss_failed", "fence_rebuild_gold_median_at_cap", "income_at_cap"]
+const T4_RUN_FIELDS := ["nights", "retry_nights", "mean", "first_t4_frac", "first_t4_retries", "boss_seen", "boss_retries", "boss_failed", "fence_rebuild_gold_median_at_cap", "income_at_cap"]
 const RUN_FIELDS := ["nights", "retry_nights", "min", "median", "mean", "fences_lost_mean", "branches", "branch_gold", "unspent_last_day", "hard_break_day"]
 
 func _initialize() -> void:
@@ -75,6 +75,8 @@ func _initialize() -> void:
 		days_given = days_given or a.begins_with("--days=")
 	if set_id == "6" and not days_given:
 		args.days = str(SweepMath.final_days("6"))  # set #6 is 45 days only
+	elif set_id == "tuning" and reads_t4 and not days_given:
+		args.days = str(SweepMath.TUNING_DAYS_T4)  # an uncapped tuning run reaches tier 4 at 45 days (32 days never does)
 	var seed_set: Dictionary = SweepMath.set_by_id(set_id)
 	if seed_set.is_empty():
 		push_error("bad --set=%s (tuning|3|4|5|6; 1 is retired, 2 is spent)" % set_id)
@@ -168,7 +170,7 @@ func _initialize() -> void:
 				if SweepMath.child_failed(code, text):
 					bad["%d:%s" % [r.seed, r.policy]] = "exit code %d or a SCRIPT ERROR line in the log" % code
 					failed = true
-				elif kv.is_empty() or int(kv.get("hard_break_day", "-1")) >= 0 or _read_line(rlog, "RETUNE ").is_empty():
+				elif kv.is_empty() or SweepMath.hard_break_fails_run(kv, reads_t4) or _read_line(rlog, "RETUNE ").is_empty():
 					failed = true
 		running = still
 		while not failed and running.size() < parallel and not jobs.is_empty():
@@ -215,7 +217,7 @@ func _initialize() -> void:
 			var t4kv: Dictionary = _read_line(log, "T4RUN ") if reads_t4 else {}
 			if reads_t4:
 				t4_lines.append("RUN_T4 %d %s | %s" % [s, p, " ".join(T4_RUN_FIELDS.map(func(f): return String(t4kv.get(f, "-"))))] if not t4kv.is_empty() else "RUN_T4 %d %s | no tier-4 night, no tier-3 boss night" % [s, p])
-			var row: Dictionary = SweepMath.run_row(s, SweepMath.seed_lane(seed_set, s), p, kv, ld, rt, t4kv)
+			var row: Dictionary = SweepMath.run_row(s, SweepMath.seed_lane(seed_set, s), p, kv, ld, rt, t4kv, reads_t4)
 			if row.failed:
 				lines.append("RUN %d %s | FAILED (%s)" % [s, p, row.failed_reason])
 			rows.append(row)
@@ -237,7 +239,7 @@ func _initialize() -> void:
 	if is_final and _commit(proj) != commit:
 		lines.append("FINAL_COMMIT_CHANGED: the commit was %s at the start and is %s now: HEAD or the tree changed during the run; the record says ok=false" % [commit, _commit(proj)])
 	if is_final:
-		_write_record(record_path, SweepMath.final_finish(gate.record, all_ok, _commit(proj), exit_code == 0))
+		_write_record(record_path, SweepMath.final_finish(gate.record, all_ok, _commit(proj), int(res.exit) == 0))  # complete = the tier-3 verdict block was printed: a printed final cannot be re-run because only the tier-4 block failed
 	lines.append("WALL %.0f s (parallel=%d, %d runs)" % [(Time.get_ticks_msec() - t0) / 1000.0, parallel, total])
 	var text := "\n".join(lines)
 	print(text)
