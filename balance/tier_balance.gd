@@ -5,7 +5,7 @@ extends Resource
 ## are live: tier_costs has its third entry (the switch, E5 tier-3 spec section 2).
 
 ## Gold to reach tier index + 1: tier_costs[1] is the cost of tier 2. The highest reachable tier is tier_costs.size().
-@export var tier_costs: Array[int] = [0, 500, 1500]
+@export var tier_costs: Array[int] = [0, 500, 1500, 3500]
 ## Pressure (the "day" every wave formula sees) at the tier's first night, and where it stops growing. E6 (D-304): tier 3 starts at 10
 ## (tier 2's cap) and reaches its cap 12 on its third night, so the first night, when one branch is owned, is softer.
 @export var tier_base: Array[int] = [0, 1, 8, 10, 12]

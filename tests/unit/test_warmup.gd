@@ -170,7 +170,7 @@ func test_boot_fade_safety_cap_lifts_without_fade_out() -> void:
 func test_warmup_prebuilds_the_top_tier_terrain_and_props() -> void:
 	_main()
 	var top := TierEffects.top_tier(Balance.data.tiers)
-	assert_eq(top, 3, "the shipped build's top tier")
+	assert_eq(top, 4, "the shipped build's top tier")
 	var yards := MapLayout.yards_for_tier(top)
 	var lanes := MapLayout.lanes_for_tier(top)
 	var spread: float = Balance.data.enemy.lateral_spread

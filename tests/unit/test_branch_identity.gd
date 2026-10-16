@@ -391,12 +391,13 @@ func test_brute_keeps_the_boars_reach_and_target_order() -> void:
 	assert_eq(Array(b.priority), Array(boar.priority))
 	assert_eq(b.attack_interval, boar.attack_interval)
 
-func test_tier_3_arrays_are_live_and_the_top_tier_is_3() -> void:
+func test_tier_3_arrays_are_live_and_the_top_tier_is_4() -> void:
 	var tb := bd.tiers
-	assert_eq(Array(tb.tier_costs), [0, 500, 1500])
-	assert_eq(TierEffects.top_tier(tb), 3)
+	assert_eq(Array(tb.tier_costs), [0, 500, 1500, 3500])
+	assert_eq(TierEffects.top_tier(tb), 4)
 	assert_eq(TierEffects.tier_cost(2, tb), 1500, "tier 3 is reachable (the switch)")
-	assert_eq(TierEffects.tier_cost(3, tb), -1, "nothing is sold beyond tier 3")
+	assert_eq(TierEffects.tier_cost(3, tb), 3500, "tier 4 is reachable (E8 Task 9)")
+	assert_eq(TierEffects.tier_cost(4, tb), -1, "nothing is sold beyond tier 4")
 	var n := tb.tier_costs.size() + 1
 	for arr in [tb.tier_base, tb.tier_cap, tb.fast_share_start, tb.fast_share, tb.fast_ramp_days, tb.brute_cap_main, tb.brute_cap_side, tb.brute_ramp_days, tb.boss_kind]:
 		assert_gte((arr as Array).size(), n)
@@ -405,11 +406,11 @@ func test_tier_3_arrays_are_live_and_the_top_tier_is_3() -> void:
 	assert_eq([tb.brute_cap_main[3], tb.brute_cap_side[3], tb.brute_ramp_days[3]], [1, 0, 3], "main-lane brutes only (the ruling)")
 	assert_eq([tb.brute_cap_main[2], tb.brute_cap_side[2]], [0, 0], "tier 2 carries no brutes")
 	for arr in [tb.tier_base, tb.tier_cap, tb.fast_share_start, tb.fast_share, tb.fast_ramp_days, tb.brute_cap_main, tb.brute_cap_side, tb.brute_ramp_days, tb.boss_kind]:
-		assert_eq((arr as Array).size(), 5, "every tier array is pinned at 5 entries (index 0 unused, tiers 1 to 4); tier_costs is extended by phase 2 Task 9")
+		assert_eq((arr as Array).size(), 5, "every tier array is pinned at 5 entries (index 0 unused, tiers 1 to 4); tier_costs has four entries since phase 2 Task 9")
 	assert_eq([tb.tier_base[4], tb.tier_cap[4]], [12, 15], "spec 4.1: tier 4 starts at 12 and caps at 15")
 	assert_eq([tb.fast_share_start[4], tb.fast_share[4], tb.fast_ramp_days[4]], [0.35, 0.35, 1])
 	assert_eq([tb.brute_cap_main[4], tb.brute_cap_side[4], tb.brute_ramp_days[4]], [1, 0, 1])
-	assert_eq(tb.tier_costs.size(), 3, "the price of tier 4 is Task 9's")
+	assert_eq(tb.tier_costs.size(), 4, "the price of tier 4 shipped in Task 9")
 	assert_eq(tb.boss_kind[1], &"boss")
 	assert_eq(tb.boss_kind[2], &"baron")
 	assert_eq(Array(tb.boss_kind), [&"", &"boss", &"baron", &"wrecker", &""])

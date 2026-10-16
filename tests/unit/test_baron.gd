@@ -49,7 +49,8 @@ func test_boss_kind_per_tier_and_the_boss_set() -> void:
 	var tb := Balance.data.tiers
 	assert_eq(TierEffects.boss_kind_for(1, tb), &"boss", "leaving tier 1: the Boar King")
 	assert_eq(TierEffects.boss_kind_for(2, tb), &"baron", "leaving tier 2: Baron von Hop")
-	assert_eq(TierEffects.boss_kind_for(3, tb), &"", "the top tier has no boss")
+	assert_eq(TierEffects.boss_kind_for(3, tb), &"wrecker", "leaving tier 3: the Wrecker (tier 4 is the top, E8)")
+	assert_eq(TierEffects.boss_kind_for(4, tb), &"", "the top tier has no boss")
 	assert_eq(TierEffects.boss_kind_for(0, tb), &"", "below tier 1")
 	assert_eq(TierEffects.boss_kind_for(9, tb), &"", "past the table")
 	assert_true(TierEffects.is_boss_kind(&"boss", tb))
@@ -57,10 +58,12 @@ func test_boss_kind_per_tier_and_the_boss_set() -> void:
 	for k in [&"boar", &"hare", &"brute", &""]:
 		assert_false(TierEffects.is_boss_kind(k, tb), "%s is not a boss" % k)
 
-## E8 phase 2 Task 2: the Wrecker leaves tier 3, but only once tier 3 is not the top (tier_costs is extended by Task 9).
+## E8 phase 2 Task 2: the Wrecker leaves tier 3, but only while tier 3 is not the top (Task 9 ships the price of tier 4).
 func test_the_wrecker_is_the_tier_3_boss_only_when_tier_3_is_not_the_top() -> void:
 	var tb: TierBalance = Balance.data.tiers.duplicate()
-	assert_eq(TierEffects.boss_kind_for(3, tb), &"", "tier 3 is still the top today")
+	assert_eq(TierEffects.boss_kind_for(3, tb), &"wrecker", "the shipped build has tier 4")
+	tb.tier_costs = [0, 500, 1500]
+	assert_eq(TierEffects.boss_kind_for(3, tb), &"", "a three-tier build: tier 3 is the top")
 	tb.tier_costs = [0, 500, 1500, 3500]
 	assert_eq(TierEffects.boss_kind_for(3, tb), &"wrecker")
 	assert_eq(TierEffects.boss_kind_for(4, tb), &"", "tier 4 is the top")
@@ -91,7 +94,7 @@ func test_a_boss_wave_leads_with_the_kind_of_the_tier() -> void:
 
 func test_no_boss_entry_and_no_lead_at_the_top_tier() -> void:
 	var tb := Balance.data.tiers
-	var s := WaveSchedule.build(_wave(true), Balance.data.wave, tb, 3)
+	var s := WaveSchedule.build(_wave(true), Balance.data.wave, tb, 4)
 	assert_eq(s.filter(func(e): return TierEffects.is_boss_kind(e.kind, tb)).size(), 0, "a pending boss at the top tier spawns none")
 	assert_eq(s[0].t, 0.0, "the wave starts at once: no lead for a boss that is not there")
 	assert_eq(s.size(), 5)
@@ -115,9 +118,9 @@ func test_the_threat_on_the_boss_lane_uses_the_barons_hp_at_tier_2() -> void:
 	var k1 := LanePlanner.threat_by_lane(kp, hp, 1)
 	var kl := String(kp.back().main)
 	assert_almost_eq(k1[kl] - k0[kl], 800.0 * float(kp.back().hp_mult), 1e-3, "tier 1 still adds the King's 800")
-	var t3 := LanePlanner.threat_by_lane(boss_plan, hp, 3)
-	var t3_plain := LanePlanner.threat_by_lane(plan, hp, 3)
-	assert_eq(t3, t3_plain, "no boss leaves the top tier: its threat adds nothing")
+	var t4 := LanePlanner.threat_by_lane(boss_plan, hp, 4)
+	var t4_plain := LanePlanner.threat_by_lane(plan, hp, 4)
+	assert_eq(t4, t4_plain, "no boss leaves the top tier: its threat adds nothing")
 
 # --- the night ---
 
@@ -302,7 +305,10 @@ func test_the_steak_pool_holds_the_barons_drop_plus_the_tier_2_cap_night() -> vo
 	var need: int = kills * bd.economy.steaks_per_kill + bd.monsters.stats(&"baron").steaks_per_kill
 	assert_eq(need, 294)
 	assert_gte(World.pool_sizes(bd).steak, 294, "three costs: the Baron's 150 is the biggest drop")
-	assert_eq(World.pool_sizes(bd).steak, 396, "literal with three costs: ceil((tier-3 cap night + 3 main-lane brutes x 8 + 150) x 1.2) = ceil((78 x 2 + 24 + 150) x 1.2)")
+	assert_eq(World.pool_sizes(bd).steak, 411, "literal with four costs: ceil((tier-4 cap night + 3 main-lane brutes x 8 + 150) x 1.2) = ceil((84 x 2 + 24 + 150) x 1.2)")
+	var three: BalanceData = bd.duplicate(true)
+	three.tiers.tier_costs = three.tiers.tier_costs.slice(0, 3)
+	assert_eq(World.pool_sizes(three).steak, 396, "three costs: ceil((78 x 2 + 24 + 150) x 1.2)")
 	var two: BalanceData = bd.duplicate(true)
 	two.tiers.tier_costs = two.tiers.tier_costs.slice(0, 2)
 	assert_eq(World.pool_sizes(two).steak, 293, "two costs: the King's 100")

@@ -103,10 +103,10 @@ func test_complete_tier_up_adds_the_spots_and_replans() -> void:
 	assert_eq(GameState.pay_into_tier(100), 100, "tier 3 is for sale at tier 2")
 	assert_eq(GameState.tier_remaining_cost(), 1400)
 
-func test_tier_3_is_the_top_of_this_build_nothing_to_buy() -> void:
-	GameState.debug_set_tier(3, 12)
-	assert_eq(GameState.tier, 3)
-	assert_eq(GameState.tier_next_cost(), -1, "tier 3 is the top of this build")
+func test_tier_4_is_the_top_of_this_build_nothing_to_buy() -> void:
+	GameState.debug_set_tier(4, 12)
+	assert_eq(GameState.tier, 4)
+	assert_eq(GameState.tier_next_cost(), -1, "tier 4 is the top of this build")
 	assert_eq(GameState.tier_remaining_cost(), -1)
 	GameState.add_gold(5000)
 	assert_eq(GameState.pay_into_tier(100), 0, "nothing to buy at the top")

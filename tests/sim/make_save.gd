@@ -28,9 +28,12 @@ func _run() -> void:
 			_fixture = a.trim_prefix("--fixture=")
 		if a.begins_with("--seed="):
 			_retune_seed = int(a.trim_prefix("--seed="))
-	if _fixture != "day3_counter5" and _fixture != "night3" and _fixture != "tier" and _fixture != "tier3" and _fixture != "tier3_branch_day" and _fixture != "tier3_cap_day" and _fixture != "retune":
-		push_error("usage: -- --fixture=day3_counter5|night3|tier|tier3|tier3_branch_day|tier3_cap_day|retune [--seed=N]")
+	if _fixture != "day3_counter5" and _fixture != "night3" and _fixture != "tier" and _fixture != "tier3" and _fixture != "tier3_branch_day" and _fixture != "tier3_cap_day" and _fixture != "retune" and _fixture != "tier4":
+		push_error("usage: -- --fixture=day3_counter5|night3|tier|tier3|tier3_branch_day|tier3_cap_day|retune|tier4 [--seed=N]")
 		quit(2)
+		return
+	if _fixture == "tier4":
+		quit(0 if await _run_tier4() else 1)
 		return
 	if _fixture == "retune" and not _retune_seed in SweepMath.set_seeds(SweepMath.TUNING_SET):
 		push_error("--fixture=retune: seed %d is not in the tuning set %s (hold-out seeds are never used)" % [_retune_seed, str(SweepMath.set_seeds(SweepMath.TUNING_SET))])
@@ -537,3 +540,139 @@ func _run_retune() -> bool:
 	for pair in out:
 		_write(pair[0], pair[1])
 	return true
+
+# --- E8 tier-4 fixtures (phase 2 Task 9, B12) -----------------------------------------------------------------------
+# `--fixture=tier4 [--seed=N]`: one real TierBot run per tuning seed (1, 4, 7; threat policy, max_tier 4, uncapped days). The seed-1 run also captures the shared
+# fixtures: tier4_wrecker_full (the close-up of the Wrecker night, tier 3 with the tier-4 sign paid, resume NIGHT), tier4_wrecker_only (constructed from it: no building,
+# card or guard: B12's no-defence fixture; the sim empties the waves in memory, see _build_t4) and tier4_night1 (the close-up of the first tier-4 night, resume NIGHT).
+# Every seed captures tier4_cap_s<seed>: the first close-up at the tier-4 pressure cap whose tier-4 spots are all at max level (the real state), then every tier-4 spot gets the
+# TierBot.branch_choices(threat, tonight's plan) branch (the same recipe as tier3_cap_<policy>). `--seed=N` runs one seed only (the seeds may run as parallel processes).
+
+const T4_SEEDS := [1, 4, 7]
+var _t4_boss: Dictionary = {}
+var _t4_night1: Dictionary = {}
+var _t4_cap: Dictionary = {}
+var _t4_cap_first_day := -1
+var _t4_seed_arg := 0
+
+func _on_t4_snapshot(state: Dictionary) -> void:
+	if String(state.resume_phase) != "DAY":
+		return
+	var bd = root.get_node("Balance").data
+	var tier := int(state.tier)
+	if _t4_boss.is_empty() and tier == 3 and bool(state.boss_pending):
+		_t4_boss = state.duplicate(true)
+	if tier == 4 and not bool(state.boss_pending):
+		if _t4_night1.is_empty() and int(state.day) == int(state.tier_day):
+			_t4_night1 = state.duplicate(true)
+		var at_cap: bool = load("res://core/wave_math.gd").pressure(int(state.day), 4, int(state.tier_day), bd.tiers) == int(bd.tiers.tier_cap[4])
+		if at_cap and _t4_cap_first_day < 0:
+			_t4_cap_first_day = int(state.day)
+		if at_cap and _t4_cap.is_empty():
+			var all_max := true
+			for id in load("res://core/map_layout.gd").spots_for_tier(4):
+				if int(state.buildings[id].level) != int(bd.build.max_level):
+					all_max = false
+			if all_max:
+				_t4_cap = state.duplicate(true)
+
+## One real run on `seed_value`: returns false on failure. Prints the timing and the day/tier/gold of every capture.
+func _play_t4(seed_value: int, want_shared: bool) -> bool:
+	var gs = root.get_node("GameState")
+	root.get_node("Balance").reset()
+	_t4_boss = {}
+	_t4_night1 = {}
+	_t4_cap = {}
+	_t4_cap_first_day = -1
+	var t0 := Time.get_ticks_msec()
+	var main = load("res://world/main.gd").create()
+	root.add_child(main)
+	var bot = load("res://actors/bots/tier_bot.gd").new()
+	main.add_child(bot)
+	bot.setup(main)
+	bot.policy = "threat"
+	bot.max_tier = 4
+	root.get_node("EventBus").snapshot_taken.connect(_on_t4_snapshot)
+	main.phase_controller.start_new_game(seed_value)
+	var last_day := -1
+	for i in 60 * 3600 * 6:
+		if not _t4_cap.is_empty() and (not want_shared or (not _t4_boss.is_empty() and not _t4_night1.is_empty())):
+			break
+		await physics_frame
+		if int(gs.day) != last_day:
+			last_day = int(gs.day)
+			if last_day % 5 == 0:
+				print("seed %d day=%d tier=%d gold=%d fails=%d" % [seed_value, gs.day, gs.tier, gs.gold, gs.night_fails])
+	var ok := not _t4_cap.is_empty() and (not want_shared or (not _t4_boss.is_empty() and not _t4_night1.is_empty()))
+	print("real play seed %d: %s in %.1f s (wall); wrecker close-up day %d, tier-4 night 1 day %d, cap night day %d (cap first reached day %d); end day %d tier %d" % [seed_value,
+		"captured" if ok else "INCOMPLETE", (Time.get_ticks_msec() - t0) / 1000.0, int(_t4_boss.get("day", -1)), int(_t4_night1.get("day", -1)), int(_t4_cap.get("day", -1)), _t4_cap_first_day, gs.day, gs.tier])
+	main.get_parent().remove_child(main)
+	main.free()
+	root.get_node("EventBus").snapshot_taken.disconnect(_on_t4_snapshot)
+	return ok
+
+## Every fixture of one real run as [stem, state, description], built from scratch each call.
+func _build_t4(seed_value: int, want_shared: bool, boss: Dictionary, night1: Dictionary, cap_state: Dictionary) -> Array:
+	var bd = root.get_node("Balance").data
+	var layout = load("res://core/map_layout.gd")
+	var out: Array = []
+	if want_shared:
+		var full := boss.duplicate(true)
+		full.resume_phase = "NIGHT"
+		full.night_fails = 0
+		_common(full)
+		out.append(["tier4_wrecker_full", full, "real play (TierBot, seed %d, threat, max_tier 4) at the close-up of the Wrecker night (tier 3, tier-4 sign paid); resume NIGHT" % seed_value])
+		var alone := full.duplicate(true)
+		for id in alone.buildings:
+			alone.buildings[id] = {"level": 0, "paid": 0, "hp": 0.0, "branch": "", "branch_paid": {}}
+		alone.cards = {}
+		alone.guards = {}
+		# The stored plan is left as captured: at tier 3 GameState.from_dict re-derives the plan (D-286.4), so emptying it here would change nothing; the sim empties tonight's plan in memory.
+		out.append(["tier4_wrecker_only", alone, "constructed from tier4_wrecker_full: no building, card or guard (B12 wrecker_only); the sim empties every wave but the Wrecker in memory, because a tier-3 load re-derives the plan"])
+		var n1 := night1.duplicate(true)
+		n1.resume_phase = "NIGHT"
+		n1.night_fails = 0
+		_common(n1)
+		out.append(["tier4_night1", n1, "real play (TierBot, seed %d, threat, max_tier 4) at the close-up of the first tier-4 night; resume NIGHT" % seed_value])
+	var cap := cap_state.duplicate(true)
+	cap.resume_phase = "NIGHT"
+	cap.night_fails = 0
+	_common(cap)
+	var spots: Array = layout.spots_for_tier(4)
+	var choice: Dictionary = load("res://actors/bots/tier_bot.gd").branch_choices("threat", spots, cap.lane_plan, 4, cap.get("lane_character", {}))
+	_full_buildings(cap, spots, choice)
+	out.append(["tier4_cap_s%d" % seed_value, cap, "real play (TierBot, seed %d, threat, max_tier 4) at the close-up of tier-4 cap night day %d (pressure %d); branches set by TierBot.branch_choices(threat, tonight's plan)" % [seed_value, int(cap.day), bd.tiers.tier_cap[4]]])
+	return out
+
+func _run_tier4() -> bool:
+	var seeds: Array = T4_SEEDS.duplicate()
+	if _retune_seed in T4_SEEDS and _t4_seed_given():
+		seeds = [_retune_seed]
+	var bd = root.get_node("Balance").data
+	var codec = load("res://core/save_codec.gd")
+	for sd in seeds:
+		var want_shared: bool = sd == 1
+		if not await _play_t4(sd, want_shared):
+			return false
+		var a := _build_t4(sd, want_shared, _t4_boss, _t4_night1, _t4_cap)
+		var b := _build_t4(sd, want_shared, _t4_boss, _t4_night1, _t4_cap)
+		for i in a.size():
+			if codec.encode(a[i][1], "fixture", 0) != codec.encode(b[i][1], "fixture", 0):
+				push_error("fixture %s is not deterministic (two builds differ)" % a[i][0])
+				return false
+			var why: String = codec.validate(a[i][1], bd)
+			if why != "":
+				push_error("fixture %s invalid: %s" % [a[i][0], why])
+				return false
+		for item in a:
+			var st: Dictionary = item[1]
+			print("FIXTURE %s v=%d seed=%d day=%d tier=%d tier_day=%d gold=%d phase=%s boss=%s pressure=%d | %s" % [item[0], int(st.v), int(st.run_seed), int(st.day), int(st.tier),
+				int(st.tier_day), int(st.gold), st.resume_phase, st.lane_plan[st.lane_plan.size() - 1].boss, load("res://core/wave_math.gd").pressure(int(st.day), int(st.tier), int(st.tier_day), bd.tiers), item[2]])
+			_write(item[0], st)
+	return true
+
+func _t4_seed_given() -> bool:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--seed="):
+			return true
+	return false

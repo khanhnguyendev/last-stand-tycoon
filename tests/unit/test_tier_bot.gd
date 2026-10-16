@@ -156,13 +156,14 @@ func test_the_tier_3_sign_is_sought_at_exactly_the_cost_and_not_one_gold_below()
 	assert_eq(bot.idle_goal(), "tier_sign_3")
 
 ## Mutation: ignoring `rem > 0` seeks a sign at the top tier (remaining -1) or when paid (0).
-func test_at_tier_3_there_is_no_sign_to_seek() -> void:
+func test_at_tier_4_there_is_no_sign_to_seek() -> void:
 	GameState.new_game(1)
-	GameState.debug_set_tier(3, 1)
+	GameState.debug_set_tier(4, 1)
 	GameState.add_gold(9000)
 	assert_eq(GameState.tier_remaining_cost(), -1)
 	var bot := TierBot.new()
 	autofree(bot)
+	assert_ne(bot.idle_goal(), "tier_sign_4")
 	assert_ne(bot.idle_goal(), "tier_sign_3")
 	assert_ne(bot.idle_goal(), "tier_sign")
 

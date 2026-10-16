@@ -282,7 +282,8 @@ func test_the_bot_capped_at_tier_3_walks_the_tier_3_graph() -> void:
 	assert_eq(bot.graph.nodes.size(), want.nodes.size() + 2, "plus the two station pads")
 
 func test_an_uncapped_bot_of_a_build_without_tier_4_keeps_the_tier_3_graph() -> void:
-	Balance.reset()  # tier 4 not for sale: top tier 3
+	Balance.reset()
+	Balance.data.tiers.tier_costs = [0, 500, 1500]  # tier 4 not for sale: top tier 3
 	var bot := TierBot.new()
 	autofree(bot)
 	bot.max_tier = 5
