@@ -114,6 +114,23 @@ const RULES: Array = [
 	[&"NEUTRAL", &"spike", &"neutral", "diner_lost", false, ["-/-"], []],
 ]
 
+## D-314.28: the (lane, cfg_name) pairs whose fence_stands_s a rule reads: the rows whose measure is fence_stands_s, their branch configuration and their refs, on their lane.
+## {lane: [cfg_name, ...]}. Today: the siege lane's "-/-", "-/stone" and "-/spike". Where no rule reads the stand time, an INF (a fence that never fell) is expected.
+static func stand_time_configs() -> Dictionary:
+	var out := {}
+	for row in RULES:
+		if row[3] != "fence_stands_s":
+			continue
+		var lane: StringName = row[2]
+		if not out.has(lane):
+			out[lane] = []
+		var names: Array = [("%s/-" % row[1]) if row[1] in [&"longbow", &"volley"] else ("-/%s" % row[1])]
+		names.append_array(row[5])
+		for n in names:
+			if not n in out[lane]:
+				out[lane].append(n)
+	return out
+
 static func _verdict(ok: bool, measure: String, a: float, b: float, bound: float, why: String) -> Dictionary:
 	return {"ok": ok, "measure": measure, "a": a, "b": b, "bound": bound, "why": why}
 
@@ -299,6 +316,7 @@ static func fast_results() -> Dictionary:
 ## (TierEffects.brute_counts: a tier-3 night has 1 brute on its first night, 2 on its second, 3 from the third; brute_cap_main[3] is 1 per wave).
 ## `boars_only` (default false): every hare of the mix is a boar instead (same monster count), the "plain boar lane" of the Longbow study.
 static func mix(lane_type: StringName, pressure: int, brutes := -1, boars_only := false, tier := 3, t4_seed := SEED) -> Array:
+	assert(tier >= 3, "mix() is the tier-3 and tier-4 mix")
 	if tier >= 4:
 		return mix_tier4(lane_type, pressure, brutes, boars_only, t4_seed)
 	var wb: WaveBalance = Balance.data.wave
@@ -329,28 +347,31 @@ static func mix(lane_type: StringName, pressure: int, brutes := -1, boars_only :
 		})
 	return out
 
-## E8 phase 2 Task 8 (B9, spec 4.5): the tier-4 plan the tier-4 mixes are cut from. The REAL planner and lane character, for a fixed run seed (SEED) and the day whose
-## pressure is `pressure` (day = T4_TIER_DAY + pressure - tier_base[4], so the night is the (pressure - base + 1)th of tier 4: the base night has one brute on its last wave, a
-## later one the full ramp). One shared helper: the unit test of the planner's split reads it too.
+## E8 phase 2 Task 8 (B9, spec 4.5): the day of the tier-4 base night in the tier-4 planner's calendar. tier4_plan() maps a pressure to day = T4_TIER_DAY + pressure - tier_base[4],
+## so the night at tier_base[4] is the first night of tier 4 (one brute on its last wave) and a later pressure is a later night (the full ramp).
 const T4_TIER_DAY := 20
 ## E8 phase 2 Task 8 (D-314.26): the tier-4 cap rules are judged on SUMS over these four planner seeds, taken in order, because one seed's mix decides which lane
 ## shares its group with the brutes. Every RULE (ON, OFF, NEUTRAL) reads sum_runs() of the four runs of one configuration: diner_lost, hares_in_zone, fence_hp_left, clear_s,
 ## ticks and kills are summed, fence_stands_s is the MEAN (INF if any seed never lost the fence), timed_out is true if any seed timed out.
+## A rule's a_floor (the absolute slack under a measure) applies ONCE to the SUM, not once per seed: four seeds' sums are judged as one number.
+## `stands_inf` counts the runs whose fence never fell (D-314.28): an INF mean alone is never trusted, the callers assert it is 0.
 const T4_SEEDS: Array[int] = [1, 2, 3, 4]
 
 static func sum_runs(runs: Array) -> Dictionary:
 	var out := {"diner_lost": 0.0, "fence_hp_left": 0.0, "hares_in_zone": 0, "clear_s": 0.0, "ticks": 0, "kills": 0, "timed_out": false,
-		"fence_fell_s": 0.0, "fence_absorbed": 0.0, "fence_stands_s": 0.0}
+		"fence_absorbed": 0.0, "fence_stands_s": 0.0, "stands_inf": 0}
 	for r in runs:
 		for k in ["diner_lost", "fence_hp_left", "hares_in_zone", "clear_s", "ticks", "kills", "fence_absorbed"]:
 			out[k] += r[k]
 		out.timed_out = out.timed_out or r.timed_out
 		out.fence_stands_s += float(r.fence_stands_s)
-		out.fence_fell_s += float(r.fence_fell_s)
+		if is_inf(float(r.fence_stands_s)):
+			out.stands_inf += 1
 	out.fence_stands_s /= float(runs.size())
-	out.fence_fell_s /= float(runs.size())
 	return out
 
+## The tier-4 plan the tier-4 mixes are cut from: the REAL planner and lane character, for a run seed (default SEED) and the day of `pressure` (see T4_TIER_DAY).
+## One shared helper: the unit tests of the planner's split read it too.
 static func tier4_plan(pressure: int, plan_seed := SEED) -> Array:
 	var wb: WaveBalance = Balance.data.wave
 	var tb: TierBalance = Balance.data.tiers

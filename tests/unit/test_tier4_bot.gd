@@ -112,7 +112,6 @@ func test_the_hold_on_the_tier_4_sign_mid_payment_respects_the_cap() -> void:
 	var bot := await _bot_world("threat", 3)
 	_finish_tier3_ladder()
 	GameState.tier_paid = 100  # test-only setup: a part-payment
-	GameState.add_gold(5000)
 	await get_tree().physics_frame  # the bot's think() puts the tier-4 sign node in its graph
 	var at := bot.graph.position_of("tier_sign_4")
 	bot.hero.global_position = Vector3(at.x, bot.hero.global_position.y, at.y)  # test-only setup: the hero on the node
@@ -120,6 +119,7 @@ func test_the_hold_on_the_tier_4_sign_mid_payment_respects_the_cap() -> void:
 	bot.goal = "tier_sign_4"
 	assert_true(bot.arrived(), "setup: standing on the sign")
 	assert_gt(GameState.tier_remaining_cost(), 0)
+	GameState.gold = GameState.tier_remaining_cost() - 1  # test-only setup: one gold short, so idle_goal() cannot pick the sign by itself: only the hold keeps the goal
 	bot.day_think(0.0)
 	assert_eq(bot.goal, "tier_sign_4", "control: uncapped, it keeps standing on the sign")
 	bot.max_tier = 3
@@ -128,7 +128,7 @@ func test_the_hold_on_the_tier_4_sign_mid_payment_respects_the_cap() -> void:
 
 ## At tier 4 the bot buys the two new towers, then the branch of its policy on each, under every policy.
 func test_every_policy_picks_the_branch_pads_of_the_new_towers() -> void:
-	for policy in TierBot.POLICIES:
+	for policy in TierBot.POLICIES + ["volley_stone"]:
 		GameState.new_game(1)
 		GameState.debug_set_tier(4, 1)
 		GameState.add_gold(20000)
@@ -179,7 +179,7 @@ func _bot_world(policy: String, tier := 4) -> TierBot:
 
 ## The bot really walks to both back-lot towers and branches them, for every policy (a world run: the pads are reachable and arm).
 func test_in_the_world_every_policy_branches_both_new_towers() -> void:
-	for policy in TierBot.POLICIES:
+	for policy in TierBot.POLICIES + ["volley_stone"]:
 		var bot := await _bot_world(policy)
 		for id in GameState.buildings:
 			if not id in MapLayout.TIER_SPOTS[4]:
@@ -240,12 +240,7 @@ func test_a_tier_4_mix_holds_exactly_one_group_of_the_planner_per_lane_type() ->
 		for lane in BranchBench.LANES:
 			var m := BranchBench.mix(lane, p, -1, false, 4)
 			assert_eq(m.size(), plan.size())
-		var total := [0, 0, 0]
 		for w in plan.size():
-			for g in ["main", "side", "side2"]:
-				total[0] += int(plan[w][g + "_count"])
-				total[1] += int(plan[w]["fast_" + g])
-				total[2] += int(plan[w]["brute_" + g])
 			var sum := [0, 0, 0]
 			for lane in BranchBench.LANES:
 				var mw: Dictionary = BranchBench.mix(lane, p, -1, false, 4)[w]
@@ -259,7 +254,59 @@ func test_a_tier_4_mix_holds_exactly_one_group_of_the_planner_per_lane_type() ->
 				wave_total[2] += int(plan[w]["brute_" + g])
 			assert_eq(sum, wave_total, "p%d wave %d: the three lane types hold the whole wave" % [p, w + 1])
 
+## Pinned literals [boars, hares, brutes] per wave at pressure 12, taken from the tier-3 mix before this task's change (the tier <= 3 body of BranchBench.mix is
+## byte-identical to commit 959fbce's). Siege lane: hares 1, 2, 2, one brute per wave; hare lane: 5, 8, 8 hares; neutral: 1, 2, 2 hares.
 func test_the_tier_3_mix_is_unchanged_by_the_tier_argument() -> void:
+	var want := {
+		&"siege": [[6, 1, 1], [10, 2, 1], [10, 2, 1]],
+		&"hare": [[6, 5, 0], [10, 8, 0], [10, 8, 0]],
+		&"neutral": [[6, 1, 0], [10, 2, 0], [10, 2, 0]],
+	}
 	for lane in BranchBench.LANES:
 		assert_eq(BranchBench.mix(lane, 12), BranchBench.mix(lane, 12, -1, false, 3))
-	assert_eq(BranchBench.mix(&"siege", 12)[2].brutes, 1)
+		var got: Array = []
+		for m in BranchBench.mix(lane, 12):
+			got.append([m.boars, m.hares, m.brutes])
+		assert_eq(got, want[lane], "%s: [boars, hares, brutes] per wave at p12" % lane)
+
+## Hand-computed (pressure 15, run seed 1, lane character siege east / hare west; the planner's totals do not depend on the seed, so they are the pinned wave above's):
+##  wave 3 totals 8 x 5.9 = 47.2 -> 47 -> 30; side share 0.45: side 14, main 16; the side group splits 7 + 7; hares 0.35: main round(5.6) = 6, side round(4.9) = 5, H = 11, T = round(0.7 x 11) = 8.
+##  Step b: the hare lane takes min(8, 7) = 7 hares, the other 4 fill main: main 16 with 4 hares, side 7 with 7, side2 7 with 0. The seed only picks the lanes: main sw, side west, side2 east.
+##  Under this seed's character the hare lane is west (side), the siege lane is east (side2, which carries the brute), sw (main) is the neutral lane.
+func test_tier_4_wave_3_for_seed_1_is_pinned() -> void:
+	assert_eq(LaneCharacter.for_run(1), {"siege": "east", "hare": "west"})
+	var w: Dictionary = BranchBench.tier4_plan(15, 1)[2]
+	assert_eq([w.main, w.side, w.side2], ["sw", "west", "east"], "the lanes of wave 3")
+	assert_eq([w.main_count, w.side_count, w.side2_count], [16, 7, 7])
+	assert_eq([w.fast_main, w.fast_side, w.fast_side2], [4, 7, 0])
+	assert_eq([w.brute_main, w.brute_side, w.brute_side2], [0, 0, 1])
+	var want := {&"neutral": [12, 4, 0], &"hare": [0, 7, 0], &"siege": [7, 0, 1]}
+	for lane in want:
+		var m: Dictionary = BranchBench.mix(lane, 15, -1, false, 4, 1)[2]
+		assert_eq([m.boars, m.hares, m.brutes], want[lane], "%s wave 3 (seed 1)" % lane)
+
+func _run_dict(diner: float, hares: int, stands: float, timed_out := false) -> Dictionary:
+	return {"diner_lost": diner, "fence_hp_left": 0.0, "hares_in_zone": hares, "clear_s": 10.0, "ticks": 600, "kills": 5, "timed_out": timed_out,
+			"fence_absorbed": 0.0, "fence_stands_s": stands}
+
+## sum_runs (D-314.26, D-314.28): sums, the mean stand time, the INF count and the timeout flag.
+func test_sum_runs_sums_and_means_and_counts_inf_and_timeouts() -> void:
+	var s := BranchBench.sum_runs([_run_dict(10.0, 2, 20.0), _run_dict(5.5, 3, 30.0), _run_dict(1.5, 0, 40.0), _run_dict(3.0, 1, 10.0)])
+	assert_almost_eq(float(s.diner_lost), 20.0, 1e-9, "10 + 5.5 + 1.5 + 3")
+	assert_eq(int(s.hares_in_zone), 6, "2 + 3 + 0 + 1")
+	assert_almost_eq(float(s.fence_stands_s), 25.0, 1e-9, "mean of 20, 30, 40, 10")
+	assert_eq(s.stands_inf, 0)
+	assert_false(s.timed_out)
+	assert_eq(int(s.ticks), 2400)
+	var t := BranchBench.sum_runs([_run_dict(1.0, 1, 20.0), _run_dict(1.0, 1, INF), _run_dict(1.0, 1, INF, true)])
+	assert_eq(t.stands_inf, 2, "two runs whose fence never fell")
+	assert_true(is_inf(float(t.fence_stands_s)), "the mean of an INF is INF")
+	assert_true(t.timed_out, "any run timed out")
+
+## D-314.28: the stand time is read by the Stone ON rule and the Spike OFF rule on the siege lane only.
+func test_the_stand_time_configs_are_the_siege_lanes_unbranched_stone_and_spike() -> void:
+	var c := BranchBench.stand_time_configs()
+	assert_eq(c.keys(), [&"siege"])
+	var names: Array = c[&"siege"].duplicate()
+	names.sort()
+	assert_eq(names, ["-/-", "-/spike", "-/stone"])
