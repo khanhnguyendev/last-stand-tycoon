@@ -3609,3 +3609,15 @@ is no longer reachable. The tests already pin this (D-308.3).
     north 3, east 3, south-west 1. This replaces D-314.23's first fallback. Costs: it conflicts with D-314.5 ("every
     lane two towers"): the south-west lane stays the thinnest; at tier 4 the east yard's kerb loses the pieces beside
     `tower_e2` (a visible change for the author).
+25. The tier-4 reveal's banner reads "The back lot opens!" (tier 4 grows no storey). Cost: one new string.
+26. The tier-4 bench judges every rule on each measure summed over four planner seeds taken in order (1 to 4;
+    the fence's stand time is the mean), not on one seed's mix: the rules failed or passed by seed (seed 71 failed
+    OFF Volley and OFF Spike; seeds 2 and 5 passed both), and choosing a passing seed would pick the input to fit
+    the answer. Cost: the bench file runs about 178 s (warning above 150 s, failure above 400 s).
+27. OFF Spike at the tier-4 cap stays red: on the four-seed sums the Spike fence stands 25.46 s against unbranched
+    25.55 s (it must be 10% shorter); Spike's brute multiplier is at its widened maximum 4.0. Not tuned further, not
+    dropped: escalated to the author at checkpoint B. Cost: the bench job is red on `e8/p2-tier4` until then.
+28. A seed whose fence never falls (INF) fails the tier-4 sum check loudly instead of deciding the mean alone.
+    Cost: none today (no INF occurs).
+29. The tier-4 reveal frames towers at a 3.0 m top (`TierReveal.TOWER_TOP_M`), as tier 3 does, though built towers
+    are up to 3.7 m. Cost: a tall branch tower's top may sit near the frame edge; the reveal shows level-0 markers.
