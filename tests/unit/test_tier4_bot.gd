@@ -211,29 +211,30 @@ func test_in_the_world_every_policy_branches_both_new_towers() -> void:
 
 # --- the bench's tier-4 mix ------------------------------------------------------------------------------------------------------
 
-## Hand-computed (pressure 15, the cap; run seed 71, lane character siege sw / hare north, tier day 20, day 23):
-##  raw wave totals 4 x 5.9 = 23.6 -> 24, 6 x 5.9 = 35.4 -> 35 -> 30, 8 x 5.9 = 47.2 -> 47 -> 30; hp_mult 3.1 x (1, 35/30, 47/30) = 3.1, 3.61667, 4.85667.
-##  side share min(0.2 + 0.05 x 13, 0.45) = 0.45: side 11 / 14 / 14, main 13 / 16 / 16; the side group splits (odd unit to side): 6+5 / 7+7 / 7+7.
+## Hand-computed (pressure 14, the cap since E8 phase-2 round 2; run seed 71, lane character siege sw / hare north, tier day 20, day 23):
+##  raw wave totals 4 x 5.55 = 22.2 -> 22, 6 x 5.55 = 33.3 -> 33 -> 30, 8 x 5.55 = 44.4 -> 44 -> 30; hp_mult 2.95 x (1, 33/30, 44/30) = 2.95, 3.245, 4.32667.
+##  side share min(0.2 + 0.05 x 12, 0.45) = 0.45: side 10 / 14 / 14, main 12 / 16 / 16; the side group splits (odd unit to side): 5+5 / 7+7 / 7+7.
+##  wave 1 (siege lane main 12): hares round(4.2) = 4 main, round(3.5) = 4 side, H = 8, T = round(5.6) = 6; the hare lane (north, 5) takes 5, the other 3 stay in main: 9 boars + 3 hares + 1 brute.
 ##  hares at 0.35: wave 3 main round(5.6) = 6, side round(4.9) = 5 -> side 3, side2 2; H = 11, T = round(0.7 x 11) = 8.
 ##  the planner's wave 3: main sw (siege) 16, side north (hare) 7, side2 east (neutral) 7. Step b: the hare lane (side) takes min(8, 7) = 7 hares, the other 4 fill main (4 of 16).
 ##  So wave 3: siege = 12 boars + 4 hares + 1 brute (the main lane's brute), hare = 0 boars + 7 hares, neutral = 7 boars + 0 hares.
 func test_the_tier_4_mix_at_the_cap_is_the_real_planners_split_for_one_pinned_wave() -> void:
-	var plan := BranchBench.tier4_plan(15)
+	var plan := BranchBench.tier4_plan(14)
 	assert_eq(LaneCharacter.for_run(BranchBench.SEED), {"siege": "sw", "hare": "north"})
 	var w: Dictionary = plan[2]
 	assert_eq([w.main, w.side, w.side2], ["sw", "north", "east"], "the lanes of wave 3")
 	assert_eq([w.main_count, w.side_count, w.side2_count], [16, 7, 7])
 	assert_eq([w.fast_main, w.fast_side, w.fast_side2], [4, 7, 0], "step b: 7 hares on the hare lane, the other 4 on main")
 	assert_eq([w.brute_main, w.brute_side, w.brute_side2], [1, 0, 0])
-	assert_almost_eq(float(w.hp_mult), 3.1 * 47.0 / 30.0, 1e-9)
+	assert_almost_eq(float(w.hp_mult), 2.95 * 44.0 / 30.0, 1e-9)
 	var want := {&"siege": [12, 4, 1], &"hare": [0, 7, 0], &"neutral": [7, 0, 0]}
 	for lane in want:
-		var m: Dictionary = BranchBench.mix(lane, 15, -1, false, 4)[2]
+		var m: Dictionary = BranchBench.mix(lane, 14, -1, false, 4)[2]
 		assert_eq([m.boars, m.hares, m.brutes], want[lane], "%s wave 3: boars, hares, brutes" % lane)
-		assert_almost_eq(float(m.hp_mult), 4.8566667, 1e-6, "%s wave 3 hp_mult" % lane)
-	var first: Dictionary = BranchBench.mix(&"siege", 15, -1, false, 4)[0]
-	assert_eq([first.boars, first.hares, first.brutes], [10, 3, 1], "wave 1: main 13 with 3 hares")
-	assert_almost_eq(float(first.hp_mult), 3.1, 1e-9)
+		assert_almost_eq(float(m.hp_mult), 4.3266667, 1e-6, "%s wave 3 hp_mult" % lane)
+	var first: Dictionary = BranchBench.mix(&"siege", 14, -1, false, 4)[0]
+	assert_eq([first.boars, first.hares, first.brutes], [9, 3, 1], "wave 1: main 12 with 3 hares")
+	assert_almost_eq(float(first.hp_mult), 2.95, 1e-9)
 
 func test_a_tier_4_mix_holds_exactly_one_group_of_the_planner_per_lane_type() -> void:
 	for p in [12, 13, 14, 15]:

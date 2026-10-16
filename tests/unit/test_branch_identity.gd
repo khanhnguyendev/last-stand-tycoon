@@ -407,7 +407,7 @@ func test_tier_3_arrays_are_live_and_the_top_tier_is_4() -> void:
 	assert_eq([tb.brute_cap_main[2], tb.brute_cap_side[2]], [0, 0], "tier 2 carries no brutes")
 	for arr in [tb.tier_base, tb.tier_cap, tb.fast_share_start, tb.fast_share, tb.fast_ramp_days, tb.brute_cap_main, tb.brute_cap_side, tb.brute_ramp_days, tb.boss_kind]:
 		assert_eq((arr as Array).size(), 5, "every tier array is pinned at 5 entries (index 0 unused, tiers 1 to 4); tier_costs has four entries since phase 2 Task 9")
-	assert_eq([tb.tier_base[4], tb.tier_cap[4]], [12, 15], "spec 4.1: tier 4 starts at 12 and caps at 15")
+	assert_eq([tb.tier_base[4], tb.tier_cap[4]], [12, 14], "spec 4.1 as tuned (E8 phase-2 round 2): tier 4 starts at 12 and caps at 14")
 	assert_eq([tb.fast_share_start[4], tb.fast_share[4], tb.fast_ramp_days[4]], [0.35, 0.35, 1])
 	assert_eq([tb.brute_cap_main[4], tb.brute_cap_side[4], tb.brute_ramp_days[4]], [1, 0, 1])
 	assert_eq(tb.tier_costs.size(), 4, "the price of tier 4 shipped in Task 9")

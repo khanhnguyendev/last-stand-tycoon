@@ -11,7 +11,8 @@ extends Resource
 @export var tier_base: Array[int] = [0, 1, 8, 10, 12]
 ## Tier 3's cap is 12: its escalation is the brute ramp and the fourth lane, then the last two steps of pressure
 ## (real-play tuning: 15 needed retries on about half of all cap nights; 12 with no side-lane brutes had 0 in 40).
-@export var tier_cap: Array[int] = [0, 7, 10, 12, 15]
+## Tier 4's cap is 14 (E8 phase-2 tuning round 2; round 1 was 15: the Volley builds retried 3 tier-4 cap nights each).
+@export var tier_cap: Array[int] = [0, 7, 10, 12, 14]
 ## Share of each wave group that spawns as hares: on the tier's first night, at the cap, and the days between.
 @export var fast_share_start: Array[float] = [0.0, 0.0, 0.15, 0.35, 0.35]
 @export var fast_share: Array[float] = [0.0, 0.0, 0.35, 0.35, 0.35]

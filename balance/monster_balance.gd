@@ -70,7 +70,8 @@ static func _baron() -> MonsterStats:
 
 static func _wrecker() -> MonsterStats:
 	var s := MonsterStats.new()
-	s.hp = 1440.0
+	# E8 phase-2 tuning round 2: 1080 (-25%); round 1 was 1440 (the tier-3 boss night needed 3-4 branch-build retries).
+	s.hp = 1080.0
 	s.speed = 1.2
 	s.damage = 15.0
 	s.attack_interval = 1.0

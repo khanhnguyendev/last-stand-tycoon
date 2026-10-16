@@ -138,11 +138,11 @@ func _wave3(hare_group: String, fast: Array, counts: Array) -> Dictionary:
 		"hp_mult": 1.0, "fast_main": fast[0], "fast_side": fast[1], "fast_side2": fast[2], "boss": false,
 		"brute_main": 0, "brute_side": 0, "brute_side2": 0}
 
-## The worked example (B7): pressure 15, wave 3, groups 16/7/7, hares 6/3/2, so H = 11 and T = 8. With side as the hare lane
+## The worked example (B7): pressure 14 (the tier-4 cap since E8 phase-2 round 2; the groups and hares are the same as at 15), wave 3, groups 16/7/7, hares 6/3/2, so H = 11 and T = 8. With side as the hare lane
 ## it takes 7 and 4 stay in main.
 func test_step_b_worked_example() -> void:
 	var p := LanePlanner.plan(1, 40, wb, 4, 20, tb)
-	assert_eq(WaveMath.pressure(40, 4, 20, tb), 15)
+	assert_eq(WaveMath.pressure(40, 4, 20, tb), 14)
 	var real: Dictionary = p[2]  # the real planner's third wave (seed 1, day 40), before LaneCharacter.apply
 	assert_eq([real.main_count, real.side_count, real.side2_count, real.fast_main, real.fast_side, real.fast_side2], [16, 7, 7, 6, 3, 2], "the example's groups and hares are the planner's")
 	var base := _wave3("north", [6, 3, 2], [16, 7, 7])

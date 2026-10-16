@@ -128,8 +128,9 @@ func test_pool_sizes_from_balance() -> void:
 	# E5: the boss is one more spawn; steaks = the top tier's capped night (72 kills x 2, tier-2 cap 10) + the boss drop (100), x 1.2
 	# The switch (Task 21): the top tier was 3: 78 kills x 2 (tier-3 cap 12, the ruling) + 3 main-lane brutes x 8 + the Baron's 150 = 330, x 1.2 = 396 steaks; 5 towers, 42 projectiles.
 	# E8 Task 9: the top tier is 4: 84 kills x 2 (tier-4 cap 15) + 3 main-lane brutes x 8 + 150 = 342, x 1.2 = 411 steaks;
+	# E8 phase-2 tuning round 2: the tier-4 cap is 14: 82 kills x 2 + 24 + 150 = 338, x 1.2 = 405.6 -> 406 steaks (411 at cap 15).
 	# projectiles: the tier-4 tower list (7 towers) at the worst in-flight count: ceil((7 x 6 + 5) x 1.2) = 57.
-	assert_eq(World.pool_sizes(Balance.data), {"enemy": 41, "steak": 411, "projectile": 57, "fx": 32})
+	assert_eq(World.pool_sizes(Balance.data), {"enemy": 41, "steak": 406, "projectile": 57, "fx": 32})
 
 func test_guard_arm_damages_the_guard_and_stops_the_boar() -> void:
 	GameState.debug_grant_card(&"tank")
